@@ -1870,12 +1870,10 @@ longest([free|_] = L, []) -> L;
 longest([], [free|_] = L) -> L;
 longest([], []) -> [].
 
-trim_free([R|Rs0]) ->
-    case {trim_free(Rs0),R} of
-	{[],free} -> [];
-	{Rs,R} -> [R|Rs]
-    end;
-trim_free([]) -> [].
+
+%% Trim free registers from the end of the register table.
+trim_free(Regs) ->
+    lists:foldr(fun(free, []) -> []; (R, Rs) -> [R|Rs] end, [], Regs).
 
 %% adjust_stack(Bef, FirstBefore, LastFrom, Vdb) -> {[Ainstr],Aft}.
 %%  Do complete stack adjustment by compressing stack and adding
