@@ -26,11 +26,11 @@
 %%
 %% For nested things like matches the numbering continues locally and
 %% the VDB for that thing refers to the variable usage within that
-%% thing.  Variables which live through a such a thing are internally
+%% thing.  Variables which live through such a thing are internally
 %% given a very large last index.  Internally the indexes continue
 %% after the index of that thing.  This creates no problems as the
 %% internal variable info never escapes and externally we only see
-%% variable which are alive both before or after.
+%% variables which are alive both before or after.
 %%
 %% This means that variables never "escape" from a thing and the only
 %% way to get values from a thing is to "return" them, with 'break' or
