@@ -1555,6 +1555,16 @@ uguard_expr(#k_match{anno=A,vars=Vs,body=B0}, Rs, St0) ->
     {B1,Bu,St1} = umatch(B0, Br, St0),
     {#k_guard_match{anno=#k{us=Bu,ns=lit_list_vars(Rs),a=A},
 		    vars=Vs,body=B1,ret=Rs},Bu,St1};
+uguard_expr(#k_call{anno=A, op=Op, args=As} = Call, Rs, St) ->
+    %% Experimental support for user defined guards.
+    %% XXX op_vars/1 does not handle #k_local. Better handle it here instead
+    %% of messing with that since it's called elsewhere too.
+    Used = case Op of
+        #k_local{} -> lit_list_vars(As);
+        _ -> union(op_vars(Op), lit_list_vars(As))
+    end,
+    {Call#k_call{anno=#k{us=Used,ns=lit_list_vars(Rs),a=A},ret=Rs},
+        Used, St};
 uguard_expr(Lit, Rs, St) ->
     %% Transform literals to puts here.
     Used = lit_vars(Lit),

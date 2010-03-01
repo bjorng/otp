@@ -80,7 +80,17 @@ function(#k_fdef{func=F,arity=Ar,vars=Vs,body=Kb}) ->
 	put(guard_refc, 0),
 	{B1,_,Vdb1} = body(B0, 1, Vdb0),
 	erase(guard_refc),
-	{function,F,Ar,As,B1,Vdb1}
+	%% Experimental support for user defined guards: The top-level match
+	%% is wrapped in a block in case such a guard is encountered. This
+	%% will ensure proper allocation instructions later on.
+	B2 = case erase(have_user_guard) of
+		 true ->
+		     [M] = B1,
+		     [wrap_match(M)];
+		 undefined ->
+		     B1
+	     end,
+	{function,F,Ar,As,B2,Vdb1}
     catch
 	Class:Error ->
 	    Stack = erlang:get_stacktrace(),
@@ -166,7 +176,23 @@ guard_expr(#k_guard_match{anno=A,body=Kb,ret=Rs}, I, Vdb) ->
     Mdb = vdb_sub(I, I+1, Vdb),
     M = match(Kb, A#k.us, I+1, [], Mdb),
     #l{ke={guard_match,M,var_list(Rs)},i=I,vdb=use_vars(A#k.us, I+1, Mdb),a=A#k.a};
+guard_expr(#k_call{anno=A, op=Op, args=As, ret=Rs}, I, _Vdb) ->
+    %% Experimental support for user defined guards [prevents endless loop].
+    %% Also keep track of the fact that such a guard exists.
+    %% TODO: Try to keep track without the process dictionary.
+    put(have_user_guard, true),
+    #l{ke={call, call_op(Op), atomic_list(As), var_list(Rs)}, i=I, a=A#k.a};
 guard_expr(G, I, Vdb) -> guard(G, I, Vdb).
+
+
+%% Wrap a match expression in a block, if it's not already in one.
+wrap_match(#l{ke = {match, #l{ke = {block,_}}, _Vars}} = Le) ->
+	Le;
+wrap_match(#l{ke = {match, _Other, Vars}} = Le) ->
+	Le#l{ke = {match, wrap_in_block(Le), Vars}}.
+
+wrap_in_block(#l{} = Le) ->
+	Le#l{ke = {block, [Le]}, a = []}.
 
 %% expr(Kexpr, I, Vdb) -> Expr.
 

@@ -894,7 +894,10 @@ call(Name, Live, #vst{current=St}=Vst) ->
     case return_type(Name, Vst) of
 	Type when Type =/= exception ->
 	    %% Type is never 'exception' because it has been handled earlier.
-	    Xs = gb_trees_from_list([{0,Type}]),
+	    %% XXX This breaks some cases of user defined guards.
+	    %% The "fix" however causes the 'no_exception_in_catch' test to fail.
+	    %Xs = gb_trees_from_list([{0,Type}]),
+	    Xs = gb_trees:enter(0,Type,St#st.x),
 	    Vst#vst{current=St#st{x=Xs,f=init_fregs(),bsm=undefined}}
     end.
 

@@ -343,6 +343,11 @@ format_error(spec_wrong_arity) ->
 format_error({imported_predefined_type, Name}) ->
     io_lib:format("referring to built-in type ~w as a remote type; "
 		  "please take out the module name", [Name]);
+%% --- User defined guards ---
+format_error({user_defined_guard, {F, A}}) ->
+    io_lib:format("user defined guard ~p/~B", [F, A]);
+format_error({user_defined_guard, {M, F, A}}) ->
+    io_lib:format("user defined guard ~p:~p/~B", [M, F, A]);
 %% --- obsolete? unused? ---
 format_error({format_error, {Fmt, Args}}) ->
     io_lib:format(Fmt, Args);
@@ -1814,21 +1819,19 @@ gexpr({call,Line,{atom,_La,F},As}, Vt, St0) ->
 		false -> {Asvt,add_error(Line, {explicit_export,F,A}, St1)}
 	    end;
         false ->
-	    case is_local_function(St1#lint.locals,{F,A}) orelse
-		is_imported_function(St1#lint.imports,{F,A}) of
-		true ->
-		    {Asvt,add_error(Line, {illegal_guard_local_call,{F,A}}, St1)};
-		_ ->
-		    {Asvt,add_error(Line, illegal_guard_expr, St1)}
-	    end
+	    {Asvt,add_user_guard({F,A}, Line, St1)}
     end;
 gexpr({call,Line,{remote,_Lr,{atom,_Lm,erlang},{atom,_Lf,F}},As}, Vt, St0) ->
     {Asvt,St1} = gexpr_list(As, Vt, St0),
     A = length(As),
     case erl_internal:guard_bif(F, A) orelse is_gexpr_op(F, A) of
         true -> {Asvt,St1};
-        false -> {Asvt,add_error(Line, illegal_guard_expr, St1)}
+        false ->{Asvt,add_user_guard({F,A}, Line, St1)}
     end;
+gexpr({call,Line,{remote,_Lr,{atom,_Lm,Module},{atom,_Lf,F}},As}, Vt, St0) ->
+    %% Support for user defined guards [remote function calls].
+    Fun = {Module,F,length(As)},
+    gexpr_list(As, Vt, add_user_guard(Fun, Line, St0));
 gexpr({call,L,{tuple,Lt,[{atom,Lm,erlang},{atom,Lf,F}]},As}, Vt, St) ->
     gexpr({call,L,{remote,Lt,{atom,Lm,erlang},{atom,Lf,F}},As}, Vt, St);
 gexpr({op,Line,Op,A}, Vt, St0) ->
@@ -1847,6 +1850,33 @@ gexpr({op,Line,Op,L,R}, Vt, St0) ->
 %% better error diagnostics.
 gexpr(E, _Vt, St) ->
     {[],add_error(element(2, E), illegal_guard_expr, St)}.
+%% TODO: Support for higher order functions ({call, _, {var, _, V}, [Args]}).
+
+
+%% Adds user defined guards either as warnings or errors, depending
+%% on the `pure_guards' compiler option. Returns the updated state.
+%%
+%% Warnings may be converted to errors later on from the compiler, if
+%% they are not verified as pure.
+add_user_guard(Fun, Line, #lint{compile=Opts}=St) ->
+    case lists:member(pure_guards, Opts) of
+        true ->
+            St1 = add_warning(Line, {user_defined_guard,Fun}, St),
+            case Fun of
+                {F, A} ->
+                    call_function(Line, F, A, St1);
+                {_,_,_} ->
+                    St1
+            end;
+        false ->
+	    case is_local_function(St#lint.locals, Fun) orelse
+		is_imported_function(St#lint.imports, Fun) of
+		true ->
+		    add_error(Line, {illegal_guard_local_call,Fun}, St);
+		_ ->
+		    add_error(Line, illegal_guard_expr, St)
+	    end
+    end.
 
 %% gexpr_list(Expressions, VarTable, State) ->
 %%      {UsedVarTable,State'}
@@ -3562,9 +3592,13 @@ expand_package(M, St0) ->
 local_functions(Forms) ->
     gb_sets:from_list([ {Func,Arity} || {function,_,Func,Arity,_} <- Forms ]).
 %% Predicate to find out if the function is locally defined
+is_local_function(_, {_,_,_}) ->
+    false;
 is_local_function(LocalSet,{Func,Arity}) ->
     gb_sets:is_element({Func,Arity},LocalSet).
 %% Predicate to see if a function is explicitly imported
+is_imported_function(_, {_,_,_}) ->
+    false;
 is_imported_function(ImportSet,{Func,Arity}) ->
     case orddict:find({Func,Arity}, ImportSet) of
         {ok,_Mod} -> true;

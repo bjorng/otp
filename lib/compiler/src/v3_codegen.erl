@@ -62,6 +62,8 @@
 						% {{Name,Arity},Label}
 	     in_catch=false,			%Inside a catch or not.
 	     need_frame,			%Need a stack frame.
+             gst={[],[]},                       %Label/Code stack for user guards.
+             gsp=[],                            %Persistent stack of gst pairs.
 	     ultimate_failure			%Label for ultimate match failure.
 	    }).			
 
@@ -69,6 +71,7 @@
 -record(sr, {reg=[],				%Register table
 	     stk=[],				%Stack table
 	     res=[]}).				%Reserved regs: [{reserved,I,V}]
+
 
 module({Mod,Exp,Attr,Forms}, Options) ->
     put(?MODULE, Options),
@@ -240,8 +243,8 @@ match_cg(M, Rs, Le, Vdb, Bef, St0) ->
     %% Put return values in registers.
     Reg = load_vars(Rs, Int1#sr.reg),
     {Sis ++ Mis ++ [{label,B}],
-     clear_dead(Int1#sr{reg=Reg}, I, Vdb),
-     St2#cg{break=St1#cg.break}}.
+	    clear_dead(Int1#sr{reg=Reg},I,Vdb),
+	    St2#cg{break=St1#cg.break}}.
 
 guard_match_cg(M, Rs, Le, Vdb, Bef, St0) ->
     I = Le#l.i,
@@ -259,7 +262,20 @@ guard_match_regs([{I,gbreakvar}|Rs], [{var,V}|Vs]) ->
 guard_match_regs([R|Rs], Vs) ->
     [R|guard_match_regs(Rs, Vs)];
 guard_match_regs([], []) -> [].
-    
+
+clear_stack_regs(#sr{reg=Reg, stk=Stk}=Sr) ->
+    %% Replace with `free' instead of removing completely,
+    %% seems more correct, I doubt it's necessary though.
+    Sr#sr{reg=[map_reg(R, Stk) || R <- Reg]}.
+
+map_reg({_, V}=Reg, Stk) ->
+    case on_stack(V, Stk) of
+        true -> free;
+        false -> Reg
+    end;
+map_reg(Other, _Stk) ->
+    Other.
+
 
 %% match_cg(Match, Fail, StackReg, State) -> {[Ainstr],StackReg,State}.
 %%  Generate code for a match tree.  N.B. there is no need pass Vdb
@@ -272,7 +288,11 @@ match_cg(Le, Fail, Bef, St) ->
 match_cg({alt,F,S}, _Le, Fail, Bef, St0) ->
     {Tf,St1} = new_label(St0),
     {Fis,Faft,St2} = match_cg(F, Tf, Bef, St1),
-    {Sis,Saft,St3} = match_cg(S, Fail, Bef, St2),
+    Bef1 =
+      case gs_have_call(St2) of
+          true -> clear_stack_regs(Bef);
+          false -> Bef end,
+    {Sis,Saft,St3} = match_cg(S, Fail, Bef1, St2),
     Aft = sr_merge(Faft, Saft),
     {Fis ++ [{label,Tf}] ++ Sis,Aft,St3};
 match_cg({select,{var,Vname}=V,Scs0}, #l{a=Anno}, Fail, Bef, St) ->
@@ -286,8 +306,7 @@ match_cg({select,{var,Vname}=V,Scs0}, #l{a=Anno}, Fail, Bef, St) ->
 		      select_cg(S, V, F, Fail, Bef, Sta) end,
 	      Fail, St, Scs);
 match_cg({guard,Gcs}, _Le, Fail, Bef, St) ->
-    match_fmf(fun (G, F, Sta) -> guard_clause_cg(G, F, Bef, Sta) end,
-	      Fail, St, Gcs);
+    fold_guard_clause(Gcs, Fail, Bef, St);
 match_cg({block,Es}, Le, _Fail, Bef, St) ->
     %% Must clear registers and stack of dead variables.
     Int = clear_dead(Bef, Le#l.i, Le#l.vdb),
@@ -949,10 +968,6 @@ select_extract_cons(Src, [{var,Hd}, {var,Tl}], I, Vdb, Bef, St) ->
     {Es,Aft,St}.
     
 
-guard_clause_cg(#l{ke={guard_clause,G,B},vdb=Vdb}, Fail, Bef, St0) ->
-    {Gis,Int,St1} = guard_cg(G, Fail, Vdb, Bef, St0),
-    {Bis,Aft,St} = match_cg(B, Fail, Int, St1),
-    {Gis ++ Bis,Aft,St}.
 
 %% guard_cg(Guard, Fail, Vdb, StackReg, State) ->
 %%      {[Ainstr],StackReg,State}.
@@ -963,14 +978,23 @@ guard_clause_cg(#l{ke={guard_clause,G,B},vdb=Vdb}, Fail, Bef, St0) ->
 %%  instruction on success or jump to a failure label.
 
 guard_cg(#l{ke={protected,Ts,Rs},i=I,vdb=Pdb}, Fail, _Vdb, Bef, St) ->
-    protected_cg(Ts, Rs, Fail, I, Pdb, Bef, St);
+    protected_cg(Ts, Rs, Fail, I, Pdb, Bef, gs_save_current(St));
 guard_cg(#l{ke={block,Ts},i=I,vdb=Bdb}, Fail, _Vdb, Bef, St) ->
     guard_cg_list(Ts, Fail, I, Bdb, Bef, St);
 guard_cg(#l{ke={test,Test,As},i=I,vdb=_Tdb}, Fail, Vdb, Bef, St) ->
     test_cg(Test, As, Fail, I, Vdb, Bef, St);
-guard_cg(G, _Fail, Vdb, Bef, St) ->
+guard_cg(#l{ke={call,_C,_,_},i=_I,vdb=_Cdb}=G, Fail, Vdb, Bef, St0) ->
+    %% User defined guard: create new fail label and keep track of
+    %% the previous one so that appropriate restoration instructions
+    %% can be created higher-up.
+    {Gis,Aft,St1} = cg(G, Vdb, Bef, St0),
+    {NewFail, St2} = new_label(St1),
+    {Gis,Aft,gs_add_label({NewFail,Fail}, St2)};
+guard_cg(G, Fail, Vdb, Bef, St) ->
     %%ok = io:fwrite("cg ~w: ~p~n", [?LINE,{G,Fail,Vdb,Bef}]),
-    {Gis,Aft,St1} = cg(G, Vdb, Bef, St),
+    %% Adjust the fail label for bifs, since it may have changed
+    %% from within wrap_guard_cg.
+    {Gis,Aft,St1} = cg(G, Vdb, Bef, St#cg{bfail=Fail}),
     %%ok = io:fwrite("cg ~w: ~p~n", [?LINE,{Aft}]),
     {Gis,Aft,St1}.
 
@@ -982,21 +1006,27 @@ guard_cg(G, _Fail, Vdb, Bef, St) ->
 %%  control always passes to the next instruction.
 
 protected_cg(Ts, [], Fail, I, Vdb, Bef, St0) ->
+    true = gs_is_empty(St0),
+    %% Unlike protected with return values, it's not correct
+    %% to flush here, since the correct code follows. We should
+    %% flush at the guard clause.
     %% Protect these calls, revert when done.
     {Tis,Aft,St1} = guard_cg_list(Ts, Fail, I, Vdb, Bef,
 				  St0#cg{bfail=Fail}),
     {Tis,Aft,St1#cg{bfail=St0#cg.bfail}};
 protected_cg(Ts, Rs, _Fail, I, Vdb, Bef, St0) ->
+    true = gs_is_empty(St0),
     {Pfail,St1} = new_label(St0),
     {Psucc,St2} = new_label(St1),
     {Tis,Aft,St3} = guard_cg_list(Ts, Pfail, I, Vdb, Bef,
-				  St2#cg{bfail=Pfail}),
+                                St2#cg{bfail=Pfail}),
     %%ok = io:fwrite("cg ~w: ~p~n", [?LINE,{Rs,I,Vdb,Aft}]),
     %% Set return values to false.
     Mis = map(fun ({var,V}) -> {move,{atom,false},fetch_var(V, Aft)} end, Rs),
-    {Tis ++ [{jump,{f,Psucc}},
+    {Ris,St4} = gs_flush(St3),
+    {Tis ++ [{jump,{f,Psucc}}]++Ris++[
 	     {label,Pfail}] ++ Mis ++ [{label,Psucc}],
-     Aft,St3#cg{bfail=St0#cg.bfail}}.    
+     Aft,St4#cg{bfail=St0#cg.bfail}}.
 
 %% test_cg(TestName, Args, Fail, I, Vdb, Bef, St) -> {[Ainstr],Aft,St}.
 %%  Generate test instruction.  Use explicit fail label here.
@@ -1008,15 +1038,132 @@ test_cg(Test, As, Fail, I, Vdb, Bef, St) ->
 
 %% guard_cg_list([Kexpr], Fail, I, Vdb, StackReg, St) ->
 %%      {[Ainstr],StackReg,St}.
-
 guard_cg_list(Kes, Fail, I, Vdb, Bef, St0) ->
-    {Keis,{Aft,St1}} =
-	flatmapfoldl(fun (Ke, {Inta,Sta}) ->
-			     {Keis,Intb,Stb} =
-				 guard_cg(Ke, Fail, Vdb, Inta, Sta),
-			     {Keis,{Intb,Stb}}
-		     end, {Bef,St0}, need_heap(Kes, I)),
+    {Keis,{_F,_V,Aft,St1}} =
+      flatmapfoldl(fun wrap_guard_cg/2, {Fail,Vdb,Bef,St0}, need_heap(Kes, I)),
     {Keis,Aft,St1}.
+
+wrap_guard_cg(#l{i=I}=Ke, {Fail, Vdb, Bef, St0}) ->
+    %% Save any restoration points collected so far in order to check
+    %% this guard for arbitrary calls.
+    {Keis,Int,St1} = guard_cg(Ke, Fail, Vdb, Bef, gs_save_current(St0)),
+    {NewFail,St2} =
+      case gs_have_call(St1) of
+          true ->
+              %% Fetch the most recent label and generate restoration
+              %% instruction for it.
+              {Nf,_Of} = gs_get_label(St1),
+              {Nf,gs_add_code(restore_regs(Bef, Int, I, Vdb), St1)};
+          false -> {Fail, St1} end,
+    {Keis,{NewFail,Vdb,Int,St2}}.
+
+
+fold_guard_clause([_|_]=Guards, LastFail, Bef, St0) ->
+    %% In order for nested guards to work, traverse the clauses with
+    %% a fresh state, and add the old one back after we are finished.
+    GuardState = gs_get_state(St0),
+    {{[],Bis},Aft,St1}=fold_guard_clause1(Guards, LastFail, Bef, gs_new_state(St0)),
+    %% Fetch any restoration instructions for the last guard in the
+    %% guard_clause list.
+    {Ris,St2} = gs_flush(St1),
+    {Bis++Ris,Aft,gs_set_state(GuardState, St2)}.
+
+%% This is a variation of match_fmf which takes care of inserting
+%% the guard restoration instructions at the right places.
+fold_guard_clause1([Guard], LastFail, Bef, St0) ->
+    wrap_guard_clause(Guard, LastFail, Bef, St0);
+fold_guard_clause1([G|Gs], LastFail, Bef, St0) ->
+    {Fail, St1} = new_label(St0),
+    {{R1,R2},Aft1,St2} = wrap_guard_clause(G, Fail, Bef, St1),
+    {{Rp,Rs},Aft2,St3} = fold_guard_clause1(Gs, LastFail, Bef, St2),
+    Is = {R1, R2 ++ Rp ++ [{label,Fail}|Rs]},
+    Sr = sr_merge(Aft1, Aft2),
+    {Is, Sr, St3}.
+
+%% Operate on elements of a guard_clause list and generate
+%% restoration instructions for the _previous_ guard_clause if
+%% necessary.
+wrap_guard_clause(#l{ke={guard_clause,G,B},vdb=Vdb},
+                  FailLabel, Bef0, St0) ->
+    {Ris,StR} = gs_flush(St0),
+    %% Clear registers so that appropriate move instructions are
+    %% generated before the guard.
+    Bef1 = case Ris of [] -> Bef0; _ -> clear_stack_regs(Bef0) end,
+    {Gis,Int,St1} = guard_cg(G, FailLabel, Vdb, Bef1, StR),
+    {Bis,Aft,St2} = match_cg(B, FailLabel, Int, St1),
+    %% We cannot prepend the restoration instructions yet, because the
+    %% guard's label is missing, so return them separately and let the
+    %% caller place them correctly.
+    {{Ris,Gis++Bis},Aft,St2}.
+
+
+
+%%% Guard state helpers. %%%
+
+gs_is_empty(#cg{gst={[],[]},gsp=[]}) -> true;
+gs_is_empty(#cg{}) -> false.
+
+%% Flush current guard instructions if there any.
+gs_flush(St) ->
+    case gs_get_saved(gs_save_current(St)) of
+        [] -> {[], St};
+        Cs -> {make_rest(Cs), gs_new_state(St)}
+    end.
+
+gs_get_saved(#cg{gsp=P}) -> P.
+
+%% Push current guard state to the stack of saved states.
+gs_save_current(#cg{gst={[],[]}}=St) -> St;
+gs_save_current(#cg{gst=G,gsp=P}=St) -> St#cg{gst={[],[]},gsp=[G|P]}.
+
+gs_new_state(#cg{}=St) -> St#cg{gst={[],[]},gsp=[]}.
+
+gs_get_state(#cg{gst=Gst,gsp=Per}) -> {Gst,Per}.
+
+gs_set_state({Gst,Per}, St) -> St#cg{gst=Gst,gsp=Per}.
+
+gs_have_call(#cg{gst={[],_}}) -> false;
+gs_have_call(#cg{}) -> true.
+
+gs_add_label(Label, #cg{gst={Stk,Ls}}=St) ->
+    St#cg{gst={[Label|Stk],Ls}}.
+
+gs_add_code(Code, #cg{gst={S,Ls}}=St) ->
+    St#cg{gst={S,[Code|Ls]}}.
+
+%% Get most recent label.
+gs_get_label(#cg{gst={[H|_],_}}) -> H.
+
+
+%%% Restoration helpers %%%
+
+%% Generate guard call restoration code.
+make_rest(Ls) ->
+    lists:flatmap(fun make_rest1/1, Ls).
+
+make_rest1({Labels,Instructions}) ->
+    lists:flatmap(
+        fun({{Nf,Of},Is}) -> [{label,Nf}|Is]++[{jump,{f,Of}}] end,
+        lists:zip(Labels, Instructions)).
+
+%% Create the necessary moves to restore registers to a previous state.
+restore_regs(#sr{reg=R1}, #sr{reg=R2, stk=S2}, Life, Vdb) ->
+    %% No need to check for Fb, since the registers will be in the
+    %% previous state.
+    Vars = [ V || {V,_F,L} <- Vdb,
+        L >= Life,
+        in_reg(V, R1),
+        on_stack(V, S2), %% Ignore anything not on the current stack, like result variables.
+        not in_reg(V, R2)],
+    %% It's possible a var is in_reg but in different position, in
+    %% which case reg-to-reg moves would also be necessary. Unlikely
+    %% in our scenario though. XXX
+    Moves = [{move,fetch_stack(V,S2),fetch_reg(V,R1)} || V <- Vars],
+    %% Make sure we don't overwrite anything in R2.
+    NewR2 = R2 ++ [fetch_reg(V,R1) || V <-Vars],
+    true = lists:usort(NewR2) =:= lists:sort(NewR2),
+    Moves.
+
 
 %% match_fmf(Fun, LastFail, State, [Clause]) -> {Is,Aft,State}.
 %%  This is a special flatmapfoldl for match code gen where we
@@ -1064,7 +1211,8 @@ call_cg({remote,Mod,Name}, As, Rs, Le, Vdb, Bef, St0)
     {Sis ++ Frees ++ [Call],Aft,St};
 call_cg(Func, As, Rs, Le, Vdb, Bef, St0) ->
     case St0 of
-	#cg{bfail=Fail} when Fail =/= 0 ->
+        #cg{bfail=Fail} when Fail =/= 0,
+                             {remote,{atom,erlang},{atom,error}} =:= Func ->
 	    %% Inside a guard. The only allowed function call is to
 	    %% erlang:error/1,2. We will generate the following code:
 	    %%

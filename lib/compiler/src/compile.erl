@@ -566,7 +566,9 @@ standard_passes() ->
      %% Conversion to Core Erlang.
      ?pass(core_module),
      {iff,'dcore',{listing,"core"}},
-     {iff,'to_core0',{done,"core"}}
+     {iff,'to_core0',{done,"core"}},
+     %% Pureness analysis for user defined guards:
+     {iff,'pure_guards',?pass(core_purity)}
      | core_passes()].
 
 core_passes() ->
@@ -649,6 +651,59 @@ binary_passes() ->
 %%%
 %%% Compiler passes.
 %%%
+
+%% Analyses the module for side effects and reports impure guards.
+-spec core_purity(#compile{}) -> {ok, #compile{}} | {error, #compile{}}.
+core_purity(#compile{code = Core, options = Opts} = St) ->
+    case proplists:get_value(all_pure, Opts) of
+        true -> %% Skip actual analysis to test the patch.
+            {ok, St};
+        _ ->
+            %% This will silenty ignore analysis errors atm.
+            find_impure_guards(purity:module(Core, Opts), St)
+    end.
+
+%% Converts warnings of user defined guards to errors, depending
+%% on their purity.
+-spec find_impure_guards(dict(), #compile{}) -> {ok, #compile{}} | {error, #compile{}}.
+find_impure_guards(Table, #compile{} = St) ->
+    F = fun({File, {Line, erl_lint, {user_defined_guard, Name}}} = W, {Es, Ws}) ->
+            case purity:is_pure(get_mfa(Name, St), Table) of
+                true ->
+                    {Es, [W|Ws]};
+                _ ->
+                    E = {File, {Line, erl_lint, illegal_guard_expr}},
+                    {[E|Es], Ws}
+            end;
+           (W, {Es, Ws}) ->
+               {Es, [W|Ws]}
+    end,
+    case lists:foldl(F, {[], []}, unpack(St#compile.warnings)) of
+        {[], _Ws} ->
+            {ok, St};
+        {Es, Ws} ->
+            Errors = pack_errors(lists:reverse(Es)),
+            {error, St#compile{errors = St#compile.errors ++ Errors,
+                               warnings = pack_warnings(Ws)}}
+    end.
+
+unpack(Warnings) ->
+    [{File, W} || {File, Ws} <- Warnings, W <- Ws].
+
+%% Copied from erl_lint.
+pack_warnings(Ws) ->
+    [{File, lists:sort([W || {F, W} <- Ws, F =:= File])} ||
+        File <- lists:usort([F || {F, _} <- Ws])].
+
+pack_errors(Es) ->
+    [{File, [E || {F, E} <- Es, F =:= File]} ||
+        File <- lists:usort([F || {F, _} <- Es])].
+
+get_mfa({F, A}, #compile{module = M}) ->
+    {M, F, A};
+get_mfa({_,_,_} = MFA, _St) ->
+    MFA.
+
 
 %% Remove the target file so we don't have an old one if the compilation fail.
 remove_file(St) ->
