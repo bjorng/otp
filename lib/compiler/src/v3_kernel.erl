@@ -148,14 +148,15 @@ include_attribute(opaque) -> false;
 include_attribute(export_type) -> false;
 include_attribute(_) -> true.
 
-function({#c_var{name={F,Arity}=FA},Body}, St0) ->
+function({#c_var{name={F,Arity}=FA},#c_fun{anno=Anno}=Body}, St0) ->
     try
+	Rvals = proplists:get_value(return_values, Anno, 1),
 	St1 = St0#kern{func=FA,ff=undefined,vcount=0,fcount=0,ds=sets:new()},
 	{#ifun{anno=Ab,vars=Kvs,body=B0},[],St2} = expr(Body, new_sub(), St1),
 	{B1,_,St3} = ubody(B0, return, St2),
 	%%B1 = B0, St3 = St2,				%Null second pass
 	{#k_fdef{anno=#k{us=[],ns=[],a=Ab},
-		 func=F,arity=Arity,vars=Kvs,body=B1},St3}
+		 func=F,arity=Arity,vars=Kvs,body=B1,rvals=Rvals},St3}
     catch
 	Class:Error ->
 	    Stack = erlang:get_stacktrace(),
@@ -1486,7 +1487,7 @@ iletrec_funs_gen(Fs, FreeVs, St) ->
 		  Arity = Arity0 + length(FreeVs),
 		  Fun = #k_fdef{anno=#k{us=[],ns=[],a=Fa},
 				func=N,arity=Arity,
-				vars=Vs ++ FreeVs,body=Fb1},
+				vars=Vs ++ FreeVs,body=Fb1,rvals=1},
 		  Lst1#kern{funs=[Fun|Lst1#kern.funs]}
 	  end, St, Fs).
 
@@ -1671,7 +1672,7 @@ uexpr(#ifun{anno=A,vars=Vs,body=B0}, {break,Rs}, St0) ->
 		new_fun_name(St1)
 	end,
     Fun = #k_fdef{anno=#k{us=[],ns=[],a=A},func=Fname,arity=Arity,
-		  vars=Vs ++ Fvs,body=B1},
+		  vars=Vs ++ Fvs,body=B1,rvals=1},
     %% Set dummy values for Index and Uniq -- the real values will
     %% be assigned by beam_asm.
     Index = Uniq = 0,

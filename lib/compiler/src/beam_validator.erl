@@ -643,6 +643,10 @@ valfun_4({bif,element,{f,Fail},[Pos,Tuple],Dst}, Vst0) ->
     set_type_reg(term, Dst, Vst);
 valfun_4({raise,{f,_}=Fail,Src,Dst}, Vst) ->
     valfun_4({bif,raise,Fail,Src,Dst}, Vst);
+valfun_4({bif,raise,{f,Fail},Src,_Dst}, Vst0) ->
+    validate_src(Src, Vst0),
+    Vst = branch_state(Fail, Vst0),
+    kill_state(Vst);
 valfun_4({bif,Op,{f,Fail},Src,Dst}, Vst0) ->
     validate_src(Src, Vst0),
     Vst = branch_state(Fail, Vst0),

@@ -172,11 +172,11 @@ expand_opt(report, Os) ->
 expand_opt(return, Os) ->
     [return_errors,return_warnings|Os];
 expand_opt(r12, Os) ->
-    [no_recv_opt,no_line_info|Os];
+    [no_recv_opt,no_line_info,no_mret|Os];
 expand_opt(r13, Os) ->
-    [no_recv_opt,no_line_info|Os];
+    [no_recv_opt,no_line_info,no_mret|Os];
 expand_opt(r14, Os) ->
-    [no_line_info|Os];
+    [no_line_info,no_mret|Os];
 expand_opt({debug_info_key,_}=O, Os) ->
     [encrypt_debug_info,O|Os];
 expand_opt(no_float_opt, Os) ->
@@ -594,7 +594,9 @@ core_passes() ->
     %% Optimization and transforms of Core Erlang code.
     [{delay,
       [{unless,no_copt,
-       [{core_old_inliner,fun test_old_inliner/1,fun core_old_inliner/1},
+	[{unless,no_mret,{pass,sys_core_mret}},
+	{iff,dret,{listing,"ret"}},
+	{core_old_inliner,fun test_old_inliner/1,fun core_old_inliner/1},
 	{iff,doldinline,{listing,"oldinline"}},
 	?pass(core_fold_module),
 	{core_inline_module,fun test_core_inliner/1,fun core_inline_module/1},

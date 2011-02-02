@@ -51,7 +51,7 @@
 -record(k_internal, {anno=[],name,arity}).
 
 -record(k_mdef, {anno=[],name,exports,attributes,body}).
--record(k_fdef, {anno=[],func,arity,vars,body}).
+-record(k_fdef, {anno=[],func,arity,vars,body,rvals}).
 
 -record(k_seq, {anno=[],arg,body}).
 -record(k_put, {anno=[],arg,ret=[]}).
