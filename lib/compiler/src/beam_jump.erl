@@ -133,20 +133,20 @@ module({Mod,Exp,Attr,Fs0,Lc}, _Opt) ->
 module_labels({Mod,Exp,Attr,Fs,Lc}) ->
     {Mod,Exp,Attr,[function_labels(F) || F <- Fs],Lc}.
 
-function_labels({function,Name,Arity,CLabel,Asm0}) ->
+function_labels({function,Name,Arity,Rvals,CLabel,Asm0}) ->
     Asm = remove_unused_labels(Asm0),
-    {function,Name,Arity,CLabel,Asm}.    
+    {function,Name,Arity,Rvals,CLabel,Asm}.
 
 %% function(Function) -> Function'
 %%  Optimize jumps and branches.
 %%
 %%  NOTE: This function assumes that there are no labels inside blocks.
-function({function,Name,Arity,CLabel,Asm0}) ->
+function({function,Name,Arity,Rvals,CLabel,Asm0}) ->
     Asm1 = share(Asm0),
     Asm2 = move(Asm1),
     Asm3 = opt(Asm2, CLabel),
     Asm = remove_unused_labels(Asm3),
-    {function,Name,Arity,CLabel,Asm}.
+    {function,Name,Arity,Rvals,CLabel,Asm}.
 
 %%%
 %%% (1) We try to share the code for identical code segments by replacing all

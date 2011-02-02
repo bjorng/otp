@@ -42,9 +42,9 @@ on_load(Fs0, Attr0) ->
 	undefined ->
 	    {Fs0,Attr0};
 	[{Name,0}] ->
-	    Fs = map(fun({function,N,0,Entry,Is0}) when N =:= Name ->
+	    Fs = map(fun({function,N,0,Rvals,Entry,Is0}) when N =:= Name ->
 			     Is = insert_on_load_instruction(Is0, Entry),
-			     {function,N,0,Entry,Is};
+			     {function,N,0,Rvals,Entry,Is};
 			(F) ->
 			     F
 		     end, Fs0),
@@ -59,7 +59,7 @@ insert_on_load_instruction(Is0, Entry) ->
 		  end, Is0),
     Bef ++ [El,on_load|Is].
 
-assemble_1([{function,Name,Arity,Entry,Asm}|T], Exp, Dict0, Acc) ->
+assemble_1([{function,Name,Arity,_,Entry,Asm}|T], Exp, Dict0, Acc) ->
     Dict1 = case member({Name,Arity}, Exp) of
 		true ->
 		    beam_dict:export(Name, Arity, Entry, Dict0);

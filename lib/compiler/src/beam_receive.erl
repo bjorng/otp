@@ -73,10 +73,10 @@ module({Mod,Exp,Attr,Fs0,Lc}, _Opts) ->
 %%% Local functions.
 %%%
 
-function({function,Name,Arity,Entry,Is}) ->
+function({function,Name,Arity,Rvals,Entry,Is}) ->
     try
 	D = beam_utils:index_labels(Is),
-	{function,Name,Arity,Entry,opt(Is, D, [])}
+	{function,Name,Arity,Rvals,Entry,opt(Is, D, [])}
     catch
 	Class:Error ->
 	    Stack = erlang:get_stacktrace(),

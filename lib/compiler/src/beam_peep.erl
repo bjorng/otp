@@ -31,11 +31,11 @@ module({Mod,Exp,Attr,Fs0,_}, _Opts) ->
     Fs = [function(F) || F <- Fs1],
     {ok,{Mod,Exp,Attr,Fs,Lc}}.
 
-function({function,Name,Arity,CLabel,Is0}) ->
+function({function,Name,Arity,Rvals,CLabel,Is0}) ->
     try
 	Is1 = peep(Is0),
 	Is = beam_jump:remove_unused_labels(Is1),
-	{function,Name,Arity,CLabel,Is}
+	{function,Name,Arity,Rvals,CLabel,Is}
     catch
 	Class:Error ->
 	    Stack = erlang:get_stacktrace(),

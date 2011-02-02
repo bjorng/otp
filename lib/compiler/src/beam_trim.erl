@@ -31,11 +31,11 @@ module({Mod,Exp,Attr,Fs0,Lc}, _Opts) ->
     Fs = [function(F) || F <- Fs0],
     {ok,{Mod,Exp,Attr,Fs,Lc}}.
 
-function({function,Name,Arity,CLabel,Is0}) ->
+function({function,Name,Arity,Rvals,CLabel,Is0}) ->
     %%ok = io:fwrite("~w: ~p\n", [?LINE,{Name,Arity}]),
     St = #st{safe=safe_labels(Is0, []),lbl=beam_utils:index_labels(Is0)},
     Is = trim(Is0, St, []),
-    {function,Name,Arity,CLabel,Is}.
+    {function,Name,Arity,Rvals,CLabel,Is}.
 
 trim([{kill,_}|_]=Is0, St, Acc) ->
     {Kills0,Is1} = splitwith(fun({kill,_}) -> true;

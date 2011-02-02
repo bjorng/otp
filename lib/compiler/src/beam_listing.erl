@@ -43,9 +43,9 @@ module(Stream, {Mod,Exp,Attr,Code,NumLabels}) ->
     io:format(Stream, "\n{attributes, ~p}.\n", [Attr]),
     io:format(Stream, "\n{labels, ~p}.\n", [NumLabels]),
     foreach(
-      fun ({function,Name,Arity,Entry,Asm}) ->
-	      io:format(Stream, "\n\n{function, ~w, ~w, ~w}.\n",
-			[Name, Arity, Entry]),
+      fun ({function,Name,Arity,Rvals,Entry,Asm}) ->
+	      io:format(Stream, "\n\n{function, ~w, ~w, ~w, ~w}.\n",
+			[Name, Arity, Rvals, Entry]),
 	      foreach(fun(Op) -> print_op(Stream, Op) end, Asm) end,
       Code);
 module(Stream, {Mod,Exp,Inter}) ->

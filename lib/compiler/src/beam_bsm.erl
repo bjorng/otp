@@ -91,11 +91,11 @@ format_error({no_bin_opt,Reason}) ->
 %%% Local functions.
 %%% 
 
-function({function,Name,Arity,Entry,Is}, D0) ->
+function({function,Name,Arity,Rvals,Entry,Is}, D0) ->
     try
 	Index = beam_utils:index_labels(Is),
 	D = D0#btb{index=Index},
-	{function,Name,Arity,Entry,btb_opt_1(Is, D, [])}
+	{function,Name,Arity,Rvals,Entry,btb_opt_1(Is, D, [])}
     catch
 	Class:Error ->
 	    Stack = erlang:get_stacktrace(),
@@ -581,7 +581,7 @@ btb_context_regs_1(Regs, N, Tag, Acc) ->
 btb_index(Fs) ->
     btb_index_1(Fs, []).
 
-btb_index_1([{function,_,_,Entry,Is0}|Fs], Acc0) ->
+btb_index_1([{function,_,_,_,Entry,Is0}|Fs], Acc0) ->
     [{label,Entry}|Is] =
 	dropwhile(fun({label,L}) when L =:= Entry -> false;
 		     (_) -> true
@@ -634,7 +634,7 @@ collect_warnings(Fs) ->
     D = warning_index_functions(Fs),
     foldl(fun(F, A) -> collect_warnings_fun(F, D, A) end, [], Fs).
 
-collect_warnings_fun({function,_,_,_,Is}, D, A) ->
+collect_warnings_fun({function,_,_,_,_,Is}, D, A) ->
     collect_warnings_instr(Is, D, A).
 
 collect_warnings_instr([{'%',{bin_opt,Where}}|Is], D, Acc0) ->
@@ -671,7 +671,7 @@ get_file([_|T]) -> get_file(T);
 get_file([]) -> "no_file". % should not happen
 
 warning_index_functions(Fs) ->
-    D = [{Entry,{F,A}} || {function,F,A,Entry,_} <- Fs],
+    D = [{Entry,{F,A}} || {function,F,A,_,Entry,_} <- Fs],
     gb_trees:from_orddict(sort(D)).
 
 format_error_1({binary_used_in,{extfunc,M,F,A}}) ->

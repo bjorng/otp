@@ -29,9 +29,9 @@ module({Mod,Exp,Attr,Fs0,Lc}, _Opts) ->
 %% We must split the basic block when we encounter instructions with labels,
 %% such as catches and BIFs. All labels must be visible outside the blocks.
 
-split_blocks({function,Name,Arity,CLabel,Is0}) ->
+split_blocks({function,Name,Arity,Rvals,CLabel,Is0}) ->
     Is = split_blocks(Is0, []),
-    {function,Name,Arity,CLabel,Is}.
+    {function,Name,Arity,Rvals,CLabel,Is}.
 
 split_blocks([{block,Bl}|Is], Acc0) ->
     Acc = split_block(Bl, [], Acc0),

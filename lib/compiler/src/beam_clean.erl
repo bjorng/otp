@@ -26,9 +26,10 @@
 -import(lists, [map/2,foldl/3,reverse/1,filter/2]).
 
 module({Mod,Exp,Attr,Fs0,_}, Opts) ->
-    Order = [Lbl || {function,_,_,Lbl,_} <- Fs0],
-    All = foldl(fun({function,_,_,Lbl,_}=Func,D) -> dict:store(Lbl, Func, D) end,
-		dict:new(), Fs0),
+    Order = [Lbl || {function,_,_,_,Lbl,_} <- Fs0],
+    All = foldl(fun({function,_,_,_,Lbl,_}=Func,D) ->
+			dict:store(Lbl, Func, D)
+		end, dict:new(), Fs0),
     WorkList = rootset(Fs0, Exp, Attr),
     Used = find_all_used(WorkList, All, sets:from_list(WorkList)),
     Fs1 = remove_unused(Order, Used, All),
@@ -51,7 +52,7 @@ rootset(Fs, Root0, Attr) ->
 		[OnLoad] -> [OnLoad|Root0]
 	   end,
     Root = sofs:set(Root1, [function]),
-    Map0 = [{{Name,Arity},Lbl} || {function,Name,Arity,Lbl,_} <- Fs],
+    Map0 = [{{Name,Arity},Lbl} || {function,Name,Arity,_,Lbl,_} <- Fs],
     Map = sofs:relation(Map0, [{function,label}]),
     sofs:to_external(sofs:image(Map, Root)).
 
@@ -67,7 +68,7 @@ remove_unused([], _, _) -> [].
 %% Find all used functions.
 
 find_all_used([F|Fs0], All, Used0) ->
-    {function,_,_,_,Code} = dict:fetch(F, All),
+    {function,_,_,_,_,Code} = dict:fetch(F, All),
     {Fs,Used} = update_work_list(Code, {Fs0,Used0}),
     find_all_used(Fs, All, Used);
 find_all_used([], _All, Used) -> Used.
@@ -113,9 +114,10 @@ clean_labels(Fs0) ->
     Fs = function_replace(Fs1, Lmap, []),
     {Fs,Lc}.
 
-function_renumber([{function,Name,Arity,_Entry,Asm0}|Fs], St0, Acc) ->
+function_renumber([{function,Name,Arity,Rvals,_Entry,Asm0}|Fs], St0, Acc) ->
     {Asm,St} = renumber_labels(Asm0, [], St0),
-    function_renumber(Fs, St, [{function,Name,Arity,St#st.entry,Asm}|Acc]);
+    function_renumber(Fs, St, [{function,Name,Arity,Rvals,
+				St#st.entry,Asm}|Acc]);
 function_renumber([], St, Acc) -> {Acc,St}.
 
 renumber_labels([{bif,is_record,{f,_},
@@ -176,7 +178,7 @@ is_record_tuple({literal,Tuple}, Tag, Arity)
   when element(1, Tuple) =:= Tag, tuple_size(Tuple) =:= Arity -> yes;
 is_record_tuple(_, _, _) -> no.
 
-function_replace([{function,Name,Arity,Entry,Asm0}|Fs], Dict, Acc) ->
+function_replace([{function,Name,Arity,Rvals,Entry,Asm0}|Fs], Dict, Acc) ->
     Asm = try
 	      replace(Asm0, [], Dict)
 	  catch
@@ -185,7 +187,7 @@ function_replace([{function,Name,Arity,Entry,Asm0}|Fs], Dict, Acc) ->
 			    [Name,Arity,Lbl]),
 		  exit(Reason)
 	  end,
-    function_replace(Fs, Dict, [{function,Name,Arity,Entry,Asm}|Acc]);
+    function_replace(Fs, Dict, [{function,Name,Arity,Rvals,Entry,Asm}|Acc]);
 function_replace([], _, Acc) -> Acc.
 
 replace([{test,bs_match_string=Op,{f,Lbl},[Ctx,Bin0]}|Is], Acc, D) ->
@@ -300,9 +302,9 @@ redundant_values([], _, Acc) -> reverse(Acc).
 bs_fix(Fs) ->
     bs_fix(Fs, []).
 
-bs_fix([{function,Name,Arity,Entry,Asm0}|Fs], Acc) ->
+bs_fix([{function,Name,Arity,Rvals,Entry,Asm0}|Fs], Acc) ->
     Asm = bs_function(Asm0),
-    bs_fix(Fs, [{function,Name,Arity,Entry,Asm}|Acc]);
+    bs_fix(Fs, [{function,Name,Arity,Rvals,Entry,Asm}|Acc]);
 bs_fix([], Acc) -> reverse(Acc).
 
 bs_function(Is) ->
@@ -387,9 +389,9 @@ maybe_remove_lines(Fs, Opts) ->
 	true -> remove_lines(Fs)
     end.
 
-remove_lines([{function,N,A,Lbl,Is0}|T]) ->
+remove_lines([{function,N,A,Rvals,Lbl,Is0}|T]) ->
     Is = filter(fun({line,_}) -> false;
 		   (_)  -> true
 		end, Is0),
-    [{function,N,A,Lbl,Is}|remove_lines(T)];
+    [{function,N,A,Rvals,Lbl,Is}|remove_lines(T)];
 remove_lines([]) -> [].

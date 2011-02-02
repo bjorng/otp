@@ -136,7 +136,7 @@ module({Mod,Exp,Attr,Fs0,_}, _Opts) ->
     %%{Fs,Lc} = {Fs1,Lc1},
     {ok,{Mod,Exp,Attr,Fs,Lc}}.
 
-function({function,Name,Arity,CLabel,Is0}, Lc0) ->
+function({function,Name,Arity,Rvals,CLabel,Is0}, Lc0) ->
     try
 	Is1 = beam_jump:remove_unused_labels(Is0),
 
@@ -151,7 +151,7 @@ function({function,Name,Arity,CLabel,Is0}, Lc0) ->
 	{Is2,Lc} = forward(Is1, Lc0),
 	Is3 = backward(Is2, D),
 	Is = move_move_into_block(Is3, []),
-	{{function,Name,Arity,CLabel,Is},Lc}
+	{{function,Name,Arity,Rvals,CLabel,Is},Lc}
     catch
 	Class:Error ->
 	    Stack = erlang:get_stacktrace(),

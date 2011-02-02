@@ -29,7 +29,7 @@ module({Mod,Exp,Attr,Fs0,Lc0}, _Opt) ->
     {Fs,Lc} = mapfoldl(fun function/2, Lc0, Fs0),
     {ok,{Mod,Exp,Attr,Fs,Lc}}.
 
-function({function,Name,Arity,CLabel,Is0}, Lc0) ->
+function({function,Name,Arity,Rvals,CLabel,Is0}, Lc0) ->
     try
 	%% Extra labels may thwart optimizations.
 	Is1 = beam_jump:remove_unused_labels(Is0),
@@ -46,7 +46,7 @@ function({function,Name,Arity,CLabel,Is0}, Lc0) ->
 	{Is,Lc} = bsm_opt(Is7, Lc0),
 
 	%% Done.
-	{{function,Name,Arity,CLabel,Is},Lc}
+	{{function,Name,Arity,Rvals,CLabel,Is},Lc}
     catch
 	Class:Error ->
 	    Stack = erlang:get_stacktrace(),

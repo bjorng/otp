@@ -700,9 +700,9 @@ collect_asm([], R) ->
     case R#asm_module.cfun of
 	undefined ->
 	    R;
-	{A,B,C} ->
+	{A,B,C,D} ->
 	    R#asm_module{functions=R#asm_module.functions++
-			 [{function,A,B,C,R#asm_module.code}]}
+			 [{function,A,B,C,D,R#asm_module.code}]}
     end;
 collect_asm([{module,M} | Rest], R) ->
     collect_asm(Rest, R#asm_module{module=M});
@@ -711,14 +711,16 @@ collect_asm([{exports,M} | Rest], R) ->
 collect_asm([{labels,M} | Rest], R) ->
     collect_asm(Rest, R#asm_module{labels=M});
 collect_asm([{function,A,B,C} | Rest], R) ->
+    collect_asm([{function,A,B,1,C} | Rest], R);
+collect_asm([{function,A,B,C,D} | Rest], R) ->
     R1 = case R#asm_module.cfun of
 	     undefined ->
 		 R;
-	     {A0,B0,C0} ->
+	     {A0,B0,C0,D0} ->
 		 R#asm_module{functions=R#asm_module.functions++
-			      [{function,A0,B0,C0,R#asm_module.code}]}
+			      [{function,A0,B0,C0,D0,R#asm_module.code}]}
 	 end,
-    collect_asm(Rest, R1#asm_module{cfun={A,B,C}, code=[]});
+    collect_asm(Rest, R1#asm_module{cfun={A,B,C,D}, code=[]});
 collect_asm([{attributes, Attr} | Rest], R) ->
     collect_asm(Rest, R#asm_module{attributes=Attr});
 collect_asm([X | Rest], R) ->

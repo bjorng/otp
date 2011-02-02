@@ -83,7 +83,7 @@ function({function,Name,Arity,Asm0,Vb,Vdb,Anno}, AtomMod, St0) ->
     try
 	{Asm,EntryLabel,St} = cg_fun(Vb, Asm0, Vdb, AtomMod,
 				     {Name,Arity}, Anno, St0),
-	Func = {function,Name,Arity,EntryLabel,Asm},
+	Func = {function,Name,Arity,1,EntryLabel,Asm},
 	{Func,St}
     catch
 	Class:Error ->

@@ -28,11 +28,11 @@ module({Mod,Exp,Attr,Fs0,Lc}, _Opts) ->
     Fs = [function(F) || F <- Fs0],
     {ok,{Mod,Exp,Attr,Fs,Lc}}.
 
-function({function,Name,Arity,CLabel,Asm0}) ->
+function({function,Name,Arity,Rvals,CLabel,Asm0}) ->
     Asm1 = beam_utils:live_opt(Asm0),
     Asm2 = opt(Asm1, [], tdb_new()),
     Asm = beam_utils:delete_live_annos(Asm2),
-    {function,Name,Arity,CLabel,Asm}.
+    {function,Name,Arity,Rvals,CLabel,Asm}.
 
 %% opt([Instruction], Accumulator, TypeDb) -> {[Instruction'],TypeDb'}
 %%  Keep track of type information; try to simplify.

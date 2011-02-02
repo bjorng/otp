@@ -162,11 +162,16 @@ beam_file(Name) ->
 %%  A list of functions with their code. The code is in the same
 %%  format as used in the compiler and in .S files.
 
-validate(Module, Fs) ->
+validate(Module, Fs0) ->
+    Fs = [normalize_function_head(F) || F <- Fs0],
     Ft = index_bs_start_match(Fs, []),
     validate_0(Module, Fs, Ft).
 
-index_bs_start_match([{function,_,_,Entry,Code0}|Fs], Acc0) ->
+normalize_function_head({function,Name,Arity,Entry,Code}) ->
+    {function,Name,Arity,1,Entry,Code};
+normalize_function_head(F) -> F.
+
+index_bs_start_match([{function,_,_,_,Entry,Code0}|Fs], Acc0) ->
     Code = dropwhile(fun({label,L}) when L =:= Entry -> false;
 			(_) -> true
 		     end, Code0),
@@ -192,7 +197,7 @@ index_bs_start_match_1([{test,_,{f,F},_},{bs_context_to_binary,_}|Is0], Entry, A
 index_bs_start_match_1(_, _, Acc) -> Acc.
 
 validate_0(_Module, [], _) -> [];
-validate_0(Module, [{function,Name,Ar,Entry,Code}|Fs], Ft) ->
+validate_0(Module, [{function,Name,Ar,_,Entry,Code}|Fs], Ft) ->
     try validate_1(Code, Name, Ar, Entry, Ft) of
 	_ -> validate_0(Module, Fs, Ft)
     catch

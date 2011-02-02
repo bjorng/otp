@@ -27,10 +27,10 @@
 module({Mod,Exp,Attr,Fs,Lc}, _Opt) ->
     {ok,{Mod,Exp,Attr,[function(F) || F <- Fs],Lc}}.
 
-function({function,Name,Arity,CLabel,Is0}) ->
+function({function,Name,Arity,Rvals,CLabel,Is0}) ->
     Is1 = block(Is0),
     Is = opt(Is1),
-    {function,Name,Arity,CLabel,Is}.
+    {function,Name,Arity,Rvals,CLabel,Is}.
 
 block(Is) ->
     block(Is, []).

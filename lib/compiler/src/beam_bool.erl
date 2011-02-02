@@ -36,10 +36,10 @@ module({Mod,Exp,Attr,Fs0,Lc}, _Opts) ->
     {Fs,_} = mapfoldl(fun(Fn, Lbl) -> function(Fn, Lbl) end, 100000000, Fs0),
     {ok,{Mod,Exp,Attr,Fs,Lc}}.
 
-function({function,Name,Arity,CLabel,Is0}, Lbl0) ->
+function({function,Name,Arity,Rvals,CLabel,Is0}, Lbl0) ->
     try
 	{Is,#st{next=Lbl}} = bool_opt(Is0, Lbl0),
-	{{function,Name,Arity,CLabel,Is},Lbl}
+	{{function,Name,Arity,Rvals,CLabel,Is},Lbl}
     catch
 	Class:Error ->
 	    Stack = erlang:get_stacktrace(),
