@@ -411,7 +411,7 @@ is_label_used(L, St) ->
 %%  Test whether the code after Instruction is unreachable.
 
 is_unreachable_after({func_info,_M,_F,_A}) -> true;
-is_unreachable_after(return) -> true;
+is_unreachable_after({return,_}) -> true;
 is_unreachable_after({call_ext_last,_Ar,_ExtFunc,_D}) -> true;
 is_unreachable_after({call_ext_only,_Ar,_ExtFunc}) -> true;
 is_unreachable_after({call_last,_Ar,_Lbl,_D}) -> true;

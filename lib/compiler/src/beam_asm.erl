@@ -333,6 +333,8 @@ make_op({make_fun2,{f,Lbl},_Index,_OldUniq,NumFree}, Dict0) ->
     make_op({make_fun2,Fun}, Dict);
 make_op({kill,Y}, Dict) ->
     make_op({init,Y}, Dict);
+make_op({return,_}, Dict) ->
+    make_op(return, Dict);
 make_op({Name,Arg1}, Dict) ->
     encode_op(Name, [Arg1], Dict);
 make_op({Name,Arg1,Arg2}, Dict) ->

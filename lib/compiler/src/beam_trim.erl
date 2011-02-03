@@ -215,7 +215,7 @@ remap([{test,Name,Fail,Ss}|Is], Map, Acc) ->
 remap([{test,Name,Fail,Live,Ss,Dst}|Is], Map, Acc) ->
     I = {test,Name,Fail,Live,[Map(S) || S <- Ss],Map(Dst)},
     remap(Is, Map, [I|Acc]);
-remap([return|_]=Is, _, Acc) ->
+remap([{return,_}|_]=Is, _, Acc) ->
     reverse(Acc, Is);
 remap([{call_last,Ar,Name,N}|Is], Map, Acc) ->
     I = {call_last,Ar,Name,Map({frame_size,N})},

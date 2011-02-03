@@ -605,8 +605,8 @@ top_level_block(Keis, Bef, MaxRegs, _St) ->
 			    [{call_ext_last,Arity,Func,FrameSz}];
 			({apply_only,Arity}) ->
 			    [{apply_last,Arity,FrameSz}];
-			(return) ->
-			    [{deallocate,FrameSz},return];
+			({return,_}=Ret) ->
+			    [{deallocate,FrameSz},Ret];
 			(Tuple) when is_tuple(Tuple) ->
 			    [turn_yregs(tuple_size(Tuple), Tuple, MaxY)];
 			(Other) ->
@@ -1118,7 +1118,7 @@ enter_cg({var,_V} = Var, As, Le, Vdb, Bef, St0) ->
     {Sis,Int} = cg_setup_call(As++[Var], Bef, Le#l.i, Vdb),
     %% Build complete code and final stack/register state.
     Arity = length(As),
-    {Sis ++ [line(Le),{call_fun,Arity},return],
+    {Sis ++ [line(Le),{call_fun,Arity},{return,1}],
      clear_dead(Int#sr{reg=clear_regs(Int#sr.reg)}, Le#l.i, Vdb),
      need_stack_frame(St0)};
 enter_cg({remote,Mod,Name}, As, Le, Vdb, Bef, St0)
@@ -1142,7 +1142,7 @@ enter_cg(Func, As, Le, Vdb, Bef, St0) ->
      St1}.
 
 build_enter({remote,{atom,erlang},{atom,'!'}}, 2, St0) ->
-    {[send,return],need_stack_frame(St0)};
+    {[send,{return,1}],need_stack_frame(St0)};
 build_enter({remote,{atom,Mod},{atom,Name}}, Arity, St0) ->
     St1 = case trap_bif(Mod, Name, Arity) of
 	      true -> need_stack_frame(St0);
@@ -1687,7 +1687,7 @@ cg_build_args(As, Bef) ->
 
 return_cg(Rs, Le, Vdb, Bef, St) ->
     {Ms,Int} = cg_setup_call(Rs, Bef, Le#l.i, Vdb),
-    {Ms ++ [return],Int#sr{reg=clear_regs(Int#sr.reg)},St}.
+    {Ms ++ [{return,length(Rs)}],Int#sr{reg=clear_regs(Int#sr.reg)},St}.
 
 break_cg(Bs, Le, Vdb, Bef, St) ->
     {Ms,Int} = cg_setup_call(Bs, Bef, Le#l.i, Vdb),

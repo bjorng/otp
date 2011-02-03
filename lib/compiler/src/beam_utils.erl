@@ -337,8 +337,8 @@ check_liveness(R, [{deallocate,_}|Is], St) ->
 	{y,_} -> {killed,St};
 	_ -> check_liveness(R, Is, St)
     end;
-check_liveness(R, [return|_], St) ->
-    check_liveness_live_ret(R, 1, St);
+check_liveness(R, [{return,Live}|_], St) ->
+    check_liveness_live_ret(R, Live, St);
 check_liveness(R, [{call_last,Live,_,_}|_], St) ->
     check_liveness_live_ret(R, Live, St);
 check_liveness(R, [{call_only,Live,_}|_], St) ->
@@ -724,8 +724,8 @@ live_opt([{label,L}=I|Is], Regs, D0, Acc) ->
 live_opt([{jump,{f,L}}=I|Is], _, D, Acc) ->
     Regs = gb_trees:get(L, D),
     live_opt(Is, Regs, D, [I|Acc]);
-live_opt([return=I|Is], _, D, Acc) ->
-    live_opt(Is, 1, D, [I|Acc]);
+live_opt([{return,Rvals}=Ret|Is], _, D, Acc) ->
+    live_opt(Is, live_call(Rvals), D, [Ret|Acc]);
 live_opt([{catch_end,_}=I|Is], _, D, Acc) ->
     live_opt(Is, live_call(1), D, [I|Acc]);
 live_opt([{badmatch,Src}=I|Is], _, D, Acc) ->

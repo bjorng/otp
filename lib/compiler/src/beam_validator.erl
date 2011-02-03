@@ -29,7 +29,7 @@
 
 -include("beam_disasm.hrl").
 
--import(lists, [reverse/1,foldl/3,foreach/2,member/2,dropwhile/2]).
+-import(lists, [reverse/1,foldl/3,foreach/2,member/2,dropwhile/2,sort/1]).
 
 -define(MAXREG, 1024).
 
@@ -163,13 +163,20 @@ beam_file(Name) ->
 %%  format as used in the compiler and in .S files.
 
 validate(Module, Fs0) ->
-    Fs = [normalize_function_head(F) || F <- Fs0],
+    Fs = [normalize_code(F) || F <- Fs0],
     Ft = index_bs_start_match(Fs, []),
-    validate_0(Module, Fs, Ft).
+    Rvals = init_rvals(Fs, []),
+    validate_0(Module, Fs, Ft, Rvals).
 
-normalize_function_head({function,Name,Arity,Entry,Code}) ->
-    {function,Name,Arity,1,Entry,Code};
-normalize_function_head(F) -> F.
+normalize_code({function,Name,Arity,Entry,Code}) ->
+    {function,Name,Arity,1,Entry,normalize_code_1(Code)};
+normalize_code(F) -> F.
+
+normalize_code_1([return|Is]) ->
+    [{return,1}|normalize_code_1(Is)];
+normalize_code_1([I|Is]) ->
+    [I|normalize_code_1(Is)];
+normalize_code_1([]) -> [].
 
 index_bs_start_match([{function,_,_,_,Entry,Code0}|Fs], Acc0) ->
     Code = dropwhile(fun({label,L}) when L =:= Entry -> false;
@@ -196,15 +203,22 @@ index_bs_start_match_1([{test,_,{f,F},_},{bs_context_to_binary,_}|Is0], Entry, A
     index_bs_start_match_1(Is, Entry, Acc);
 index_bs_start_match_1(_, _, Acc) -> Acc.
 
-validate_0(_Module, [], _) -> [];
-validate_0(Module, [{function,Name,Ar,_,Entry,Code}|Fs], Ft) ->
-    try validate_1(Code, Name, Ar, Entry, Ft) of
-	_ -> validate_0(Module, Fs, Ft)
+init_rvals([{function,_,_,1,_,_}|T], Acc) ->
+    init_rvals(T, Acc);
+init_rvals([{function,_,_,Rvals,Entry,_}|T], Acc) ->
+    init_rvals(T, [{Entry,Rvals}|Acc]);
+init_rvals([], Acc) -> gb_trees:from_orddict(sort(Acc)).
+
+validate_0(_Module, [], _, _) -> [];
+validate_0(Module, [{function,Name,Ar,_,Entry,Code}|Fs], Ft, Rvals) ->
+    try validate_1(Code, Name, Ar, Entry, Ft, Rvals) of
+	_ -> validate_0(Module, Fs, Ft, Rvals)
     catch
 	Error ->
-	    [Error|validate_0(Module, Fs, Ft)];
+	    [Error|validate_0(Module, Fs, Ft, Rvals)];
 	  error:Error ->
-	    [validate_error(Error, Module, Name, Ar)|validate_0(Module, Fs, Ft)]
+	    [validate_error(Error, Module, Name, Ar)|
+	     validate_0(Module, Fs, Ft, Rvals)]
     end.
 
 -ifdef(DEBUG).
@@ -236,8 +250,10 @@ validate_error_1(Error, Module, Name, Ar) ->
 	{current=none              :: #st{} | 'none',	%Current state
 	 branched=gb_trees:empty() :: gb_tree(),	%States at jumps
 	 labels=gb_sets:empty()    :: gb_set(),		%All defined labels
-	 ft=gb_trees:empty()       :: gb_tree()         %Some other functions
+	 ft=gb_trees:empty()       :: gb_tree(),        %Some other functions
 	 		% in the module (those that start with bs_start_match2).
+	 rvals=gb_trees:empty()    :: gb_tree(),
+	 retvals=1                 :: integer()
 	}).
 
 -ifdef(DEBUG).
@@ -248,28 +264,32 @@ print_st(#st{x=Xs,y=Ys,numy=NumY,h=H,ct=Ct}) ->
 	      [gb_trees:to_list(Xs),gb_trees:to_list(Ys),NumY,H,Ct]).
 -endif.
 
-validate_1(Is, Name, Arity, Entry, Ft) ->
-    validate_2(labels(Is), Name, Arity, Entry, Ft).
+validate_1(Is, Name, Arity, Entry, Ft, Rvals) ->
+    validate_2(labels(Is), Name, Arity, Entry, Ft, Rvals).
 
 validate_2({Ls1,[{func_info,{atom,Mod},{atom,Name},Arity}=_F|Is]},
-	   Name, Arity, Entry, Ft) ->
+	   Name, Arity, Entry, Ft, Rvals) ->
     lists:foreach(fun (_L) -> ?DBG_FORMAT("  ~p.~n", [{label,_L}]) end, Ls1),
     ?DBG_FORMAT("  ~p.~n", [_F]),
-    validate_3(labels(Is), Name, Arity, Entry, Mod, Ls1, Ft);
-validate_2({Ls1,Is}, Name, Arity, _Entry, _Ft) ->
+    validate_3(labels(Is), Name, Arity, Entry, Mod, Ls1, Ft, Rvals);
+validate_2({Ls1,Is}, Name, Arity, _Entry, _Ft, _Rvals) ->
     error({{'_',Name,Arity},{first(Is),length(Ls1),illegal_instruction}}).
 
-validate_3({Ls2,Is}, Name, Arity, Entry, Mod, Ls1, Ft) ->
+validate_3({Ls2,Is}, Name, Arity, Entry, Mod, Ls1, Ft, Rvals) ->
     lists:foreach(fun (_L) -> ?DBG_FORMAT("  ~p.~n", [{label,_L}]) end, Ls2),
     Offset = 1 + length(Ls1) + 1 + length(Ls2),
     EntryOK = (Entry =:= undefined) orelse lists:member(Entry, Ls2),
     if
 	EntryOK ->
 	    St = init_state(Arity),
+	    Retvals = case gb_trees:lookup(Entry, Rvals) of
+			  none -> 1;
+			  {value,R} -> R
+		      end,
 	    Vst0 = #vst{current=St,
 			branched=gb_trees_from_list([{L,St} || L <- Ls1]),
 			labels=gb_sets:from_list(Ls1++Ls2),
-			ft=Ft},
+			ft=Ft,rvals=Rvals,retvals=Retvals},
 	    MFA = {Mod,Name,Arity},
 	    Vst = valfun(Is, MFA, Offset, Vst0),
 	    validate_fun_info_branches(Ls1, MFA, Vst);
@@ -632,9 +652,14 @@ valfun_4({gc_bif,Op,{f,Fail},Live,Src,Dst}, #vst{current=St0}=Vst0) ->
     validate_src(Src, Vst),
     Type = bif_type(Op, Src, Vst),
     set_type_reg(Type, Dst, Vst);
-valfun_4(return, #vst{current=#st{numy=none}}=Vst) ->
+valfun_4({return,Live}, #vst{current=#st{numy=none},retvals=LiveFunc}=Vst) ->
+    case Live of
+	LiveFunc -> ok;
+	_ -> error({retvals_inconsistency,Live,LiveFunc})
+    end,
+    verify_live(Live, Vst),
     kill_state(Vst);
-valfun_4(return, #vst{current=#st{numy=NumY}}) ->
+valfun_4({return,_}, #vst{current=#st{numy=NumY}}) ->
     error({stack_frame,NumY});
 valfun_4({jump,{f,Lbl}}, Vst) ->
     kill_state(branch_state(Lbl, Vst));
@@ -920,9 +945,21 @@ call(Name, Live, #vst{current=St}=Vst) ->
     case return_type(Name, Vst) of
 	Type when Type =/= exception ->
 	    %% Type is never 'exception' because it has been handled earlier.
-	    Xs = gb_trees_from_list([{0,Type}]),
+	    Xs0 = gb_trees_from_list([{0,Type}]),
+	    Xs = call_multiple_values(Name, Xs0, Vst),
 	    Vst#vst{current=St#st{x=Xs,f=init_fregs(),bsm=undefined}}
     end.
+
+call_multiple_values({f,Entry}, Xs, #vst{rvals=Rvals}) ->
+    case gb_trees:lookup(Entry, Rvals) of
+	none ->
+	    Xs;
+	{value,Values} ->
+	    foldl(fun(R, A) ->
+			  gb_trees:insert(R, term, A)
+		  end, Xs, lists:seq(1, Values-1))
+    end;
+call_multiple_values(_, Xs, _) -> Xs.
 
 %% Tail call.
 %%  The stackframe must have a known size and be initialized.

@@ -240,8 +240,9 @@ btb_reaches_match_2([{kill,Y}|Is], Regs, D) ->
 btb_reaches_match_2([{deallocate,_}|Is], Regs0, D) ->
     Regs = btb_kill_yregs(Regs0),
     btb_reaches_match_1(Is, Regs, D);
-btb_reaches_match_2([return=I|_], Regs0, D) ->
-    btb_ensure_not_used([{x,0}], I, Regs0),
+btb_reaches_match_2([{return,Live}=I|_], Regs0, D) ->
+    ReturnRegs = return_regs(Live),
+    btb_ensure_not_used(ReturnRegs, I, Regs0),
     D;
 btb_reaches_match_2([{gc_bif,_,{f,F},Live,Ss,Dst}=I|Is], Regs0, D0) ->
     btb_ensure_not_used(Ss, I, Regs0),
@@ -380,6 +381,9 @@ btb_reaches_match_2([{line,_}|Is], Regs, D) ->
     btb_reaches_match_1(Is, Regs, D);
 btb_reaches_match_2([I|_], Regs, _) ->
     btb_error({btb_context_regs(Regs),I,not_handled}).
+
+return_regs(1) -> [{x,0}];
+return_regs(N) -> [{x,X} || X <- lists:seq(0, N-1)].
 
 btb_call(Arity, Lbl, Regs0, Is, D0) ->
     Regs = btb_kill_not_live(Arity, Regs0),

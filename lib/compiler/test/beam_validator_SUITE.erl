@@ -147,7 +147,7 @@ yrange(Config) when is_list(Config) ->
 
 stack(Config) when is_list(Config) ->
     Errors = do_val(stack, Config),
-    ?line [{{t,a,2},{return,11,{stack_frame,2}}},
+    ?line [{{t,a,2},{{return,1},11,{stack_frame,2}}},
 	   {{t,b,2},{{deallocate,2},4,{allocated,none}}},
 	   {{t,c,2},{{deallocate,2},12,{allocated,none}}},
 	   {{t,d,2},
@@ -362,7 +362,7 @@ no_exception_in_catch(Config) when is_list(Config) ->
 undef_label(Config) when is_list(Config) ->
     Errors = do_val(undef_label, Config),
     [{{undef_label,t,1},{undef_labels,[42]}},
-     {{undef_label,x,1},{return,4,no_entry_label}}] = Errors,
+     {{undef_label,x,1},{{return,1},4,no_entry_label}}] = Errors,
     ok.
 
 illegal_instruction(Config) when is_list(Config) ->
