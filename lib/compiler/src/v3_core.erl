@@ -488,8 +488,8 @@ expr({tuple,L,Es0}, St0) ->
     A = lineno_anno(L, St1),
     {ann_c_tuple(A, Es1),Eps,St1};
 expr({bin,L,Es0}, St0) ->
-    try expr_bin(Es0, lineno_anno(L, St0), St0) of
-	{_,_,_}=Res -> Res
+    try
+	expr_bin(Es0, lineno_anno(L, St0), St0)
     catch
 	throw:bad_binary ->
 	    St = add_warning(L, bad_binary, St0),
