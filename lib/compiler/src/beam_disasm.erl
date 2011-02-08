@@ -119,8 +119,8 @@ pp(Stream, Disasm) when is_pid(Stream), is_list(Disasm) ->
     lists:foreach(
       fun ({code,Code}) ->
 	      lists:foreach(
-		fun (#function{name=F,arity=A,entry=E,code=C}) ->
-			io:format(Stream, "~p.~n", [{function,F,A,E}]),
+		fun (#function{name=F,arity=A,entry=E,code=C,rvals=Rvals}) ->
+			io:format(Stream, "~p.~n", [{function,F,A,Rvals,E}]),
 			lists:foreach(
 			  fun (I) -> 
 				  io:put_chars(Stream, [pp_instr(I)|NL])
@@ -314,10 +314,31 @@ get_funs({LsR0,[{func_info,[{atom,M}=AtomM,{atom,F}=AtomF,ArityArg]}|Code0]})
     [#function{name=F,
 	       arity=Arity,
 	       entry=Entry,
-	       code=lists:reverse(LsR0, [{func_info,AtomM,AtomF,Arity}|Code])}
+	       rvals=1,
+	       code=lists:reverse(LsR0, [{func_info2,AtomM,AtomF,Arity,1}|Code])}
+     |get_funs({LsR,RestCode})];
+get_funs({LsR0,[{func_info2,[{atom,M}=AtomM,{atom,F}=AtomF,
+			     ArityArg,Rvals0]}|Code0]})
+  when is_atom(M), is_atom(F) ->
+    Arity = resolve_arg_unsigned(ArityArg),
+    Rvals = resolve_arg_unsigned(Rvals0),
+    {LsR,Code,RestCode} = get_fun(Code0, []),
+    Entry = case Code of
+		[{label,[{u,E}]}|_] -> E;
+		_ -> undefined
+	    end,
+    [#function{name=F,
+	       arity=Arity,
+	       entry=Entry,
+	       rvals=Rvals,
+	       code=lists:reverse(LsR0,
+				  [{func_info2,AtomM,AtomF,Arity,Rvals}|Code])}
      |get_funs({LsR,RestCode})].
 
 get_fun([{func_info,_}|_]=Is, R0) ->
+    {LsR,R} = labels_r(R0, []),
+    {LsR,lists:reverse(R),Is};
+get_fun([{func_info2,_}|_]=Is, R0) ->
     {LsR,R} = labels_r(R0, []),
     {LsR,lists:reverse(R),Is};
 get_fun([{int_code_end,[]}], R) ->
@@ -340,10 +361,15 @@ local_labels(Funs) ->
 local_labels_1(Code0, R) ->
     Code1 = lists:dropwhile(fun({label,_}) -> true;
 			       ({line,_}) -> true;
-			       ({func_info,_,_,_}) -> false
+			       ({func_info,_,_,_}) -> false;
+			       ({func_info2,_,_,_,_}) -> false
 			    end, Code0),
-    [{func_info,{atom,M},{atom,F},A}|Code] = Code1,
-    local_labels_2(Code, R, {M,F,A}).
+    case Code1 of
+	[{func_info,{atom,M},{atom,F},A}|Code] ->
+	    local_labels_2(Code, R, {M,F,A});
+	[{func_info2,{atom,M},{atom,F},A,_}|Code] ->
+	    local_labels_2(Code, R, {M,F,A})
+    end.
 
 local_labels_2([{label,[{u,L}]}|Code], R, MFA) ->
     local_labels_2(Code, [{L,MFA}|R], MFA);
@@ -635,10 +661,10 @@ resolve_inst(Instr, Imports, Str, Lbls, _Lambdas, _Literals, _M) ->
 
 resolve_inst({label,[{u,L}]},_,_,_) ->
     {label,L};
-resolve_inst(FuncInfo,_,_,_) when element(1, FuncInfo) =:= func_info -> 
-    FuncInfo; % already resolved
-%% resolve_inst(int_code_end,_,_,_,_) ->  % instruction already handled
-%%    int_code_end;                       % should not really be handled here
+resolve_inst({func_info,_M,_F,_A}=FuncInfo,_,_,_) ->
+    FuncInfo;
+resolve_inst({func_info2,_M,_F,_A,_R}=FuncInfo,_,_,_) ->
+    FuncInfo;
 resolve_inst({call,[{u,N},{f,L}]},_,_,Lbls) ->
     {call,N,lookup(L,Lbls)};
 resolve_inst({call_last,[{u,N},{f,L},{u,U}]},_,_,Lbls) ->

@@ -702,7 +702,8 @@ collect_asm([], R) ->
 	    R;
 	{A,B,C,D} ->
 	    R#asm_module{functions=R#asm_module.functions++
-			 [{function,A,B,C,D,collect_code(R#asm_module.code)}]}
+			 [{function,A,B,C,D,
+			   collect_code(R#asm_module.code, C)}]}
     end;
 collect_asm([{module,M} | Rest], R) ->
     collect_asm(Rest, R#asm_module{module=M});
@@ -718,7 +719,8 @@ collect_asm([{function,A,B,C,D} | Rest], R) ->
 		 R;
 	     {A0,B0,C0,D0} ->
 		 R#asm_module{functions=R#asm_module.functions++
-			      [{function,A0,B0,C0,D0,collect_code(R#asm_module.code)}]}
+			      [{function,A0,B0,C0,D0,
+				collect_code(R#asm_module.code, C)}]}
 	 end,
     collect_asm(Rest, R1#asm_module{cfun={A,B,C,D}, code=[]});
 collect_asm([{attributes, Attr} | Rest], R) ->
@@ -726,11 +728,13 @@ collect_asm([{attributes, Attr} | Rest], R) ->
 collect_asm([X | Rest], R) ->
     collect_asm(Rest, R#asm_module{code=R#asm_module.code++[X]}).
 
-collect_code([return|Is]) ->
-    [{return,1}|collect_code(Is)];
-collect_code([I|Is]) ->
-    [I|collect_code(Is)];
-collect_code([]) -> [].
+collect_code([{func_info,M,F,A}|Is], Rvals) ->
+    [{func_info2,M,F,A,Rvals}|collect_code(Is, Rvals)];
+collect_code([return|Is], Rvals) ->
+    [{return,Rvals}|collect_code(Is, Rvals)];
+collect_code([I|Is], Rvals) ->
+    [I|collect_code(Is, Rvals)];
+collect_code([], _) -> [].
 
 beam_consult_asm(St) ->
     case file:consult(St#compile.ifile) of

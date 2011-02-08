@@ -33,6 +33,7 @@
 
 -record(function, {name      :: atom(),
 		   arity     :: byte(),
+		   rvals     :: byte(),
 		   entry,    %% unused ??
 		   code = [] :: [beam_instr()]}).
 

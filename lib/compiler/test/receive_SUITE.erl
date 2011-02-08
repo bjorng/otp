@@ -221,7 +221,7 @@ collect_recv_opt_instrs(Code) ->
 			{recv_set,{f,_}} -> true;
 			_ -> false
 		    end
-		end] || {function,_,_,_,Is} <- Code],
+		end] || {function,_,_,_,_,Is} <- Code],
     lists:append(L).
 
 export(Config) when is_list(Config) ->

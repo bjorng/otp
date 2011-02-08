@@ -197,10 +197,10 @@ is_pure_test({test,Op,_,Ops}) ->
 %%
 live_opt(Is0) ->
     {[{label,Fail}|_]=Bef,[Fi|Is]} =
-	splitwith(fun({func_info,_,_,_}) -> false;
+	splitwith(fun({func_info2,_,_,_,_}) -> false;
 		     (_) -> true
 		  end, Is0),
-    {func_info,_,_,Live} = Fi,
+    {func_info2,_,_,Live,_} = Fi,
     D = gb_trees:insert(Fail, live_call(Live), gb_trees:empty()),
     Bef ++ [Fi|live_opt(reverse(Is), 0, D, [])].
 
@@ -292,7 +292,7 @@ check_liveness(R, [{badmatch,Used}|_], St) ->
     check_liveness_ret(R, Used, St);
 check_liveness(_, [if_end|_], St) ->
     {killed,St};
-check_liveness(R, [{func_info,_,_,Ar}|_], St) ->
+check_liveness(R, [{func_info2,_,_,Ar,_}|_], St) ->
     case R of
 	{x,X} when X < Ar -> {used,St};
 	_ -> {killed,St}

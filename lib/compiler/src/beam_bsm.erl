@@ -371,7 +371,7 @@ btb_reaches_match_2([{case_end,Src}=I|_], Regs, D) ->
     D;
 btb_reaches_match_2([if_end|_], _Regs, D) ->
     D;
-btb_reaches_match_2([{func_info,_,_,Arity}=I|_], Regs0, D) ->
+btb_reaches_match_2([{func_info2,_,_,Arity,_}=I|_], Regs0, D) ->
     Regs = btb_kill_yregs(btb_kill_not_live(Arity, Regs0)),
     case btb_context_regs(Regs) of
 	[] -> D;

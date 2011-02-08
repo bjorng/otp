@@ -745,7 +745,7 @@ initialized_regs([{block,Bl}|Is], Regs) ->
     initialized_regs(reverse(Bl, Is), Regs);
 initialized_regs([{bs_context_to_binary,Src}|Is], Regs) ->
     initialized_regs(Is, add_init_regs([Src], Regs));
-initialized_regs([{label,_},{func_info,_,_,Arity}|_], Regs) ->
+initialized_regs([{label,_},{func_info2,_,_,Arity,_}|_], Regs) ->
     InitRegs = free_vars_regs(Arity),
     add_init_regs(InitRegs, Regs);
 initialized_regs([_|_], Regs) -> Regs.

@@ -141,7 +141,7 @@ function({function,Name,Arity,Rvals,CLabel,Is0}, Lc0) ->
 	Is1 = beam_jump:remove_unused_labels(Is0),
 
 	%% Initialize label information with the code
-	%% for the func_info label. Without it, a register
+	%% for the func_info2 label. Without it, a register
 	%% may seem to be live when it is not.
 	[{label,L}|FiIs] = Is1,
 	D0 = beam_utils:empty_label_index(),

@@ -82,7 +82,7 @@ functions(Forms, AtomMod) ->
 function({function,Name,Arity,Asm0,Vb,Vdb,Anno}, AtomMod, St0) ->
     try
 	{Asm,EntryLabel,St} = cg_fun(Vb, Asm0, Vdb, AtomMod,
-				     {Name,Arity}, Anno, St0),
+				     {Name,Arity}, 1, Anno, St0),
 	Func = {function,Name,Arity,1,EntryLabel,Asm},
 	{Func,St}
     catch
@@ -94,7 +94,7 @@ function({function,Name,Arity,Asm0,Vb,Vdb,Anno}, AtomMod, St0) ->
 
 %% cg_fun([Lkexpr], [HeadVar], Vdb, State) -> {[Ainstr],State}
 
-cg_fun(Les, Hvs, Vdb, AtomMod, NameArity, Anno, St0) ->
+cg_fun(Les, Hvs, Vdb, AtomMod, NameArity, Rvals, Anno, St0) ->
     {Fi,St1} = new_label(St0),			%FuncInfo label
     {Fl,St2} = local_func_label(NameArity, St1),
 
@@ -130,7 +130,7 @@ cg_fun(Les, Hvs, Vdb, AtomMod, NameArity, Anno, St0) ->
 				 ultimate_failure=UltimateMatchFail,
 				 is_top_block=true}),
     {Name,Arity} = NameArity,
-    Asm = [{label,Fi},line(Anno),{func_info,AtomMod,{atom,Name},Arity},
+    Asm = [{label,Fi},line(Anno),{func_info2,AtomMod,{atom,Name},Arity,Rvals},
 	   {label,Fl}|B++[{label,UltimateMatchFail},if_end]],
     {Asm,Fl,St}.
 

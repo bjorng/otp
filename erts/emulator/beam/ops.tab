@@ -101,7 +101,7 @@ line Loc | call_ext_last Ar Func=u$is_not_bif D => \
 line Loc | call_ext_only Ar Func=u$is_not_bif => \
      call_ext_only Ar Func
 
-line Loc | func_info M F A => func_info M F A | line Loc
+line Loc | func_info2 M F A R => func_info2 M F A R | line Loc
 
 line I
 
@@ -1042,7 +1042,8 @@ is_function f y
 is_function f r
 is_function Fail=f c => jump Fail
 
-func_info M F A => i_func_info u M F A
+func_info M=a F=a A=u => func_info2 M F A u
+func_info2 M=a F=a A=u R=u => gen_func_info2(M, F, A, R)
 
 # ================================================================
 # New bit syntax matching (R11B).

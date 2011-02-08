@@ -3706,6 +3706,28 @@ const_select_val(LoaderState* stp, GenOpArg S, GenOpArg Fail,
 }
 
 static GenOp*
+gen_func_info2(LoaderState* stp, GenOpArg mod, GenOpArg func,
+	      GenOpArg arity, GenOpArg rvals)
+{
+    GenOp* fi;
+
+    NEW_GENOP(stp, fi);
+    fi->op = genop_i_func_info_4;
+    fi->arity = 4;
+    fi->a[0].type = TAG_u;	/* untagged Zero */
+    fi->a[0].val = 0;
+    fi->a[1] = mod;
+    fi->a[2] = func;
+    fi->a[3].type = TAG_u;
+    fi->a[3].val = (rvals.val << 16) | arity.val;
+    fi->next = NULL;
+
+    return fi;
+}
+
+
+
+static GenOp*
 gen_make_fun2(LoaderState* stp, GenOpArg idx)
 {
     ErlFunEntry* fe;

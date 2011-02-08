@@ -168,7 +168,7 @@ share_1([{label,L}=Lbl|Is], Dict0, Seq, Acc) ->
 	{ok,Label} ->
 	    share_1(Is, Dict0, [], [Lbl,{jump,{f,Label}}|Acc])
     end;
-share_1([{func_info,_,_,_}=I|Is], _, [], Acc) ->
+share_1([{func_info2,_,_,_,_}=I|Is], _, [], Acc) ->
     reverse(Is, [I|Acc]);
 share_1([I|Is], Dict, Seq, Acc) ->
     case is_unreachable_after(I) of
@@ -230,7 +230,7 @@ extract_seq(_, _) -> no.
 
 extract_seq_1([{line,_}=Line|Is], Acc) ->
     extract_seq_1(Is, [Line|Acc]);
-extract_seq_1([{label,_},{func_info,_,_,_}|_], _) ->
+extract_seq_1([{label,_},{func_info2,_,_,_,_}|_], _) ->
     no;
 extract_seq_1([{label,_}=Lbl|Is], Acc) ->
     {yes,[Lbl|Acc],Is};
@@ -410,7 +410,7 @@ is_label_used(L, St) ->
 %% is_unreachable_after(Instruction) -> boolean()
 %%  Test whether the code after Instruction is unreachable.
 
-is_unreachable_after({func_info,_M,_F,_A}) -> true;
+is_unreachable_after({func_info2,_M,_F,_A,_R}) -> true;
 is_unreachable_after({return,_}) -> true;
 is_unreachable_after({call_ext_last,_Ar,_ExtFunc,_D}) -> true;
 is_unreachable_after({call_ext_only,_Ar,_ExtFunc}) -> true;
@@ -502,7 +502,7 @@ initial_labels([{line,_}|Is], Acc) ->
     initial_labels(Is, Acc);
 initial_labels([{label,Lbl}|Is], Acc) ->
     initial_labels(Is, [Lbl|Acc]);
-initial_labels([{func_info,_,_,_},{label,Lbl}|_], Acc) ->
+initial_labels([{func_info2,_,_,_,_},{label,Lbl}|_], Acc) ->
     gb_sets:from_list([Lbl|Acc]).
 
 %% ulbl(Instruction, UsedGbSet) -> UsedGbSet'

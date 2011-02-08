@@ -166,7 +166,7 @@ renumber_labels([{label,Old}|Is], Acc, St0) ->
     New = St0#st.lc,
     D = [{Old,New}|St0#st.lmap],
     renumber_labels(Is, [{label,New}|Acc], St0#st{lmap=D,lc=New+1});
-renumber_labels([{func_info,_,_,_}=Fi|Is], Acc, St0) ->
+renumber_labels([{func_info2,_,_,_,_}=Fi|Is], Acc, St0) ->
     renumber_labels(Is, [Fi|Acc], St0#st{entry=St0#st.lc});
 renumber_labels([I|Is], Acc, St0) ->
     renumber_labels(Is, [I|Acc], St0);

@@ -272,6 +272,11 @@ validate_2({Ls1,[{func_info,{atom,Mod},{atom,Name},Arity}=_F|Is]},
     lists:foreach(fun (_L) -> ?DBG_FORMAT("  ~p.~n", [{label,_L}]) end, Ls1),
     ?DBG_FORMAT("  ~p.~n", [_F]),
     validate_3(labels(Is), Name, Arity, Entry, Mod, Ls1, Ft, Rvals);
+validate_2({Ls1,[{func_info2,{atom,Mod},{atom,Name},Arity,_}=_F|Is]},
+	   Name, Arity, Entry, Ft, Rvals) ->
+    lists:foreach(fun (_L) -> ?DBG_FORMAT("  ~p.~n", [{label,_L}]) end, Ls1),
+    ?DBG_FORMAT("  ~p.~n", [_F]),
+    validate_3(labels(Is), Name, Arity, Entry, Mod, Ls1, Ft, Rvals);
 validate_2({Ls1,Is}, Name, Arity, _Entry, _Ft, _Rvals) ->
     error({{'_',Name,Arity},{first(Is),length(Ls1),illegal_instruction}}).
 
@@ -1793,22 +1798,22 @@ normalize_disassembled_code(Fs) ->
     Index = ndc_index(Fs, []),
     ndc(Fs, Index, []).
 
-ndc_index([{function,Name,Arity,Entry,_Code}|Fs], Acc) ->
+ndc_index([{function,Name,Arity,_Rvals,Entry,_Code}|Fs], Acc) ->
     ndc_index(Fs, [{{Name,Arity},Entry}|Acc]);
 ndc_index([], Acc) ->
     gb_trees:from_orddict(lists:sort(Acc)).
 
-ndc([{function,Name,Arity,Entry,Code0}|Fs], D, Acc) ->
-    Code = ndc_1(Code0, D, []),
-    ndc(Fs, D, [{function,Name,Arity,Entry,Code}|Acc]);
+ndc([{function,Name,Arity,Rvals,Entry,Code0}|Fs], D, Acc) ->
+    Code = ndc_1(Code0, {D,Rvals}, []),
+    ndc(Fs, D, [{function,Name,Arity,Rvals,Entry,Code}|Acc]);
 ndc([], _, Acc) -> reverse(Acc).
     
 ndc_1([{call=Op,A,{_,F,A}}|Is], D, Acc) ->
-    ndc_1(Is, D, [{Op,A,{f,gb_trees:get({F,A}, D)}}|Acc]);
+    ndc_1(Is, D, [{Op,A,ndc_func_name_to_label(F, A, D)}|Acc]);
 ndc_1([{call_only=Op,A,{_,F,A}}|Is], D, Acc) ->
-    ndc_1(Is, D, [{Op,A,{f,gb_trees:get({F,A}, D)}}|Acc]);
+    ndc_1(Is, D, [{Op,A,ndc_func_name_to_label(F, A, D)}|Acc]);
 ndc_1([{call_last=Op,A,{_,F,A},Sz}|Is], D, Acc) ->
-    ndc_1(Is, D, [{Op,A,{f,gb_trees:get({F,A}, D)},Sz}|Acc]);
+    ndc_1(Is, D, [{Op,A,ndc_func_name_to_label(F, A, D),Sz}|Acc]);
 ndc_1([{arithbif,Op,F,Src,Dst}|Is], D, Acc) ->
     ndc_1(Is, D, [{bif,Op,F,Src,Dst}|Acc]);
 ndc_1([{arithfbif,Op,F,Src,Dst}|Is], D, Acc) ->
@@ -1827,7 +1832,15 @@ ndc_1([{test,bs_get_utf16=Op,F,[A1,Live,A3,Dst]}|Is], D, Acc) ->
     ndc_1(Is, D, [{test,Op,F,Live,[A1,A3],Dst}|Acc]);
 ndc_1([{test,bs_get_utf32=Op,F,[A1,Live,A3,Dst]}|Is], D, Acc) ->
     ndc_1(Is, D, [{test,Op,F,Live,[A1,A3],Dst}|Acc]);
+ndc_1([return|Is], D, Acc) ->
+    ndc_1(Is, D, [{return,ndc_get_rvals(D)}|Acc]);
 ndc_1([I|Is], D, Acc) ->
     ndc_1(Is, D, [I|Acc]);
 ndc_1([], _, Acc) ->
     reverse(Acc).
+
+ndc_func_name_to_label(F, A, {D,_Rvals}) ->
+    {f,gb_trees:get({F,A}, D)}.
+
+ndc_get_rvals({_D,Rvals}) ->
+    Rvals.
