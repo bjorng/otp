@@ -807,7 +807,8 @@ trace_sched_aux(Process *p, Eterm what, int never_fake_sched)
     if (!curr_func) {
 	tmp = make_small(0);
     } else {
-	tmp = TUPLE3(hp,p->current[0],p->current[1],make_small(p->current[2]));
+	tmp = TUPLE3(hp,p->current[0],p->current[1],
+		     make_small(ERTS_FUNCTION_ARITY(p->current)));
 	hp += 4;
     }
 
@@ -1202,7 +1203,8 @@ erts_trace_return_to(Process *p, BeamInstr *pc)
     if (!code_ptr) {
 	mfa = am_undefined;
     } else {
-	mfa = TUPLE3(hp, code_ptr[0], code_ptr[1], make_small(code_ptr[2]));
+	mfa = TUPLE3(hp, code_ptr[0], code_ptr[1],
+		     make_small(ERTS_FUNCTION_ARITY(code_ptr)));
 	hp += 4;
     }
 	
@@ -1306,7 +1308,7 @@ erts_trace_return(Process* p, BeamInstr* fi, Eterm retval, Eterm *tracer_pid)
     
     mod = fi[0];
     name = fi[1];
-    arity = fi[2];
+    arity = ERTS_FUNCTION_ARITY(fi);
     
     if (is_internal_port(*tracer_pid)) {
 #define LOCAL_HEAP_SIZE (4+6+5)
@@ -1441,7 +1443,8 @@ erts_trace_exception(Process* p, BeamInstr mfa[3], Eterm class, Eterm value,
 	UseTmpHeapNoproc(LOCAL_HEAP_SIZE);
 
 	hp = local_heap;
-	mfa_tuple = TUPLE3(hp, (Eterm) mfa[0], (Eterm) mfa[1], make_small((Eterm)mfa[2]));
+	mfa_tuple = TUPLE3(hp, (Eterm) mfa[0], (Eterm) mfa[1],
+			   make_small(ERTS_FUNCTION_ARITY(mfa)));
 	hp += 4;
 	cv = TUPLE2(hp, class, value);
 	hp += 3;
@@ -1487,7 +1490,8 @@ erts_trace_exception(Process* p, BeamInstr mfa[3], Eterm class, Eterm value,
 	 * Build the trace tuple and put it into receive queue of the tracer process.
 	 */
 	
-	mfa_tuple = TUPLE3(hp, (Eterm) mfa[0], (Eterm) mfa[1], make_small((Eterm) mfa[2]));
+	mfa_tuple = TUPLE3(hp, (Eterm) mfa[0], (Eterm) mfa[1],
+			   make_small(ERTS_FUNCTION_ARITY(mfa)));
 	hp += 4;
 	value = copy_struct(value, value_size, &hp, off_heap);
 	cv = TUPLE2(hp, class, value);
@@ -1590,7 +1594,7 @@ erts_call_trace(Process* p, BeamInstr mfa[3], Binary *match_spec,
      * such as size_object() and copy_struct(), we must make sure that we
      * temporarily convert any match contexts to sub binaries.
      */
-    arity = (Eterm) mfa[2];
+    arity = (Eterm) ERTS_FUNCTION_ARITY(mfa);
     UseTmpHeap(ERL_SUB_BIN_SIZE,p);
 #ifdef DEBUG
     sub_bin_heap->thing_word = 0;
@@ -2961,7 +2965,9 @@ profile_runnable_proc(Process *p, Eterm status){
 #endif
 
     if (p->current) {
-	where = TUPLE3(hp, p->current[0], p->current[1], make_small(p->current[2])); hp += 4;
+	where = TUPLE3(hp, p->current[0], p->current[1],
+		       make_small(ERTS_FUNCTION_ARITY(p->current)));
+	hp += 4;
     } else {
 	where = make_small(0);
     }

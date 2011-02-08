@@ -2373,7 +2373,7 @@ load_code(LoaderState* stp)
 		 * Save context for error messages.
 		 */
 		stp->function = code[ci-2];
-		stp->arity = code[ci-1];
+		stp->arity = ERTS_FUNCTION_ARITY(code+ci-3);
 
 		ASSERT(stp->labels[last_label].value == ci - FUNC_INFO_SZ);
 		offset = MI_FUNCTIONS + function_number;
@@ -5071,7 +5071,7 @@ functions_in_module(Process* p, /* Process whose heap to use. */
     for (i = num_functions-1; i >= 0 ; i--) {
 	BeamInstr* func_info = (BeamInstr *) code[MI_FUNCTIONS+i];
 	Eterm name = (Eterm) func_info[3];
-	int arity = (int) func_info[4];
+	int arity = (int) ERTS_FUNCTION_ARITY(func_info+2);
 	Eterm tuple;
 
 	ASSERT(is_atom(name));
@@ -5171,7 +5171,8 @@ exported_from_module(Process* p, /* Process whose heap to use. */
 		hp = HAlloc(p, need);
 		hend = hp + need;
 	    }
-	    tuple = TUPLE2(hp, ep->code[1], make_small(ep->code[2]));
+	    tuple = TUPLE2(hp, ep->code[1],
+			   make_small(ERTS_FUNCTION_ARITY(ep->code)));
 	    hp += 3;
 	    result = CONS(hp, tuple, result);
 	    hp += 2;
@@ -5407,7 +5408,7 @@ erts_build_mfa_item(FunctionInfo* fi, Eterm* hp, Eterm args, Eterm* mfa_p)
     if (is_list(args) || is_nil(args)) {
 	*mfa_p = TUPLE4(hp, current[0], current[1], args, loc);
     } else {
-	Eterm arity = make_small(current[2]);
+	Eterm arity = make_small(ERTS_FUNCTION_ARITY(current));
 	*mfa_p = TUPLE4(hp, current[0], current[1], arity, loc);
     }
     return hp + 5;

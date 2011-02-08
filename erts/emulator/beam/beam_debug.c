@@ -249,7 +249,8 @@ erts_debug_disassemble_1(BIF_ALIST_1)
 	    n = code_base[MI_NUM_FUNCTIONS];
 	    for (i = 0; i < n; i++) {
 		code_ptr = (BeamInstr *) code_base[MI_FUNCTIONS+i];
-		if (code_ptr[3] == name && code_ptr[4] == arity) {
+		if (code_ptr[3] == name &&
+		    ERTS_FUNCTION_ARITY(code_ptr+2) == arity) {
 		    funcinfo = code_ptr+2;
 		    break;
 		}
@@ -285,7 +286,8 @@ erts_debug_disassemble_1(BIF_ALIST_1)
     addr = erts_bld_uword(&hp, NULL, (BeamInstr) code_ptr);
     ASSERT(is_atom(funcinfo[0]));
     ASSERT(is_atom(funcinfo[1]));
-    mfa = TUPLE3(hp, (Eterm) funcinfo[0], (Eterm) funcinfo[1], make_small((Eterm) funcinfo[2]));
+    mfa = TUPLE3(hp, (Eterm) funcinfo[0], (Eterm) funcinfo[1],
+		 make_small((Eterm) ERTS_FUNCTION_ARITY(funcinfo)));
     hp += 4;
     return TUPLE3(hp, addr, bin, mfa);
 }

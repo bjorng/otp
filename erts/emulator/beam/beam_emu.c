@@ -99,7 +99,7 @@ do {									\
 #  define CHECK_ARGS(PC)                 \
 do {                                     \
   int i_;                                \
-  int Arity_ = PC[-1];                   \
+  int Arity_ = ERTS_FUNCTION_ARITY(PC-3);\
   if (Arity_ > 0) {                      \
 	CHECK_TERM(r(0));                \
   }                                      \
@@ -2926,11 +2926,11 @@ void process_main(void)
      * called from I[-3], I[-2], and I[-1] respectively.
      */
  context_switch_fun:
-    c_p->arity = I[-1] + 1;
+    c_p->arity = ERTS_FUNCTION_ARITY(I-3) + 1;
     goto context_switch2;
 
  context_switch:
-    c_p->arity = I[-1];
+    c_p->arity = ERTS_FUNCTION_ARITY(I-3);
 
  context_switch2:		/* Entry for fun calls. */
     c_p->current = I-3;		/* Pointer to Mod, Func, Arity */
@@ -3161,7 +3161,7 @@ void process_main(void)
 	    SWAPOUT;
 	    c_p->fcalls = FCALLS - 1;
 	    PROCESS_MAIN_CHK_LOCKS(c_p);
-	    bif_nif_arity = I[-1];
+	    bif_nif_arity = ERTS_FUNCTION_ARITY(I-3);
 	    ERTS_SMP_UNREQ_PROC_MAIN_LOCK(c_p);
 	    ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
 
@@ -3201,7 +3201,7 @@ void process_main(void)
 	    c_p->fcalls = FCALLS - 1;
 	    vbf = (BifFunction) Arg(0);
 	    PROCESS_MAIN_CHK_LOCKS(c_p);
-	    bif_nif_arity = I[-1];
+	    bif_nif_arity = ERTS_FUNCTION_ARITY(I-3);
 	    ASSERT(bif_nif_arity <= 3);
 	    ERTS_SMP_UNREQ_PROC_MAIN_LOCK(c_p);
 	    ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
@@ -4444,7 +4444,8 @@ void process_main(void)
 	     if (E - 3 < HTOP) {
 		 /* SWAPOUT, SWAPIN was done and r(0) was saved above */
 		 PROCESS_MAIN_CHK_LOCKS(c_p);
-		 FCALLS -= erts_garbage_collect(c_p, 3, reg, ep->code[2]);
+		 FCALLS -= erts_garbage_collect(c_p, 3, reg,
+						ERTS_FUNCTION_ARITY(ep->code));
 		 ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
 		 PROCESS_MAIN_CHK_LOCKS(c_p);
 		 r(0) = reg[0];
@@ -4534,7 +4535,8 @@ void process_main(void)
 	     if (E - 2 < HTOP) {
 		 reg[0] = r(0);
 		 PROCESS_MAIN_CHK_LOCKS(c_p);
-		 FCALLS -= erts_garbage_collect(c_p, 2, reg, I[-1]);
+		 FCALLS -= erts_garbage_collect(c_p, 2, reg,
+						ERTS_FUNCTION_ARITY(I-3));
 		 ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
 		 PROCESS_MAIN_CHK_LOCKS(c_p);
 		 r(0) = reg[0];
@@ -4638,7 +4640,8 @@ void process_main(void)
 	 if (E - need < HTOP) {
 	     /* SWAPOUT was done and r(0) was saved above */
 	     PROCESS_MAIN_CHK_LOCKS(c_p);
-	     FCALLS -= erts_garbage_collect(c_p, need, reg, I[-1]);
+	     FCALLS -= erts_garbage_collect(c_p, need, reg,
+					    ERTS_FUNCTION_ARITY(I-3));
 	     ERTS_VERIFY_UNUSED_TEMP_ALLOC(c_p);
 	     PROCESS_MAIN_CHK_LOCKS(c_p);
 	     r(0) = reg[0];
@@ -5483,7 +5486,7 @@ save_stacktrace(Process* c_p, BeamInstr* pc, Eterm* reg, BifFunction bf,
 	     */
 	    ASSERT(c_p->current);
 	    s->current = c_p->current;
-	    a = s->current[2];
+	    a = ERTS_FUNCTION_ARITY(s->current);
 	}
 	/* Save first stack entry */
 	ASSERT(pc);
@@ -5508,7 +5511,7 @@ save_stacktrace(Process* c_p, BeamInstr* pc, Eterm* reg, BifFunction bf,
 	     (GET_EXC_INDEX(EXC_FUNCTION_CLAUSE)) ) {
 	    int a;
 	    ASSERT(s->current);
-	    a = s->current[2];
+	    a = ERTS_FUNCTION_ARITY(s->current);
 	    args = make_arglist(c_p, reg, a); /* Overwrite CAR(c_p->ftrace) */
 	    /* Save first stack entry */
 	    ASSERT(c_p->cp);
@@ -5753,7 +5756,7 @@ call_error_handler(Process* p, BeamInstr* fi, Eterm* reg, Eterm func)
      * Create a list with all arguments in the x registers.
      */
 
-    arity = fi[2];
+    arity = ERTS_FUNCTION_ARITY(fi);
     sz = 2 * arity;
     if (HeapWordsLeft(p) < sz) {
 	erts_garbage_collect(p, sz, reg, arity);
@@ -6069,7 +6072,7 @@ call_fun(Process* p,		/* Current process. */
 	fe = funp->fe;
 	num_free = funp->num_free;
 	code_ptr = fe->address;
-	actual_arity = (int) code_ptr[-1];
+	actual_arity = (int) ERTS_FUNCTION_ARITY(code_ptr-3);
 
 	if (actual_arity == arity+num_free) {
 	    if (num_free == 0) {
@@ -6106,7 +6109,7 @@ call_fun(Process* p,		/* Current process. */
 		}
 	    }
 
-	    if (actual_arity >= 0) {
+	    if (actual_arity != ERTS_UNLOADED_FUN_CODE) {
 		/*
 		 * There is a fun defined, but the call has the wrong arity.
 		 */
@@ -6161,7 +6164,7 @@ call_fun(Process* p,		/* Current process. */
 	int actual_arity;
 
 	ep = *((Export **) (export_val(fun) + 1));
-	actual_arity = (int) ep->code[2];
+	actual_arity = (int) ERTS_FUNCTION_ARITY(ep->code);
 
 	if (arity == actual_arity) {
 	    return ep->address;
@@ -6311,7 +6314,7 @@ new_fun(Process* p, Eterm* reg, ErlFunEntry* fe, int num_free)
 #ifdef HIPE
     funp->native_address = fe->native_address;
 #endif
-    funp->arity = (int)fe->address[-1] - num_free;
+    funp->arity = (int)ERTS_FUNCTION_ARITY(fe->address-3) - num_free;
     for (i = 0; i < num_free; i++) {
 	*hp++ = reg[i];
     }

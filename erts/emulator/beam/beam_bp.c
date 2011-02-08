@@ -488,7 +488,7 @@ erts_find_local_func(Eterm mfa[3]) {
 	ASSERT(((BeamInstr) BeamOp(op_i_func_info_IaaI)) == code_ptr[0]);
 	ASSERT(mfa[0] == ((Eterm) code_ptr[2]));
 	if (mfa[1] == ((Eterm) code_ptr[3]) &&
-	    ((BeamInstr) mfa[2]) == code_ptr[4]) {
+	    ((BeamInstr) mfa[2]) == ERTS_FUNCTION_ARITY(code_ptr+2)) {
 	    return code_ptr + 5;
 	}
     }
@@ -892,7 +892,8 @@ static int set_module_break(Module *modp, Eterm mfa[3], int specified,
 	code_ptr = code_base[MI_FUNCTIONS+i];
 	ASSERT(code_ptr[0] == (BeamInstr) BeamOp(op_i_func_info_IaaI));
 	if ((specified < 2 || mfa[1] == ((Eterm) code_ptr[3])) &&
-	    (specified < 3 || ((int) mfa[2]) == ((int) code_ptr[4]))) {
+	    (specified < 3 ||
+	     ((int) mfa[2]) == ((int) ERTS_FUNCTION_ARITY(code_ptr+2)))) {
 	    BeamInstr *pc = code_ptr+5;
 	    
 	    num_processed +=
@@ -1144,7 +1145,8 @@ static int clear_module_break(Module *m, Eterm mfa[3], int specified,
     for (i = 0; i < n; ++i) {
 	code_ptr = code_base[MI_FUNCTIONS+i];
 	if ((specified < 2 || mfa[1] == ((Eterm) code_ptr[3])) &&
-	    (specified < 3 || ((int) mfa[2]) == ((int) code_ptr[4]))) {
+	    (specified < 3 ||
+	     ((int) mfa[2]) == ((int) ERTS_FUNCTION_ARITY(code_ptr+2)))) {
 	    BeamInstr *pc = code_ptr + 5;
 	    
 	    num_processed += 

@@ -460,7 +460,7 @@ print_term(fmtfn_t fn, void* arg, Eterm obj, long *dcount,
 		PRINT_BUF(res, fn, arg, name->name, name->len);
 		PRINT_CHAR(res, fn, arg, '.');
 		PRINT_SLONG(res, fn, arg, 'd', 0, 1,
-			    (signed long) ep->code[2]);
+			    (signed long) ERTS_FUNCTION_ARITY(ep->code));
 		PRINT_CHAR(res, fn, arg, '>');
 	    }
 	    break;

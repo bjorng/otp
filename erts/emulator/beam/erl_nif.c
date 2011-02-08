@@ -1394,7 +1394,7 @@ static BeamInstr** get_func_pp(BeamInstr* mod_code, Eterm f_atom, unsigned arity
 	BeamInstr* code_ptr = (BeamInstr*) mod_code[MI_FUNCTIONS+j];
 	ASSERT(code_ptr[0] == (BeamInstr) BeamOp(op_i_func_info_IaaI));
 	if (f_atom == ((Eterm) code_ptr[3])
-	    && arity == ((unsigned) code_ptr[4])) {
+	    && arity == ((unsigned) ERTS_FUNCTION_ARITY(code_ptr+2))) {
 
 	    return (BeamInstr**) &mod_code[MI_FUNCTIONS+j];
 	}
@@ -1529,7 +1529,7 @@ BIF_RETTYPE load_nif_2(BIF_ALIST_2)
     ASSERT(BIF_P->current != NULL);
     ASSERT(BIF_P->current[0] == am_erlang
 	   && BIF_P->current[1] == am_load_nif 
-	   && BIF_P->current[2] == 2);
+	   && ERTS_FUNCTION_ARITY(BIF_P->current) == 2);
     caller = find_function_from_pc(BIF_P->cp);
     ASSERT(caller != NULL);
     mod_atom = caller[0];

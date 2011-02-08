@@ -2301,7 +2301,7 @@ restart:
 		ehp[0] = make_arityval(3);
 		ehp[1] = cp[0];
 		ehp[2] = cp[1];
-		ehp[3] = make_small((Uint) cp[2]);
+		ehp[3] = make_small((Uint) ERTS_FUNCTION_ARITY(cp));
 	    }
 	    break;
 	case matchSilent:

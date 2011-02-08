@@ -1568,7 +1568,8 @@ static void set_trace_bif(int bif_index, void* match_prog) {
     
 #ifdef HARDDEBUG
     erts_fprintf(stderr, "set_trace_bif: %T:%T/%bpu\n",
-		 ep->code[0], ep->code[1], ep->code[2]);
+		 ep->code[0], ep->code[1],
+		 ERTS_FUNCTION_ARITY(ep->code));
 #endif
     ASSERT(ExportIsBuiltIn(ep));
     MatchSetUnref(ep->match_prog_set);
@@ -1631,7 +1632,8 @@ static void clear_trace_bif(int bif_index) {
     
 #ifdef HARDDEBUG
     erts_fprintf(stderr, "clear_trace_bif: %T:%T/%bpu\n",
-		 ep->code[0], ep->code[1], ep->code[2]);
+		 ep->code[0], ep->code[1],
+		 ERTS_FUNCTION_ARITY(ep->code);
 #endif
     ASSERT(ExportIsBuiltIn(ep));
     MatchSetUnref(ep->match_prog_set);

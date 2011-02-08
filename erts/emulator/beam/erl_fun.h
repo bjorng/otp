@@ -67,6 +67,9 @@ typedef struct erl_fun_thing {
     Eterm env[1];		/* Environment (free variables). */
 } ErlFunThing;
 
+/* Illegal arity to mark an unloaded fun */
+#define ERTS_UNLOADED_FUN_CODE 0xFFFF
+
 /* ERL_FUN_SIZE does _not_ include space for the environment */
 #define ERL_FUN_SIZE ((sizeof(ErlFunThing)/sizeof(Eterm))-1)
 

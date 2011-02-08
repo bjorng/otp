@@ -290,7 +290,7 @@ print_process_info(int to, void *to_arg, Process *p)
 		 erts_print(to, to_arg, "%T:%T/%bpu\n",
 			    scb->ct[j]->code[0],
 			    scb->ct[j]->code[1],
-			    scb->ct[j]->code[2]);
+			    ERTS_FUNCTION_ARITY(scb->ct[j]->code));
        }
        erts_print(to, to_arg, "\n");
     }

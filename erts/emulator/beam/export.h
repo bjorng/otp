@@ -55,6 +55,8 @@ typedef struct export
     BeamInstr code[5];
 } Export;
 
+#define ERTS_FUNCTION_ARITY(base) (((base)[2]) & 0xFFFF)
+#define ERTS_FUNCTION_RVALS(base) (((base)[2]) >> 16)
 
 void init_export_table(void);
 void export_info(int, void *);

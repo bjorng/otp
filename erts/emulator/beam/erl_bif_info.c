@@ -1580,7 +1580,7 @@ process_info_aux(Process *BIF_P,
 		    term = TUPLE3(hp,
 				  scb->ct[j]->code[0],
 				  scb->ct[j]->code[1],
-				  make_small(scb->ct[j]->code[2]));
+				  make_small(ERTS_FUNCTION_ARITY(scb->ct[j]->code)));
 		    hp += 4;
 		}
 		list = CONS(hp, term, list);
@@ -1650,7 +1650,8 @@ current_function(Process* BIF_P, Process* rp, Eterm** hpp, int full_info)
     } else {
 	hp = HAlloc(BIF_P, 3+4);
 	res = TUPLE3(hp, rp->current[0],
-		     rp->current[1], make_small(rp->current[2]));
+		     rp->current[1],
+		     make_small(ERTS_FUNCTION_ARITY(rp->current)));
 	hp += 4;
     }
     *hpp = hp;
@@ -3086,7 +3087,7 @@ fun_info_2(BIF_ALIST_2)
 	    break;
 	case am_arity:
 	    hp = HAlloc(p, 3);
-	    val = make_small(exp->code[2]);
+	    val = make_small(ERTS_FUNCTION_ARITY(exp->code));
 	    break;
 	case am_name:
 	    hp = HAlloc(p, 3);

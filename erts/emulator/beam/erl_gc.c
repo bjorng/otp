@@ -350,6 +350,7 @@ erts_garbage_collect(Process* p, int need, Eterm* objv, int nobj)
     int done = 0;
     Uint ms1, s1, us1;
 
+    ASSERT(nobj <= 256);
     if (IS_TRACED_FL(p, F_TRACE_GC)) {
         trace_gc(p, am_gc_start);
     }

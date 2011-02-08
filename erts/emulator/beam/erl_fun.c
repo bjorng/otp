@@ -45,10 +45,10 @@ static void fun_free(ErlFunEntry* obj);
 
 /*
  * The address field of every fun that has no loaded code will point
- * to unloaded_fun[]. The -1 in unloaded_fun[0] will be interpreted
+ * to unloaded_fun[].  ERTS_UNLOADED_FUN_CODE will be interpreted
  * as an illegal arity when attempting to call a fun.
  */
-static BeamInstr unloaded_fun_code[3] = {NIL, -1, 0};
+static BeamInstr unloaded_fun_code[3] = {NIL, ERTS_UNLOADED_FUN_CODE, 0};
 static BeamInstr* unloaded_fun = unloaded_fun_code + 2;
 
 void
