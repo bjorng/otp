@@ -354,6 +354,7 @@ basic_test() ->
     ?line erlang:trace_pattern({?MODULE,slave,'_'},false,[local]),
     ?line [1,1,1,1] = apply_slave(?MODULE,exported_wrap,[1]),
     ?line ?CT(?MODULE,exported_wrap,[1]),
+    ?line ?CT(?MODULE,mret,[1]),
     ?line ?CT(?MODULE,exported,[1]),
     ?line ?CT(?MODULE,local,[1]),
     ?line ?CT(?MODULE,local2,[1]),
@@ -373,6 +374,7 @@ basic_test() ->
 				   end),
     ?line ?CT(?MODULE,_,_), %% The fun
     ?line ?CT(?MODULE,exported_wrap,[1]),
+    ?line ?CT(?MODULE,mret,[1]),
     ?line ?CT(?MODULE,exported,[1]),
     ?line ?CT(?MODULE,local,[1]),
     ?line ?CT(?MODULE,local2,[1]),
@@ -436,6 +438,8 @@ return_test() ->
     ?line erlang:trace_pattern({?MODULE,slave,'_'},false,[local]),
     ?line [1,1,1,1] = apply_slave(?MODULE,exported_wrap,[1]),
     ?line ?CT(?MODULE,exported_wrap,[1]), 
+    ?line ?CT(?MODULE,mret,[1]),
+    ?line ?RF(?MODULE,mret,1,{ok,1}),
     ?line ?CT(?MODULE,exported,[1]),
     ?line ?CT(?MODULE,local,[1]),
     ?line ?CT(?MODULE,local2,[1]),
@@ -456,6 +460,8 @@ return_test() ->
     ?line erlang:trace_pattern({?MODULE,slave,'_'},false,[local]),
     ?line [1,1,1,1] = apply_slave(?MODULE,exported_wrap,[1]),
     ?line ?CT(?MODULE,exported_wrap,[1]), 
+    ?line ?CT(?MODULE,mret,[1]),
+    ?line ?RT(?MODULE,exported_wrap,1),
     ?line ?CT(?MODULE,exported,[1]),
     ?line ?CT(?MODULE,local,[1]),
     ?line ?CT(?MODULE,local2,[1]),
@@ -474,6 +480,9 @@ return_test() ->
     ?line erlang:trace_pattern({?MODULE,slave,'_'},false,[local]),
     ?line [1,1,1,1] = apply_slave(?MODULE,exported_wrap,[1]),
     ?line ?CT(?MODULE,exported_wrap,[1]), 
+    ?line ?CT(?MODULE,mret,[1]),
+    ?line ?RF(?MODULE,mret,1,{ok,1}),
+    ?line ?RT(?MODULE,exported_wrap,1),
     ?line ?CT(?MODULE,exported,[1]),
     ?line ?CT(?MODULE,local,[1]),
     ?line ?CT(?MODULE,local2,[1]),
@@ -823,6 +832,7 @@ loop(D1,D2,D3,N) ->
     max(N,loop(D1,D2,D3,N-1)).
 
 exported_wrap(Val) ->
+    {ok,_} = mret(Val),
     exported(Val).
 
 exported(Val) ->
@@ -837,6 +847,8 @@ local2(Val) ->
 local_tail(Val) ->
     [Val , erlang:hash(1,1)].
 
+mret(N) ->
+    {ok,N}.
 
 
 %%% exc_slave/3 tracee target functions %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
