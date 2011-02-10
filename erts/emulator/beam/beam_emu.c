@@ -4475,7 +4475,8 @@ void process_main(void)
      
      SWAPOUT;		/* Needed for shared heap */
      ERTS_SMP_UNREQ_PROC_MAIN_LOCK(c_p);
-     erts_trace_return(c_p, code, r(0), E+1/*Process tracer*/);
+     reg[0] = r(0);
+     erts_trace_return(c_p, code, reg, E+1/*Process tracer*/);
      ERTS_SMP_REQ_PROC_MAIN_LOCK(c_p);
      SWAPIN;
      c_p->cp = NULL;

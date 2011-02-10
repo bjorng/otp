@@ -1620,7 +1620,7 @@ void trace_send(Process*, Eterm, Eterm);
 void trace_receive(Process*, Eterm);
 Uint32 erts_call_trace(Process *p, BeamInstr mfa[], Binary *match_spec, Eterm* args,
 		       int local, Eterm *tracer_pid);
-void erts_trace_return(Process* p, BeamInstr* fi, Eterm retval, Eterm *tracer_pid);
+void erts_trace_return(Process* p, BeamInstr* fi, Eterm* reg, Eterm *tracer_pid);
 void erts_trace_exception(Process* p, BeamInstr mfa[], Eterm class, Eterm value,
 			  Eterm *tracer);
 void erts_trace_return_to(Process *p, BeamInstr *pc);

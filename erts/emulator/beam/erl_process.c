@@ -3410,6 +3410,8 @@ erts_init_scheduling(int no_schedulers, int no_schedulers_online)
 	    erts_alloc_permanent_cache_aligned(ERTS_ALC_T_BEAM_REGISTER,
 					       ERTS_X_REGS_ALLOCATED *
 					       sizeof(Eterm));
+	/* Reserve a word before x(0) for return trace */
+	esdp->x_reg_array++;
 	esdp->f_reg_array =
 	    erts_alloc_permanent_cache_aligned(ERTS_ALC_T_BEAM_REGISTER,
 					       MAX_REG * sizeof(FloatDef));

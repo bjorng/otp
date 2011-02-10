@@ -60,10 +60,11 @@
 #define BEAM_EMU_TMP_HEAP_SIZE  2    /* and beam_emu... */
 
 /*
- * The new arithmetic operations need some extra X registers in the register array.
- * so does the gc_bif's (i_gc_bif3 need 3 extra).
+ * The new arithmetic operations need some extra X registers in
+ * the register array. So does the gc_bifs (i_gc_bif3 need 3 extra).
+ * In addition, we need one extra word at the beginning for return trace.
  */
-#define ERTS_X_REGS_ALLOCATED (MAX_REG+3)
+#define ERTS_X_REGS_ALLOCATED (MAX_REG+3+1)
 
 #define INPUT_REDUCTIONS (2 * CONTEXT_REDS)
 

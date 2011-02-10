@@ -1253,7 +1253,7 @@ erts_trace_return_to(Process *p, BeamInstr *pc)
  * or   {trace, Pid, return_from, {Mod, Name, Arity}, Retval}
  */
 void
-erts_trace_return(Process* p, BeamInstr* fi, Eterm retval, Eterm *tracer_pid)
+erts_trace_return(Process* p, BeamInstr* fi, Eterm* reg, Eterm *tracer_pid)
 {
     Eterm* hp;
     Eterm mfa;
@@ -1264,7 +1264,9 @@ erts_trace_return(Process* p, BeamInstr* fi, Eterm retval, Eterm *tracer_pid)
 #ifdef ERTS_SMP
     Eterm tracee;
 #endif
-    
+    Eterm retval;
+    Uint rvals;
+
     ASSERT(tracer_pid);
     if (*tracer_pid == am_true) {
 	/* Breakpoint trace enabled without specifying tracer =>
@@ -1309,6 +1311,14 @@ erts_trace_return(Process* p, BeamInstr* fi, Eterm retval, Eterm *tracer_pid)
     mod = fi[0];
     name = fi[1];
     arity = ERTS_FUNCTION_ARITY(fi);
+
+    rvals = ERTS_FUNCTION_RVALS(fi);
+    if (rvals < 2) {
+	retval = reg[0];
+    } else {
+	reg[-1] = make_arityval(rvals);
+	retval = make_tuple(reg-1);
+    }
     
     if (is_internal_port(*tracer_pid)) {
 #define LOCAL_HEAP_SIZE (4+6+5)
@@ -2250,11 +2260,11 @@ erts_bif_trace(int bif_index, Process* p, Eterm* args, BeamInstr* I)
 	    }
 	} else {
 	    if (flags_meta & MATCH_SET_RX_TRACE) {
-		erts_trace_return(p, ep->code, result, &meta_tracer_pid);
+		erts_trace_return(p, ep->code, &result, &meta_tracer_pid);
 	    }
 	    /* MATCH_SET_RETURN_TO_TRACE cannot occur if(meta) */
 	    if (flags & MATCH_SET_RX_TRACE) {
-		erts_trace_return(p, ep->code, result, &p->tracer_proc);
+		erts_trace_return(p, ep->code, &result, &p->tracer_proc);
 	    }
 	    if (flags & MATCH_SET_RETURN_TO_TRACE) { 
 		/* can only happen if(local)*/
