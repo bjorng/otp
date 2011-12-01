@@ -593,7 +593,7 @@ static Uint *hipe_find_emu_address(Eterm mod, Eterm name, unsigned int arity)
     for (i = 0; i < n; ++i) {
 	Uint *code_ptr = (Uint*)code_base[MI_FUNCTIONS+i];
 	ASSERT(code_ptr[0] == BeamOpCode(op_i_func_info_IaaI));
-	if (code_ptr[3] == name && code_ptr[4] == arity)
+	if (code_ptr[3] == name && ERTS_FUNCTION_ARITY(code_ptr+2) == arity)
 	    return code_ptr+5;
     }
     return NULL;

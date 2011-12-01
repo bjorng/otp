@@ -4843,20 +4843,20 @@ void process_main(void)
 	  * I[-4]: Native code callee (inserted by HiPE)
 	  * I[-3]: Module (tagged atom)
 	  * I[-2]: Function (tagged atom)
-	  * I[-1]: Arity (untagged integer)
+	  * I[-1]: Arity (untagged integer) | (NRetVals << 16)
 	  * I[ 0]: &&lb_hipe_trap_call
 	  * ... remainder of original BEAM code
 	  */
 	 ASSERT(I[-5] == (Uint) OpCode(i_func_info_IaaI));
 	 c_p->hipe.ncallee = (void(*)(void)) I[-4];
-	 cmd = HIPE_MODE_SWITCH_CMD_CALL | (I[-1] << 8);
+	 cmd = HIPE_MODE_SWITCH_CMD_CALL | (ERTS_FUNCTION_ARITY(I-3) << 8);
 	 ++hipe_trap_count;
 	 goto L_hipe_mode_switch;
      }
      OpCase(hipe_trap_call_closure): {
        ASSERT(I[-5] == (Uint) OpCode(i_func_info_IaaI));
        c_p->hipe.ncallee = (void(*)(void)) I[-4];
-       cmd = HIPE_MODE_SWITCH_CMD_CALL_CLOSURE | (I[-1] << 8);
+       cmd = HIPE_MODE_SWITCH_CMD_CALL_CLOSURE | (ERTS_FUNCTION_ARITY(I-3) << 8);
        ++hipe_trap_count;
        goto L_hipe_mode_switch;
      }

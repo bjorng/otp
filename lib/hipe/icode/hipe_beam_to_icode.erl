@@ -86,7 +86,10 @@
 
 -record(closure_info, {mfa :: mfa(), arity :: arity(), fv_arity :: arity()}).
 
--record(environment, {mfa :: mfa(), entry :: non_neg_integer()}).
+-record(environment, {mfa :: mfa(),
+		      nret :: pos_integer(),
+		      entry :: non_neg_integer(),
+		      mretfuns :: [{mfa(),pos_integer()}]}).
 
 
 %%-----------------------------------------------------------------------
@@ -101,33 +104,33 @@
 
 module(BeamFuns, Options) ->
   BeamCode0 = [beam_disasm:function__code(F) || F <- BeamFuns],
-  {ModCode, ClosureInfo} = preprocess_code(BeamCode0),
+  {ModCode, ClosureInfo, MultiRetFuns} = preprocess_code(BeamCode0),
   pp_beam(ModCode, Options),
-  [trans_beam_function_chunk(FunCode, ClosureInfo) || FunCode <- ModCode].
+  [trans_beam_function_chunk(FunCode, ClosureInfo, MultiRetFuns)
+   || FunCode <- ModCode].
 
-trans_beam_function_chunk(FunBeamCode, ClosureInfo) ->
-  {M,F,A} = MFA = find_mfa(FunBeamCode),
-  Icode = trans_mfa_code(M,F,A, FunBeamCode, ClosureInfo),
+trans_beam_function_chunk(FunBeamCode, ClosureInfo, MultiRetFuns) ->
+  {MFA, NRet} = find_mfa(FunBeamCode),
+  Icode = trans_mfa_code(MFA, NRet, FunBeamCode, ClosureInfo, MultiRetFuns),
   {MFA,Icode}.
 
 %%-----------------------------------------------------------------------
 %% The main translation function.
 %%-----------------------------------------------------------------------
 
-trans_mfa_code(M,F,A, FunBeamCode, ClosureInfo) ->
+trans_mfa_code({_,_,A}=MFA, NRet, FunBeamCode, ClosureInfo, MultiRetFuns) ->
   ?no_debug_msg("disassembling: {~p,~p,~p} ...", [M,F,A]),
   hipe_gensym:init(icode),
   %% Extract the function arguments
   FunArgs = extract_fun_args(A),
   %% Record the function arguments
   FunLbl = mk_label(new),
-  Env1 = env__mk_env(M, F, A, hipe_icode:label_name(FunLbl)),
+  Env1 = env__mk_env(MFA, NRet, hipe_icode:label_name(FunLbl), MultiRetFuns),
   Code1 = lists:flatten(trans_fun(FunBeamCode,Env1)),
   Code2 = fix_fallthroughs(fix_catches(Code1)),
-  MFA = {M,F,A},
   %% Debug code
   ?IF_DEBUG_LEVEL(5,
-		  {Code3,_Env3} = ?mk_debugcode(MFA, Env2, Code2),
+		  {Code3,_Env3} = ?mk_debugcode(MFA, Env1, Code2),
 		  {Code3,_Env3} = {Code2,Env1}),
   %% For stack optimization
   Leafness = leafness(Code3),
@@ -231,16 +234,22 @@ needs_redtest(Leafness) ->
 %% The main translation switch.
 %%-----------------------------------------------------------------------
 
-%%--- label & func_info combo ---
-trans_fun([{label,_}=F,{func_info,_,_,_}=FI|Instructions], Env) ->
+%%--- old func_info (< R15B)
+trans_fun([L1, {func_info,M,F,A} | Instructions], Env) ->
+    trans_fun([L1, {func_info2,M,F,A,1} | Instructions], Env);
+trans_fun([L1, L2, {func_info,M,F,A} | Instructions], Env) ->
+    trans_fun([L1, L2, {func_info2,M,F,A,1} | Instructions], Env);
+
+%%--- label & func_info2 combo ---
+trans_fun([{label,_}=F,{func_info2,_,_,_,_}=FI|Instructions], Env) ->
   %% Handle old code without a line instruction.
   trans_fun([F,{line,[]},FI|Instructions], Env);
 trans_fun([{label,B},{label,_},
-	   {func_info,M,F,A},{label,L}|Instructions], Env) ->
-  trans_fun([{label,B},{func_info,M,F,A},{label,L}|Instructions], Env);
+	   {func_info2,M,F,A,R},{label,L}|Instructions], Env) ->
+  trans_fun([{label,B},{func_info2,M,F,A,R},{label,L}|Instructions], Env);
 trans_fun([{label,B},
 	   {line,_},
-	   {func_info,{atom,_M},{atom,_F},_A},
+	   {func_info2,{atom,_M},{atom,_F},_A,_R},
 	   {label,L}|Instructions], Env) ->
   %% Emit code to handle function_clause errors.  The BEAM test instructions
   %% branch to this label if they fail during function clause selection.
@@ -265,9 +274,9 @@ trans_fun([{label,L}|Instructions], Env) ->
 %%--- call ---
 trans_fun([{call,_N,{_M,_F,A}=MFA}|Instructions], Env) ->
   Args = extract_fun_args(A),
-  Dst = [mk_var({r,0})],
-  I = trans_call(MFA, Dst, Args, local),
-  [I | trans_fun(Instructions, Env)];
+  Call = trans_call(MFA, [mk_var({r,0})], Args, local),
+  Conv = trans_retval_conversion(MFA, Env),
+  [Call | Conv] ++ trans_fun(Instructions, Env);
 %%--- call_last ---
 %% Differs from call_only in that it deallocates the environment
 trans_fun([{call_last,_N,{_M,_F,A}=MFA,_}|Instructions], Env) ->
@@ -351,7 +360,17 @@ trans_fun([{deallocate,_}|Instructions], Env) ->
   trans_fun(Instructions,Env);
 %%--- return ---
 trans_fun([return|Instructions], Env) ->
-  [hipe_icode:mk_return([mk_var({r,0})]) | trans_fun(Instructions,Env)];
+    RetI = [hipe_icode:mk_return([mk_var({r,0})])],
+    I = case env__get_nret(Env) of
+	    1 ->
+		RetI;
+	    N when N > 1 ->
+		%% Convert from multi retval to return of single tuple
+		Src = [mk_var({x,I-1}) || I <- lists:seq(1,N)],
+		[hipe_icode:mk_primop([mk_var({r,0})],mktuple,Src),
+		 RetI]
+	end,
+    [I | trans_fun(Instructions,Env)];
 %%--- send ---
 trans_fun([send|Instructions], Env) ->
   I = hipe_icode:mk_call([mk_var({r,0})], erlang, send,
@@ -1109,6 +1128,20 @@ trans_fun([X|_], _) ->
 trans_fun([], _) ->
   [].
 
+trans_retval_conversion(MFA, Env) ->
+    case fun_nret(MFA, env__get_mretfuns(Env)) of
+	1 -> [];
+	N ->
+	    %% Deconstruct single returned tuple into multiple return registers
+	    Tpl = hipe_icode:mk_new_var(),
+	    [hipe_icode:mk_move(Tpl, mk_var({r,0})) |
+	     [hipe_icode:mk_primop([mk_var({x,I-1})],
+				   #unsafe_element{index=I},
+				   [Tpl])
+	      || I <- lists:seq(1,N)]]
+    end.
+    
+
 %%--------------------------------------------------------------------
 %% trans_call and trans_enter generate correct Icode calls/tail-calls,
 %% recognizing explicit fails.
@@ -1791,8 +1824,28 @@ split_params(N, [ArgN|OrgArgs], Args) ->
 preprocess_code(ModuleCode) ->
   PatchedCode = patch_R7_funs(ModuleCode),
   ClosureInfo = find_closure_info(PatchedCode),
-  {PatchedCode, ClosureInfo}.
+  MultiRetFuns = find_multiret_funs(PatchedCode),
+  {PatchedCode, ClosureInfo, MultiRetFuns}.
 
+find_multiret_funs(Code) ->
+    find_multiret_funs(Code, []).
+find_multiret_funs([], Acc) -> 
+    Acc;
+find_multiret_funs([FunCode|Fs], Acc0) ->
+    Acc1 = case find_mfa(FunCode) of
+	       {_,1} -> Acc0;
+	       {_MFA,_NRet}=Tpl -> [Tpl | Acc0]
+	   end,
+    find_multiret_funs(Fs, Acc1).
+
+% Get number of return values for MFA
+fun_nret(MFA, MRetFuns) ->
+    case lists:keyfind(MFA, 1, MRetFuns) of
+	{MFA, NRet} -> NRet;
+	false -> 1
+    end.
+    
+    
 %%-----------------------------------------------------------------------
 %% Patches the "make_fun" BEAM instructions of R7 so that they also
 %% contain the index that the BEAM loader generates for funs.
@@ -1831,9 +1884,10 @@ find_mfa([{label,_}|Code]) ->
   find_mfa(Code);
 find_mfa([{line,_}|Code]) ->
   find_mfa(Code);
-find_mfa([{func_info,{atom,M},{atom,F},A}|_]) 
-  when is_atom(M), is_atom(F), is_integer(A), 0 =< A, A =< 255 ->
-  {M, F, A}.
+find_mfa([{func_info2,{atom,M},{atom,F},A,NRet}|_]) 
+  when is_atom(M), is_atom(F), is_integer(A), 0 =< A, A =< 255,
+       is_integer(NRet), 1 =< NRet ->
+    {{M,F,A}, NRet}.
 
 
 %%-----------------------------------------------------------------------
@@ -2261,13 +2315,18 @@ put_nl(Stream) ->
 %%-----------------------------------------------------------------------
 
 %% Construct an environment
-env__mk_env(M, F, A, Entry) ->
-  #environment{mfa={M,F,A}, entry=Entry}.
+env__mk_env(MFA, NRet, Entry, MultiRetFuns) ->
+  #environment{mfa=MFA, nret=NRet, entry=Entry, mretfuns=MultiRetFuns}.
 
 %% Get current MFA
 env__get_mfa(#environment{mfa=MFA}) -> MFA.
 
+%% Get number of return values in current function
+env__get_nret(#environment{nret=NRet}) -> NRet.
+
 %% Get entry point of the current function
 env__get_entry(#environment{entry=EP}) -> EP.
+
+env__get_mretfuns(#environment{mretfuns=MRetFuns}) -> MRetFuns.
 
 %%-----------------------------------------------------------------------
