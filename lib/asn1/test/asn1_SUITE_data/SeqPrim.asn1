@@ -16,4 +16,14 @@ Seq ::=  SEQUENCE
 
 Empty ::= SEQUENCE {}
 
+SeqEnum ::= SEQUENCE {
+    e ENUMERATED { true },
+    i INTEGER (0..63)
+}
+
+SeqEnumExt ::= SEQUENCE {
+    e ENUMERATED { true, ..., false },
+    i INTEGER (0..31)
+}
+
 END

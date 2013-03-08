@@ -157,9 +157,11 @@ gen_encode_prim(Erules,D,DoTag,Value) when is_record(D,type) ->
 	    emit_enc_enumerated_cases(Erules,NewC, NewList, 0);
 	{'ENUMERATED',NamedNumberList} ->
 	    NewList = [X||{X,_} <- NamedNumberList],
-	    NewC = effective_constraint(integer,
-					[{'ValueRange',
-					  {0,length(NewList)-1}}]),
+	    NewC0 = [case length(NewList) - 1 of
+			 0 -> {'SingleValue',0};
+			 Ub -> {'ValueRange',{0,Ub}}
+		     end],
+	    NewC = effective_constraint(integer, NewC0),
 	    NewVal = enc_enum_cases(Value,NewList),
 	    emit_enc_integer(Erules,NewC,NewVal);
 
@@ -1762,6 +1764,8 @@ emit_dec_integer(_,BytesVar) ->
     emit({"?RT_PER:decode_unconstrained_number(",BytesVar,")"}).
     
 
+emit_dec_enumerated(BytesVar,_,[SingleValue]) ->
+    emit(["    {",{asis,SingleValue},",",BytesVar,"}"]);
 emit_dec_enumerated(BytesVar,C,NamedNumberList) ->
     emit_dec_enumerated_begin(),% emits a begin if component
     asn1ct_name:new(tmpterm),

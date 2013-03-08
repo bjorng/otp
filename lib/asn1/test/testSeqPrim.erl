@@ -26,7 +26,7 @@
 -record('Seq',{bool, boolCon, boolPri, boolApp, boolExpCon, boolExpPri, boolExpApp}).
 -record('Empty',{}).
 
-main(_Rules) ->
+main(Rules) ->
     
     
 
@@ -78,7 +78,20 @@ main(_Rules) ->
     ?line {ok,{'Empty'}} = 
 	asn1_wrapper:decode('SeqPrim','Empty',lists:flatten(Bytes21)),
 
-
+    roundtrip(Rules, 'SeqEnum', {'SeqEnum',true,42}),
+    roundtrip(Rules, 'SeqEnumExt', {'SeqEnumExt',true,27}),
+    roundtrip(Rules, 'SeqEnumExt', {'SeqEnumExt',false,21}),
 
     ok.
 
+roundtrip(Rules, T, V) ->
+    M = 'SeqPrim',
+    {ok,E} = asn1_wrapper:encode(M, T, V),
+    {ok,V} = asn1_wrapper:decode(M, T, E),
+    verify(asn1_wrapper:erule(Rules), V, E),
+    ok.
+
+verify(per, {'SeqEnum',true,42}, [16#A8]) -> ok;
+verify(per, {'SeqEnumExt',true,27}, [16#6C]) -> ok;
+verify(per, {'SeqEnumExt',false,21}, [16#80,16#A8]) -> ok;
+verify(ber, _, _) -> ok.
