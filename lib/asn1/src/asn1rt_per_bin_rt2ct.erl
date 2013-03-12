@@ -1724,7 +1724,10 @@ complete(L) ->
 complete(L) ->
     case asn1rt_nif:encode_per_complete(L) of
 	{error, Reason} -> handle_error(Reason, L);
-	Else when is_binary(Else) -> Else
+	Else when is_binary(Else) ->
+	    if byte_size(Else) > 0 -> Else;
+	       true -> <<0>>
+	    end
     end.
 
 handle_error([],_)->

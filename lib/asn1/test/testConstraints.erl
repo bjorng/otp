@@ -33,6 +33,12 @@ int_constraints(Rules) ->
     ?line {ok,Bytes1} = asn1_wrapper:encode('Constraints','SingleValue',1),
     ?line {ok,1} = asn1_wrapper:decode('Constraints','SingleValue',
 					  lists:flatten(Bytes1)),
+    case asn1_wrapper:erule(Rules) of
+	ber ->
+	    ok;
+	per ->
+	    [0] = Bytes1
+    end,
 
     ?line case asn1_wrapper:erule(Rules) of
 	      ber ->
