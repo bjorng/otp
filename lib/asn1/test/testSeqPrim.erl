@@ -27,56 +27,30 @@
 -record('Empty',{}).
 
 main(Rules) ->
+    roundtrip(Rules, 'Seq', #'Seq'{bool = true,
+				   boolCon = true,
+				   boolPri = true,
+				   boolApp = true,
+				   boolExpCon = true,
+				   boolExpPri = true,
+				   boolExpApp = true}),
     
-    
+    roundtrip(Rules, 'Seq', #'Seq'{bool = false,
+				   boolCon = false,
+				   boolPri = false,
+				   boolApp = false,
+				   boolExpCon = false,
+				   boolExpPri = false,
+				   boolExpApp = false}),
+    roundtrip(Rules, 'Seq', #'Seq'{bool = false,
+				   boolCon = true,
+				   boolPri = false,
+				   boolApp = true,
+				   boolExpCon = false,
+				   boolExpPri = true,
+				   boolExpApp = false}),
 
-    ?line {ok,Bytes11} = 
-	asn1_wrapper:encode('SeqPrim','Seq',#'Seq'{bool = true,
-					       boolCon = true,
-					       boolPri = true,
-					       boolApp = true,
-					       boolExpCon = true,
-					       boolExpPri = true,
-					       boolExpApp = true}),
-    ?line {ok,{'Seq',true,true,true,true,true,true,true}} = 
-	asn1_wrapper:decode('SeqPrim','Seq',lists:flatten(Bytes11)),
-    
-    
-    
-    
-    ?line {ok,Bytes12} = 
-	asn1_wrapper:encode('SeqPrim','Seq',#'Seq'{bool = false,
-					       boolCon = false,
-					       boolPri = false,
-					       boolApp = false,
-					       boolExpCon = false,
-					       boolExpPri = false,
-					       boolExpApp = false}),
-    ?line {ok,{'Seq',false,false,false,false,false,false,false}} = 
-	asn1_wrapper:decode('SeqPrim','Seq',lists:flatten(Bytes12)),
-    
-    
-    
-    
-    ?line {ok,Bytes13} = 
-	asn1_wrapper:encode('SeqPrim','Seq',#'Seq'{bool = false,
-					       boolCon = true,
-					       boolPri = false,
-					       boolApp = true,
-					       boolExpCon = false,
-					       boolExpPri = true,
-					       boolExpApp = false}),
-    ?line {ok,{'Seq',false,true,false,true,false,true,false}} = 
-	asn1_wrapper:decode('SeqPrim','Seq',lists:flatten(Bytes13)),
-    
-    
-    
-    
-    
-    ?line {ok,Bytes21} = 
-	asn1_wrapper:encode('SeqPrim','Empty',#'Empty'{}),
-    ?line {ok,{'Empty'}} = 
-	asn1_wrapper:decode('SeqPrim','Empty',lists:flatten(Bytes21)),
+    roundtrip(Rules, 'Empty', #'Empty'{}),
 
     roundtrip(Rules, 'SeqEnum', {'SeqEnum',true,42}),
     roundtrip(Rules, 'SeqEnumExt', {'SeqEnumExt',true,27}),
@@ -94,4 +68,6 @@ roundtrip(Rules, T, V) ->
 verify(per, {'SeqEnum',true,42}, [16#A8]) -> ok;
 verify(per, {'SeqEnumExt',true,27}, [16#6C]) -> ok;
 verify(per, {'SeqEnumExt',false,21}, [16#80,16#A8]) -> ok;
+verify(per, #'Empty'{}, [0]) -> ok;
+verify(per, #'Seq'{}, _) -> ok;
 verify(ber, _, _) -> ok.
