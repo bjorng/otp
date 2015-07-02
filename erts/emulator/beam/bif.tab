@@ -631,12 +631,21 @@ bif ets:take/2
 
 bif erlang:fun_info_mfa/1
 
+#
 # New in 18.0
 #
 
 bif erlang:get_keys/0
 bif ets:update_counter/4
 bif erts_debug:map_info/1
+
+#
+# New in 18.1.
+#
+
+bif binary:bit_and/2
+bif binary:bit_or/2
+bif binary:bit_xor/2
 
 #
 # Obsolete

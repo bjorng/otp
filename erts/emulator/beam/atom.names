@@ -116,6 +116,7 @@ atom bif_return_trap
 atom bif_timer_server
 atom binary
 atom binary_bin_to_list_trap
+atom binary_bit_operation_trap
 atom binary_copy_trap
 atom binary_longest_prefix_trap
 atom binary_longest_suffix_trap

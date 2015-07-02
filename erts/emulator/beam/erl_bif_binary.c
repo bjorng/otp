@@ -67,6 +67,9 @@ static Export binary_bin_to_list_trap_export;
 static BIF_RETTYPE binary_bin_to_list_trap(BIF_ALIST_3);
 static Export binary_copy_trap_export;
 static BIF_RETTYPE binary_copy_trap(BIF_ALIST_2);
+static Export binary_bit_operation_trap_export;
+static BIF_RETTYPE binary_bit_operation_trap(BIF_ALIST_1);
+
 static Uint max_loop_limit;
 
 static BIF_RETTYPE
@@ -99,6 +102,10 @@ void erts_init_bif_binary(void)
     erts_init_trap_export(&binary_copy_trap_export,
 			  am_erlang, am_binary_copy_trap, 2,
 			  &binary_copy_trap);
+
+    erts_init_trap_export(&binary_bit_operation_trap_export,
+			  am_erlang, am_binary_bit_operation_trap, 2,
+			  &binary_bit_operation_trap);
 
     max_loop_limit = 0;
     return;
@@ -2860,6 +2867,184 @@ BIF_RETTYPE binary_decode_unsigned_2(BIF_ALIST_2)
 {
     return do_decode_unsigned(BIF_P,BIF_ARG_1,BIF_ARG_2);
 }
+
+
+/*
+ * Binary bit operations.
+ */
+
+#ifdef DEBUG
+#define BIT_OP_MAX_BYTES (CONTEXT_REDS)
+#else
+#define BIT_OP_MAX_BYTES (CONTEXT_REDS*100)
+#endif
+
+typedef enum { BIT_AND, BIT_OR, BIT_XOR } BIT_OP;
+
+typedef struct bit_op_trap_data {
+    BIT_OP op;
+    byte* ta1;
+    byte* ta2;
+    Uint left;			/* Bytes left */
+    byte* src1;
+    byte* src2;
+    byte* dst;
+    Eterm result;		/* Resulting binary */
+} BitOpTrapData;
+
+static void
+do_bit_operation(BitOpTrapData* trap)
+{
+    byte* s1 = trap->src1;
+    byte* s2 = trap->src2;
+    byte* dst = trap->dst;
+    Uint size = trap->left;
+
+    if (size > BIT_OP_MAX_BYTES) {
+	size = BIT_OP_MAX_BYTES;
+    }
+    trap->left -= size;
+    trap->src1 += size;
+    trap->src2 += size;
+    trap->dst += size;
+
+    switch (trap->op) {
+    case BIT_AND:
+	while (size != 0) {
+	    *dst = *s1 & *s2;
+	    s1++, s2++, dst++, size--;
+	}
+	break;
+    case BIT_OR:
+	while (size != 0) {
+	    *dst = *s1 | *s2;
+	    s1++, s2++, dst++, size--;
+	}
+	break;
+    case BIT_XOR:
+	while (size != 0) {
+	    *dst = *s1 ^ *s2;
+	    s1++, s2++, dst++, size--;
+	}
+	break;
+    default:
+	ASSERT(0);
+    }
+}
+
+static ERTS_INLINE byte* aligned_bytes(Eterm b, byte** bptr)
+{
+    return erts_get_aligned_binary_bytes_extra(b, bptr,
+					       ERTS_ALC_T_BINARY_BUFFER, 0);
+}
+
+static ERTS_INLINE void free_aligned_bytes(byte* bptr)
+{
+    erts_free_aligned_binary_bytes_extra(bptr, ERTS_ALC_T_BINARY_BUFFER);
+}
+
+static void cleanup_bit_operation_bm(Binary* mb)
+{
+    BitOpTrapData* trap = ERTS_MAGIC_BIN_DATA(mb);
+    free_aligned_bytes(trap->ta1);
+    free_aligned_bytes(trap->ta2);
+}
+
+static BIF_RETTYPE binary_bit_operation_trap(BIF_ALIST_1)
+{
+    BitOpTrapData* trap;
+    Binary* mb;
+
+    mb = ((ProcBin *)binary_val(BIF_ARG_1))->val;
+    trap = (BitOpTrapData *) ERTS_MAGIC_BIN_DATA(mb);
+
+    do_bit_operation(trap);
+
+    if (trap->left) {
+	BUMP_ALL_REDS(BIF_P);
+	BIF_TRAP1(&binary_bit_operation_trap_export, BIF_P, BIF_ARG_1);
+    } else {
+	free_aligned_bytes(trap->ta1);
+	free_aligned_bytes(trap->ta2);
+	trap->ta1 = trap->ta2 = NULL;
+	erts_set_gc_state(BIF_P, 1);
+	BIF_RET(trap->result);
+    }
+}
+
+static BIF_RETTYPE
+bit_operation(Process* p, BIT_OP op, Eterm S1, Eterm S2)
+{
+    BitOpTrapData trap;
+
+    trap.op = op;
+    trap.ta1 = trap.ta2 = NULL;
+    trap.src1 = aligned_bytes(S1, &trap.ta1);
+    trap.src2 = aligned_bytes(S2, &trap.ta2);
+    if (trap.src1 == NULL || trap.src2 == NULL) {
+    error:
+	free_aligned_bytes(trap.ta1);
+	free_aligned_bytes(trap.ta2);
+	BIF_ERROR(p, BADARG);
+    }
+
+    trap.left = binary_size(S1);
+    if (binary_size(S2) != trap.left) {
+	goto error;
+    }
+
+    trap.result = new_binary(p, 0, trap.left);
+    trap.dst = binary_bytes(trap.result);
+
+    do_bit_operation(&trap);
+
+    if (trap.left == 0) {
+	free_aligned_bytes(trap.ta1);
+	free_aligned_bytes(trap.ta2);
+	return trap.result;
+    } else {
+	BIF_RETTYPE ret;
+	Eterm* hp;
+	Binary* mb;
+	Eterm magic;
+	BitOpTrapData* tp;
+
+	hp = HAlloc(p, PROC_BIN_SIZE);
+	mb = erts_create_magic_binary(sizeof(BitOpTrapData),
+				      cleanup_bit_operation_bm);
+	tp = ERTS_MAGIC_BIN_DATA(mb);
+	*tp = trap;
+
+	/*
+	 * A writable binary could be moved by a GC. Also, if
+	 * there happens to be a severely over-sized heap binary,
+	 * that will be moved too. Therfore, turn off GCs until we
+	 * are done.
+	 */
+	erts_set_gc_state(p, 0);
+	magic = erts_mk_magic_binary_term(&hp, &MSO(p), mb);
+	ERTS_BIF_PREP_TRAP1(ret, &binary_bit_operation_trap_export,
+			    p, magic);
+	BUMP_ALL_REDS(p);
+	return ret;
+    }
+}
+
+BIF_RETTYPE binary_bit_and_2(BIF_ALIST_2)
+{
+    return bit_operation(BIF_P, BIT_AND, BIF_ARG_1, BIF_ARG_2);
+}
+
+BIF_RETTYPE binary_bit_or_2(BIF_ALIST_2)
+{
+    return bit_operation(BIF_P, BIT_OR, BIF_ARG_1, BIF_ARG_2);
+}
+
+BIF_RETTYPE binary_bit_xor_2(BIF_ALIST_2)
+{
+    return bit_operation(BIF_P, BIT_XOR, BIF_ARG_1, BIF_ARG_2);
+}
+
 
 /*
  * Hard debug functions (dump) for the search structures

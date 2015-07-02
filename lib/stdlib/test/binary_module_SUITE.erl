@@ -23,7 +23,8 @@
 	 init_per_group/2,end_per_group/2, 
 	 interesting/1,scope_return/1,random_ref_comp/1,random_ref_sr_comp/1,
 	 random_ref_fla_comp/1,parts/1, bin_to_list/1, list_to_bin/1,
-	 copy/1, referenced/1,guard/1,encode_decode/1,badargs/1,longest_common_trap/1]).
+	 copy/1, referenced/1,guard/1,encode_decode/1,badargs/1,
+	 longest_common_trap/1,bit_operations/1]).
 
 -export([random_number/1, make_unaligned/1]).
 
@@ -71,7 +72,7 @@ all() ->
     [scope_return,interesting, random_ref_fla_comp, random_ref_sr_comp,
      random_ref_comp, parts, bin_to_list, list_to_bin, copy,
      referenced, guard, encode_decode, badargs,
-     longest_common_trap].
+     longest_common_trap, bit_operations].
 
 groups() -> 
     [].
@@ -1363,6 +1364,66 @@ do_replace_comp(N,H,R,Opts) ->
 		      [A,D]),
 	    exit(mismatch)
     end.
+
+bit_operations(_Config) ->
+    L = [0,1,2,3,4,255,256,257],
+    do_bit_operations(L),
+
+    %% Error cases.
+    bit_op_error(<<>>, <<1>>),
+    bit_op_error(<<1,2,3>>, <<0>>),
+    bit_op_error(<<1:1>>, <<1:1>>),
+    bit_op_error(<<1>>, <<1:1>>),
+    bit_op_error(<<1:1>>, <<1>>),
+    bit_op_error(<<1>>, a),
+    bit_op_error(b, <<1,2>>),
+    ok.
+
+do_bit_operations([H|T]) ->
+    R1 = random_binary(H),
+    R2 = random_binary(H),
+    do_bit_ops(R1, R2),
+    U1 = make_unaligned(R1),
+    do_bit_ops(U1, R2),
+    do_bit_ops(R2, U1),
+    do_bit_ops(U1, make_unaligned(R2)),
+
+    RandLen = 500000 + rand:uniform(10000),
+    B1 = <<(-1):RandLen/unit:8,R1/bytes>>,
+    B2 = <<(-1):RandLen/unit:8,R2/bytes>>,
+    do_bit_ops(B1, B2),
+    do_bit_ops(make_unaligned(B1), B2),
+    do_bit_ops(make_unaligned(B1), make_unaligned2(B2)),
+
+    do_bit_operations(T);
+do_bit_operations([]) -> ok.
+
+bit_op_error(S1, S2) ->
+    {'EXIT',{badarg,_}} = (catch binary:bit_and(S1, S2)),
+    {'EXIT',{badarg,_}} = (catch binary:bit_or(S1, S2)),
+    {'EXIT',{badarg,_}} = (catch binary:bit_xor(S1, S2)),
+    ok.
+
+do_bit_ops(S1, S2) ->
+    S1 = binary:bit_and(S1, S1),
+    S1 = binary:bit_or(S1, S1),
+    X = binary:bit_xor(S1, S2),
+    S2 = binary:bit_xor(S1, X),
+    S1 = binary:bit_xor(S2, X),
+    do_bit_opt(bit_and, 'band', S1, S2),
+    do_bit_opt(bit_or, 'bor', S1, S2),
+    do_bit_opt(bit_xor, 'bxor', S1, S2).
+
+do_bit_opt(Bif, Op, S1, S2) ->
+    Result = binary:Bif(S1, S2),
+    Sz = byte_size(S1),
+    <<N1:Sz/unsigned-integer-unit:8>> = S1,
+    <<N2:Sz/unsigned-integer-unit:8>> = S2,
+    N = erlang:Op(N1, N2),
+    Result = <<N:Sz/integer-unit:8>>.
+
+random_binary(L) ->
+    list_to_binary([rand:uniform(256) - 1 || _ <- lists:seq(1, L)]).
 
 one_random_number(N) ->
     M = ((N - 1) rem 10) + 1,
