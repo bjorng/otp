@@ -28,7 +28,8 @@
          otp_8130/1, overload_mac/1, otp_8388/1, otp_8470/1, otp_8503/1,
          otp_8562/1, otp_8665/1, otp_8911/1, otp_10302/1, otp_10820/1,
          otp_11728/1, encoding/1, extends/1,
-	 test_error/1, test_warning/1]).
+	 test_error/1, test_warning/1,
+	 test_if/1, test_if_builtins/1]).
 
 -export([epp_parse_erl_form/2]).
 
@@ -71,7 +72,8 @@ all() ->
      not_circular, skip_header, otp_6277, otp_7702, otp_8130,
      overload_mac, otp_8388, otp_8470, otp_8503, otp_8562,
      otp_8665, otp_8911, otp_10302, otp_10820, otp_11728,
-     encoding, extends, test_error, test_warning].
+     encoding, extends, test_error, test_warning,
+     test_if, test_if_builtins].
 
 groups() -> 
     [{upcase_mac, [], [upcase_mac_1, upcase_mac_2]},
@@ -999,27 +1001,7 @@ ifdef(Config) ->
 
           {define_c5,
            <<"-\ndefine a.\n">>,
-           {errors,[{{2,1},epp,{bad,define}}],[]}},
-
-          {define_c6,
-           <<"\n-if.\n"
-             "-endif.\n">>,
-           {errors,[{{2,2},epp,{'NYI','if'}}],[]}},
-
-          {define_c7,
-           <<"-ifndef(a).\n"
-             "-elif.\n"
-             "-endif.\n">>,
-           {errors,[{{2,2},epp,{'NYI',elif}}],[]}},
-
-          {define_c7,
-           <<"-ifndef(a).\n"
-             "-if.\n"
-             "-elif.\n"
-             "-endif.\n"
-             "-endif.\n"
-             "t() -> a.\n">>,
-           {errors,[{{2,2},epp,{'NYI','if'}}],[]}}
+           {errors,[{{2,1},epp,{bad,define}}],[]}}
           ],
     ?line [] = compile(Config, Cs),
 
@@ -1162,6 +1144,298 @@ test_warning(Config) ->
 	 ],
 
     [] = compile(Config, Cs),
+    ok.
+
+%% OTP-12847: Test the -if and -elif directives and the built-in
+%% function defined(Symbol).
+test_if(Config) ->
+    Cs = [{if_1c,
+	   <<"-if.\n"
+	     "-endif.\n"
+	     "-if no_parentheses.\n"
+	     "-endif.\n"
+	     "-if(syntax error.\n"
+	     "-endif.\n"
+	     "-if(true).\n"
+	     "-if(a+3).\n"
+	     "syntax error not triggered here.\n"
+	     "-endif.\n">>,
+           {errors,[{1,epp,{bad,'if'}},
+		    {3,epp,{bad,'if'}},
+		    {5,erl_parse,["syntax error before: ","error"]},
+		    {11,epp,{illegal,"unterminated",'if'}}],
+	    []}},
+
+	  {if_2c,			       	%Bad guard expressions.
+	   <<"-if(is_list(integer_to_list(42))).\n" %Not guard BIF.
+	     "-endif.\n"
+	     "-if(begin true end).\n"
+	     "-endif.\n">>,
+	   {errors,[{1,epp,{bad,'if'}},
+		    {3,epp,{bad,'if'}}],
+	    []}},
+
+	  {if_3c,			       	%Invalid use of defined/1.
+	   <<"-if defined(42).\n"
+	     "-endif.\n">>,
+	   {errors,[{1,epp,{bad,'if'}}],[]}},
+
+	  {if_4c,
+	   <<"-elif OTP_RELEASE > 18.\n">>,
+	   {errors,[{1,epp,{illegal,"unbalanced",'elif'}}],[]}},
+
+	  {if_5c,
+	   <<"-ifdef(not_defined_today).\n"
+	     "-else.\n"
+	     "-elif OTP_RELEASE > 18.\n"
+	     "-endif.\n">>,
+	   {errors,[{3,epp,{illegal,"unbalanced",'elif'}}],[]}},
+
+	  {if_6c,
+	   <<"-if(defined(OTP_RELEASE)).\n"
+	     "-else.\n"
+	     "-elif(true).\n"
+	     "-endif.\n">>,
+	   {errors,[{3,epp,elif_after_else}],[]}},
+
+	  {if_7c,
+	   <<"-if(begin true end).\n"		%Not a guard expression.
+	     "-endif.\n">>,
+	   {errors,[{1,epp,{bad,'if'}}],[]}}
+
+	 ],
+    [] = compile(Config, Cs),
+
+    Ts = [{if_1,
+	   <<"-if(?OTP_RELEASE > 18).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_2,
+	   <<"-if(false).\n"
+	     "a bug.\n"
+	     "-elif(?OTP_RELEASE > 18).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_3,
+	   <<"-if(true).\n"
+	     "t() -> ok.\n"
+	     "-elif(?OTP_RELEASE > 18).\n"
+	     "a bug.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_4,
+	   <<"-define(a, 1).\n"
+	     "-if(defined(a) andalso defined(OTP_RELEASE)).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_5,
+	   <<"-if(defined(a)).\n"
+	     "a bug.\n"
+	     "-else.\n"
+	     "t() -> ok.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_6,
+	   <<"-if(defined(not_defined_today)).\n"
+	     " -if(true).\n"
+	     "  bug1.\n"
+	     " -elif(true).\n"
+	     "  bug2.\n"
+	     " -elif(true).\n"
+	     "  bug3.\n"
+	     " -else.\n"
+	     "  bug4.\n"
+	     " -endif.\n"
+	     "-else.\n"
+	     "t() -> ok.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_7,
+	   <<"-if(not_builtin()).\n"
+	     "a bug.\n"
+	     "-else.\n"
+	     "t() -> ok.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_8,
+	   <<"-if(42).\n"			%Not boolean.
+	     "a bug.\n"
+	     "-else.\n"
+	     "t() -> ok.\n"
+	     "-endif.\n">>,
+	   ok}
+	 ],
+    [] = run(Config, Ts),
+
+    ok.
+
+%% OTP-12847: Test the built-in functions in 'if' and 'elif'.
+test_if_builtins(Config) ->
+    Path = code:get_path(),
+    try
+	test_if_builtins_1(Config)
+    after
+	code:set_path(Path)
+    end.
+
+test_if_builtins_1(Config) ->
+    PrivDir = ?config(priv_dir, Config),
+    Header = filename:join(PrivDir, "test_if_builtins.hrl"),
+    ok = file:write_file(Header,  ["-define(N, 42).\n"]),
+
+    %% Create a fake application.
+    FakeAppDir = filename:join([PrivDir,fake_app,ebin]),
+    FakeAppFile = filename:join(FakeAppDir, "fake_app.app"),
+    ok = filelib:ensure_dir(FakeAppFile),
+    ok = file:write_file(FakeAppFile,
+			 <<"{application,fake_app,\n"
+			   "[{vsn,\"1.2.3.z.5\"}]}.\n">>),
+    code:add_patha(FakeAppDir),
+
+    Ts = [{if_is_deprecated_1,
+	   <<"-if(is_deprecated(erlang, hash, 2)).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_is_deprecated_2,
+	   <<"-if(is_deprecated(erlang, now, 0)).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_is_deprecated_3,
+	   <<"-if(is_deprecated(erlang, length, 1)).\n"
+	     "a bug.\n"
+	     "-else.\n"
+	     "t() -> ok.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_is_exported_1,
+	   <<"-if(is_exported(lists, map, 2)).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_is_exported_2,
+	   <<"-if(is_exported(lists, non_existing, 99)).\n"
+	     "a bug.\n"
+	     "-else.\n"
+	     "t() -> ok.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_is_exported_3,
+	   %% etop is not loaded yet. Should still work.
+	   <<"-if(is_exported(etop, start, 0)).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_is_header_1,
+	   <<"-if(is_header(\"\")).\n"
+	     "a bug.\n"
+	     "-elif(is_header(\"stdlib/include/qlc.hrl\")).\n"
+	     "-include_lib(\"stdlib/include/qlc.hrl\").\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+	  {if_is_header_2,
+	   <<"-if(is_header(\"test_if_builtins.hrl\")).\n"
+	     "-include(\"test_if_builtins.hrl\").\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_is_module_1,
+	   <<"-if(is_module(epp)).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "a bug.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_is_module_2,
+	   <<"-if(is_module(non_existing_module)).\n"
+	     "a bug.\n"
+	     "-else.\n"
+	     "t() -> ok.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_version_1,
+	   <<"-if(version(compiler) > [6]).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "bug1.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_version_2,
+	   <<"-if(version(erts) >= [8]).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "bug2.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_version_3,
+	   <<"-if(version(non_existing_application) =:= []).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "bug3.\n"
+	     "-endif.\n">>,
+           ok},
+
+	  {if_version_4,
+	   <<"-if(is_list(version(42))).\n"
+	     "bug4.\n"
+	     "-else.\n"
+	     "t() -> ok.\n"
+	     "-endif.\n">>,
+	   ok},
+
+	  {if_version_5,
+	   <<"-if(version(fake_app) =:= [1,2,3,\"z\",5]).\n"
+	     "t() -> ok.\n"
+	     "-else.\n"
+	     "bug5.\n"
+	     "-endif.\n">>,
+           ok}
+	 ],
+    [] = run(Config, Ts),
+
     ok.
 
 overload_mac(doc) ->

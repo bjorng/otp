@@ -38,7 +38,7 @@
 -type epp_handle() :: pid().
 -type source_encoding() :: latin1 | utf8.
 
--type ifdef() :: 'ifdef' | 'ifndef' | 'else'.
+-type ifdef() :: 'ifdef' | 'ifndef' | 'if' | 'else'.
 
 -type name() :: atom().
 -type argspec() :: 'none'                       %No arguments
@@ -209,8 +209,8 @@ format_error({include,W,F}) ->
     io_lib:format("can't find include ~s \"~s\"", [W,F]);
 format_error({illegal,How,What}) ->
     io_lib:format("~s '-~s'", [How,What]);
-format_error({'NYI',What}) ->
-    io_lib:format("not yet implemented '~s'", [What]);
+format_error(elif_after_else) ->
+    "'elif' following 'else'";
 format_error({error,Term}) ->
     io_lib:format("-error(~p).", [Term]);
 format_error({warning,Term}) ->
@@ -1075,21 +1075,184 @@ scan_else(_Toks, Else, From, St) ->
     epp_reply(From, {error,{loc(Else),epp,{bad,'else'}}}),
     wait_req_scan(St).
 
-%% scan_if(Tokens, EndifToken, From, EppState)
+%% scan_if(Tokens, IfToken, From, EppState)
 %%  Handle the conditional parsing of a file.
-%%  Report a badly formed if test and then treat as false macro.
 
+scan_if([{'(',_}|_]=Toks, If, From, St) ->
+    try eval_if(Toks, St) of
+	true ->
+	    scan_toks(From, St#epp{istk=['if'|St#epp.istk]});
+	_ ->
+	    skip_toks(From, St, ['if'])
+    catch
+	throw:Error0 ->
+	    Error = case Error0 of
+			{_,erl_parse,_} ->
+			    {error,Error0};
+			_ ->
+			    {error,{loc(If),epp,Error0}}
+		    end,
+	    epp_reply(From, Error),
+	    wait_req_skip(St, ['if'])
+    end;
 scan_if(_Toks, If, From, St) ->
-    epp_reply(From, {error,{loc(If),epp,{'NYI','if'}}}),
+    epp_reply(From, {error,{loc(If),epp,{bad,'if'}}}),
     wait_req_skip(St, ['if']).
+
+eval_if(Toks0, St) ->
+    Toks = expand_macros(Toks0, {St#epp.macs, St#epp.uses}),
+    Es1 = case erl_parse:parse_exprs(Toks) of
+	      {ok,Es0} -> Es0;
+	      {error,E} -> throw(E)
+	  end,
+    Es = rewrite_expr(Es1, St),
+    assert_guard_expr(Es),
+    Bs = erl_eval:new_bindings(),
+    LocalFun = fun(Name, Args) ->
+		       if_builtin(Name, Args, St)
+	       end,
+    try erl_eval:exprs(Es, Bs, {value,LocalFun}) of
+	{value,Res,_} ->
+	    Res
+    catch
+	_:_ ->
+	    false
+    end.
+
+assert_guard_expr([E0]) ->
+    E = rewrite_expr(E0, none),
+    case erl_lint:is_guard_expr(E) of
+	false ->
+	    throw({bad,'if'});
+	true ->
+	    ok
+    end;
+assert_guard_expr(_) ->
+    throw({bad,'if'}).
+
+%% Dual-purpose rewriting function. When the second argument is
+%% an #epp{} record, calls to defined(Symbol) will be evaluated.
+%% When the second argument is 'none', legal calls to our built-in
+%% functions are eliminated in order to turn the expression into
+%% a legal guard expression.
+
+rewrite_expr({call,_,{atom,_,defined},[N0]}, #epp{macs=Macs}) ->
+    %% Evaluate defined(Symbol).
+    N = case N0 of
+	    {var,_,N1} -> N1;
+	    {atom,_,N1} -> N1;
+	    _ -> throw({bad,'if'})
+	end,
+    {atom,0,maps:is_key(N, Macs)};
+rewrite_expr({call,_,{atom,_,Name},As0}, none) ->
+    As = rewrite_expr(As0, none),
+    Arity = length(As),
+    case erl_internal:bif(Name, Arity) andalso
+	not erl_internal:guard_bif(Name, Arity) of
+	false ->
+	    %% A guard BIF, an -if built-in, or an unknown function.
+	    %% Eliminate the call so that erl_lint will not complain.
+	    %% The call might fail later at evaluation time.
+	    to_conses(As);
+	true ->
+	    %% An auto-imported BIF (not guard BIF). Not allowed.
+	    throw({bad,'if'})
+    end;
+rewrite_expr([H|T], St) ->
+    [rewrite_expr(H, St)|rewrite_expr(T, St)];
+rewrite_expr(Tuple, St) when is_tuple(Tuple) ->
+    list_to_tuple(rewrite_expr(tuple_to_list(Tuple), St));
+rewrite_expr(Other, _) ->
+    Other.
+
+to_conses([H|T]) ->
+    {cons,0,H,to_conses(T)};
+to_conses([]) ->
+    {nil,0}.
+
+if_builtin(is_deprecated, [Mod,Name,Arity], _) ->
+    case otp_internal:obsolete(Mod, Name, Arity) of
+	{deprecated,_} -> true;
+	{deprecated,_,_} -> true;
+	_ -> false
+    end;
+if_builtin(is_exported, [Mod,Name,Arity], _) ->
+    _ = code:ensure_loaded(Mod),
+    erlang:function_exported(Mod, Name, Arity);
+if_builtin(is_header, [String], St) ->
+    eval_is_header(String, St);
+if_builtin(is_module, [Mod], _) ->
+    code:ensure_loaded(Mod) =:= {module,Mod};
+if_builtin(version, [Arg], _) ->
+    eval_version(Arg);
+if_builtin(_, _, _) ->
+    %% Not a built-in function.
+    error(badarg).
+
+
+eval_is_header(Name0, #epp{path=Path}) ->
+    Name = expand_var(Name0),
+    case file:path_open(Path, Name, [read]) of
+	{ok,Fd,_} ->
+	    _ = file:close(Fd),
+	    true;
+	{error,_} ->
+	    case expand_lib_dir(Name) of
+		{ok,Header} ->
+		    filelib:is_regular(Header);
+		error ->
+		    false
+	    end
+    end.
+
+eval_version(erts) ->
+    version_string_to_list(erlang:system_info(version));
+eval_version(App) when is_atom(App) ->
+    File0 = atom_to_list(App) ++ ".app",
+    Keys = case code:where_is_file(File0) of
+	       non_existing ->
+		   [];
+	       File ->
+		   case file:consult(File) of
+		       {ok,[{application,App,Keys0}]} ->
+			   Keys0;
+		       _ ->
+			   []
+		   end
+	   end,
+    case lists:keyfind(vsn, 1, Keys) of
+	{vsn,Vsn} ->
+	    version_string_to_list(Vsn);
+	false ->
+	    []
+    end.
+
+version_string_to_list(S) ->
+    Ns = string:tokens(S, "."),
+    [try
+	 list_to_integer(N)
+     catch
+	 error:badarg ->
+	     N
+     end || N <- Ns].
 
 %% scan_elif(Tokens, EndifToken, From, EppState)
 %%  Handle the conditional parsing of a file.
 %%  Report a badly formed if test and then treat as false macro.
 
 scan_elif(_Toks, Elif, From, St) ->
-    epp_reply(From, {error,{loc(Elif),epp,{'NYI','elif'}}}),
-    wait_req_scan(St).
+    case St#epp.istk of
+	['else'|Cis] ->
+	    epp_reply(From, {error,{loc(Elif),
+                                    epp,{illegal,"unbalanced",'elif'}}}),
+	    wait_req_skip(St#epp{istk=Cis}, ['else']);
+	[_I|Cis] ->
+	    skip_toks(From, St#epp{istk=Cis}, ['elif']);
+	[] ->
+	    epp_reply(From, {error,{loc(Elif),epp,
+                                    {illegal,"unbalanced",elif}}}),
+	    wait_req_scan(St)
+    end.
 
 %% scan_endif(Tokens, EndifToken, From, EppState)
 %%  If we are in an if body then exit it, else report an error.
@@ -1144,6 +1307,8 @@ skip_toks(From, St, [I|Sis]) ->
 	    skip_toks(From, St#epp{location=Cl}, ['if',I|Sis]);
 	{ok,[{'-',_Lh},{atom,_Le,'else'}=Else|_Toks],Cl}->
 	    skip_else(Else, From, St#epp{location=Cl}, [I|Sis]);
+	{ok,[{'-',_Lh},{atom,_Le,'elif'}=Elif|Toks],Cl}->
+	    skip_elif(Toks, Elif, From, St#epp{location=Cl}, [I|Sis]);
 	{ok,[{'-',_Lh},{atom,_Le,endif}|_Toks],Cl} ->
 	    skip_toks(From, St#epp{location=Cl}, Sis);
 	{ok,_Toks,Cl} ->
@@ -1174,9 +1339,19 @@ skip_toks(From, St, []) ->
 skip_else(Else, From, St, ['else'|Sis]) ->
     epp_reply(From, {error,{loc(Else),epp,{illegal,"repeated",'else'}}}),
     wait_req_skip(St, ['else'|Sis]);
+skip_else(_Else, From, St, ['elif'|Sis]) ->
+    skip_toks(From, St, ['else'|Sis]);
 skip_else(_Else, From, St, [_I]) ->
     scan_toks(From, St#epp{istk=['else'|St#epp.istk]});
 skip_else(_Else, From, St, Sis) ->
+    skip_toks(From, St, Sis).
+
+skip_elif(_Toks, Elif, From, St, ['else'|_]=Sis) ->
+    epp_reply(From, {error,{loc(Elif),epp,elif_after_else}}),
+    wait_req_skip(St, Sis);
+skip_elif(Toks, Elif, From, St, [_I]) ->
+    scan_if(Toks, Elif, From, St);
+skip_elif(_Toks, _Elif, From, St, Sis) ->
     skip_toks(From, St, Sis).
 
 %% macro_pars(Tokens, ArgStack)
