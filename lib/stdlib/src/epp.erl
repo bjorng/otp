@@ -569,6 +569,7 @@ init_server(Pid, Name, Options, St0) ->
 predef_macros(File) ->
     Machine = list_to_atom(erlang:system_info(machine)),
     Anno = line1(),
+    OtpVersion = list_to_integer(erlang:system_info(otp_release)),
     Defs = [{'FILE', 	           {none,[{string,Anno,File}]}},
 	    {'LINE',		   {none,[{integer,Anno,1}]}},
 	    {'MODULE',	           undefined},
@@ -576,7 +577,8 @@ predef_macros(File) ->
 	    {'BASE_MODULE',	   undefined},
 	    {'BASE_MODULE_STRING', undefined},
 	    {'MACHINE',	           {none,[{atom,Anno,Machine}]}},
-	    {Machine,	           {none,[{atom,Anno,true}]}}
+	    {Machine,	           {none,[{atom,Anno,true}]}},
+	    {'OTP_RELEASE',	   {none,[{integer,Anno,OtpVersion}]}}
 	   ],
     maps:from_list(Defs).
 
