@@ -1301,6 +1301,8 @@ analyze_attribute(Node) ->
                 include_lib -> preprocessor;
                 ifdef -> preprocessor;
                 ifndef -> preprocessor;
+                'if' -> preprocessor;
+                elif -> preprocessor;
                 else -> preprocessor;
                 endif -> preprocessor;
                 A ->

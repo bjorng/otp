@@ -666,7 +666,12 @@ lay_2(Node, Ctxt) ->
 	    %% a period. If the arguments is `none', we only output the
 	    %% attribute name, without following parentheses.
 	    Ctxt1 = reset_prec(Ctxt),
-	    N = erl_syntax:attribute_name(Node),
+	    N = case erl_syntax:attribute_name(Node) of
+		    {atom, _, 'if'} ->
+			erl_syntax:variable('if');
+		    N0 ->
+			N0
+		end,
 	    D = case erl_syntax:attribute_arguments(Node) of
 		    none ->
 			lay(N, Ctxt1);
