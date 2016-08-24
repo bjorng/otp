@@ -119,8 +119,8 @@ copy_anno(Kdst, Ksrc) ->
 	       free=#{},			%Free variables
 	       ws=[]   :: [warning()],		%Warnings.
                no_shared_fun_wrappers=false :: boolean(),
-               labels=sets:new([{version, 2}])
-              }).
+               labels=sets:new([{version, 2}]),
+               type_heuristics=true}).          %Use type heuristics in pattern matching
 
 -spec module(cerl:c_module(), [compile:option()]) ->
 	{'ok', #k_mdef{}, [warning()]}.
@@ -130,7 +130,8 @@ module(#c_module{anno=A,name=M,exports=Es,attrs=As,defs=Fs}, Options) ->
     Kes = map(fun (#c_var{name={_,_}=Fname}) -> Fname end, Es),
     NoSharedFunWrappers = proplists:get_bool(no_shared_fun_wrappers,
                                              Options),
-    St0 = #kern{no_shared_fun_wrappers=NoSharedFunWrappers},
+    St0 = #kern{no_shared_fun_wrappers=NoSharedFunWrappers,
+                type_heuristics = not member(no_heuristics, Options)},
     {Kfs,St} = mapfoldl(fun function/2, St0, Fs),
     {ok,#k_mdef{anno=A,name=M#c_literal.val,exports=Kes,attributes=Kas,
                 body=Kfs ++ St#kern.funs},sort(St#kern.ws)}.
@@ -1033,12 +1034,167 @@ match_pre(Cs, Sub0, St) ->
 
 %% match([Var], [Clause], Default, State) -> {MatchExpr,State}.
 
-match([_U|_Us] = L, Cs, Def, St0) ->
-    %%ok = io:format("match ~p~n", [Cs]),
+match(L0, Cs0, Def,  #kern{type_heuristics=true}=St) ->
+    %%ok = io:format("match  L: ~p~n"
+    %%               "      Cs: ~p~n", [L0, Cs0]),
+    {L1,Cs1} = match_heuristic(L0, Cs0),
+    match_patterns(L1, Cs1, Def, St);
+match(L, Cs, Def, St) ->
+    match_patterns(L, Cs, Def, St).
+
+%% match_heuristic([Var], [Clause], Default, State) -> {MatchExpr,State}.
+%% match_heuristic will try to select an optimal pattern (column) to operate on
+%% if there are multiple constructors to choose from in the clauses.
+%%
+%% Heuristics:
+%% 1. Search for the deepest column. Depth is how far a column reaches before
+%%    a variable is encountered. We do not want a column sprinkled with variables!
+%%
+%% 2. As few different types in the column as possible. Type checks will split
+%%    a column into branches by type which can be costly.
+%%
+%% 3. If all values in a given column is the same we want to check that first.
+%%    This will minimize the final code since all paths has to check that value
+%%    anyways.  Hence it is better to check it first, with only one 'is_exact'
+%%    instruction. Tagged tuples (records) are probably the most common example.
+%%
+%% 4. Atomics (immediates) such as small integers and atoms are lightweight
+%%    to check, only one word comparison. Also, select_val on integers is
+%%    extremely effective and we want to utilize this fact. We want to select
+%%    a column with a high number of unique values of type integer or atom early.
+%%    This will prune the decision tree with fast instructions.
+%%
+%% 5. Type heuristics weight assumptions:
+%%        integer > atoms > tuple  > nil | cons > map > binary > float > var
+%%
+%% This is purely an optimization step.
+
+match_heuristic([_U1,_U2|_Us]=L0,Cs0) ->
+    try
+        Index = match_heuristic_rank_clauses(Cs0),
+        %% move highest scored column to first position
+        L1 = move_nth_to_head(L0, Index),
+        Cs1 = map(fun(#iclause{pats=Ps0}=C) ->
+                          Ps1 = move_nth_to_head(Ps0, Index),
+                          C#iclause{pats=Ps1}
+                  end, Cs0),
+        {L1, Cs1}
+    catch
+        throw:not_moveable ->
+            {L0, Cs0}
+    end;
+match_heuristic(L,Cs) ->
+    {L, Cs}.
+
+move_nth_to_head(Is,1) -> Is;
+move_nth_to_head([I1,I2|Is],2) -> [I2,I1|Is];
+move_nth_to_head(Is,Ix) ->
+    {L,[I|R]} = lists:split(Ix - 1, Is),
+    [I|L] ++ R.
+
+match_heuristic_rank_clauses([#iclause{pats=Ps0}=C0|_]=Cs) ->
+    F = fun(P, OnlyVars) ->
+                {Type,_} = heuristic_con_type_val(P,C0),
+                IsVar = k_var =:= Type,
+                R = #{rank   => 0,  depth  => 0,
+                      score  => 0,  types  => [],
+                      values => [], k_var  => IsVar},
+                {R, OnlyVars andalso IsVar}
+        end,
+    case mapfoldl(F, true, Ps0) of
+        {_, true} -> 1;
+        {Rs0, false} ->
+            Rs1 = foldl(fun (#iclause{pats=Ps}=C, Rs) ->
+                                match_heuristic_rank_clause(Ps, Rs, C)
+                        end, Rs0, Cs),
+            Rs2 = map(fun (#{depth:=0}=R) -> R;
+                          (#{depth:=D, types:=Ts0, values:=Vs0, rank:=Rank}=R) ->
+                              Ts = lists:usort(Ts0),
+                              Vs = lists:usort(Vs0),
+                              Nt = length(Ts),
+                              Nv = length(Vs),
+                              true = Nt > 0, %% assert
+                              true = Nv > 0, %% assert
+
+                              % We want,
+                              % 1) As deep column as possible
+                              % 2) As few different types as possible
+                              % 3) As good types as possible
+                              % 4) As many different values as possible
+                              %    or a single value.
+
+                              Vr = if Nv =:= 1 -> 100000; true -> Nv end,
+                              Score = {D, 100/Nt, Rank, Vr},
+
+                              R#{types  := Ts,
+                                 values := Nv,
+                                 score  := Score }
+                      end, Rs1),
+            {Index,_,_} = foldl(fun (#{score := Sc}, {Ix,Hi,I}) ->
+                                        if Sc > Hi -> {I, Sc,I+1};
+                                           true    -> {Ix,Hi,I+1}
+                                        end
+                                end, {1,0,1}, Rs2),
+            %% io:format("ranks [~3w]: ~p~n", [Index,Rs2]),
+            Index
+    end.
+
+match_heuristic_rank_clause([],[],_) -> [];
+match_heuristic_rank_clause([_|Args],[#{k_var := true}=R|Rs], C) ->
+    [R|match_heuristic_rank_clause(Args, Rs, C)];
+match_heuristic_rank_clause([Arg|Args], [#{k_var := false, rank := Rank, depth := D,
+                                           types := Ts, values := Vs}=R0|Rs], C) ->
+    {Type,Val} = heuristic_con_type_val(Arg, C),
+    R = case Type of
+            k_var -> R0#{k_var := true};
+            _ -> R0#{rank   := heuristic_rank_con_type(Type) + Rank,
+                     depth  := D + 1,
+                     types  := [Type|Ts],
+                     values := [Val|Vs]}
+        end,
+    [R|match_heuristic_rank_clause(Args, Rs, C)].
+
+heuristic_con_type_val(Arg,C) ->
+    case arg_con(Arg) of
+        k_literal ->
+            #k_literal{anno=A,val=V} = arg_arg(Arg),
+            heuristic_con_type_val(expand_pat_lit(V, A),C);
+        k_int   -> {k_int, arg_val(Arg,C)};
+        k_atom  -> {k_atom, arg_val(Arg,C)};
+        k_float -> {k_float, arg_val(Arg,C)};
+        %% tuple arity is considered a part of the tuple type in this case
+        k_tuple -> {{k_tuple, arg_val(Arg,C)}, undef};
+        k_nil   -> {k_cons, []};
+        Type    -> {Type, undef}
+    end.
+
+heuristic_rank_con_type(Type) ->
+    case Type of
+        %% immediates are preferable
+        k_int   -> 100;
+        k_atom  -> 90;
+        {k_tuple,_} -> 90;
+        k_cons  -> 60;
+        k_map   -> 50;
+        k_float -> 30;
+        %% binaries can be moved
+        k_binary -> 35;
+        %% bin segments may not be moved since they
+        %% have a defined match order.
+        k_bin_end -> throw(not_moveable);
+        k_bin_seg -> throw(not_moveable)
+    end.
+
+%% match_patterns([Var], [Clause], Default, State) -> {MatchExpr,State}.
+
+match_patterns([_U|_Us] = L, Cs, Def, St0) ->
+    %% ok = io:format("match_patterns  L: ~p~n"
+    %%                "               Cs: ~p~n"
+    %%                "              Def: ~p~n", [L,Cs,Def]),
     Pcss = partition(Cs),
     foldr(fun (Pcs, {D,St}) -> match_varcon(L, Pcs, D, St) end,
 	  {Def,St0}, Pcss);
-match([], Cs, Def, St) ->
+match_patterns([], Cs, Def, St) ->
     match_guard(Cs, Def, St).
 
 %% match_guard([Clause], Default, State) -> {IfExpr,State}.
