@@ -113,6 +113,7 @@ MODULES= \
 	shell_default \
 	slave \
 	sofs \
+        str \
 	string \
 	supervisor \
 	supervisor_bridge \
