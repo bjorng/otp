@@ -51,7 +51,7 @@ debug() ->
     [io:format("~p:~p~n",[Test,?MODULE:Test(Config)]) || Test <- all()].
 
 extra(_) ->
-    {_, _} = unicode_util:version(),
+    {_, _} = unicode_util:spec_version(),
     #{ccc:=0, compat:=[], canon:=[_,_]} = unicode_util:lookup($å),
     #{fold:=229,lower:=229,title:=197,upper:=197} = unicode_util:get_case($å),
     #{fold:="ss",lower:=223,title:="Ss",upper:="SS"} = unicode_util:get_case($ß),
