@@ -39,9 +39,9 @@
 %% When appending strings no checking is done to verify that the
 %% result is valid unicode strings.
 %%
-%% Return value should be kept consistent when return type is unicode:chardata()
-%% i.e. binary input => binary output, list input => list output
-%%      mixed input => mixed output
+%% Return value should be kept consistent when return type is
+%% unicode:chardata() i.e. binary input => binary output,
+%% list input => list output mixed input => mixed output
 %%
 -module(str).
 
@@ -103,7 +103,9 @@ equal(A,B) ->
 %% Compare two strings return boolean, assumes that the input are
 %% normalized to same form, see unicode:characters_to_nfX_xxx(..)
 %% does casefold on the fly
--spec equal(A::unicode:chardata(), B::unicode:chardata(), IgnoreCase::boolean()) -> boolean().
+-spec equal(A::unicode:chardata(),
+            B::unicode:chardata(),
+            IgnoreCase::boolean()) -> boolean().
 equal(A, B, false) ->
     equal(A,B);
 equal(A, B, true) ->
@@ -130,8 +132,10 @@ reverse(CD) ->
 
 %% Append a character or string to a strings.
 %% Normally we just append with Str = [Str1|Str2] or [Str1,Str2]
-%% But if we want to keep a certain type we can use concat which copies the data.
--spec concat(A::grapheme_cluster()|unicode:chardata(),B::unicode:chardata()) -> unicode:chardata().
+%% But if we want to keep a certain type we can use concat which
+%% copies the data.
+-spec concat(A::grapheme_cluster()|unicode:chardata(),B::unicode:chardata()) ->
+                    unicode:chardata().
 concat([_|_]=A, []) -> A;
 concat([], B) when is_list(B); is_binary(B) -> B;
 concat(<<>>, B) when is_list(B); is_binary(B) -> B;
@@ -154,13 +158,15 @@ slice(CD, N) when is_integer(N), N >= 0 ->
       Start :: non_neg_integer(),
       Length :: 'infinity' | non_neg_integer(),
       Slice :: unicode:chardata().
-slice(CD, N, Length) when is_integer(N), N >= 0, is_integer(Length), Length > 0 ->
+slice(CD, N, Length)
+  when is_integer(N), N >= 0, is_integer(Length), Length > 0 ->
     slice_trail(slice_l(CD, N, is_binary(CD)), Length);
 slice(CD, N, infinity) ->
     slice_l(CD, N, is_binary(CD)).
 
 %% Intersperse a list of strings with Sep
--spec join([Str::unicode:chardata()], Sep::unicode:chardata()) -> [unicode:chardata()].
+-spec join([Str::unicode:chardata()], Sep::unicode:chardata()) ->
+                  [unicode:chardata()].
 join([_]=String,_) ->
     String;
 join([String|Strings], Sep) ->
@@ -171,7 +177,8 @@ join([], _) -> [].
 -spec pad(unicode:chardata(), Length::integer()) -> unicode:charlist().
 pad(CD, Length) ->
     pad(CD, Length, trailing, $\s).
--spec pad(unicode:chardata(), Length::integer(), Dir::direction()|'center') -> unicode:charlist().
+-spec pad(unicode:chardata(), Length::integer(), Dir::direction()|'center') ->
+                 unicode:charlist().
 pad(CD, Length, Dir) ->
     pad(CD, Length, Dir, $\s).
 -spec pad(Str, Length, Dir, Char) -> unicode:charlist() when
@@ -256,7 +263,8 @@ casefold(CD) when is_binary(CD) ->
 
 
 %% Return the remaining string with prefix removed or else nomatch
--spec prefix(Str::unicode:chardata(), Prefix::unicode:chardata()) -> nomatch | unicode:chardata().
+-spec prefix(Str::unicode:chardata(), Prefix::unicode:chardata()) ->
+                    nomatch | unicode:chardata().
 prefix(Str, Prefix0) ->
     Prefix = search_pattern(Prefix0),
     case prefix_1(Str, Prefix) of
@@ -303,8 +311,10 @@ replace(Haystack, Needle, Replacement) ->
 replace(Haystack, Needle, Replacement, Where) ->
     join(split(Haystack, Needle, Where), Replacement).
 
-%% Split Str into a list of chardata separated by one of the grapheme clusters in Seps
--spec tokens(Str::unicode:chardata(), Seps::[grapheme_cluster()]) -> [unicode:chardata()].
+%% Split Str into a list of chardata separated by one of the grapheme
+%% clusters in Seps
+-spec tokens(Str::unicode:chardata(), Seps::[grapheme_cluster()]) ->
+                    [unicode:chardata()].
 tokens([], _) -> [];
 tokens(Str, []) -> [Str];
 %% tokens(Str, [C]) ->  % optimize
@@ -313,12 +323,14 @@ tokens(Str, Seps) when is_list(Seps) ->
     tokens_m(Str, Seps, []).
 
 %% find first Needle in Haystack return rest of string
--spec find(Haystack::unicode:chardata(), Needle::unicode:chardata()) -> unicode:chardata().
+-spec find(Haystack::unicode:chardata(), Needle::unicode:chardata()) ->
+                  unicode:chardata().
 find(Haystack, Needle) ->
     find(Haystack, Needle, leading).
 
 %% find Needle in Haystack (search in Dir direction) return rest of string
--spec find(Haystack::unicode:chardata(), Needle::unicode:chardata(), Dir::direction()) -> unicode:chardata().
+-spec find(Haystack::unicode:chardata(), Needle::unicode:chardata(),
+           Dir::direction()) -> unicode:chardata().
 find(Haystack, "", _) -> Haystack;
 find(Haystack, <<>>, _) -> Haystack;
 find(Haystack, Needle, leading) ->
@@ -327,11 +339,13 @@ find(Haystack, Needle, trailing) ->
     find_r(Haystack, search_pattern(Needle), Haystack).
 
 %% Fetch first codepoint and return rest in tail
--spec gc(Str::unicode:chardata()) -> maybe_improper_list(grapheme_cluster(),unicode:chardata()).
+-spec gc(Str::unicode:chardata()) ->
+                maybe_improper_list(grapheme_cluster(),unicode:chardata()).
 gc(CD) -> unicode_util:gc(CD).
 
 %% Fetch first grapheme cluster and return rest in tail
--spec cp(Str::unicode:chardata()) -> maybe_improper_list(char(),unicode:chardata()).
+-spec cp(Str::unicode:chardata()) ->
+                maybe_improper_list(char(),unicode:chardata()).
 cp(CD) -> unicode_util:cp(CD).
 
 %% Internals
@@ -436,7 +450,8 @@ uppercase_bin(CPs0, Acc) ->
         [Char|CPs] when is_integer(Char) ->
             uppercase_bin(CPs, <<Acc/binary, Char/utf8>>);
         [Chars|CPs] ->
-            uppercase_bin(CPs, <<Acc/binary, << <<CP/utf8>> || CP <- Chars>>/binary >>);
+            uppercase_bin(CPs, <<Acc/binary,
+                                 << <<CP/utf8>> || CP <- Chars>>/binary >>);
         [] -> Acc
     end.
 
@@ -451,7 +466,8 @@ lowercase_bin(CPs0, Acc) ->
         [Char|CPs] when is_integer(Char) ->
             lowercase_bin(CPs, <<Acc/binary, Char/utf8>>);
         [Chars|CPs] ->
-            lowercase_bin(CPs, <<Acc/binary, << <<CP/utf8>> || CP <- Chars>>/binary >>);
+            lowercase_bin(CPs, <<Acc/binary,
+                                 << <<CP/utf8>> || CP <- Chars>>/binary >>);
         [] -> Acc
     end.
 
@@ -466,7 +482,8 @@ casefold_bin(CPs0, Acc) ->
         [Char|CPs] when is_integer(Char) ->
             casefold_bin(CPs, <<Acc/binary, Char/utf8>>);
         [Chars|CPs] ->
-            casefold_bin(CPs, <<Acc/binary, << <<CP/utf8>> || CP <- Chars>>/binary >>);
+            casefold_bin(CPs, <<Acc/binary,
+                                << <<CP/utf8>> || CP <- Chars>>/binary >>);
         [] -> Acc
     end.
 
@@ -610,7 +627,8 @@ split_1(Bin, [_C|_]=Needle, Start, Where, Curr0, Acc) ->
                 trailing ->
                     <<_/utf8, Cs/binary>> = Cs0,
                     Next = byte_size(Bin) - byte_size(Cs),
-                    split_1(Bin, Needle, Next, Where, Curr0, [stack(Curr0,Before),After]);
+                    split_1(Bin, Needle, Next, Where, Curr0,
+                            [stack(Curr0,Before),After]);
                 all ->
                     Next = byte_size(Bin) - byte_size(After),
                     <<_:Start/binary, Keep/binary>> = Before,
