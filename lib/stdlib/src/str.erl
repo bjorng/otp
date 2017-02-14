@@ -25,19 +25,21 @@
 %% seldom used and require that we are able look at previous codepoints in
 %% the stream and is thus hard to implement effectively.
 %%
-%% GC (grapheme cluster) means that searching for [101,778] 'e̊' in the
-%% middle of a string of 'e's should find the 'e̊' not an 'e'
+%% GC (grapheme cluster) implies that the length of string 'ß↑e̊' is 3 though
+%% it is represented by the codepoints [223,8593,101,778] or the
+%% utf8 binary <<195,159,226,134,145,101,204,138>>
 %%
-%% find("eeeee̊eee", "e̊") -> "e̊ee".
+%% And that searching for strings or graphemes finds the correct positions:
 %%
-%% And the other way around searching for 'e' in a string the contains 'e̊'
-%% should find the 'e' not the 'e̊':
+%% find("eeeee̊eee", "e̊") -> "e̊ee".:
 %% find("1£4e̊abcdef", "e") -> "ef"
 %%
 %% Most functions expect all input to be normalized to one form,
 %% see unicode:characters_to_nfc and unicode:characters_to_nfd functions.
 %% When appending strings no checking is done to verify that the
 %% result is valid unicode strings.
+%%
+%% The functions may crash for invalid utf-8 input.
 %%
 %% Return value should be kept consistent when return type is
 %% unicode:chardata() i.e. binary input => binary output,
@@ -55,7 +57,7 @@
          prefix/2,
          split/2,split/3,replace/3,replace/4,
          find/2,find/3,
-         cp/1, gc/1
+         next_codepoint/1, next_grapheme/1
         ]).
 
 -compile({no_auto_import,[length/1]}).
@@ -339,14 +341,14 @@ find(Haystack, Needle, trailing) ->
     find_r(Haystack, search_pattern(Needle), Haystack).
 
 %% Fetch first codepoint and return rest in tail
--spec gc(Str::unicode:chardata()) ->
+-spec next_grapheme(Str::unicode:chardata()) ->
                 maybe_improper_list(grapheme_cluster(),unicode:chardata()).
-gc(CD) -> unicode_util:gc(CD).
+next_grapheme(CD) -> unicode_util:gc(CD).
 
 %% Fetch first grapheme cluster and return rest in tail
--spec cp(Str::unicode:chardata()) ->
+-spec next_codepoint(Str::unicode:chardata()) ->
                 maybe_improper_list(char(),unicode:chardata()).
-cp(CD) -> unicode_util:cp(CD).
+next_codepoint(CD) -> unicode_util:cp(CD).
 
 %% Internals
 
@@ -375,7 +377,8 @@ equal_1(_, _) -> false.
 
 equal_nocase(A, A) -> true;
 equal_nocase(A0, B0) ->
-    case {cp(unicode_util:casefold(A0)), cp(unicode_util:casefold(B0))} of
+    case {unicode_util:cp(unicode_util:casefold(A0)),
+          unicode_util:cp(unicode_util:casefold(B0))} of
         {[CP|A],[CP|B]} -> equal_nocase(A,B);
         {[], []} -> true;
         _ -> false
@@ -383,7 +386,8 @@ equal_nocase(A0, B0) ->
 
 equal_norm(A, A, _Norm) -> true;
 equal_norm(A0, B0, Norm) ->
-    case {cp(unicode_util:Norm(A0)), cp(unicode_util:Norm(B0))} of
+    case {unicode_util:cp(unicode_util:Norm(A0)),
+          unicode_util:cp(unicode_util:Norm(B0))} of
         {[CP|A],[CP|B]} -> equal_norm(A,B, Norm);
         {[], []} -> true;
         _ -> false
@@ -391,8 +395,8 @@ equal_norm(A0, B0, Norm) ->
 
 equal_norm_nocase(A, A, _Norm) -> true;
 equal_norm_nocase(A0, B0, Norm) ->
-    case {cp(unicode_util:casefold(unicode_util:Norm(A0))),
-          cp(unicode_util:casefold(unicode_util:Norm(B0)))} of
+    case {unicode_util:cp(unicode_util:casefold(unicode_util:Norm(A0))),
+          unicode_util:cp(unicode_util:casefold(unicode_util:Norm(B0)))} of
         {[CP|A],[CP|B]} -> equal_norm_nocase(A,B, Norm);
         {[], []} -> true;
         _ -> false

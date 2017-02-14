@@ -454,20 +454,20 @@ replace(_) ->
     ok.
 
 cd_gc(_) ->
-    [] = str:cp(""),
-    [] = str:cp(<<>>),
-    [] = str:cp([<<>>]),
-    "abcd" = str:cp("abcd"),
-    [$e,778] = str:cp([$e,778]),
-    [$e|<<204,138>>] = str:cp(<<$e,778/utf8>>),
-    [778|_] = str:cp(tl(str:cp(<<$e,778/utf8>>))),
+    [] = str:next_codepoint(""),
+    [] = str:next_codepoint(<<>>),
+    [] = str:next_codepoint([<<>>]),
+    "abcd" = str:next_codepoint("abcd"),
+    [$e,778] = str:next_codepoint([$e,778]),
+    [$e|<<204,138>>] = str:next_codepoint(<<$e,778/utf8>>),
+    [778|_] = str:next_codepoint(tl(str:next_codepoint(<<$e,778/utf8>>))),
 
-    [] = str:gc(""),
-    [] = str:gc(<<>>),
-    [] = str:gc([<<>>]),
-    "abcd" = str:gc("abcd"),
-    [[$e,778]] = str:gc([$e,778]),
-    [[$e,778]] = str:gc(<<$e,778/utf8>>),
+    [] = str:next_grapheme(""),
+    [] = str:next_grapheme(<<>>),
+    [] = str:next_grapheme([<<>>]),
+    "abcd" = str:next_grapheme("abcd"),
+    [[$e,778]] = str:next_grapheme([$e,778]),
+    [[$e,778]] = str:next_grapheme(<<$e,778/utf8>>),
 
     ok.
 
