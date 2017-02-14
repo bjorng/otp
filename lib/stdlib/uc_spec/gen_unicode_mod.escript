@@ -489,6 +489,10 @@ gen_gc(Fd, GBP) ->
     %% CRs0 = merge_ranges(maps:get(cr, GBP) ++ maps:get(lf, GBP) ++ maps:get(control, GBP)),
     %% [GenControl(CP) || CP <- CRs0, CP =/= {$\r, undefined}],
 
+    io:put_chars(Fd, "%% Handle ZWJ\n"),
+    GenZWJ = fun(Range) -> io:format(Fd, "gc_1~s gc_zwj(R1, [CP]);\n", [gen_clause(Range)]) end,
+    [GenZWJ(CP) || CP <- merge_ranges(maps:get(zwj,GBP))],
+
     io:put_chars(Fd, "%% Handle prepend\n"),
     GenPrepend = fun(Range) -> io:format(Fd, "gc_1~s gc_prepend(R1, CP);\n", [gen_clause(Range)]) end,
     [GenPrepend(CP) || CP <- merge_ranges(maps:get(prepend,GBP))],
@@ -508,6 +512,13 @@ gen_gc(Fd, GBP) ->
     io:put_chars(Fd, "%% Handle Regional\n"),
     GenRegional = fun(Range) -> io:format(Fd, "gc_1~s gc_regional(R1,[CP]);\n", [gen_clause(Range)]) end,
     [GenRegional(CP) || CP <- merge_ranges(maps:get(regional_indicator,GBP))],
+    io:put_chars(Fd, "%% Handle E_Base\n"),
+    GenEBase = fun(Range) -> io:format(Fd, "gc_1~s gc_e_cont(R1,[CP]);\n", [gen_clause(Range)]) end,
+    [GenEBase(CP) || CP <- merge_ranges(maps:get(e_base,GBP))],
+    io:put_chars(Fd, "%% Handle EBG\n"),
+    GenEBG = fun(Range) -> io:format(Fd, "gc_1~s gc_e_cont(R1,[CP]);\n", [gen_clause(Range)]) end,
+    [GenEBG(CP) || CP <- merge_ranges(maps:get(e_base_gaz,GBP))],
+
     io:put_chars(Fd, "gc_1([CP|R]) -> gc_extend(R, CP);\n"),
     io:put_chars(Fd, "gc_1([]) -> [].\n\n"),
 
@@ -540,6 +551,11 @@ gen_gc(Fd, GBP) ->
     io:put_chars(Fd,
                  "gc_extend([CP|T], T0, Acc0) ->\n"
                  "    case is_extend(CP) of\n"
+                 "        zwj ->\n"
+                 "            case Acc0 of\n"
+                 "                [_|_] -> gc_zwj(T, [CP|Acc0]);\n"
+                 "                Acc -> gc_zwj(T, [CP,Acc])\n"
+                 "            end;\n"
                  "        true ->\n"
                  "            case Acc0 of\n"
                  "                [_|_] -> gc_extend(T, [CP|Acc0]);\n"
@@ -558,10 +574,53 @@ gen_gc(Fd, GBP) ->
                  "        [_|_]=Acc -> [lists:reverse(Acc)];\n"
                  "        Acc -> [Acc]\n"
                  "    end.\n\n"),
-    GenExtend = fun(Range) -> io:format(Fd, "is_extend~s true;\n", [gen_single_clause(Range)]) end,
-    Extends = merge_ranges(maps:get(extend,GBP)++maps:get(spacingmark, GBP)++maps:get(zwj, GBP), split),
+    [ZWJ] = maps:get(zwj, GBP),
+    GenExtend = fun(R) when R =:= ZWJ -> io:format(Fd, "is_extend~s zwj;\n", [gen_single_clause(ZWJ)]);
+                   (Range) -> io:format(Fd, "is_extend~s true;\n", [gen_single_clause(Range)])
+                end,
+    Extends = merge_ranges(maps:get(extend,GBP)++maps:get(spacingmark, GBP) ++ maps:get(zwj, GBP), split),
     [GenExtend(CP) || CP <- Extends],
     io:put_chars(Fd, "is_extend(_) -> false.\n\n"),
+
+    io:put_chars(Fd,
+                 "gc_e_cont(R0, Acc) ->\n"
+                 "    case cp(R0) of\n"
+                 "        [CP|R1] ->\n"
+                 "            case is_extend(CP) of\n"
+                 "                zwj -> gc_zwj(R1, [CP|Acc]);\n"
+                 "                true -> gc_e_cont(R1, [CP|Acc]);\n"
+                 "                false ->\n"
+                 "                    case is_emodifier(CP) of\n"
+                 "                        true -> [lists:reverse([CP|Acc])|R1];\n"
+                 "                        false ->\n"
+                 "                            case Acc of\n"
+                 "                                [A] -> [A|R0];\n"
+                 "                                _ -> [lists:reverse(Acc)|R0]\n"
+                 "                            end\n"
+                 "                    end\n"
+                 "              end;\n"
+                 "        [] ->\n"
+                 "            case Acc of\n"
+                 "                [A] -> [A];\n"
+                 "                _ -> [lists:reverse(Acc)]\n"
+                 "            end\n"
+                 "    end.\n\n"),
+
+    GenEMod = fun(Range) -> io:format(Fd, "is_emodifier~s true;\n", [gen_single_clause(Range)]) end,
+    EMods = merge_ranges(maps:get(e_modifier, GBP), split),
+    [GenEMod(CP) || CP <- EMods],
+    io:put_chars(Fd, "is_emodifier(_) -> false.\n\n"),
+
+    io:put_chars(Fd, "gc_zwj(R0, Acc) ->\n    case cp(R0) of\n"),
+    GenZWJGlue = fun(Range) -> io:format(Fd, "~8c~s gc_extend(R1, R0, [CP|Acc]);\n",
+                                         [$\s,gen_case_clause(Range)]) end,
+    [GenZWJGlue(CP) || CP <- merge_ranges(maps:get(glue_after_zwj,GBP))],
+    GenZWJEBG = fun(Range) -> io:format(Fd, "~8c~s gc_e_cont(R1, [CP|Acc]);\n",
+                                        [$\s,gen_case_clause(Range)]) end,
+    [GenZWJEBG(CP) || CP <- merge_ranges(maps:get(e_base_gaz,GBP))],
+    io:put_chars(Fd,"        R1 -> gc_extend(R1, R0, Acc)\n"
+                 "    end.\n\n"),
+
 
     %% --------------------
     io:put_chars(Fd, "%% Handle Regional\n"),

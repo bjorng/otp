@@ -111,8 +111,6 @@ gc(Config) ->
     ok.
 
 verify_gc(Line0, N, Acc) ->
-    EMOJI_ERRORS = [572,573,656,658,732,733,840,841,842,843,844],
-
     Line = unicode:characters_to_list(Line0),
     Line = fetch(Line0,fun unicode_util:cp/1), %% Test cp
     LineGC = fetch(Line0,fun unicode_util:gc/1), %% Test gc
@@ -128,14 +126,10 @@ verify_gc(Line0, N, Acc) ->
         Res = fetch(Str, fun unicode_util:gc/1),
         Acc
     catch _Cl:{badmatch, Other} ->
-            case lists:member(N, EMOJI_ERRORS) of
-                true -> Acc; %% Ignore emoji errors for now
-                false ->
-                    io:format("Failed: ~p~nInput: ~ts~n\t=> |~ts|~n",[N, Line, Str]),
-                    io:format("Expected: ~p~n", [Res]),
-                    io:format("Got: ~w~n", [Other]),
-                    Acc+1
-            end;
+            io:format("Failed: ~p~nInput: ~ts~n\t=> ~w |~ts|~n",[N, Line, Str, Str]),
+            io:format("Expected: ~p~n", [Res]),
+            io:format("Got: ~w~n", [Other]),
+            Acc+1;
           Cl:R ->
             io:format("~p: ~ts => |~tp|~n",[N, Line, Str]),
             io:format("Expected: ~p~n", [Res]),
