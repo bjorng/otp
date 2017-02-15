@@ -217,16 +217,17 @@ strip(Str, Dir) ->
                    unicode:chardata().
 strip(Str, _, []) -> Str;
 strip(Str, leading, Sep) when is_list(Sep) ->
-    strip_l(Str, Sep);
+    strip_l(Str, search_pattern(Sep));
 strip(Str, trailing, Sep) when is_list(Sep) ->
-    strip_t(Str, 0, Sep);
-strip(Str, both, Sep) when is_list(Sep) ->
+    strip_t(Str, 0, search_pattern(Sep));
+strip(Str, both, Sep0) when is_list(Sep0) ->
+    Sep = search_pattern(Sep0),
     strip_t(strip_l(Str,Sep), 0, Sep).
 
 %% Delete trailing newlines or \r\n
 -spec chomp(Str::unicode:chardata()) -> unicode:chardata().
 chomp(Str) ->
-    strip_t(Str,0, [[$\r,$\n],$\n]).
+    strip_t(Str,0, {[[$\r,$\n],$\n], [$\r,$\n], [<<$\r>>,<<$\n>>]}).
 
 %% Uppercase all chars in Str
 -spec uppercase(Str::unicode:chardata()) -> unicode:chardata().
@@ -267,8 +268,9 @@ casefold(CD) when is_binary(CD) ->
 %% Return the remaining string with prefix removed or else nomatch
 -spec prefix(Str::unicode:chardata(), Prefix::unicode:chardata()) ->
                     nomatch | unicode:chardata().
+prefix(Str, []) -> Str;
 prefix(Str, Prefix0) ->
-    Prefix = search_pattern(Prefix0),
+    Prefix = unicode:characters_to_list(Prefix0),
     case prefix_1(Str, Prefix) of
         [] when is_binary(Str) -> <<>>;
         Res -> Res
@@ -290,7 +292,8 @@ split(Haystack, Needle, Where) ->
     case is_empty(Needle) of
         true -> [Haystack];
         false ->
-            case split_1(Haystack, search_pattern(Needle), 0, Where, [], []) of
+            NeedleCPs = unicode:characters_to_list(Needle),
+            case split_1(Haystack, NeedleCPs, 0, Where, [], []) of
                 {_Curr, []} -> [Haystack];
                 {_Curr, Acc} when Where =:= trailing -> Acc;
                 {Curr, Acc} when Where =:= all -> lists:reverse([Curr|Acc]);
@@ -321,7 +324,8 @@ tokens([], _) -> [];
 tokens(Str, []) -> [Str];
 %% tokens(Str, [C]) ->  % optimize
 %%     lists:reverse(tokens_single_1(Str, C, [], []));
-tokens(Str, Seps) when is_list(Seps) ->
+tokens(Str, Seps0) when is_list(Seps0) ->
+    Seps = search_pattern(Seps0),
     tokens_m(Str, Seps, []).
 
 %% find first Needle in Haystack return rest of string
@@ -336,9 +340,9 @@ find(Haystack, Needle) ->
 find(Haystack, "", _) -> Haystack;
 find(Haystack, <<>>, _) -> Haystack;
 find(Haystack, Needle, leading) ->
-    find_l(Haystack, search_pattern(Needle));
+    find_l(Haystack, unicode:characters_to_list(Needle));
 find(Haystack, Needle, trailing) ->
-    find_r(Haystack, search_pattern(Needle), Haystack).
+    find_r(Haystack, unicode:characters_to_list(Needle), Haystack).
 
 %% Fetch first codepoint and return rest in tail
 -spec next_grapheme(Str::unicode:chardata()) ->
@@ -497,10 +501,10 @@ strip_l([Bin|Cont0], Sep) when is_binary(Bin) ->
         {nomatch, Cont} -> strip_l(Cont, Sep);
         Keep -> Keep
     end;
-strip_l(Str, Sep) when is_list(Str) ->
+strip_l(Str, {GCs, _, _}=Sep) when is_list(Str) ->
     case unicode_util:gc(Str) of
         [C|Cs] ->
-            case lists:member(C, Sep) of
+            case lists:member(C, GCs) of
                 true -> strip_l(Cs, Sep);
                 false -> Str
             end;
@@ -534,18 +538,24 @@ strip_t([Bin|Cont0], N, Sep) when is_binary(Bin) ->
                     strip_t([Bin|Cont], KeepSz, Sep)
             end
     end;
-strip_t(Str, 0, Sep) when is_list(Str) ->
-    case unicode_util:gc(Str) of
-        [C|Cs] ->
-            case lists:member(C, Sep) of
+strip_t(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
+    case unicode_util:cp(Str) of
+        [CP|Cs] ->
+            case lists:member(CP, CPs) of
                 true ->
-                    Tail = strip_t(Cs, 0, Sep),
-                    case is_empty(Tail) of
-                        true -> [];
-                        false -> concat(C,Tail)
+                    [GC|Cs1] = unicode_util:gc(Str),
+                    case lists:member(GC, GCs) of
+                        true ->
+                            Tail = strip_t(Cs1, 0, Sep),
+                            case is_empty(Tail) of
+                                true -> [];
+                                false -> concat(GC,Tail)
+                            end;
+                        false ->
+                            concat(GC,strip_t(Cs1, 0, Sep))
                     end;
                 false ->
-                    concat(C,strip_t(Cs, 0, Sep))
+                    concat(CP,strip_t(Cs, 0, Sep))
             end;
         [] -> []
     end;
@@ -564,11 +574,6 @@ strip_t(Bin, N, Sep) when is_binary(Bin) ->
                     strip_t(Bin, KeepSz, Sep)
             end
     end.
-
-search_pattern([]) ->
-    [];
-search_pattern(CD) ->
-    unicode:characters_to_list(CD).
 
 prefix_1(Cs, []) -> Cs;
 prefix_1(Cs, [_]=Pre) ->
@@ -649,10 +654,10 @@ tokens_m([Bin|Cont0], Seps, Ts) when is_binary(Bin) ->
             {Token,Rest} = token_pick(Cs, Seps, []),
             tokens_m(Rest, Seps, [Token|Ts])
     end;
-tokens_m(Cs0, Seps, Ts) when is_list(Cs0) ->
+tokens_m(Cs0, {GCs, _, _}=Seps, Ts) when is_list(Cs0) ->
     case unicode_util:gc(Cs0) of
         [C|Cs] ->
-            case lists:member(C, Seps) of
+            case lists:member(C, GCs) of
                 true  ->
                     tokens_m(Cs, Seps, Ts);
                 false ->
@@ -671,6 +676,16 @@ tokens_m(Bin, Seps, Ts) when is_binary(Bin) ->
             tokens_m(Rest, Seps, [Token|Ts])
     end.
 
+token_pick([CP|Cs1]=Cs0, {GCs,CPs,_}=Seps, Tkn) when is_integer(CP) ->
+    case lists:member(CP, CPs) of
+        true  ->
+            [GC|Cs2] = unicode_util:gc(Cs0),
+            case lists:member(GC, GCs) of
+                true -> {rev(Tkn), Cs0};
+                false -> token_pick(Cs2, Seps, concat(rev(GC),Tkn))
+            end;
+        false -> token_pick(Cs1, Seps, [CP|Tkn])
+    end;
 token_pick([Bin|Cont0], Seps, Tkn) when is_binary(Bin) ->
     case bin_search(Bin, Cont0, Seps) of
         {nomatch,_} ->
@@ -680,12 +695,18 @@ token_pick([Bin|Cont0], Seps, Tkn) when is_binary(Bin) ->
             <<Token:Bytes/binary, _/binary>> = Bin,
             {btoken(Token, Tkn), Cs}
     end;
-token_pick(Cs0, Seps, Tkn) when is_list(Cs0) ->
-    case unicode_util:gc(Cs0) of
-        [C|Cs] ->
-            case lists:member(C, Seps) of
-                true  -> {rev(Tkn), Cs0};
-                false -> token_pick(Cs, Seps, concat(rev(C),Tkn))
+token_pick(Cs0, {GCs, CPs, _} = Seps, Tkn) when is_list(Cs0) ->
+    case unicode_util:cp(Cs0) of
+        [CP|Cs] ->
+            case lists:member(CP, CPs) of
+                true ->
+                    [GC|Cs2] = unicode_util:gc(Cs0),
+                    case lists:member(GC, GCs) of
+                        true -> {rev(Tkn), Cs0};
+                        false -> token_pick(Cs2, Seps, concat(rev(GC),Tkn))
+                    end;
+                false ->
+                    token_pick(Cs, Seps, concat(rev(CP),Tkn))
             end;
         [] ->
             {rev(Tkn), []}
@@ -770,16 +791,26 @@ stack(Bin, St) -> [Bin|St].
 bin_search(Bin, Seps) ->
     bin_search(Bin, [], Seps).
 
-bin_search(Bin, Cont, Seps) ->
-    bin_search_loop(Bin, bin_pattern(Seps), Cont, Seps).
+bin_search(Bin, Cont, {Seps,_,BP}) ->
+    bin_search_loop(Bin, BP, Cont, Seps).
 
 %% Need to work with [<<$a>>, <<778/utf8>>],
 %% i.e. å in nfd form  $a "COMBINING RING ABOVE"
 %% and PREPEND characters like "ARABIC NUMBER SIGN" 1536 <<216,128>>
 %% combined with other characters are currently ignored.
-bin_pattern([CP|Seps]) when is_integer(CP) ->
-    [<<CP/utf8>>|bin_pattern(Seps)];
-bin_pattern([[CP|_]|Seps]) ->
+search_pattern(Seps) ->
+    CPs = search_cp(Seps),
+    Bin = bin_pattern(CPs),
+    {Seps, CPs, Bin}.
+
+search_cp([CP|Seps]) when is_integer(CP) ->
+    [CP|search_cp(Seps)];
+search_cp([Pattern|Seps]) ->
+    [CP|_] = unicode_util:cp(Pattern),
+    [CP|search_cp(Seps)];
+search_cp([]) -> [].
+
+bin_pattern([CP|Seps]) ->
     [<<CP/utf8>>|bin_pattern(Seps)];
 bin_pattern([]) -> [].
 
@@ -802,34 +833,31 @@ bin_search_loop(Bin, BinSeps, Cont, Seps) ->
             end
     end.
 
-bin_search_inv(Bin, Cont, [Sep]) ->
-    bin_search_1([Bin|Cont], Sep);
-bin_search_inv(Bin, Cont, Seps) ->
-    bin_search_n([Bin|Cont], Seps).
+bin_search_inv(Bin, Cont, {[Sep], _, _}) ->
+    bin_search_inv_1([Bin|Cont], Sep);
+bin_search_inv(Bin, Cont, {Seps, _, _}) ->
+    bin_search_inv_n([Bin|Cont], Seps).
 
-bin_search_1([<<>>|CPs], _) ->
+bin_search_inv_1([<<>>|CPs], _) ->
     {nomatch, CPs};
-bin_search_1([_|_]=CPs, Sep) ->
-    [C|Cs] = unicode_util:gc(CPs),
-    case (C =/= Sep) of
-        %% true when is_binary(CPs) -> [CPs];
-        true -> CPs;
-        false when is_binary(hd(Cs)) ->
-            bin_search_1(Cs, Sep);
-        false ->
-            {nomatch, Cs}
+bin_search_inv_1(CPs, Sep) ->
+    case unicode_util:gc(CPs) of
+        [Sep|[Bin|_]=Cs] when is_binary(Bin) ->
+            bin_search_inv_1(Cs, Sep);
+        [Sep|Cs] ->
+            {nomatch, Cs};
+        _ -> CPs
     end.
 
-bin_search_n([<<>>|CPs], _) ->
+bin_search_inv_n([<<>>|CPs], _) ->
     {nomatch, CPs};
-bin_search_n([_|_]=CPs, Seps) ->
+bin_search_inv_n([_|_]=CPs, Seps) ->
     [C|Cs] = unicode_util:gc(CPs),
-    case not lists:member(C, Seps) of
-        %% true when is_binary(Bin) -> [Bin];
-        true -> CPs;
-        false when is_binary(hd(Cs)) ->
-            bin_search_n(Cs, Seps);
-        false -> {nomatch, Cs}
+    case lists:member(C, Seps) of
+        true when is_binary(hd(Cs)) ->
+            bin_search_inv_n(Cs, Seps);
+        true -> {nomatch, Cs};
+        false -> CPs
     end.
 
 bin_search_str(Bin0, Start, Cont, [CP|_]=SearchCPs) ->
