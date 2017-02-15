@@ -215,6 +215,7 @@ strip(Str, Dir) ->
 
 -spec strip(Str::unicode:chardata(),direction()|'both',[grapheme_cluster()]) ->
                    unicode:chardata().
+strip(Str, _, []) -> Str;
 strip(Str, leading, Sep) when is_list(Sep) ->
     strip_l(Str, Sep);
 strip(Str, trailing, Sep) when is_list(Sep) ->
@@ -262,7 +263,6 @@ casefold(CD) when is_list(CD) ->
     casefold_list(CD);
 casefold(CD) when is_binary(CD) ->
     casefold_bin(CD,<<>>).
-
 
 %% Return the remaining string with prefix removed or else nomatch
 -spec prefix(Str::unicode:chardata(), Prefix::unicode:chardata()) ->
@@ -493,7 +493,7 @@ casefold_bin(CPs0, Acc) ->
 
 
 strip_l([Bin|Cont0], Sep) when is_binary(Bin) ->
-    case bin_search(Bin, Cont0, Sep, true) of
+    case bin_search_inv(Bin, Cont0, Sep) of
         {nomatch, Cont} -> strip_l(Cont, Sep);
         Keep -> Keep
     end;
@@ -507,18 +507,18 @@ strip_l(Str, Sep) when is_list(Str) ->
         [] -> []
     end;
 strip_l(Bin, Sep) when is_binary(Bin) ->
-    case bin_search(Bin, Sep, true) of
+    case bin_search_inv(Bin, [], Sep) of
         {nomatch,_} -> <<>>;
         [Keep] -> Keep
     end.
 
 strip_t([Bin|Cont0], N, Sep) when is_binary(Bin) ->
     <<_:N/binary, Rest/binary>> = Bin,
-    case bin_search(Rest, Cont0, Sep, false) of
+    case bin_search(Rest, Cont0, Sep) of
         {nomatch,_} ->
             stack(Bin, strip_t(Cont0, 0, Sep));
         [SepStart|Cont1] ->
-            case bin_search(SepStart, Cont1, Sep, true) of
+            case bin_search_inv(SepStart, Cont1, Sep) of
                 {nomatch, Cont} ->
                     Tail = strip_t(Cont, 0, Sep),
                     case is_empty(Tail) of
@@ -551,10 +551,10 @@ strip_t(Str, 0, Sep) when is_list(Str) ->
     end;
 strip_t(Bin, N, Sep) when is_binary(Bin) ->
     <<_:N/binary, Rest/binary>> = Bin,
-    case bin_search(Rest, Sep, false) of
+    case bin_search(Rest, Sep) of
         {nomatch,_} -> Bin;
         [SepStart] ->
-            case bin_search(SepStart, Sep, true) of
+            case bin_search_inv(SepStart, [], Sep) of
                 {nomatch,_} ->
                     KeepSz = byte_size(Bin) - byte_size(SepStart),
                     <<Keep:KeepSz/binary, _/binary>> = Bin,
@@ -642,7 +642,7 @@ split_1(Bin, [_C|_]=Needle, Start, Where, Curr0, Acc) ->
     end.
 
 tokens_m([Bin|Cont0], Seps, Ts) when is_binary(Bin) ->
-    case bin_search(Bin, Cont0, Seps, true) of
+    case bin_search_inv(Bin, Cont0, Seps) of
         {nomatch,Cont} ->
             tokens_m(Cont, Seps, Ts);
         Cs ->
@@ -663,7 +663,7 @@ tokens_m(Cs0, Seps, Ts) when is_list(Cs0) ->
             lists:reverse(Ts)
     end;
 tokens_m(Bin, Seps, Ts) when is_binary(Bin) ->
-    case bin_search(Bin, Seps, true) of
+    case bin_search_inv(Bin, [], Seps) of
         {nomatch,_} ->
             lists:reverse(Ts);
         [Cs] ->
@@ -672,7 +672,7 @@ tokens_m(Bin, Seps, Ts) when is_binary(Bin) ->
     end.
 
 token_pick([Bin|Cont0], Seps, Tkn) when is_binary(Bin) ->
-    case bin_search(Bin, Cont0, Seps, false) of
+    case bin_search(Bin, Cont0, Seps) of
         {nomatch,_} ->
             token_pick(Cont0, Seps, [Bin|Tkn]);
         [Left|_Cont] = Cs ->
@@ -691,7 +691,7 @@ token_pick(Cs0, Seps, Tkn) when is_list(Cs0) ->
             {rev(Tkn), []}
     end;
 token_pick(Bin, Seps, Tkn) when is_binary(Bin) ->
-    case bin_search(Bin, Seps, false) of
+    case bin_search(Bin, Seps) of
         {nomatch,_} ->
             {btoken(Bin,Tkn), []};
         [Left] ->
@@ -767,20 +767,11 @@ stack([], St) -> St;
 stack(Bin, St) -> [Bin|St].
 
 %% Binary special
-bin_search(Bin, Seps, Invert) ->
-    bin_search(Bin, [], Seps, Invert).
+bin_search(Bin, Seps) ->
+    bin_search(Bin, [], Seps).
 
-bin_search(Bin, Cont, [], Invert) ->
-    case Invert of
-        true  -> [Bin|Cont];
-        false -> {nomatch,Cont}
-    end;
-bin_search(Bin, Cont, Seps, false) ->
-    bin_search_loop(Bin, bin_pattern(Seps), Cont, Seps);
-bin_search(Bin, Cont, [Sep], Invert) ->
-    bin_search_1([Bin|Cont], Sep, Invert);
-bin_search(Bin, Cont, [_|_]=Seps, Invert) ->
-    bin_search_n([Bin|Cont], Seps, Invert).
+bin_search(Bin, Cont, Seps) ->
+    bin_search_loop(Bin, bin_pattern(Seps), Cont, Seps).
 
 %% Need to work with [<<$a>>, <<778/utf8>>],
 %% i.e. å in nfd form  $a "COMBINING RING ABOVE"
@@ -811,28 +802,33 @@ bin_search_loop(Bin, BinSeps, Cont, Seps) ->
             end
     end.
 
-bin_search_1([<<>>|CPs], _, _) ->
+bin_search_inv(Bin, Cont, [Sep]) ->
+    bin_search_1([Bin|Cont], Sep);
+bin_search_inv(Bin, Cont, Seps) ->
+    bin_search_n([Bin|Cont], Seps).
+
+bin_search_1([<<>>|CPs], _) ->
     {nomatch, CPs};
-bin_search_1([_|_]=CPs, Sep, Inv) ->
+bin_search_1([_|_]=CPs, Sep) ->
     [C|Cs] = unicode_util:gc(CPs),
-    case Inv xor (C =:= Sep) of
+    case (C =/= Sep) of
         %% true when is_binary(CPs) -> [CPs];
         true -> CPs;
         false when is_binary(hd(Cs)) ->
-            bin_search_1(Cs, Sep, Inv);
+            bin_search_1(Cs, Sep);
         false ->
             {nomatch, Cs}
     end.
 
-bin_search_n([<<>>|CPs], _, _) ->
+bin_search_n([<<>>|CPs], _) ->
     {nomatch, CPs};
-bin_search_n([_|_]=CPs, Seps, Inv) ->
+bin_search_n([_|_]=CPs, Seps) ->
     [C|Cs] = unicode_util:gc(CPs),
-    case Inv xor lists:member(C, Seps) of
+    case not lists:member(C, Seps) of
         %% true when is_binary(Bin) -> [Bin];
         true -> CPs;
         false when is_binary(hd(Cs)) ->
-            bin_search_n(Cs, Seps, Inv);
+            bin_search_n(Cs, Seps);
         false -> {nomatch, Cs}
     end.
 
