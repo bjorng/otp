@@ -32,7 +32,7 @@
 
 %% Test cases must be exported.
 -export([is_empty/1, length/1, to_graphemes/1,
-         concat/1, reverse/1, slice/1, join/1,
+         concat/1, reverse/1, slice/1,
          equal/1,
          pad/1, strip/1, chomp/1,
          uppercase/1, lowercase/1, titlecase/1, casefold/1,
@@ -46,7 +46,7 @@ suite() ->
 
 all() ->
     [is_empty, length, to_graphemes,
-     equal, concat, reverse, slice, join,
+     equal, concat, reverse, slice,
      pad, strip, chomp,
      tokens,
      uppercase, lowercase, titlecase, casefold,
@@ -246,13 +246,6 @@ slice(_) ->
     ?TEST([<<"aå"/utf8>>,"äöbcd"], [3,3], "öbc"),
     ?TEST([<<"aåä"/utf8>>,"öbcd"], [3,10], "öbcd"),
 
-    ok.
-
-join(_) ->
-    Res = "Hi_there_how_are_you",
-    true = res(str:join([], "_"), ""),
-    true = res(str:join(["Hi"], "_"), "Hi"),
-    true = res(str:join(["Hi", "there", "how", "are", "you"], "_"), Res),
     ok.
 
 pad(_) ->

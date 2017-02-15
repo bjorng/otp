@@ -50,7 +50,7 @@
 -export([is_empty/1, length/1, to_graphemes/1,
          concat/2, reverse/1,
          equal/2, equal/3, equal/4,
-         slice/2, slice/3, join/2,
+         slice/2, slice/3,
          pad/2, pad/3, pad/4, strip/1, strip/2, strip/3, chomp/1,
          tokens/2,
          uppercase/1, lowercase/1, titlecase/1,casefold/1,
@@ -165,15 +165,6 @@ slice(CD, N, Length)
     slice_trail(slice_l(CD, N, is_binary(CD)), Length);
 slice(CD, N, infinity) ->
     slice_l(CD, N, is_binary(CD)).
-
-%% Intersperse a list of strings with Sep
--spec join([Str::unicode:chardata()], Sep::unicode:chardata()) ->
-                  [unicode:chardata()].
-join([_]=String,_) ->
-    String;
-join([String|Strings], Sep) ->
-    [String,Sep|join(Strings,Sep)];
-join([], _) -> [].
 
 %% Pad a string to desired length
 -spec pad(unicode:chardata(), Length::integer()) -> unicode:charlist().
@@ -306,7 +297,7 @@ split(Haystack, Needle, Where) ->
               Needle::unicode:chardata(),
               Replacement::unicode:chardata()) -> [unicode:chardata()].
 replace(Haystack, Needle, Replacement) ->
-    join(split(Haystack, Needle), Replacement).
+    lists:join(Replacement, split(Haystack, Needle)).
 
 %% Replace Where Needle in Haystack with Replacement
 -spec replace(Haystack::unicode:chardata(),
@@ -314,7 +305,7 @@ replace(Haystack, Needle, Replacement) ->
               Replacement::unicode:chardata(),
               Where::direction()|'all') -> [unicode:chardata()].
 replace(Haystack, Needle, Replacement, Where) ->
-    join(split(Haystack, Needle, Where), Replacement).
+    lists:join(Replacement, split(Haystack, Needle, Where)).
 
 %% Split Str into a list of chardata separated by one of the grapheme
 %% clusters in Seps
