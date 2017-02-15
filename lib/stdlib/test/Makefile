@@ -68,7 +68,6 @@ MODULES= \
 	sets_test_lib \
 	sofs_SUITE \
 	stdlib_SUITE \
-	str_SUITE \
 	string_SUITE \
 	supervisor_1 \
 	supervisor_2 \

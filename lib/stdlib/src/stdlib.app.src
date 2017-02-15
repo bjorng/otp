@@ -94,7 +94,6 @@
 	     slave,
 	     sofs,
 	     string,
-             str,
 	     supervisor,
 	     supervisor_bridge,
 	     sys,
