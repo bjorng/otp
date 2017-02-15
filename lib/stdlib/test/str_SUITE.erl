@@ -34,7 +34,7 @@
 -export([is_empty/1, length/1, to_graphemes/1,
          concat/1, reverse/1, slice/1,
          equal/1,
-         pad/1, strip/1, chomp/1,
+         pad/1, trim/1, chomp/1,
          uppercase/1, lowercase/1, titlecase/1, casefold/1,
          prefix/1, split/1, replace/1, find/1,
          tokens/1, cd_gc/1, meas/1
@@ -47,7 +47,7 @@ suite() ->
 all() ->
     [is_empty, length, to_graphemes,
      equal, concat, reverse, slice,
-     pad, strip, chomp,
+     pad, trim, chomp,
      tokens,
      uppercase, lowercase, titlecase, casefold,
      prefix, find, split, replace, cd_gc,
@@ -260,7 +260,7 @@ pad(_) ->
     ?TEST(Str++[" flåwer"], [10, trailing, $.], "Hallå flåwer"),
     ok.
 
-strip(_) ->
+trim(_) ->
     Str = "\t\s..Ha\s.llå..\t\n\r",
     ?TEST("", [], ""),
     ?TEST(Str, [both, "x"], Str),

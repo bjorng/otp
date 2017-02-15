@@ -51,7 +51,7 @@
          concat/2, reverse/1,
          equal/2, equal/3, equal/4,
          slice/2, slice/3,
-         pad/2, pad/3, pad/4, strip/1, strip/2, strip/3, chomp/1,
+         pad/2, pad/3, pad/4, trim/1, trim/2, trim/3, chomp/1,
          tokens/2,
          uppercase/1, lowercase/1, titlecase/1,casefold/1,
          prefix/2,
@@ -196,29 +196,29 @@ pad(CD, Length, center, Char) when is_integer(Length) ->
     [Pre, CD, Pre|Post].
 
 %%  Strip characters from whitespace or Separator in Direction
--spec strip(Str::unicode:chardata()) -> unicode:chardata().
-strip(Str) ->
-    strip(Str, both, unicode_util:whitespace()).
+-spec trim(Str::unicode:chardata()) -> unicode:chardata().
+trim(Str) ->
+    trim(Str, both, unicode_util:whitespace()).
 
--spec strip(Str::unicode:chardata(),direction()|'both') -> unicode:chardata().
-strip(Str, Dir) ->
-    strip(Str, Dir, unicode_util:whitespace()).
+-spec trim(Str::unicode:chardata(),direction()|'both') -> unicode:chardata().
+trim(Str, Dir) ->
+    trim(Str, Dir, unicode_util:whitespace()).
 
--spec strip(Str::unicode:chardata(),direction()|'both',[grapheme_cluster()]) ->
+-spec trim(Str::unicode:chardata(),direction()|'both',[grapheme_cluster()]) ->
                    unicode:chardata().
-strip(Str, _, []) -> Str;
-strip(Str, leading, Sep) when is_list(Sep) ->
-    strip_l(Str, search_pattern(Sep));
-strip(Str, trailing, Sep) when is_list(Sep) ->
-    strip_t(Str, 0, search_pattern(Sep));
-strip(Str, both, Sep0) when is_list(Sep0) ->
+trim(Str, _, []) -> Str;
+trim(Str, leading, Sep) when is_list(Sep) ->
+    trim_l(Str, search_pattern(Sep));
+trim(Str, trailing, Sep) when is_list(Sep) ->
+    trim_t(Str, 0, search_pattern(Sep));
+trim(Str, both, Sep0) when is_list(Sep0) ->
     Sep = search_pattern(Sep0),
-    strip_t(strip_l(Str,Sep), 0, Sep).
+    trim_t(trim_l(Str,Sep), 0, Sep).
 
 %% Delete trailing newlines or \r\n
 -spec chomp(Str::unicode:chardata()) -> unicode:chardata().
 chomp(Str) ->
-    strip_t(Str,0, {[[$\r,$\n],$\n], [$\r,$\n], [<<$\r>>,<<$\n>>]}).
+    trim_t(Str,0, {[[$\r,$\n],$\n], [$\r,$\n], [<<$\r>>,<<$\n>>]}).
 
 %% Uppercase all chars in Str
 -spec uppercase(Str::unicode:chardata()) -> unicode:chardata().
@@ -487,35 +487,35 @@ casefold_bin(CPs0, Acc) ->
     end.
 
 
-strip_l([Bin|Cont0], Sep) when is_binary(Bin) ->
+trim_l([Bin|Cont0], Sep) when is_binary(Bin) ->
     case bin_search_inv(Bin, Cont0, Sep) of
-        {nomatch, Cont} -> strip_l(Cont, Sep);
+        {nomatch, Cont} -> trim_l(Cont, Sep);
         Keep -> Keep
     end;
-strip_l(Str, {GCs, _, _}=Sep) when is_list(Str) ->
+trim_l(Str, {GCs, _, _}=Sep) when is_list(Str) ->
     case unicode_util:gc(Str) of
         [C|Cs] ->
             case lists:member(C, GCs) of
-                true -> strip_l(Cs, Sep);
+                true -> trim_l(Cs, Sep);
                 false -> Str
             end;
         [] -> []
     end;
-strip_l(Bin, Sep) when is_binary(Bin) ->
+trim_l(Bin, Sep) when is_binary(Bin) ->
     case bin_search_inv(Bin, [], Sep) of
         {nomatch,_} -> <<>>;
         [Keep] -> Keep
     end.
 
-strip_t([Bin|Cont0], N, Sep) when is_binary(Bin) ->
+trim_t([Bin|Cont0], N, Sep) when is_binary(Bin) ->
     <<_:N/binary, Rest/binary>> = Bin,
     case bin_search(Rest, Cont0, Sep) of
         {nomatch,_} ->
-            stack(Bin, strip_t(Cont0, 0, Sep));
+            stack(Bin, trim_t(Cont0, 0, Sep));
         [SepStart|Cont1] ->
             case bin_search_inv(SepStart, Cont1, Sep) of
                 {nomatch, Cont} ->
-                    Tail = strip_t(Cont, 0, Sep),
+                    Tail = trim_t(Cont, 0, Sep),
                     case is_empty(Tail) of
                         true ->
                             KeepSz = byte_size(Bin) - byte_size(SepStart),
@@ -526,10 +526,10 @@ strip_t([Bin|Cont0], N, Sep) when is_binary(Bin) ->
                     end;
                 [NonSep|Cont] when is_binary(NonSep) ->
                     KeepSz = byte_size(Bin) - byte_size(NonSep),
-                    strip_t([Bin|Cont], KeepSz, Sep)
+                    trim_t([Bin|Cont], KeepSz, Sep)
             end
     end;
-strip_t(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
+trim_t(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
     case unicode_util:cp(Str) of
         [CP|Cs] ->
             case lists:member(CP, CPs) of
@@ -537,20 +537,20 @@ strip_t(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
                     [GC|Cs1] = unicode_util:gc(Str),
                     case lists:member(GC, GCs) of
                         true ->
-                            Tail = strip_t(Cs1, 0, Sep),
+                            Tail = trim_t(Cs1, 0, Sep),
                             case is_empty(Tail) of
                                 true -> [];
                                 false -> concat(GC,Tail)
                             end;
                         false ->
-                            concat(GC,strip_t(Cs1, 0, Sep))
+                            concat(GC,trim_t(Cs1, 0, Sep))
                     end;
                 false ->
-                    concat(CP,strip_t(Cs, 0, Sep))
+                    concat(CP,trim_t(Cs, 0, Sep))
             end;
         [] -> []
     end;
-strip_t(Bin, N, Sep) when is_binary(Bin) ->
+trim_t(Bin, N, Sep) when is_binary(Bin) ->
     <<_:N/binary, Rest/binary>> = Bin,
     case bin_search(Rest, Sep) of
         {nomatch,_} -> Bin;
@@ -562,7 +562,7 @@ strip_t(Bin, N, Sep) when is_binary(Bin) ->
                     Keep;
                 [NonSep] ->
                     KeepSz = byte_size(Bin) - byte_size(NonSep),
-                    strip_t(Bin, KeepSz, Sep)
+                    trim_t(Bin, KeepSz, Sep)
             end
     end.
 
