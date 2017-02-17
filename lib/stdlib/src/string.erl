@@ -52,7 +52,7 @@
          equal/2, equal/3, equal/4,
          slice/2, slice/3,
          pad/2, pad/3, pad/4, trim/1, trim/2, trim/3, chomp/1,
-         tokens/2,
+         tokens/2, nth_token/3,
          uppercase/1, lowercase/1, titlecase/1,casefold/1,
          prefix/2,
          split/2,split/3,replace/3,replace/4,
@@ -353,6 +353,18 @@ tokens(Str, []) -> [Str];
 tokens(Str, Seps0) when is_list(Seps0) ->
     Seps = search_pattern(Seps0),
     tokens_m(Str, Seps, []).
+
+-spec nth_token(String, N, SeparatorList) -> unicode:chardata() when
+      String::unicode:chardata(),
+      N::non_neg_integer(),
+      SeparatorList::[grapheme_cluster()].
+
+nth_token(Str, 1, []) -> Str;
+nth_token(Str, _, []) when is_binary(Str) -> <<>>;
+nth_token(_Str, _, []) -> [];
+nth_token(Str, N, Seps0) when is_list(Seps0), is_integer(N), N >= 0 ->
+    Seps = search_pattern(Seps0),
+    nth_token_m(Str, Seps, N).
 
 %% find first Needle in Haystack return rest of string
 -spec find(Haystack::unicode:chardata(), Needle::unicode:chardata()) ->
@@ -745,6 +757,83 @@ token_pick(Bin, Seps, Tkn) when is_binary(Bin) ->
             Bytes = byte_size(Bin) - byte_size(Left),
             <<Token:Bytes/binary, _/binary>> = Bin,
             {btoken(Token, Tkn), Left}
+    end.
+
+nth_token_m([Bin|Cont0], Seps, N) when is_binary(Bin) ->
+    case bin_search_inv(Bin, Cont0, Seps) of
+        {nomatch,Cont} ->
+            nth_token_m(Cont, Seps, N);
+        Cs when N > 1 ->
+            Rest = token_skip(Cs, Seps),
+            nth_token_m(Rest, Seps, N-1);
+        Cs ->
+            {Token,_} = token_pick(Cs, Seps, []),
+            Token
+    end;
+nth_token_m(Cs0, {GCs, _, _}=Seps, N) when is_list(Cs0) ->
+    case unicode_util:gc(Cs0) of
+        [C|Cs] ->
+            case lists:member(C, GCs) of
+                true ->
+                    nth_token_m(Cs, Seps, N);
+                false when N > 1 ->
+                    Cs1 = token_skip(Cs, Seps),
+                    nth_token_m(Cs1, Seps, N-1);
+                false ->
+                    {Token,_} = token_pick(Cs0, Seps, []),
+                    Token
+            end;
+        [] ->
+            []
+    end;
+nth_token_m(Bin, Seps, N) when is_binary(Bin) ->
+    case bin_search_inv(Bin, [], Seps) of
+        [Cs] when N > 1 ->
+            Cs1 = token_skip(Cs, Seps),
+            nth_token_m(Cs1, Seps, N-1);
+        [Cs] ->
+            {Token,_} = token_pick(Cs, Seps, []),
+            Token;
+        {nomatch,_} ->
+            <<>>
+    end.
+
+token_skip([CP|Cs1]=Cs0, {GCs,CPs,_}=Seps) when is_integer(CP) ->
+    case lists:member(CP, CPs) of
+        true  ->
+            [GC|Cs2] = unicode_util:gc(Cs0),
+            case lists:member(GC, GCs) of
+                true -> Cs0;
+                false -> token_skip(Cs2, Seps)
+            end;
+        false ->
+            token_skip(Cs1, Seps)
+    end;
+token_skip([Bin|Cont0], Seps) when is_binary(Bin) ->
+    case bin_search(Bin, Cont0, Seps) of
+        {nomatch,_} -> token_skip(Cont0, Seps);
+        Cs -> Cs
+    end;
+token_skip(Cs0, {GCs, CPs, _} = Seps) when is_list(Cs0) ->
+    case unicode_util:cp(Cs0) of
+        [CP|Cs] ->
+            case lists:member(CP, CPs) of
+                true ->
+                    [GC|Cs2] = unicode_util:gc(Cs0),
+                    case lists:member(GC, GCs) of
+                        true -> Cs0;
+                        false -> token_skip(Cs2, Seps)
+                    end;
+                false ->
+                    token_skip(Cs, Seps)
+            end;
+        [] ->
+            []
+    end;
+token_skip(Bin, Seps) when is_binary(Bin) ->
+    case bin_search(Bin, Seps) of
+        {nomatch,_} -> [];
+        [Left] -> Left
     end.
 
 find_l([Bin|Cont0], Needle) when is_binary(Bin) ->

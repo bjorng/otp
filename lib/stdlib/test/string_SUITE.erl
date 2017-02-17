@@ -35,7 +35,7 @@
          pad/1, trim/1, chomp/1,
          uppercase/1, lowercase/1, titlecase/1, casefold/1,
          prefix/1, split/1, replace/1, find/1,
-         tokens/1, cd_gc/1, meas/1
+         tokens/1, nth_token/1, cd_gc/1, meas/1
         ]).
 
 -export([len/1,old_equal/1,old_concat/1,chr_rchr/1,str_rstr/1]).
@@ -60,7 +60,7 @@ groups() ->
       [is_empty, length, to_graphemes,
        equal, concat, reverse, slice,
        pad, trim, chomp,
-       tokens,
+       tokens, nth_token,
        uppercase, lowercase, titlecase, casefold,
        prefix, find, split, replace, cd_gc,
        meas]},
@@ -551,6 +551,42 @@ tokens(_) ->
     ?TEST([<<"aae">>,778,"öeeåäö"], ["e"], {Mod, [[$a, $a, $e,778,$ö],"åäö"]}),
     ok.
 
+nth_token(_) ->
+    ?TEST( "", [1, " ,."],  []),
+    ?TEST( "Hej san", [1, ""],  "Hej san"),
+    ?TEST( "  ,., ", [1, " ,."],  []),
+    ?TEST( "  ,., ", [3, " ,."],  []),
+    ?TEST("Hej san Hopp san", [1, " ,."], "Hej"),
+    ?TEST("...Hej san Hopp san", [1, " ,."], "Hej"),
+    ?TEST("Hej san Hopp san", [3, " ,."], "Hopp"),
+    ?TEST(" Hej san Hopp san ", [3, " ,."], "Hopp"),
+    ?TEST(" Hej san, .Hopp san ", [3, " ,."], "Hopp"),
+
+    ?TEST([" Hej san",", .Hopp san "], [3, " ,."], "Hopp"),
+    ?TEST([" Hej sa","n, .Hopp san "], [3, " ,."], "Hopp"),
+    ?TEST([" Hej san,"," .Hopp san "], [3, " ,."], "Hopp"),
+
+    ?TEST([" Hej san",[", .Hopp san "]], [3," ,."], "Hopp"),
+    ?TEST([" Hej sa",["n, .Hopp san "]], [3, " ,."], "Hopp"),
+    ?TEST([" Hej san,",[" .Hopp san "]], [3, " ,."], "Hopp"),
+
+    ?TEST([" Hej san",<<", .Hopp "/utf8>>, "san"], [3, " ,."], "Hopp"),
+    ?TEST([" Hej sa",<<"n, .Hopp"/utf8>>, " san"], [3, " ,."], "Hopp"),
+    ?TEST([" Hej san,",<<" .Hopp s"/utf8>>, "an"], [3, " ,."], "Hopp"),
+    ?TEST([" Hej san,",<<" .Hopp s"/utf8>>, "an"], [4, " ,."], "san"),
+    ?TEST([" Hej san",[<<", .Hopp san "/utf8>>]], [3, " ,."], "Hopp"),
+    ?TEST([" Hej sa",[<<"n, .Hopp san "/utf8>>]], [3, " ,."], "Hopp"),
+    ?TEST([" Hej san,",[<<" .Hopp san "/utf8>>], <<"  ">>], [3, " ,."], "Hopp"),
+
+    ?TEST(["b1ec1e",778,"äöo21"], [3,"eo"], "21"),
+    ?TEST([<<"b1ec1e">>,778,"äöo21"], [3, "eo"], "21"),
+    %% Grapheme (split) tests
+    ?TEST("a1Ωb1Ωc1", [1, "Ω"], "a1"),
+    ?TEST([<<"aae">>,778,"äöoo"], [2,[[$e,778]]], "äöoo"),
+    ?TEST([<<"aae">>,778,"äöo21"], [2,[[$e,778],$o]], "äö"),
+    ?TEST([<<"aae">>,778,"öeeåäö"], [2,"e"], "åäö"),
+    ok.
+
 
 meas(Config) ->
     TestDir = filename:dirname(string:trim(proplists:get_value(data_dir, Config), trailing, "/")),
@@ -564,7 +600,6 @@ meas(Config) ->
                            [Name, Mode, Mean/1000, Stddev/1000, N])
          end,
     io:format("----------------------~n"),
-    Do(string_t, fun(Str) -> string:tokens(Str, "\n\r") end, list),
     Tokens = {tokens, fun(Str) -> string:tokens(Str, [$\n,$\r]) end},
     [Do(Name,Fun,Mode) || {Name,Fun} <- [Tokens], Mode <- [list, binary]],
     ok.
