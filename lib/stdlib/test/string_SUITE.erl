@@ -32,7 +32,7 @@
 -export([is_empty/1, length/1, to_graphemes/1,
          concat/1, reverse/1, slice/1,
          equal/1,
-         pad/1, trim/1, chomp/1,
+         pad/1, trim/1, chomp/1, detach/1,
          uppercase/1, lowercase/1, titlecase/1, casefold/1,
          prefix/1, split/1, replace/1, find/1,
          tokens/1, nth_token/1, cd_gc/1, meas/1
@@ -59,7 +59,7 @@ groups() ->
     [{chardata,
       [is_empty, length, to_graphemes,
        equal, concat, reverse, slice,
-       pad, trim, chomp,
+       pad, trim, chomp, detach,
        tokens, nth_token,
        uppercase, lowercase, titlecase, casefold,
        prefix, find, split, replace, cd_gc,
@@ -315,6 +315,77 @@ chomp(_) ->
     ?TEST([Str,$\r|<<"\n">>], [], Res),
     ?TEST([Str, <<$\r>>|"\n"], [], Res),
     ok.
+
+detach(_) ->
+    Str = "\t\s..Ha\s.llå..\t\n\r",
+    WS = "\t\s\n\r",
+    Chars = lists:seq($a,$z)++lists:seq($A,$Z),
+    %% complement=false, dir=leading
+    ?TEST("", ["abc"], {"",""}),
+    ?TEST(Str, ["x"], {[], Str}),
+    ?TEST(Str, [WS], {"\t\s","..Ha\s.llå..\t\n\r"}),
+    ?TEST(".. ", ["", false], {"", ".. "}),
+    ?TEST([<<".. ">>], [". ", false, leading], {".. ", ""}),
+    ?TEST(".. h.ej ..", [". ", false, leading], {".. ", "h.ej .."}),
+    ?TEST(["..", <<"h.ej">>, ".."], [". ", false, leading], {"..", "h.ej.."}),
+    ?TEST([[], "..", " h.ej ", <<"..">>], [". ", false, leading], {".. ","h.ej .."}),
+    ?TEST([<<>>,<<"..">>, " h.ej", <<" ..">>], [". ", false, leading], {".. ", "h.ej .."}),
+    ?TEST(["..h", <<".ejsa"/utf8>>, "n.."], [". ", false, leading], {"..", "h.ejsan.."}),
+    %% Test that it behaves with graphemes (i.e. nfd tests are the hard part)
+    ?TEST("aaåaa", ["a", false, leading], {"aa", "åaa"}),
+    ?TEST(["aaa",778,"äöoo"], ["ao", false, leading], {"aa", [$a,778|"äöoo"]}),
+    ?TEST([<<"aaa">>,778,"äöoo"], ["ao",false,leading], {"aa", [$a,778|"äöoo"]}),
+    ?TEST([<<"e">>,778,"åäöe", <<778/utf8>>], [[[$e,778]], false, leading], {[$e,778],["åäöe"|[778]]}),
+
+    %% complement=true, dir=leading
+    ?TEST("", ["abc", true], {"",""}),
+    ?TEST(Str, ["x", true], {Str, []}),
+    ?TEST(Str, [Chars, true], {"\t\s..","Ha\s.llå..\t\n\r"}),
+    ?TEST(".. ", ["",true], {".. ", ""}),
+    ?TEST([<<".. ">>], [Chars, true, leading], {".. ", ""}),
+    ?TEST(".. h.ej ..", [Chars, true, leading], {".. ", "h.ej .."}),
+    ?TEST(["..", <<"h.ej">>, ".."], [Chars, true, leading], {"..", "h.ej.."}),
+    ?TEST([[], "..", " h.ej ", <<"..">>], [Chars, true, leading], {".. ","h.ej .."}),
+    ?TEST([<<>>,<<"..">>, " h.ej", <<" ..">>], [Chars, true, leading], {".. ", "h.ej .."}),
+    ?TEST(["..h", <<".ejsa"/utf8>>, "n.."], [Chars, true, leading], {"..", "h.ejsan.."}),
+    %% Test that it behaves with graphemes (i.e. nfd tests are the hard part)
+    ?TEST(["aaee",778,"äöoo"], [[[$e,778]], true, leading], {"aae", [$e,778|"äöoo"]}),
+    ?TEST([<<"aae">>,778,"äöoo"], [[[$e,778]],true,leading], {"aa", [$e,778|"äöoo"]}),
+    ?TEST([<<"e">>,778,"åäöe", <<778/utf8>>], [[[$e,778]], true, leading], {[], [$e,778]++["åäöe"|[778]]}),
+
+    %% complement=false, dir=trailing
+    ?TEST(Str, ["x", false, trailing], {Str, []}),
+    ?TEST(Str, [WS, false,trailing], {"\t\s..Ha\s.llå..", "\t\n\r"}),
+    ?TEST(".. h.ej ..", [". ", false, trailing], {".. h.ej", " .."}),
+    ?TEST(["..", <<"h.ej">>, ".."], [". ", false, trailing], {"..h.ej", ".."}),
+    ?TEST([[], "..", " h.ej ", <<"..">>], [". ", false, trailing], {".. h.ej", " .."}),
+    ?TEST([<<>>,<<"..">>, " h.ej", <<" ..">>], [". ", false, trailing], {".. h.ej", " .."}),
+    ?TEST(["..h", <<".ejsa"/utf8>>, "n.."], [". ", false, trailing], {"..h.ejsan", ".."}),
+    ?TEST("aaåaa", ["a", false, trailing], {"aaå", "aa"}),
+    ?TEST(["aaa",778,"äöoo"], ["ao", false, trailing], {"aa"++[$a,778|"äö"], "oo"}),
+    ?TEST([<<"aaa">>,778,"äöoo"], ["ao", false, trailing], {"aa"++[$a,778|"äö"], "oo"}),
+    ?TEST([<<"e">>,778,"åäöee", <<778/utf8>>], [[[$e,778]], false, trailing], {[$e,778|"åäöe"], [$e,778]}),
+
+    %% complement=true, dir=trailing
+    ?TEST("", ["abc", true, trailing], {"",""}),
+    ?TEST(Str, ["x", true, trailing], {[], Str}),
+    %?TEST(Str, [{norm,Chars}, true, trailing], {"\t\s..Ha\s.ll","å..\t\n\r"}),
+    ?TEST(".. ", ["", true, trailing], {"", ".. "}),
+    ?TEST([<<".. ">>], [Chars, true, trailing], {"", ".. "}),
+    ?TEST(".. h.ej ..", [Chars, true, trailing], {".. h.ej", " .."}),
+    ?TEST(["..", <<"h.ej">>, ".."], [Chars, true, trailing], {"..h.ej", ".."}),
+    ?TEST([[], "..", " h.ej ", <<"..">>], [Chars, true, trailing], {".. h.ej"," .."}),
+    ?TEST([<<>>,<<"..">>, " h.ej", <<" ..">>], [Chars, true, trailing], {".. h.ej"," .."}),
+    ?TEST(["..h", <<".ejsa"/utf8>>, "n.."], [Chars, true, trailing], {"..h.ejsan", ".."}),
+    %% Test that it behaves with graphemes (i.e. nfd tests are the hard part)
+    ?TEST(["aaee",778,"äöoo"], [[[$e,778]], true, trailing], {"aae"++[$e,778], "äöoo"}),
+    ?TEST([<<"aae">>,778,"äöoo"], [[[$e,778]],true,trailing], {"aa"++[$e,778], "äöoo"}),
+    ?TEST([<<"e">>,778,"åäöe", <<778/utf8>>], [[[$e,778]], true, trailing], {[$e,778]++["åäöe"|[778]], []}),
+    ?TEST([<<"e">>,778,"åäöe", <<778/utf8>>, $e, 779], [[[$e,778]], true, trailing],
+          {[$e,778]++["åäöe"|[778]], [$e,779]}),
+
+    ok.
+
 
 uppercase(_) ->
     ?TEST("", [], ""),
@@ -636,6 +707,11 @@ test_1(Line, Func, Str, Args, Exp) ->
         check_types(Line, Func, Args, Res),
         case res(Res, Exp) of
             true -> ok;
+            {Res1,Exp1} when is_tuple(Exp1) ->
+                io:format("~p~n",[Args]),
+                io:format("~p:~p: ~ts~w =>~n  :~w:~w~n",
+                          [Func,Line, Str,Str,Res1,Exp1]),
+                exit({error, Func});
             {Res1,Exp1} ->
                 io:format("~p:~p: ~ts~w =>~n  :~ts~w:~ts~w~n",
                           [Func,Line, Str,Str, Res1,Res1, Exp1,Exp1]),
@@ -667,6 +743,11 @@ res(Str, Exp) when (is_list(Str) orelse is_binary(Str)), is_list(Exp) ->
     A==B orelse {A,B};
 res(What, {Fun, Exp}) when is_function(Fun) ->
     Fun(What) == Exp orelse {Fun(What), Exp};
+res({S1,S2}=S, {Exp1,Exp2}=E) ->
+    case {res(S1,Exp1), res(S2,Exp2)} of
+        {true, true} -> true;
+        _ -> {S, E}
+    end;
 res(Int, Exp) ->
     Int == Exp orelse {Int, Exp}.
 
@@ -727,6 +808,10 @@ check_types_1(mixed,_) ->
     ok;
 check_types_1({list, binary}, binary) ->
     ok;
+check_types_1({list, binary}, {other, _, _}) ->
+    ok;
+check_types_1({list, deep}, {other, _, _}) ->
+    ok;
 check_types_1(T1,T2) ->
     {T1,T2}.
 
@@ -754,6 +839,13 @@ type(List) when is_list(List) ->
                 true -> {list, binary};
                 false -> mixed
             end
+    end;
+type({R1,R2}) ->
+    case {type(R1),type(R2)} of
+        {T,T} -> T;
+        {{list,undefined}, {list,codepoints}} -> {list,codepoints};
+        {{list,codepoints}, {list,undefined}} -> {list,codepoints};
+        {T1,T2} -> {other, T1,T2}
     end;
 type(Other) ->
     {other, Other}.
