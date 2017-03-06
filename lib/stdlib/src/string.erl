@@ -108,19 +108,19 @@ list_to_integer(_) ->
 %%% End of BIFs
 
 %% Check if string is the empty string
--spec is_empty(unicode:chardata()) -> boolean().
+-spec is_empty(String::unicode:chardata()) -> boolean().
 is_empty([]) -> true;
 is_empty(<<>>) -> true;
 is_empty([L|R]) -> is_empty(L) andalso is_empty(R);
 is_empty(_) -> false.
 
 %% Count the number of grapheme clusters in chardata
--spec length(unicode:chardata()) -> non_neg_integer().
+-spec length(String::unicode:chardata()) -> non_neg_integer().
 length(CD) ->
     length_1(unicode_util:gc(CD), 0).
 
 %% Convert a string to a list of grapheme clusters
--spec to_graphemes(unicode:chardata()) -> [grapheme_cluster()].
+-spec to_graphemes(String::unicode:chardata()) -> [grapheme_cluster()].
 to_graphemes(CD0) ->
     case unicode_util:gc(CD0) of
         [GC|CD] -> [GC|to_graphemes(CD)];
@@ -168,7 +168,7 @@ equal(A, B, true, Norm) ->
     equal_norm_nocase(A, B, Norm).
 
 %% Reverse grapheme clusters
--spec reverse(unicode:chardata()) -> [grapheme_cluster()].
+-spec reverse(String::unicode:chardata()) -> [grapheme_cluster()].
 reverse(CD) ->
     reverse_1(CD, []).
 
@@ -177,7 +177,7 @@ reverse(CD) ->
 %% But if we want to keep a certain type we can use concat which
 %% copies the data.
 -spec concat(A::grapheme_cluster()|unicode:chardata(),B::unicode:chardata()) ->
-                    unicode:chardata().
+                    Res::unicode:chardata().
 concat([_|_]=A, []) -> A;
 concat([], B) when is_list(B); is_binary(B) -> B;
 concat(<<>>, B) when is_list(B); is_binary(B) -> B;
@@ -190,13 +190,13 @@ concat(A, B) when is_list(B); is_binary(B) -> [A|B].
 
 %% Slice a string and return rest of string
 %% Note: counts grapheme_clusters
--spec slice(unicode:chardata(), Start) -> Slice when
+-spec slice(String::unicode:chardata(), Start) -> Slice when
       Start :: non_neg_integer(),
       Slice :: unicode:chardata().
 slice(CD, N) when is_integer(N), N >= 0 ->
     slice_l(CD, N, is_binary(CD)).
 
--spec slice(unicode:chardata(), Start, Length) -> Slice when
+-spec slice(String::unicode:chardata(), Start, Length) -> Slice when
       Start :: non_neg_integer(),
       Length :: 'infinity' | non_neg_integer(),
       Slice :: unicode:chardata().
@@ -207,17 +207,17 @@ slice(CD, N, infinity) ->
     slice_l(CD, N, is_binary(CD)).
 
 %% Pad a string to desired length
--spec pad(unicode:chardata(), Length::integer()) -> unicode:charlist().
+-spec pad(String::unicode:chardata(), Length::integer()) -> unicode:charlist().
 pad(CD, Length) ->
     pad(CD, Length, trailing, $\s).
 -spec pad(unicode:chardata(), Length::integer(), Dir::direction()|'center') ->
                  unicode:charlist().
 pad(CD, Length, Dir) ->
     pad(CD, Length, Dir, $\s).
--spec pad(Str, Length, Dir, Char) -> unicode:charlist() when
-      Str ::unicode:chardata(),
+-spec pad(String, Length, Dir, Char) -> unicode:charlist() when
+      String ::unicode:chardata(),
       Length :: integer(),
-      Dir :: direction()|'center',
+      Dir :: direction()|'both',
       Char :: grapheme_cluster().
 pad(CD, Length, leading, Char) when is_integer(Length) ->
     Len = length(CD),
@@ -225,7 +225,7 @@ pad(CD, Length, leading, Char) when is_integer(Length) ->
 pad(CD, Length, trailing, Char) when is_integer(Length) ->
     Len = length(CD),
     [CD|lists:duplicate(max(0, Length-Len), Char)];
-pad(CD, Length, center, Char) when is_integer(Length) ->
+pad(CD, Length, both, Char) when is_integer(Length) ->
     Len = length(CD),
     Size = max(0, Length-Len),
     Pre = lists:duplicate(Size div 2, Char),
@@ -233,18 +233,21 @@ pad(CD, Length, center, Char) when is_integer(Length) ->
                1 -> [Char];
                _ -> []
            end,
-    [Pre, CD, Pre|Post].
+    [Pre, CD, Pre|Post];
+pad(CD, Length, center, Char)  ->
+    pad(CD, Length, both, Char).
 
 %%  Strip characters from whitespace or Separator in Direction
--spec trim(Str::unicode:chardata()) -> unicode:chardata().
+-spec trim(String::unicode:chardata()) -> unicode:chardata().
 trim(Str) ->
     trim(Str, both, unicode_util:whitespace()).
 
--spec trim(Str::unicode:chardata(),direction()|'both') -> unicode:chardata().
+-spec trim(String::unicode:chardata(),Dir::direction()|'both') -> unicode:chardata().
 trim(Str, Dir) ->
     trim(Str, Dir, unicode_util:whitespace()).
 
--spec trim(Str::unicode:chardata(),direction()|'both',[grapheme_cluster()]) ->
+-spec trim(String::unicode:chardata(),Dir::direction()|'both',
+           Characters::[grapheme_cluster()]) ->
                   unicode:chardata().
 trim(Str, _, []) -> Str;
 trim(Str, leading, Sep) when is_list(Sep) ->
@@ -256,7 +259,7 @@ trim(Str, both, Sep0) when is_list(Sep0) ->
     trim_t(trim_l(Str,Sep), 0, Sep).
 
 %% Delete trailing newlines or \r\n
--spec chomp(Str::unicode:chardata()) -> unicode:chardata().
+-spec chomp(String::unicode:chardata()) -> unicode:chardata().
 chomp(Str) ->
     trim_t(Str,0, {[[$\r,$\n],$\n], [$\r,$\n], [<<$\r>>,<<$\n>>]}).
 
@@ -305,21 +308,21 @@ detach(Str, Sep0, true, trailing) ->
     detach_tc(Str, 0, Sep).
 
 %% Uppercase all chars in Str
--spec uppercase(Str::unicode:chardata()) -> unicode:chardata().
+-spec uppercase(String::unicode:chardata()) -> unicode:chardata().
 uppercase(CD) when is_list(CD) ->
     uppercase_list(CD);
 uppercase(CD) when is_binary(CD) ->
     uppercase_bin(CD,<<>>).
 
 %% Lowercase all chars in Str
--spec lowercase(Str::unicode:chardata()) -> unicode:chardata().
+-spec lowercase(String::unicode:chardata()) -> unicode:chardata().
 lowercase(CD) when is_list(CD) ->
     lowercase_list(CD);
 lowercase(CD) when is_binary(CD) ->
     lowercase_bin(CD,<<>>).
 
 %% Make a titlecase of the first char in Str
--spec titlecase(Str::unicode:chardata()) -> unicode:chardata().
+-spec titlecase(String::unicode:chardata()) -> unicode:chardata().
 titlecase(CD) when is_list(CD) ->
     case unicode_util:titlecase(CD) of
         [GC|Tail] -> concat(GC,Tail);
@@ -334,7 +337,7 @@ titlecase(CD) when is_binary(CD) ->
     end.
 
 %% Make a comparable string of the Str should be used for equality tests only
--spec casefold(Str::unicode:chardata()) -> unicode:chardata().
+-spec casefold(String::unicode:chardata()) -> unicode:chardata().
 casefold(CD) when is_list(CD) ->
     casefold_list(CD);
 casefold(CD) when is_binary(CD) ->
@@ -392,7 +395,7 @@ to_number(_, Number, Rest, _, Tail) ->
     {Number, concat(Rest,Tail)}.
 
 %% Return the remaining string with prefix removed or else nomatch
--spec prefix(Str::unicode:chardata(), Prefix::unicode:chardata()) ->
+-spec prefix(String::unicode:chardata(), Prefix::unicode:chardata()) ->
                     nomatch | unicode:chardata().
 prefix(Str, []) -> Str;
 prefix(Str, Prefix0) ->
@@ -484,12 +487,12 @@ find(Haystack, Needle, trailing) ->
     find_r(Haystack, unicode:characters_to_list(Needle), Haystack).
 
 %% Fetch first codepoint and return rest in tail
--spec next_grapheme(Str::unicode:chardata()) ->
+-spec next_grapheme(String::unicode:chardata()) ->
                            maybe_improper_list(grapheme_cluster(),unicode:chardata()).
 next_grapheme(CD) -> unicode_util:gc(CD).
 
 %% Fetch first grapheme cluster and return rest in tail
--spec next_codepoint(Str::unicode:chardata()) ->
+-spec next_codepoint(String::unicode:chardata()) ->
                             maybe_improper_list(char(),unicode:chardata()).
 next_codepoint(CD) -> unicode_util:cp(CD).
 
