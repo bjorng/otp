@@ -36,7 +36,7 @@
          uppercase/1, lowercase/1, titlecase/1, casefold/1,
          to_integer/1,to_float/1,
          prefix/1, split/1, replace/1, find/1,
-         tokens/1, nth_token/1, cd_gc/1, meas/1
+         lexemes/1, nth_lexeme/1, cd_gc/1, meas/1
         ]).
 
 -export([len/1,old_equal/1,old_concat/1,chr_rchr/1,str_rstr/1]).
@@ -61,7 +61,7 @@ groups() ->
       [is_empty, length, to_graphemes,
        equal, concat, reverse, slice,
        pad, trim, chomp, detach,
-       tokens, nth_token,
+       lexemes, nth_lexeme,
        to_integer, to_float,
        uppercase, lowercase, titlecase, casefold,
        prefix, find, split, replace, cd_gc,
@@ -611,7 +611,7 @@ find(_) ->
 
     ok.
 
-tokens(_) ->
+lexemes(_) ->
     Mod = fun(Res) ->
                   [lists:flatten(unicode:characters_to_nfc_list(io_lib:format("~ts", [Str])))
                    || Str <- Res]
@@ -639,6 +639,8 @@ tokens(_) ->
     ?TEST([" Hej sa",[<<"n, .Hopp san "/utf8>>]], [" ,."], {Mod, Res}),
     ?TEST([" Hej san,",[<<" .Hopp san "/utf8>>], <<"  ">>], [" ,."], {Mod, Res}),
 
+    ?TEST(" Hej\r\nsan\nnl", ["\r\n\s"], {Mod, ["Hej\r\nsan", "nl"]}),
+
     ?TEST(["b1ec1e",778,"äöo21"], ["eo"], {Mod, ["b1",[$c,$1,$e,778,$ä,$ö],"21"]}),
     ?TEST([<<"b1ec1e">>,778,"äöo21"], ["eo"], {Mod, ["b1",[$c,$1,$e,778,$ä,$ö],"21"]}),
     %% Grapheme (split) tests
@@ -648,7 +650,7 @@ tokens(_) ->
     ?TEST([<<"aae">>,778,"öeeåäö"], ["e"], {Mod, [[$a, $a, $e,778,$ö],"åäö"]}),
     ok.
 
-nth_token(_) ->
+nth_lexeme(_) ->
     ?TEST( "", [1, " ,."],  []),
     ?TEST( "Hej san", [1, ""],  "Hej san"),
     ?TEST( "  ,., ", [1, " ,."],  []),
@@ -697,7 +699,8 @@ meas(Config) ->
                            [Name, Mode, Mean/1000, Stddev/1000, N])
          end,
     io:format("----------------------~n"),
-    Tokens = {tokens, fun(Str) -> string:tokens(Str, [$\n,$\r]) end},
+    Do(tokens, fun(Str) -> string:tokens(Str, [$\n,$\r]) end, list),
+    Tokens = {lexemes, fun(Str) -> string:lexemes(Str, [$\n,$\r]) end},
     [Do(Name,Fun,Mode) || {Name,Fun} <- [Tokens], Mode <- [list, binary]],
     ok.
 
@@ -799,7 +802,7 @@ check_types(Line, Func, [Str|_], Res)  ->
     AddList = fun(mixed) -> mixed;
                  ({list,{list,_}}) -> {list, deep};
                  (R) ->
-                      case lists:member(Func, [tokens, split]) of
+                      case lists:member(Func, [lexemes, tokens, split]) of
                           true -> {list, R};
                           false -> R
                       end

@@ -53,7 +53,7 @@
          slice/2, slice/3,
          pad/2, pad/3, pad/4, trim/1, trim/2, trim/3, chomp/1,
          detach/2, detach/3, detach/4,
-         tokens/2, nth_token/3,
+         lexemes/2, nth_lexeme/3,
          uppercase/1, lowercase/1, titlecase/1,casefold/1,
          prefix/2,
          split/2,split/3,replace/3,replace/4,
@@ -66,7 +66,7 @@
 %% Old (will be deprecated) lists/string API kept for backwards compability
 -export([len/1,% equal/2, concat/2,
          chr/2,rchr/2,str/2,rstr/2,
-	 span/2,cspan/2,substr/2,substr/3, %tokens/2,
+	 span/2,cspan/2,substr/2,substr/3, tokens/2,
          chars/2,chars/3]).
 -export([copies/2,words/1,words/2,strip/1,strip/2,strip/3,
 	 sub_word/2,sub_word/3,left/2,left/3,right/2,right/3,
@@ -444,27 +444,28 @@ replace(Haystack, Needle, Replacement, Where) ->
 
 %% Split Str into a list of chardata separated by one of the grapheme
 %% clusters in Seps
--spec tokens(Str::unicode:chardata(), Seps::[grapheme_cluster()]) ->
-                    [unicode:chardata()].
-tokens([], _) -> [];
-tokens(Str, []) -> [Str];
-%% tokens(Str, [C]) ->  % optimize
-%%     lists:reverse(tokens_single_1(Str, C, [], []));
-tokens(Str, Seps0) when is_list(Seps0) ->
+-spec lexemes(String::unicode:chardata(),
+              SeparatorList::[grapheme_cluster()]) ->
+                     [unicode:chardata()].
+lexemes([], _) -> [];
+lexemes(Str, []) -> [Str];
+%% lexemes(Str, [C]) ->  % optimize
+%%     lists:reverse(lexemes_single_1(Str, C, [], []));
+lexemes(Str, Seps0) when is_list(Seps0) ->
     Seps = search_pattern(Seps0),
-    tokens_m(Str, Seps, []).
+    lexemes_m(Str, Seps, []).
 
--spec nth_token(String, N, SeparatorList) -> unicode:chardata() when
+-spec nth_lexeme(String, N, SeparatorList) -> unicode:chardata() when
       String::unicode:chardata(),
       N::non_neg_integer(),
       SeparatorList::[grapheme_cluster()].
 
-nth_token(Str, 1, []) -> Str;
-nth_token(Str, _, []) when is_binary(Str) -> <<>>;
-nth_token(_Str, _, []) -> [];
-nth_token(Str, N, Seps0) when is_list(Seps0), is_integer(N), N >= 0 ->
+nth_lexeme(Str, 1, []) -> Str;
+nth_lexeme(Str, _, []) when is_binary(Str) -> <<>>;
+nth_lexeme(_Str, _, []) -> [];
+nth_lexeme(Str, N, Seps0) when is_list(Seps0), is_integer(N), N >= 0 ->
     Seps = search_pattern(Seps0),
-    nth_token_m(Str, Seps, N).
+    nth_lexeme_m(Str, Seps, N).
 
 %% find first Needle in Haystack return rest of string
 -spec find(Haystack::unicode:chardata(), Needle::unicode:chardata()) ->
@@ -972,56 +973,56 @@ split_1(Bin, [_C|_]=Needle, Start, Where, Curr0, Acc) ->
             end
     end.
 
-tokens_m([Bin|Cont0], Seps, Ts) when is_binary(Bin) ->
+lexemes_m([Bin|Cont0], Seps, Ts) when is_binary(Bin) ->
     case bin_search_inv(Bin, Cont0, Seps) of
         {nomatch,Cont} ->
-            tokens_m(Cont, Seps, Ts);
+            lexemes_m(Cont, Seps, Ts);
         Cs ->
-            {Token,Rest} = token_pick(Cs, Seps, []),
-            tokens_m(Rest, Seps, [Token|Ts])
+            {Lexeme,Rest} = lexeme_pick(Cs, Seps, []),
+            lexemes_m(Rest, Seps, [Lexeme|Ts])
     end;
-tokens_m(Cs0, {GCs, _, _}=Seps, Ts) when is_list(Cs0) ->
+lexemes_m(Cs0, {GCs, _, _}=Seps, Ts) when is_list(Cs0) ->
     case unicode_util:gc(Cs0) of
         [C|Cs] ->
             case lists:member(C, GCs) of
                 true  ->
-                    tokens_m(Cs, Seps, Ts);
+                    lexemes_m(Cs, Seps, Ts);
                 false ->
-                    {Token,Rest} = token_pick(Cs0, Seps, []),
-                    tokens_m(Rest, Seps, [Token|Ts])
+                    {Lexeme,Rest} = lexeme_pick(Cs0, Seps, []),
+                    lexemes_m(Rest, Seps, [Lexeme|Ts])
             end;
         [] ->
             lists:reverse(Ts)
     end;
-tokens_m(Bin, Seps, Ts) when is_binary(Bin) ->
+lexemes_m(Bin, Seps, Ts) when is_binary(Bin) ->
     case bin_search_inv(Bin, [], Seps) of
         {nomatch,_} ->
             lists:reverse(Ts);
         [Cs] ->
-            {Token,Rest} = token_pick(Cs, Seps, []),
-            tokens_m(Rest, Seps, [Token|Ts])
+            {Lexeme,Rest} = lexeme_pick(Cs, Seps, []),
+            lexemes_m(Rest, Seps, [Lexeme|Ts])
     end.
 
-token_pick([CP|Cs1]=Cs0, {GCs,CPs,_}=Seps, Tkn) when is_integer(CP) ->
+lexeme_pick([CP|Cs1]=Cs0, {GCs,CPs,_}=Seps, Tkn) when is_integer(CP) ->
     case lists:member(CP, CPs) of
         true  ->
             [GC|Cs2] = unicode_util:gc(Cs0),
             case lists:member(GC, GCs) of
-                true -> {rev(Tkn), Cs0};
-                false -> token_pick(Cs2, Seps, concat(rev(GC),Tkn))
+                true -> {rev(Tkn), Cs2};
+                false -> lexeme_pick(Cs2, Seps, concat(rev(GC),Tkn))
             end;
-        false -> token_pick(Cs1, Seps, [CP|Tkn])
+        false -> lexeme_pick(Cs1, Seps, [CP|Tkn])
     end;
-token_pick([Bin|Cont0], Seps, Tkn) when is_binary(Bin) ->
+lexeme_pick([Bin|Cont0], Seps, Tkn) when is_binary(Bin) ->
     case bin_search(Bin, Cont0, Seps) of
         {nomatch,_} ->
-            token_pick(Cont0, Seps, [Bin|Tkn]);
+            lexeme_pick(Cont0, Seps, [Bin|Tkn]);
         [Left|_Cont] = Cs ->
             Bytes = byte_size(Bin) - byte_size(Left),
-            <<Token:Bytes/binary, _/binary>> = Bin,
-            {btoken(Token, Tkn), Cs}
+            <<Lexeme:Bytes/binary, _/binary>> = Bin,
+            {btoken(Lexeme, Tkn), Cs}
     end;
-token_pick(Cs0, {GCs, CPs, _} = Seps, Tkn) when is_list(Cs0) ->
+lexeme_pick(Cs0, {GCs, CPs, _} = Seps, Tkn) when is_list(Cs0) ->
     case unicode_util:cp(Cs0) of
         [CP|Cs] ->
             case lists:member(CP, CPs) of
@@ -1029,80 +1030,80 @@ token_pick(Cs0, {GCs, CPs, _} = Seps, Tkn) when is_list(Cs0) ->
                     [GC|Cs2] = unicode_util:gc(Cs0),
                     case lists:member(GC, GCs) of
                         true -> {rev(Tkn), Cs0};
-                        false -> token_pick(Cs2, Seps, concat(rev(GC),Tkn))
+                        false -> lexeme_pick(Cs2, Seps, concat(rev(GC),Tkn))
                     end;
                 false ->
-                    token_pick(Cs, Seps, concat(CP,Tkn))
+                    lexeme_pick(Cs, Seps, concat(CP,Tkn))
             end;
         [] ->
             {rev(Tkn), []}
     end;
-token_pick(Bin, Seps, Tkn) when is_binary(Bin) ->
+lexeme_pick(Bin, Seps, Tkn) when is_binary(Bin) ->
     case bin_search(Bin, Seps) of
         {nomatch,_} ->
             {btoken(Bin,Tkn), []};
         [Left] ->
             Bytes = byte_size(Bin) - byte_size(Left),
-            <<Token:Bytes/binary, _/binary>> = Bin,
-            {btoken(Token, Tkn), Left}
+            <<Lexeme:Bytes/binary, _/binary>> = Bin,
+            {btoken(Lexeme, Tkn), Left}
     end.
 
-nth_token_m([Bin|Cont0], Seps, N) when is_binary(Bin) ->
+nth_lexeme_m([Bin|Cont0], Seps, N) when is_binary(Bin) ->
     case bin_search_inv(Bin, Cont0, Seps) of
         {nomatch,Cont} ->
-            nth_token_m(Cont, Seps, N);
+            nth_lexeme_m(Cont, Seps, N);
         Cs when N > 1 ->
-            Rest = token_skip(Cs, Seps),
-            nth_token_m(Rest, Seps, N-1);
+            Rest = lexeme_skip(Cs, Seps),
+            nth_lexeme_m(Rest, Seps, N-1);
         Cs ->
-            {Token,_} = token_pick(Cs, Seps, []),
-            Token
+            {Lexeme,_} = lexeme_pick(Cs, Seps, []),
+            Lexeme
     end;
-nth_token_m(Cs0, {GCs, _, _}=Seps, N) when is_list(Cs0) ->
+nth_lexeme_m(Cs0, {GCs, _, _}=Seps, N) when is_list(Cs0) ->
     case unicode_util:gc(Cs0) of
         [C|Cs] ->
             case lists:member(C, GCs) of
                 true ->
-                    nth_token_m(Cs, Seps, N);
+                    nth_lexeme_m(Cs, Seps, N);
                 false when N > 1 ->
-                    Cs1 = token_skip(Cs, Seps),
-                    nth_token_m(Cs1, Seps, N-1);
+                    Cs1 = lexeme_skip(Cs, Seps),
+                    nth_lexeme_m(Cs1, Seps, N-1);
                 false ->
-                    {Token,_} = token_pick(Cs0, Seps, []),
-                    Token
+                    {Lexeme,_} = lexeme_pick(Cs0, Seps, []),
+                    Lexeme
             end;
         [] ->
             []
     end;
-nth_token_m(Bin, Seps, N) when is_binary(Bin) ->
+nth_lexeme_m(Bin, Seps, N) when is_binary(Bin) ->
     case bin_search_inv(Bin, [], Seps) of
         [Cs] when N > 1 ->
-            Cs1 = token_skip(Cs, Seps),
-            nth_token_m(Cs1, Seps, N-1);
+            Cs1 = lexeme_skip(Cs, Seps),
+            nth_lexeme_m(Cs1, Seps, N-1);
         [Cs] ->
-            {Token,_} = token_pick(Cs, Seps, []),
-            Token;
+            {Lexeme,_} = lexeme_pick(Cs, Seps, []),
+            Lexeme;
         {nomatch,_} ->
             <<>>
     end.
 
-token_skip([CP|Cs1]=Cs0, {GCs,CPs,_}=Seps) when is_integer(CP) ->
+lexeme_skip([CP|Cs1]=Cs0, {GCs,CPs,_}=Seps) when is_integer(CP) ->
     case lists:member(CP, CPs) of
         true  ->
             [GC|Cs2] = unicode_util:gc(Cs0),
             case lists:member(GC, GCs) of
                 true -> Cs0;
-                false -> token_skip(Cs2, Seps)
+                false -> lexeme_skip(Cs2, Seps)
             end;
         false ->
-            token_skip(Cs1, Seps)
+            lexeme_skip(Cs1, Seps)
     end;
-token_skip([Bin|Cont0], Seps) when is_binary(Bin) ->
+lexeme_skip([Bin|Cont0], Seps) when is_binary(Bin) ->
     case bin_search(Bin, Cont0, Seps) of
-        {nomatch,_} -> token_skip(Cont0, Seps);
+        {nomatch,_} -> lexeme_skip(Cont0, Seps);
         Cs -> Cs
     end;
-token_skip(Cs0, {GCs, CPs, _} = Seps) when is_list(Cs0) ->
+lexeme_skip(Cs0, {GCs, CPs, _} = Seps) when is_list(Cs0) ->
     case unicode_util:cp(Cs0) of
         [CP|Cs] ->
             case lists:member(CP, CPs) of
@@ -1110,15 +1111,15 @@ token_skip(Cs0, {GCs, CPs, _} = Seps) when is_list(Cs0) ->
                     [GC|Cs2] = unicode_util:gc(Cs0),
                     case lists:member(GC, GCs) of
                         true -> Cs0;
-                        false -> token_skip(Cs2, Seps)
+                        false -> lexeme_skip(Cs2, Seps)
                     end;
                 false ->
-                    token_skip(Cs, Seps)
+                    lexeme_skip(Cs, Seps)
             end;
         [] ->
             []
     end;
-token_skip(Bin, Seps) when is_binary(Bin) ->
+lexeme_skip(Bin, Seps) when is_binary(Bin) ->
     case bin_search(Bin, Seps) of
         {nomatch,_} -> [];
         [Left] -> Left
@@ -1233,13 +1234,16 @@ bin_search_loop(Bin0, Start, BinSeps, Cont, Seps) ->
         nomatch ->
             %io:format("nomatch ~p~n",[Cont]),
             {nomatch,Cont};
-        {Where, CL} ->
+        {Where, _CL} ->
             <<_:Where/binary, Cont0/binary>> = Bin,
             Cont1 = stack(Cont0, Cont),
-            [GC|_] = unicode_util:gc(Cont1),
+            [GC|Cont2] = unicode_util:gc(Cont1),
             case lists:member(GC, Seps) of
+                false when is_binary(Cont2) ->
+                    Next = byte_size(Bin0) - byte_size(Cont2),
+                    bin_search_loop(Bin0, Next, BinSeps, Cont, Seps);
                 false ->
-                    bin_search_loop(Bin0, Start+Where+CL, BinSeps, Cont, Seps);
+                    {nomatch, Cont2};
                 true when is_list(Cont1) ->
                     %io:format("~p: found ~p ~p~n",[?LINE, GC, Cont1]),
                     Cont1;
@@ -1461,56 +1465,56 @@ substr1(String, _L) when is_list(String) -> [].	     %Be nice!
 substr2(String, 1) when is_list(String) -> String;
 substr2([_|String], S) -> substr2(String, S-1).
 
-%% %% tokens(String, Seperators).
-%% %%  Return a list of tokens seperated by characters in Seperators.
+%% tokens(String, Seperators).
+%%  Return a list of tokens seperated by characters in Seperators.
 
-%% -spec tokens(String, SeparatorList) -> Tokens when
-%%       String :: string(),
-%%       SeparatorList :: string(),
-%%       Tokens :: [Token :: nonempty_string()].
+-spec tokens(String, SeparatorList) -> Tokens when
+      String :: string(),
+      SeparatorList :: string(),
+      Tokens :: [Token :: nonempty_string()].
 
-%% tokens(S, Seps) ->
-%%     case Seps of
-%% 	[] ->
-%% 	    case S of
-%% 		[] -> [];
-%% 		[_|_] -> [S]
-%% 	    end;
-%% 	[C] ->
-%% 	    tokens_single_1(lists:reverse(S), C, []);
-%% 	[_|_] ->
-%% 	    tokens_multiple_1(lists:reverse(S), Seps, [])
-%%     end.
+tokens(S, Seps) ->
+    case Seps of
+	[] ->
+	    case S of
+		[] -> [];
+		[_|_] -> [S]
+	    end;
+	[C] ->
+	    tokens_single_1(lists:reverse(S), C, []);
+	[_|_] ->
+	    tokens_multiple_1(lists:reverse(S), Seps, [])
+    end.
 
-%% tokens_single_1([Sep|S], Sep, Toks) ->
-%%     tokens_single_1(S, Sep, Toks);
-%% tokens_single_1([C|S], Sep, Toks) ->
-%%     tokens_single_2(S, Sep, Toks, [C]);
-%% tokens_single_1([], _, Toks) ->
-%%     Toks.
+tokens_single_1([Sep|S], Sep, Toks) ->
+    tokens_single_1(S, Sep, Toks);
+tokens_single_1([C|S], Sep, Toks) ->
+    tokens_single_2(S, Sep, Toks, [C]);
+tokens_single_1([], _, Toks) ->
+    Toks.
 
-%% tokens_single_2([Sep|S], Sep, Toks, Tok) ->
-%%     tokens_single_1(S, Sep, [Tok|Toks]);
-%% tokens_single_2([C|S], Sep, Toks, Tok) ->
-%%     tokens_single_2(S, Sep, Toks, [C|Tok]);
-%% tokens_single_2([], _Sep, Toks, Tok) ->
-%%     [Tok|Toks].
+tokens_single_2([Sep|S], Sep, Toks, Tok) ->
+    tokens_single_1(S, Sep, [Tok|Toks]);
+tokens_single_2([C|S], Sep, Toks, Tok) ->
+    tokens_single_2(S, Sep, Toks, [C|Tok]);
+tokens_single_2([], _Sep, Toks, Tok) ->
+    [Tok|Toks].
 
-%% tokens_multiple_1([C|S], Seps, Toks) ->
-%%     case member(C, Seps) of
-%% 	true -> tokens_multiple_1(S, Seps, Toks);
-%% 	false -> tokens_multiple_2(S, Seps, Toks, [C])
-%%     end;
-%% tokens_multiple_1([], _Seps, Toks) ->
-%%     Toks.
+tokens_multiple_1([C|S], Seps, Toks) ->
+    case member(C, Seps) of
+	true -> tokens_multiple_1(S, Seps, Toks);
+	false -> tokens_multiple_2(S, Seps, Toks, [C])
+    end;
+tokens_multiple_1([], _Seps, Toks) ->
+    Toks.
 
-%% tokens_multiple_2([C|S], Seps, Toks, Tok) ->
-%%     case member(C, Seps) of
-%% 	true -> tokens_multiple_1(S, Seps, [Tok|Toks]);
-%% 	false -> tokens_multiple_2(S, Seps, Toks, [C|Tok])
-%%     end;
-%% tokens_multiple_2([], _Seps, Toks, Tok) ->
-%%     [Tok|Toks].
+tokens_multiple_2([C|S], Seps, Toks, Tok) ->
+    case member(C, Seps) of
+	true -> tokens_multiple_1(S, Seps, [Tok|Toks]);
+	false -> tokens_multiple_2(S, Seps, Toks, [C|Tok])
+    end;
+tokens_multiple_2([], _Seps, Toks, Tok) ->
+    [Tok|Toks].
 
 -spec chars(Character, Number) -> String when
       Character :: char(),
