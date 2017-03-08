@@ -43,8 +43,8 @@
 "abcd"               is a valid string
 &lt;&lt;"abcd">>           is a valid string
 ["abcd"]             is a valid string
-&lt;&lt;"abc..åäö/utf8>>   is a valid string
-&lt;&lt;"abc..åäö>>        is NOT a valid string, latin1 encoded binary
+&lt;&lt;"abc..åäö"/utf8>>  is a valid string
+&lt;&lt;"abc..åäö">>       is NOT a valid string, latin1 encoded binary
 [&lt;&lt;"abc">>, "..åäö"] is a valid string
 [atom]               is NOT a valid string</code>
     <p>
@@ -86,7 +86,9 @@
       in any function.
     </p>
     <p>
-      The functions may crash for invalid utf8-encoded binaries.
+      The functions may crash for invalid utf8-encoded binaries. That is,
+      the functions expect utf8-encoded binaries but all functions herein
+      will not verify that all binary data are encoded correctly.
     </p>
     <p>
       Unless otherwise specified the return value type is the same as
@@ -127,10 +129,13 @@
 
     <func>
       <name name="casefold" arity="1"/>
-      <fsummary>Converts a string to a comparable string.</fsummary>
+      <fsummary>Convert a string to a comparable string.</fsummary>
       <desc>
         <p>
-	  Convert <c><anno>String</anno></c> to a case-agnostic comparable string.
+	  Converts <c><anno>String</anno></c> to a case-agnostic
+	  comparable string. Function <c>casefold</c> is preferred
+	  over <c>lowercase</c> when two strings are to be compared
+	  for equality. See also <seealso marker="#equal/4"><c>equal/4</c></seealso>.
 	</p>
 	<p><em>Example:</em></p>
 	<pre>
@@ -141,10 +146,10 @@
 
     <func>
       <name name="chomp" arity="1"/>
-      <fsummary>Removes trailing end of line control characters.</fsummary>
+      <fsummary>Remove trailing end of line control characters.</fsummary>
       <desc>
         <p>
-	  Return a string where any trailing <c>\n</c> or
+	  Returns a string where any trailing <c>\n</c> or
 	  <c>\r\n</c> have been removed from <c><anno>String</anno></c>.
 	</p>
 	<p><em>Example:</em></p>
@@ -179,26 +184,26 @@
     </func>
 
     <func>
-      <name name="detach" arity="2"/>
-      <name name="detach" arity="3"/>
-      <name name="detach" arity="4"/>
-      <fsummary>Detach leading or trailing parts.</fsummary>
+      <name name="take" arity="2"/>
+      <name name="take" arity="3"/>
+      <name name="take" arity="4"/>
+      <fsummary>Take leading or trailing parts.</fsummary>
       <desc>
-        <p>Detach <c><anno>Characters</anno></c> or the complement of the
-	<c><anno>Characters</anno></c> in the string <c><anno>String</anno></c>.
-	<c><anno>Dir</anno></c>, which can be <c>leading</c>, <c>trailing</c>,
-	or <c>both</c>, indicates from which direction characters
-	are to be split.
+        <p>Takes characters from <c><anno>String</anno></c> as long as
+        the characters are members of the <c><anno>Characters</anno></c> set
+	or the complement of the <c><anno>Characters</anno></c>. <c><anno>Dir</anno></c>,
+        which can be <c>leading</c> or <c>trailing</c>, indicates from
+        which direction characters are to be taken.
 	</p>
 	<p><em>Example:</em></p>
 	<pre>
-5> <input>string:detach("abc0z123", lists:seq($a,$z)).</input>
+5> <input>string:take("abc0z123", lists:seq($a,$z)).</input>
 {"abc","0z123"}
-6> <input>string:detach(&lt;&lt;"abc0z123">>, lists:seq($0,$9), true, leading).</input>
+6> <input>string:take(&lt;&lt;"abc0z123">>, lists:seq($0,$9), true, leading).</input>
 {&lt;&lt;"abc">>,&lt;&lt;"0z123">>}
-7> <input>string:detach("abc0z123", lists:seq($0,$9), false, trailing).</input>
+7> <input>string:take("abc0z123", lists:seq($0,$9), false, trailing).</input>
 {"abc0z","123"}
-8> <input>string:detach(&lt;&lt;"abc0z123">>, lists:seq($a,$z), true, trailing).</input>
+8> <input>string:take(&lt;&lt;"abc0z123">>, lists:seq($a,$z), true, trailing).</input>
 {&lt;&lt;"abc0z">>,&lt;&lt;"123">>}</pre>
       </desc>
     </func>
@@ -210,7 +215,7 @@
       <fsummary>Test string equality.</fsummary>
       <desc>
         <p>
-	  Return <c>true</c> if <c><anno>A</anno></c> and
+	  Returns <c>true</c> if <c><anno>A</anno></c> and
           <c><anno>B</anno></c> are equal, otherwise <c>false</c>.
 	</p>
 	<p>
@@ -246,7 +251,7 @@ true</pre>
       <fsummary>Find start of substring.</fsummary>
       <desc>
         <p>
-	  Remove anything before <c><anno>Needle</anno></c> in <c><anno>Haystack</anno></c>
+	  Removes anything before <c><anno>SearchPattern</anno></c> in <c><anno>String</anno></c>
 	  and return the remainder.
 	  Search from either <c>leading</c> or <c>trailing</c> <c><anno>Dir</anno></c> direction.
 	  By default, <c><anno>Dir</anno></c> is <c>leading</c>.
@@ -268,7 +273,7 @@ true</pre>
       <name name="is_empty" arity="1"/>
       <fsummary>Check if the string is empty.</fsummary>
       <desc>
-        <p>Return <c>true</c> if <c><anno>String</anno></c> is the
+        <p>Returns <c>true</c> if <c><anno>String</anno></c> is the
         empty string, otherwise <c>false</c>.</p>
 	<p><em>Example:</em></p>
 	<pre>
@@ -284,7 +289,7 @@ true</pre>
       <fsummary>Calculate length of the string.</fsummary>
       <desc>
         <p>
-	  Return the number of grapheme clusters in the <c><anno>String</anno></c>.
+	  Returns the number of grapheme clusters in the <c><anno>String</anno></c>.
 	</p>
 	<p><em>Example:</em></p>
 	<pre>
@@ -300,7 +305,7 @@ true</pre>
       <fsummary>Convert a string to lowercase</fsummary>
       <desc>
         <p>
-	  Convert <c><anno>String</anno></c> to lowercase.
+	  Converts <c><anno>String</anno></c> to lowercase.
 	</p>
 	<p>
 	  Notice that the <seealso marker="#casefold/1"><c>casefold/1</c></seealso>
@@ -319,7 +324,7 @@ true</pre>
       <fsummary>Pick the first codepoint.</fsummary>
       <desc>
         <p>
-	  Return the first codepoint in <c><anno>String</anno></c>
+	  Returns the first codepoint in <c><anno>String</anno></c>
 	  and the rest of the <c><anno>String</anno></c> in the tail.
 	</p>
 	<p><em>Example:</em></p>
@@ -334,7 +339,7 @@ true</pre>
       <fsummary>Pick the first grapheme cluster.</fsummary>
       <desc>
         <p>
-	  Return the first grapheme cluster in <c><anno>String</anno></c>
+	  Returns the first grapheme cluster in <c><anno>String</anno></c>
 	  and the rest of the <c><anno>String</anno></c> in the tail.
 	</p>
 	<p><em>Example:</em></p>
@@ -348,7 +353,7 @@ true</pre>
       <name name="nth_lexeme" arity="3"/>
       <fsummary>Pick the nth lexeme.</fsummary>
       <desc>
-	<p>Return lexeme number <c><anno>N</anno></c> in
+	<p>Returns lexeme number <c><anno>N</anno></c> in
 	<c><anno>String</anno></c>, where lexemes are separated by
 	the grapheme clusters in <c><anno>SeparatorList</anno></c>.
 	</p>
@@ -366,7 +371,7 @@ true</pre>
       <fsummary>Pad a string to given length.</fsummary>
       <desc>
         <p>
-	  Pad <c><anno>String</anno></c> to <c><anno>Length</anno></c> with
+	  Pads <c><anno>String</anno></c> to <c><anno>Length</anno></c> with
 	  grapheme cluster <c><anno>Char</anno></c>.
 	  <c><anno>Dir</anno></c> which can be <c>leading</c>, <c>trailing</c>,
 	  or <c>both</c> indicates where the padding should be added.
@@ -410,14 +415,14 @@ nomatch</pre>
       <fsummary>Replace a pattern in string.</fsummary>
       <desc>
         <p>
-	  Replaces <c><anno>Needle</anno></c> in <c><anno>Haystack</anno></c>
+	  Replaces <c><anno>SearchPattern</anno></c> in <c><anno>String</anno></c>
 	  with <c><anno>Replacement</anno></c>.
 	  <c><anno>Where</anno></c>, default <c>leading</c>, indicates whether
 	  the <c>leading</c>, the <c>trailing</c> or <c>all</c> encounters of
-	  <c><anno>Needle</anno></c> are to be replaced.
+	  <c><anno>SearchPattern</anno></c> are to be replaced.
 	</p>
 	<p>Can be implemented as:</p>
-	<pre>lists:join(Replacement, split(Haystack, Needle, Where)).</pre>
+	<pre>lists:join(Replacement, split(String, SearchPattern, Where)).</pre>
 	<p><em>Example:</em></p>
 	<pre>
 1> <input>string:replace(&lt;&lt;"ab..cd..ef">>, "..", "*").</input>
@@ -432,7 +437,7 @@ nomatch</pre>
       <fsummary>Reverses a string</fsummary>
       <desc>
         <p>
-	  Return the reverse list of the grapheme clusters in the <c><anno>String</anno></c>.
+	  Returns the reverse list of the grapheme clusters in the <c><anno>String</anno></c>.
 	</p>
 	<p><em>Example:</em></p>
 	<pre>
@@ -448,7 +453,7 @@ ÖÄÅ</pre>
       <name name="slice" arity="3"/>
       <fsummary>Extract a part of string</fsummary>
       <desc>
-	<p>Return a substring of <c><anno>String</anno></c> of
+	<p>Returns a substring of <c><anno>String</anno></c> of
 	at most <c><anno>Length</anno></c> grapheme clusters, starting at position
 	<c><anno>Start</anno></c>.</p>
 	<p>By default, <c><anno>Length</anno></c> is <c>infinity</c>.</p>
@@ -469,11 +474,11 @@ ÖÄÅ</pre>
       <fsummary>Split a string into substrings.</fsummary>
       <desc>
         <p>
-	  Split <c><anno>Haystack</anno></c> when <c><anno>Needle</anno></c>
+	  Splits <c><anno>String</anno></c> when <c><anno>SearchPattern</anno></c>
 	  is encountered and return the remaining parts.
 	  <c><anno>Where</anno></c>, default <c>leading</c>, indicates whether
 	  the <c>leading</c>, the <c>trailing</c> or <c>all</c> encounters of
-	  <c><anno>Needle</anno></c> will split the <c><anno>Haystack</anno></c>.
+	  <c><anno>SearchPattern</anno></c> will split the <c><anno>String</anno></c>.
 	</p>
 	<p><em>Example:</em></p>
 	<pre>
@@ -491,12 +496,12 @@ ÖÄÅ</pre>
       <fsummary>Convert a string to titlecase.</fsummary>
       <desc>
         <p>
-	  Convert <c><anno>String</anno></c> to titlecase.
+	  Converts <c><anno>String</anno></c> to titlecase.
 	</p>
 	<p><em>Example:</em></p>
 	<pre>
-1> <input>string:titlecase("ß is a sharp s").</input>
-"Ss is a sharp s"</pre>
+1> <input>string:titlecase("ß is a SHARP s").</input>
+"Ss is a SHARP s"</pre>
       </desc>
     </func>
 
@@ -505,7 +510,7 @@ ÖÄÅ</pre>
       <fsummary>Convert a string to a list of grapheme clusters.</fsummary>
       <desc>
         <p>
-	  Convert <c><anno>String</anno></c> to a list of grapheme clusters.
+	  Converts <c><anno>String</anno></c> to a list of grapheme clusters.
 	</p>
 	<p><em>Example:</em></p>
 	<pre>
@@ -564,7 +569,7 @@ ÖÄÅ</pre>
       <fsummary>Split string into lexemes.</fsummary>
       <desc>
 	<p>
-	  Return a list of lexemes in <c><anno>String</anno></c>, separated
+	  Returns a list of lexemes in <c><anno>String</anno></c>, separated
           by the grapheme clusters in <c><anno>SeparatorList</anno></c>.
 	</p>
 	<p>
@@ -592,7 +597,7 @@ ÖÄÅ</pre>
       <fsummary>Trim leading or trailing, or both, characters.</fsummary>
       <desc>
 	<p>
-	  Return a string, where leading and/or trailing
+	  Returns a string, where leading and/or trailing
 	  <c><anno>Characters</anno></c> have been removed.
 	  <c><anno>Dir</anno></c> which can be <c>leading</c>, <c>trailing</c>,
 	  or <c>both</c>, indicates from which direction characters
@@ -623,7 +628,7 @@ ÖÄÅ</pre>
       <fsummary>Convert a string to uppercase.</fsummary>
       <desc>
         <p>
-	  Convert <c><anno>String</anno></c> to uppercase.
+	  Converts <c><anno>String</anno></c> to uppercase.
 	</p>
 	<p>See also <seealso marker="#titlecase/1"><c>titlecase/1</c></seealso>.</p>
 	<p><em>Example:</em></p>
@@ -656,7 +661,7 @@ ÖÄÅ</pre>
       <name name="centre" arity="3"/>
       <fsummary>Center a string.</fsummary>
       <desc>
-        <p>Return a string, where <c><anno>String</anno></c> is centered in the
+        <p>Returns a string, where <c><anno>String</anno></c> is centered in the
           string and surrounded by blanks or <c><anno>Character</anno></c>.
 	The resulting string has length <c><anno>Number</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
@@ -671,7 +676,7 @@ ÖÄÅ</pre>
       <name name="chars" arity="3"/>
       <fsummary>Return a string consisting of numbers of characters.</fsummary>
       <desc>
-        <p>Return a string consisting of <c><anno>Number</anno></c> characters
+        <p>Returns a string consisting of <c><anno>Number</anno></c> characters
           <c><anno>Character</anno></c>. Optionally, the string can end with
         string <c><anno>Tail</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
@@ -685,7 +690,7 @@ ÖÄÅ</pre>
       <fsummary>Return the index of the first occurrence of
         a character in a string.</fsummary>
       <desc>
-        <p>Return the index of the first occurrence of
+        <p>Returns the index of the first occurrence of
           <c><anno>Character</anno></c> in <c><anno>String</anno></c>.
 	  Return
         <c>0</c> if <c><anno>Character</anno></c> does not occur.</p>
@@ -699,7 +704,7 @@ ÖÄÅ</pre>
       <name name="copies" arity="2"/>
       <fsummary>Copy a string.</fsummary>
       <desc>
-        <p>Return a string containing <c><anno>String</anno></c> repeated
+        <p>Returns a string containing <c><anno>String</anno></c> repeated
           <c><anno>Number</anno></c> times.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
 	Use
@@ -711,12 +716,12 @@ ÖÄÅ</pre>
       <name name="cspan" arity="2"/>
       <fsummary>Span characters at start of a string.</fsummary>
       <desc>
-        <p>Return the length of the maximum initial segment of
+        <p>Returns the length of the maximum initial segment of
           <c><anno>String</anno></c>, which consists entirely of characters
           not from <c><anno>Chars</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
 	Use
-	<seealso marker="#detach/3"><c>detach/3</c></seealso>.</p>
+	<seealso marker="#take/3"><c>take/3</c></seealso>.</p>
         <p><em>Example:</em></p>
         <code type="none">
 > string:cspan("\t    abcdef", " \t").
@@ -728,7 +733,7 @@ ÖÄÅ</pre>
       <name name="join" arity="2"/>
       <fsummary>Join a list of strings with separator.</fsummary>
       <desc>
-        <p>Return a string with the elements of <c><anno>StringList</anno></c>
+        <p>Returns a string with the elements of <c><anno>StringList</anno></c>
           separated by the string in <c><anno>Separator</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
 	Use
@@ -745,7 +750,7 @@ ÖÄÅ</pre>
       <name name="left" arity="3"/>
       <fsummary>Adjust left end of a string.</fsummary>
       <desc>
-        <p>Return <c><anno>String</anno></c> with the length adjusted in
+        <p>Returns <c><anno>String</anno></c> with the length adjusted in
           accordance with <c><anno>Number</anno></c>. The left margin is
           fixed. If <c>length(<anno>String</anno>)</c> &lt;
           <c><anno>Number</anno></c>, then <c><anno>String</anno></c> is padded
@@ -764,7 +769,7 @@ ÖÄÅ</pre>
       <name name="len" arity="1"/>
       <fsummary>Return the length of a string.</fsummary>
       <desc>
-        <p>Return the number of characters in <c><anno>String</anno></c>.</p>
+        <p>Returns the number of characters in <c><anno>String</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
 	Use
 	<seealso marker="#length/1"><c>length/1</c></seealso>.</p>
@@ -776,7 +781,7 @@ ÖÄÅ</pre>
       <fsummary>Return the index of the last occurrence of
         a character in a string.</fsummary>
       <desc>
-        <p>Return the index of the last occurrence of
+        <p>Returns the index of the last occurrence of
           <c><anno>Character</anno></c> in <c><anno>String</anno></c>.
 	  Return
           <c>0</c> if <c><anno>Character</anno></c> does not occur.</p>
@@ -791,7 +796,7 @@ ÖÄÅ</pre>
       <name name="right" arity="3"/>
       <fsummary>Adjust right end of a string.</fsummary>
       <desc>
-        <p>Return <c><anno>String</anno></c> with the length adjusted in
+        <p>Returns <c><anno>String</anno></c> with the length adjusted in
         accordance with <c><anno>Number</anno></c>. The right margin is
         fixed. If the length of <c>(<anno>String</anno>)</c> &lt;
         <c><anno>Number</anno></c>, then <c><anno>String</anno></c> is padded
@@ -810,7 +815,7 @@ ÖÄÅ</pre>
       <name name="rstr" arity="2"/>
       <fsummary>Find the index of a substring.</fsummary>
       <desc>
-        <p>Return the position where the last occurrence of
+        <p>Returns the position where the last occurrence of
         <c><anno>SubString</anno></c> begins in <c><anno>String</anno></c>.
         Return <c>0</c> if <c><anno>SubString</anno></c>
         does not exist in <c><anno>String</anno></c>.</p>
@@ -828,12 +833,12 @@ ÖÄÅ</pre>
       <name name="span" arity="2"/>
       <fsummary>Span characters at start of a string.</fsummary>
       <desc>
-        <p>Return the length of the maximum initial segment of
+        <p>Returns the length of the maximum initial segment of
         <c><anno>String</anno></c>, which consists entirely of characters
         from <c><anno>Chars</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
 	Use
-	<seealso marker="#detach/2"><c>detach/2</c></seealso>.</p>
+	<seealso marker="#take/2"><c>take/2</c></seealso>.</p>
         <p><em>Example:</em></p>
         <code type="none">
 > string:span("\t    abcdef", " \t").
@@ -845,7 +850,7 @@ ÖÄÅ</pre>
       <name name="str" arity="2"/>
       <fsummary>Find the index of a substring.</fsummary>
       <desc>
-        <p>Return the position where the first occurrence of
+        <p>Returns the position where the first occurrence of
         <c><anno>SubString</anno></c> begins in <c><anno>String</anno></c>.
         Return <c>0</c> if <c><anno>SubString</anno></c>
         does not exist in <c><anno>String</anno></c>.</p>
@@ -865,7 +870,7 @@ ÖÄÅ</pre>
       <name name="strip" arity="3"/>
       <fsummary>Strip leading or trailing characters.</fsummary>
       <desc>
-        <p>Return a string, where leading and/or trailing blanks or a
+        <p>Returns a string, where leading and/or trailing blanks or a
         number of <c><anno>Character</anno></c> have been removed.
         <c><anno>Direction</anno></c>, which can be <c>left</c>, <c>right</c>,
         or <c>both</c>, indicates from which direction blanks are to be
@@ -886,7 +891,7 @@ ÖÄÅ</pre>
       <name name="sub_string" arity="3"/>
       <fsummary>Extract a substring.</fsummary>
       <desc>
-        <p>Return a substring of <c><anno>String</anno></c>, starting at
+        <p>Returns a substring of <c><anno>String</anno></c>, starting at
         position <c><anno>Start</anno></c> to the end of the string, or to
         and including position <c><anno>Stop</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
@@ -904,7 +909,7 @@ sub_string("Hello World", 4, 8).
       <name name="substr" arity="3"/>
       <fsummary>Return a substring of a string.</fsummary>
       <desc>
-        <p>Return a substring of <c><anno>String</anno></c>, starting at
+        <p>Returns a substring of <c><anno>String</anno></c>, starting at
           position <c><anno>Start</anno></c>, and ending at the end of the
           string or at length <c><anno>Length</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
@@ -922,7 +927,7 @@ sub_string("Hello World", 4, 8).
       <name name="sub_word" arity="3"/>
       <fsummary>Extract subword.</fsummary>
       <desc>
-        <p>Return the word in position <c><anno>Number</anno></c> of
+        <p>Returns the word in position <c><anno>Number</anno></c> of
           <c><anno>String</anno></c>. Words are separated by blanks or
           <c><anno>Character</anno></c>s.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
@@ -961,7 +966,7 @@ sub_string("Hello World", 4, 8).
       <name name="tokens" arity="2"/>
       <fsummary>Split string into tokens.</fsummary>
       <desc>
-        <p>Return a list of tokens in <c><anno>String</anno></c>, separated
+        <p>Returns a list of tokens in <c><anno>String</anno></c>, separated
           by the characters in <c><anno>SeparatorList</anno></c>.</p>
         <p><em>Example:</em></p>
         <code type="none">
@@ -982,7 +987,7 @@ sub_string("Hello World", 4, 8).
       <name name="words" arity="2"/>
       <fsummary>Count blank separated words.</fsummary>
       <desc>
-        <p>Return the number of words in <c><anno>String</anno></c>, separated
+        <p>Returns the number of words in <c><anno>String</anno></c>, separated
           by blanks or <c><anno>Character</anno></c>.</p>
 	<p>This function is <seealso marker="#oldapi">obsolete</seealso>.
 	Use

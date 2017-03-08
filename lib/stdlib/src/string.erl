@@ -405,45 +405,45 @@ prefix(Str, Prefix0) ->
         Res -> Res
     end.
 
-%% split Haystack with the first occurrence of Needle, return list of splits
--spec split(Haystack::unicode:chardata(),
-            Needle::unicode:chardata()) ->
+%% split String with the first occurrence of SearchPattern, return list of splits
+-spec split(String::unicode:chardata(),
+            SearchPattern::unicode:chardata()) ->
                    [unicode:chardata()].
-split(Haystack, Needle) ->
-    split(Haystack, Needle, leading).
+split(String, SearchPattern) ->
+    split(String, SearchPattern, leading).
 
-%% split Haystack with Needle, return list of splits
--spec split(Haystack::unicode:chardata(),
-            Needle::unicode:chardata(),
+%% split String with SearchPattern, return list of splits
+-spec split(String::unicode:chardata(),
+            SearchPattern::unicode:chardata(),
             Where::direction()|'all') ->
                    [unicode:chardata()].
-split(Haystack, Needle, Where) ->
-    case is_empty(Needle) of
-        true -> [Haystack];
+split(String, SearchPattern, Where) ->
+    case is_empty(SearchPattern) of
+        true -> [String];
         false ->
-            NeedleCPs = unicode:characters_to_list(Needle),
-            case split_1(Haystack, NeedleCPs, 0, Where, [], []) of
-                {_Curr, []} -> [Haystack];
+            SearchPatternCPs = unicode:characters_to_list(SearchPattern),
+            case split_1(String, SearchPatternCPs, 0, Where, [], []) of
+                {_Curr, []} -> [String];
                 {_Curr, Acc} when Where =:= trailing -> Acc;
                 {Curr, Acc} when Where =:= all -> lists:reverse([Curr|Acc]);
                 Acc when is_list(Acc) -> Acc
             end
     end.
 
-%% Replace the first Needle in Haystack with Replacement
--spec replace(Haystack::unicode:chardata(),
-              Needle::unicode:chardata(),
+%% Replace the first SearchPattern in String with Replacement
+-spec replace(String::unicode:chardata(),
+              SearchPattern::unicode:chardata(),
               Replacement::unicode:chardata()) -> [unicode:chardata()].
-replace(Haystack, Needle, Replacement) ->
-    lists:join(Replacement, split(Haystack, Needle)).
+replace(String, SearchPattern, Replacement) ->
+    lists:join(Replacement, split(String, SearchPattern)).
 
-%% Replace Where Needle in Haystack with Replacement
--spec replace(Haystack::unicode:chardata(),
-              Needle::unicode:chardata(),
+%% Replace Where SearchPattern in String with Replacement
+-spec replace(String::unicode:chardata(),
+              SearchPattern::unicode:chardata(),
               Replacement::unicode:chardata(),
               Where::direction()|'all') -> [unicode:chardata()].
-replace(Haystack, Needle, Replacement, Where) ->
-    lists:join(Replacement, split(Haystack, Needle, Where)).
+replace(String, SearchPattern, Replacement, Where) ->
+    lists:join(Replacement, split(String, SearchPattern, Where)).
 
 %% Split Str into a list of chardata separated by one of the grapheme
 %% clusters in Seps
@@ -470,21 +470,21 @@ nth_lexeme(Str, N, Seps0) when is_list(Seps0), is_integer(N), N >= 0 ->
     Seps = search_pattern(Seps0),
     nth_lexeme_m(Str, Seps, N).
 
-%% find first Needle in Haystack return rest of string
--spec find(Haystack::unicode:chardata(), Needle::unicode:chardata()) ->
+%% find first SearchPattern in String return rest of string
+-spec find(String::unicode:chardata(), SearchPattern::unicode:chardata()) ->
                   unicode:chardata().
-find(Haystack, Needle) ->
-    find(Haystack, Needle, leading).
+find(String, SearchPattern) ->
+    find(String, SearchPattern, leading).
 
-%% find Needle in Haystack (search in Dir direction) return rest of string
--spec find(Haystack::unicode:chardata(), Needle::unicode:chardata(),
+%% find SearchPattern in String (search in Dir direction) return rest of string
+-spec find(String::unicode:chardata(), SearchPattern::unicode:chardata(),
            Dir::direction()) -> unicode:chardata().
-find(Haystack, "", _) -> Haystack;
-find(Haystack, <<>>, _) -> Haystack;
-find(Haystack, Needle, leading) ->
-    find_l(Haystack, unicode:characters_to_list(Needle));
-find(Haystack, Needle, trailing) ->
-    find_r(Haystack, unicode:characters_to_list(Needle), Haystack).
+find(String, "", _) -> String;
+find(String, <<>>, _) -> String;
+find(String, SearchPattern, leading) ->
+    find_l(String, unicode:characters_to_list(SearchPattern));
+find(String, SearchPattern, trailing) ->
+    find_r(String, unicode:characters_to_list(SearchPattern), String).
 
 %% Fetch first codepoint and return rest in tail
 -spec next_grapheme(String::unicode:chardata()) ->
