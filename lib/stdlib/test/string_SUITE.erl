@@ -32,7 +32,7 @@
 -export([is_empty/1, length/1, to_graphemes/1,
          concat/1, reverse/1, slice/1,
          equal/1,
-         pad/1, trim/1, chomp/1, detach/1,
+         pad/1, trim/1, chomp/1, take/1,
          uppercase/1, lowercase/1, titlecase/1, casefold/1,
          to_integer/1,to_float/1,
          prefix/1, split/1, replace/1, find/1,
@@ -60,7 +60,7 @@ groups() ->
     [{chardata,
       [is_empty, length, to_graphemes,
        equal, concat, reverse, slice,
-       pad, trim, chomp, detach,
+       pad, trim, chomp, take,
        lexemes, nth_lexeme,
        to_integer, to_float,
        uppercase, lowercase, titlecase, casefold,
@@ -318,7 +318,7 @@ chomp(_) ->
     ?TEST([Str, <<$\r>>|"\n"], [], Res),
     ok.
 
-detach(_) ->
+take(_) ->
     Str = "\t\s..Ha\s.llå..\t\n\r",
     WS = "\t\s\n\r",
     Chars = lists:seq($a,$z)++lists:seq($A,$Z),

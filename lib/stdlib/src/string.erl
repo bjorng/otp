@@ -52,7 +52,7 @@
          equal/2, equal/3, equal/4,
          slice/2, slice/3,
          pad/2, pad/3, pad/4, trim/1, trim/2, trim/3, chomp/1,
-         detach/2, detach/3, detach/4,
+         take/2, take/3, take/4,
          lexemes/2, nth_lexeme/3,
          uppercase/1, lowercase/1, titlecase/1,casefold/1,
          prefix/2,
@@ -264,29 +264,29 @@ chomp(Str) ->
     trim_t(Str,0, {[[$\r,$\n],$\n], [$\r,$\n], [<<$\r>>,<<$\n>>]}).
 
 %% Split String into two parts where the leading part consists of Characters
--spec detach(String, Characters) -> {Leading, Trailing} when
+-spec take(String, Characters) -> {Leading, Trailing} when
       String::unicode:chardata(),
       Characters::[grapheme_cluster()],
       Leading::unicode:chardata(),
       Trailing::unicode:chardata().
-detach(Str, Sep) ->
-    detach(Str, Sep, false, leading).
--spec detach(String, Characters, Complement) -> {Leading, Trailing} when
+take(Str, Sep) ->
+    take(Str, Sep, false, leading).
+-spec take(String, Characters, Complement) -> {Leading, Trailing} when
       String::unicode:chardata(),
       Characters::[grapheme_cluster()],
       Complement::boolean(),
       Leading::unicode:chardata(),
       Trailing::unicode:chardata().
-detach(Str, Sep, Complement) ->
-    detach(Str, Sep, Complement, leading).
--spec detach(String, Characters, Complement, Dir) -> {Leading, Trailing} when
+take(Str, Sep, Complement) ->
+    take(Str, Sep, Complement, leading).
+-spec take(String, Characters, Complement, Dir) -> {Leading, Trailing} when
       String::unicode:chardata(),
       Characters::[grapheme_cluster()],
       Complement::boolean(),
       Dir::direction(),
       Leading::unicode:chardata(),
       Trailing::unicode:chardata().
-detach(Str, [], Complement, Dir) ->
+take(Str, [], Complement, Dir) ->
     Empty = case is_binary(Str) of true -> <<>>; false -> [] end,
     case {Complement,Dir} of
         {false, leading} -> {Empty, Str};
@@ -294,18 +294,18 @@ detach(Str, [], Complement, Dir) ->
         {true,  leading} -> {Str, Empty};
         {true,  trailing} -> {Empty, Str}
     end;
-detach(Str, Sep0, false, leading) ->
+take(Str, Sep0, false, leading) ->
     Sep = search_pattern(Sep0),
-    detach_l(Str, Sep, []);
-detach(Str, Sep0, true, leading) ->
+    take_l(Str, Sep, []);
+take(Str, Sep0, true, leading) ->
     Sep = search_pattern(Sep0),
-    detach_lc(Str, Sep, []);
-detach(Str, Sep0, false, trailing) ->
+    take_lc(Str, Sep, []);
+take(Str, Sep0, false, trailing) ->
     Sep = search_pattern(Sep0),
-    detach_t(Str, 0, Sep);
-detach(Str, Sep0, true, trailing) ->
+    take_t(Str, 0, Sep);
+take(Str, Sep0, true, trailing) ->
     Sep = search_pattern(Sep0),
-    detach_tc(Str, 0, Sep).
+    take_tc(Str, 0, Sep).
 
 %% Uppercase all chars in Str
 -spec uppercase(String::unicode:chardata()) -> unicode:chardata().
@@ -350,7 +350,7 @@ casefold(CD) when is_binary(CD) ->
       Reason :: no_integer | badarg.
 
 to_integer(String) ->
-    try detach(String, "+-0123456789") of
+    try take(String, "+-0123456789") of
         {Head, Tail} ->
             case is_empty(Head) of
                 true -> {error, no_integer};
@@ -372,7 +372,7 @@ to_integer(String) ->
       Reason :: no_float | badarg.
 
 to_float(String) ->
-    try detach(String, "+-0123456789eE.,") of
+    try take(String, "+-0123456789eE.,") of
         {Head, Tail} ->
             case is_empty(Head) of
                 true -> {error, no_float};
@@ -717,26 +717,26 @@ trim_t(Bin, N, Sep) when is_binary(Bin) ->
             end
     end.
 
-detach_l([Bin|Cont0], Sep, Acc) when is_binary(Bin) ->
+take_l([Bin|Cont0], Sep, Acc) when is_binary(Bin) ->
     case bin_search_inv(Bin, Cont0, Sep) of
         {nomatch, Cont} ->
             Used = cp_prefix(Cont0, Cont),
-            detach_l(Cont, Sep, [concat(Bin,Used)|Acc]);
+            take_l(Cont, Sep, [concat(Bin,Used)|Acc]);
         [Bin1|_]=After when is_binary(Bin1) ->
             First = byte_size(Bin) - byte_size(Bin1),
             <<Keep:First/binary, _/binary>> = Bin,
             {btoken(Keep,Acc), After}
     end;
-detach_l(Str, {GCs, _, _}=Sep, Acc) when is_list(Str) ->
+take_l(Str, {GCs, _, _}=Sep, Acc) when is_list(Str) ->
     case unicode_util:gc(Str) of
         [C|Cs] ->
             case lists:member(C, GCs) of
-                true -> detach_l(Cs, Sep, concat(rev(C),Acc));
+                true -> take_l(Cs, Sep, concat(rev(C),Acc));
                 false -> {rev(Acc), Str}
             end;
         [] -> {rev(Acc), []}
     end;
-detach_l(Bin, Sep, Acc) when is_binary(Bin) ->
+take_l(Bin, Sep, Acc) when is_binary(Bin) ->
     case bin_search_inv(Bin, [], Sep) of
         {nomatch,_} ->
             {btoken(Bin, Acc), <<>>};
@@ -746,26 +746,26 @@ detach_l(Bin, Sep, Acc) when is_binary(Bin) ->
             {Keep, After}
     end.
 
-detach_lc([Bin|Cont0], Sep, Acc) when is_binary(Bin) ->
+take_lc([Bin|Cont0], Sep, Acc) when is_binary(Bin) ->
     case bin_search(Bin, Cont0, Sep) of
         {nomatch, Cont} ->
             Used = cp_prefix(Cont0, Cont),
-            detach_lc(Cont, Sep, [concat(Bin,Used)|Acc]);
+            take_lc(Cont, Sep, [concat(Bin,Used)|Acc]);
         [Bin1|_]=After when is_binary(Bin1) ->
             First = byte_size(Bin) - byte_size(Bin1),
             <<Keep:First/binary, _/binary>> = Bin,
             {btoken(Keep,Acc), After}
     end;
-detach_lc(Str, {GCs, _, _}=Sep, Acc) when is_list(Str) ->
+take_lc(Str, {GCs, _, _}=Sep, Acc) when is_list(Str) ->
     case unicode_util:gc(Str) of
         [C|Cs] ->
             case lists:member(C, GCs) of
-                false -> detach_lc(Cs, Sep, concat(rev(C),Acc));
+                false -> take_lc(Cs, Sep, concat(rev(C),Acc));
                 true  -> {rev(Acc), Str}
             end;
         [] -> {rev(Acc), []}
     end;
-detach_lc(Bin, Sep, Acc) when is_binary(Bin) ->
+take_lc(Bin, Sep, Acc) when is_binary(Bin) ->
     case bin_search(Bin, [], Sep) of
         {nomatch,_} ->
             {btoken(Bin, Acc), <<>>};
@@ -775,18 +775,18 @@ detach_lc(Bin, Sep, Acc) when is_binary(Bin) ->
             {Keep, After}
     end.
 
-detach_t([Bin|Cont0], N, Sep) when is_binary(Bin) ->
+take_t([Bin|Cont0], N, Sep) when is_binary(Bin) ->
     <<_:N/binary, Rest/binary>> = Bin,
     case bin_search(Rest, Cont0, Sep) of
         {nomatch,Cont} ->
             Used = cp_prefix(Cont0, Cont),
-            {Head, Tail} = detach_t(Cont, 0, Sep),
+            {Head, Tail} = take_t(Cont, 0, Sep),
             {stack(concat(Bin,Used), Head), Tail};
         [SepStart|Cont1] ->
             case bin_search_inv(SepStart, Cont1, Sep) of
                 {nomatch, Cont} ->
                     Used = cp_prefix(Cont0, Cont),
-                    {Head, Tail} = detach_t(Cont, 0, Sep),
+                    {Head, Tail} = take_t(Cont, 0, Sep),
                     case equal(Tail, Cont) of
                         true ->
                             KeepSz = byte_size(Bin) - byte_size(SepStart),
@@ -797,10 +797,10 @@ detach_t([Bin|Cont0], N, Sep) when is_binary(Bin) ->
                     end;
                 [NonSep|Cont] when is_binary(NonSep) ->
                     KeepSz = byte_size(Bin) - byte_size(NonSep),
-                    detach_t([Bin|Cont], KeepSz, Sep)
+                    take_t([Bin|Cont], KeepSz, Sep)
             end
     end;
-detach_t(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
+take_t(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
     case unicode_util:cp(Str) of
         [CP|Cs] ->
             case lists:member(CP, CPs) of
@@ -808,22 +808,22 @@ detach_t(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
                     [GC|Cs1] = unicode_util:gc(Str),
                     case lists:member(GC, GCs) of
                         true ->
-                            {Head, Tail} = detach_t(Cs1, 0, Sep),
+                            {Head, Tail} = take_t(Cs1, 0, Sep),
                             case equal(Tail, Cs1) of
                                 true -> {Head, concat(GC,Tail)};
                                 false -> {concat(GC,Head), Tail}
                             end;
                         false ->
-                            {Head, Tail} = detach_t(Cs, 0, Sep),
+                            {Head, Tail} = take_t(Cs, 0, Sep),
                             {concat(CP,Head), Tail}
                     end;
                 false ->
-                    {Head, Tail} = detach_t(Cs, 0, Sep),
+                    {Head, Tail} = take_t(Cs, 0, Sep),
                     {concat(CP,Head), Tail}
             end;
         [] -> {[],[]}
     end;
-detach_t(Bin, N, Sep) when is_binary(Bin) ->
+take_t(Bin, N, Sep) when is_binary(Bin) ->
     <<_:N/binary, Rest/binary>> = Bin,
     case bin_search(Rest, Sep) of
         {nomatch,_} -> {Bin, <<>>};
@@ -835,22 +835,22 @@ detach_t(Bin, N, Sep) when is_binary(Bin) ->
                     {Before, End};
                 [NonSep] ->
                     KeepSz = byte_size(Bin) - byte_size(NonSep),
-                    detach_t(Bin, KeepSz, Sep)
+                    take_t(Bin, KeepSz, Sep)
             end
     end.
 
-detach_tc([Bin|Cont0], N, Sep) when is_binary(Bin) ->
+take_tc([Bin|Cont0], N, Sep) when is_binary(Bin) ->
     <<_:N/binary, Rest/binary>> = Bin,
     case bin_search_inv(Rest, Cont0, Sep) of
         {nomatch,Cont} ->
             Used = cp_prefix(Cont0, Cont),
-            {Head, Tail} = detach_tc(Cont, 0, Sep),
+            {Head, Tail} = take_tc(Cont, 0, Sep),
             {stack(concat(Bin,Used), Head), Tail};
         [SepStart|Cont1] ->
             case bin_search(SepStart, Cont1, Sep) of
                 {nomatch, Cont} ->
                     Used = cp_prefix(Cont0, Cont),
-                    {Head, Tail} = detach_tc(Cont, 0, Sep),
+                    {Head, Tail} = take_tc(Cont, 0, Sep),
                     case equal(Tail, Cont) of
                         true ->
                             KeepSz = byte_size(Bin) - byte_size(SepStart),
@@ -861,10 +861,10 @@ detach_tc([Bin|Cont0], N, Sep) when is_binary(Bin) ->
                     end;
                 [NonSep|Cont] when is_binary(NonSep) ->
                     KeepSz = byte_size(Bin) - byte_size(NonSep),
-                    detach_tc([Bin|Cont], KeepSz, Sep)
+                    take_tc([Bin|Cont], KeepSz, Sep)
             end
     end;
-detach_tc(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
+take_tc(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
     case unicode_util:cp(Str) of
         [CP|Cs] ->
             case lists:member(CP, CPs) of
@@ -872,17 +872,17 @@ detach_tc(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
                     [GC|Cs1] = unicode_util:gc(Str),
                     case lists:member(GC, GCs) of
                         false ->
-                            {Head, Tail} = detach_tc(Cs1, 0, Sep),
+                            {Head, Tail} = take_tc(Cs1, 0, Sep),
                             case equal(Tail, Cs1) of
                                 true -> {Head, concat(GC,Tail)};
                                 false -> {concat(GC,Head), Tail}
                             end;
                         true ->
-                            {Head, Tail} = detach_tc(Cs1, 0, Sep),
+                            {Head, Tail} = take_tc(Cs1, 0, Sep),
                             {concat(GC,Head), Tail}
                     end;
                 false ->
-                    {Head, Tail} = detach_tc(Cs, 0, Sep),
+                    {Head, Tail} = take_tc(Cs, 0, Sep),
                     case equal(Tail, Cs) of
                         true  -> {Head, concat(CP,Tail)};
                         false -> {concat(CP,Head), Tail}
@@ -890,7 +890,7 @@ detach_tc(Str, 0, {GCs,CPs,_}=Sep) when is_list(Str) ->
             end;
         [] -> {[],[]}
     end;
-detach_tc(Bin, N, Sep) when is_binary(Bin) ->
+take_tc(Bin, N, Sep) when is_binary(Bin) ->
     <<_:N/binary, Rest/binary>> = Bin,
     case bin_search_inv(Rest, [], Sep) of
         {nomatch,_} -> {Bin, <<>>};
@@ -902,7 +902,7 @@ detach_tc(Bin, N, Sep) when is_binary(Bin) ->
                     {Before, End};
                 [NonSep] ->
                     KeepSz = byte_size(Bin) - byte_size(NonSep),
-                    detach_tc(Bin, KeepSz, Sep)
+                    take_tc(Bin, KeepSz, Sep)
             end
     end.
 
