@@ -356,6 +356,7 @@ take(_) ->
     ?TEST([<<"e">>,778,"åäöe", <<778/utf8>>], [[[$e,778]], true, leading], {[], [$e,778]++["åäöe"|[778]]}),
 
     %% complement=false, dir=trailing
+    ?TEST(Str, ["", false, trailing], {Str, []}),
     ?TEST(Str, ["x", false, trailing], {Str, []}),
     ?TEST(Str, [WS, false,trailing], {"\t\s..Ha\s.llå..", "\t\n\r"}),
     ?TEST(".. h.ej ..", [". ", false, trailing], {".. h.ej", " .."}),
