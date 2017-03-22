@@ -448,6 +448,7 @@ casefold(_) ->
 
 to_integer(_) ->
     ?TEST("", [], {error, no_integer}),
+    ?TEST("-", [], {error, no_integer}),
     ?TEST("01", [], {1, ""}),
     ?TEST("1.53", [], {1, ".53"}),
     ?TEST("+01.53", [], {1, ".53"}),
