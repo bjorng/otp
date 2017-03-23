@@ -205,6 +205,10 @@ equal(_) ->
     ?TEST_NN([$a, <<$b>>, "32"], ["ab３２", true, nfkc], true),
     ?TEST_NN([$a, <<$b>>, "32"], ["ab３２", true, nfkd], true),
 
+    %% Coverage.
+    ?TEST("", [<<"">>, false, nfc], true),
+    ?TEST("", [<<"">>, true, nfc], true),
+
     ok.
 
 to_graphemes(_) ->
