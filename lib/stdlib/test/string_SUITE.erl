@@ -988,6 +988,7 @@ str_rstr(Config) when is_list(Config) ->
     3 = string:rstr("xxxx", "xx"),
     3 = string:str("xy z yx", " z"),
     3 = string:rstr("xy z yx", " z"),
+    3 = string:str("aaab", "ab"),
     %% invalid arg type
     {'EXIT',_} = (catch string:str(hello, "he")),
     %% invalid arg type
