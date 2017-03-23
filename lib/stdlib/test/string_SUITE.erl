@@ -666,6 +666,7 @@ nth_lexeme(_) ->
     ?TEST("Hej san Hopp san", [3, " ,."], "Hopp"),
     ?TEST(" Hej san Hopp san ", [3, " ,."], "Hopp"),
     ?TEST(" Hej san, .Hopp san ", [3, " ,."], "Hopp"),
+    ?TEST("ab cd", [3, " "], ""),
 
     ?TEST([" Hej san",", .Hopp san "], [3, " ,."], "Hopp"),
     ?TEST([" Hej sa","n, .Hopp san "], [3, " ,."], "Hopp"),
