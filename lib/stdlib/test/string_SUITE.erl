@@ -1277,22 +1277,31 @@ test_to_float(Str) ->
     end.
 
 to_upper_to_lower(Config) when is_list(Config) ->
-    "1234ABCDEFÅÄÖ=" = string:to_upper("1234abcdefåäö="),
-    "éèíúùòóåäöabc()" = string:to_lower("ÉÈÍÚÙÒÓÅÄÖabc()"),
+    "1234ABCDEFÅÄÖ=" = string_to_upper("1234abcdefåäö="),
+    "éèíúùòóåäöabc()" = string_to_lower("ÉÈÍÚÙÒÓÅÄÖabc()"),
     All = lists:seq(0, 255),
 
-    UC = string:to_upper(All),
+    UC = string_to_upper(All),
     256 = erlang:length(UC),
     all_upper_latin1(UC, 0),
 
-    LC = string:to_lower(All),
+    LC = string_to_lower(All),
     all_lower_latin1(LC, 0),
 
-    LC = string:to_lower(string:to_upper(LC)),
-    LC = string:to_lower(string:to_upper(UC)),
-    UC = string:to_upper(string:to_lower(LC)),
-    UC = string:to_upper(string:to_lower(UC)),
+    LC = string_to_lower(string_to_upper(LC)),
+    LC = string_to_lower(string_to_upper(UC)),
+    UC = string_to_upper(string_to_lower(LC)),
+    UC = string_to_upper(string_to_lower(UC)),
+
     ok.
+
+string_to_lower(Str) ->
+    Res = string:to_lower(Str),
+    Res = [string:to_lower(C) || C <- Str].
+
+string_to_upper(Str) ->
+    Res = string:to_upper(Str),
+    Res = [string:to_upper(C) || C <- Str].
 
 all_upper_latin1([C|T], C) when 0 =< C, C < $a;
 				$z < C, C < 16#E0;
