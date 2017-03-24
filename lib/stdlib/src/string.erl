@@ -130,17 +130,10 @@ to_graphemes(CD0) ->
 %% Compare two strings return boolean, assumes that the input are
 %% normalized to same form, see unicode:characters_to_nfX_xxx(..)
 -spec equal(A::unicode:chardata(), B::unicode:chardata()) -> boolean().
-equal(A, A) when is_list(A); is_binary(A) ->
-    true;
 equal(A,B) when is_binary(A), is_binary(B) ->
-    false;
+    A =:= B;
 equal(A,B) ->
-    case equal_1(A,B) of
-        false -> false;
-        [] -> true;
-        <<>> -> true;
-        _ -> false
-    end.
+    equal_1(A,B).
 
 %% Compare two strings return boolean, assumes that the input are
 %% normalized to same form, see unicode:characters_to_nfX_xxx(..)
@@ -503,23 +496,15 @@ length_1([_|Rest], N) ->
 length_1([], N) ->
     N.
 
-equal_1(A, A) ->
-    [];
-equal_1([A|AR], [A|BR]) ->
-    equal_1(AR, BR);
-equal_1([A|AR], <<A/utf8, BR/binary>>) ->
-    equal_1(AR, BR);
-equal_1(<<A/utf8, BR/binary>>, [A|AR]) ->
-    equal_1(AR, BR);
-equal_1([A|AR], B) when not is_integer(A) ->
-    case equal_1(A, B) of
-        false -> false;
-        BR -> equal_1(AR, BR)
-    end;
-equal_1(A, [B|_]=BR) when not is_integer(B) ->
-    equal_1(BR,A);
-equal_1([], BR) -> BR;
-equal_1(_, _) -> false.
+equal_1([A|AR], [B|BR]) when is_integer(A), is_integer(B) ->
+    A =:= B andalso equal_1(AR, BR);
+equal_1([], BR) -> is_empty(BR);
+equal_1(A0,B0) ->
+    case {unicode_util:cp(A0), unicode_util:cp(B0)} of
+        {[CP|A],[CP|B]} -> equal_1(A,B);
+        {[], []} -> true;
+        _ -> false
+    end.
 
 equal_nocase(A, A) -> true;
 equal_nocase(A0, B0) ->

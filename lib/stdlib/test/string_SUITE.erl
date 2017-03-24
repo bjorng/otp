@@ -97,7 +97,13 @@ debug() ->
         {_,Tests} <- groups(), Test <- Tests].
 
 -define(TEST(B,C,D), test(?LINE,?FUNCTION_NAME,B,C,D, true)).
--define(TEST_NN(B,C,D), test(?LINE,?FUNCTION_NAME,B,C,D, false)).
+-define(TEST_EQ(B,C,D),
+        test(?LINE,?FUNCTION_NAME,B,C,D, true),
+        test(?LINE,?FUNCTION_NAME,hd(C),[B|tl(C),D, true)).
+
+-define(TEST_NN(B,C,D),
+        test(?LINE,?FUNCTION_NAME,B,C,D, false),
+        test(?LINE,?FUNCTION_NAME,hd(C),[B|tl(C)],D, false)).
 
 
 is_empty(_) ->
@@ -126,11 +132,10 @@ length(_) ->
 
 equal(_) ->
     %% invalid arg type
-    false = (catch string:equal(1, 2)),
+    {'EXIT',_} = (catch string:equal(1, 2)),
     {'EXIT',_} = (catch string:equal(1, 2, foo)),
     {'EXIT',_} = (catch string:equal(1, 2, true, foo)),
 
-    true = string:equal(2, 2),	% not good, should crash
     ?TEST("", [<<"">>], true),
     ?TEST("Hello", ["Hello"], true),
     ?TEST("Hello", ["Hell"], false),
@@ -944,8 +949,6 @@ old_equal(Config) when is_list(Config) ->
     false = string:equal("", " "),
     true = string:equal("laban", "laban"),
     false = string:equal("skvimp", "skvump"),
-    %% invalid arg type
-    true = string:equal(2, 2),			% not good, should crash
     ok.
 
 old_concat(Config) when is_list(Config) ->
