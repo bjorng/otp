@@ -743,13 +743,6 @@ AC_SUBST(OPSYS)
 
 LM_HARDWARE_ARCH
 
-dnl Check consistency of os and darwin-switches
-
-
-dnl Take care of LDFLAGS on darwin, and disable common_test as it
-dnl has a build/configure system re rx-lib that is not compatible
-dnl First remove common_tests skip file.
-
 dnl Adjust LDFLAGS to allow 64bit linkage on DARWIN
 case $ARCH-$OPSYS in
 	amd64-darwin*|arm64-darwin*)
