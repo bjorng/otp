@@ -396,7 +396,7 @@ ifneq ($(TARGET),arm-unknown-linux-androideabi)
 LIBS += @LIBRT@
 endif
 
-LIBS += @LIBCARBON@
+LIBS += @MACOSFRAMEWORKS@
 
 TTF_DIR=$(TARGET)/$(TYPE)/$(FLAVOR)
 CREATE_DIRS += $(TTF_DIR)

@@ -795,19 +795,19 @@ case $ARCH-$OPSYS in
 		;;
 esac
 
-AC_MSG_CHECKING(if VM has to be linked with Carbon framework)
+AC_MSG_CHECKING(whether VM has to be linked with Cocoa framework)
 case $ARCH-$OPSYS in
 	*-darwin*)
-  		LIBCARBON="-framework Carbon -framework Cocoa"
+	        MACOSFRAMEWORKS="-framework Cocoa"
 		AC_MSG_RESULT([yes])
 		;;
 	*)
-		LIBCARBON=
+		MACOSFRAMEWORKS=
 		AC_MSG_RESULT([no])
 		;;
 esac
-	
-AC_SUBST(LIBCARBON)
+
+AC_SUBST(MACOSFRAMEWORKS)
 
 _search_path=/bin:/usr/bin:/usr/local/bin:$PATH
 
