@@ -3421,28 +3421,6 @@ dnl Include CPPFLAGS in CFLAGS
 dnl ----------------------------------------------------------------------
 CFLAGS="$CFLAGS $CPPFLAGS"
 
-#
-# Currently if we compile for 64 bits we want to compile
-# some external port programs using 32 bits
-#
-
-# If not defined we trust the C compiler in $CC to do 32 bits
-if test -z "$CC32"; then
-  CC32="$CC"
-fi
-
-if test -z "$CFLAGS32"; then
-  if test $ac_cv_sizeof_void_p != 4; then
-    # We are compiling default 64 bits and use -m32 for 32 bit compilations
-    CFLAGS32="$CFLAGS -m32"
-  else
-    CFLAGS32="$CFLAGS"
-  fi
-fi
-
-AC_SUBST(CC32)
-AC_SUBST(CFLAGS32)
-
 dnl
 dnl ERTS_EMU_CMDLINE_FLAGS will force modification of config.h when
 dnl the emulator command line flags are modified by configure, which
