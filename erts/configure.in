@@ -318,7 +318,8 @@ case "$with_microstate_accounting" in
     *) ;;
 esac
 
-dnl Magic test for clearcase.
+dnl Suppress [source] marker for binary builds made by OTP.
+dnl (Probably only used for the Windows build nowadays.)
 OTP_RELEASE=
 if test "${ERLANG_COMMERCIAL_BUILD}" != ""; then
 	OTP_EXTRA_FLAGS=-DOTP_RELEASE
