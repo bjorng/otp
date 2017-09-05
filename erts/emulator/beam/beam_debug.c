@@ -53,6 +53,7 @@ void dbg_where(BeamInstr* addr, Eterm x0, Eterm* reg);
 
 static int print_op(fmtfn_t to, void *to_arg, int op, int size, BeamInstr* addr);
 static void print_bif_name(fmtfn_t to, void* to_arg, BifFunction bif);
+static BeamInstr* f_to_addr(BeamInstr* base, int op, BeamInstr* ap);
 
 BIF_RETTYPE
 erts_debug_same_2(BIF_ALIST_2)
@@ -550,9 +551,10 @@ print_op(fmtfn_t to, void *to_arg, int op, int size, BeamInstr* addr)
 	    break;
 	case 'f':		/* Destination label */
 	    {
-		ErtsCodeMFA* cmfa = find_function_from_pc((BeamInstr *)*ap);
-		if (!cmfa || erts_codemfa_to_code(cmfa) != (BeamInstr *) *ap) {
-		    erts_print(to, to_arg, "f(" HEXF ")", *ap);
+                BeamInstr* target = f_to_addr(addr, op, ap);
+		ErtsCodeMFA* cmfa = find_function_from_pc(target);
+		if (!cmfa || erts_codemfa_to_code(cmfa) != target) {
+		    erts_print(to, to_arg, "f(" HEXF ")", target);
 		} else {
 		    erts_print(to, to_arg, "%T:%T/%bpu", cmfa->module,
                                cmfa->function, cmfa->arity);
@@ -562,18 +564,18 @@ print_op(fmtfn_t to, void *to_arg, int op, int size, BeamInstr* addr)
 	    break;
 	case 'p':		/* Pointer (to label) */
 	    {
-		ErtsCodeMFA* cmfa = find_function_from_pc((BeamInstr *)*ap);
-		if (!cmfa || erts_codemfa_to_code(cmfa) != (BeamInstr *) *ap) {
-		    erts_print(to, to_arg, "p(" HEXF ")", *ap);
-		} else {
-		    erts_print(to, to_arg, "%T:%T/%bpu", cmfa->module,
-                               cmfa->function, cmfa->arity);
-		}
+                BeamInstr* target = f_to_addr(addr, op, ap);
+                erts_print(to, to_arg, "p(" HEXF ")", target);
 		ap++;
 	    }
 	    break;
 	case 'j':		/* Pointer (to label) */
-	    erts_print(to, to_arg, "j(" HEXF ")", *ap);
+            if (*ap == 0) {
+                erts_print(to, to_arg, "j(0)");
+            } else {
+                BeamInstr* target = f_to_addr(addr, op, ap);
+                erts_print(to, to_arg, "j(" HEXF ")", target);
+            }
 	    ap++;
 	    break;
 	case 'e':		/* Export entry */
@@ -630,7 +632,8 @@ print_op(fmtfn_t to, void *to_arg, int op, int size, BeamInstr* addr)
 	    }
 	    ix = n;
 	    while (ix--) {
-		erts_print(to, to_arg, "f(" HEXF ") ", (Eterm) ap[0]);
+                BeamInstr* target = f_to_addr(addr, op, ap);
+		erts_print(to, to_arg, "f(" HEXF ") ", target);
 		ap++;
 		size++;
 	    }
@@ -642,7 +645,8 @@ print_op(fmtfn_t to, void *to_arg, int op, int size, BeamInstr* addr)
 	    int n = ap[-1];
 
 	    while (n > 0) {
-		erts_print(to, to_arg, "%T f(" HEXF ") ", (Eterm) ap[0], ap[1]);
+                BeamInstr* target = f_to_addr(addr, op, ap+1);
+		erts_print(to, to_arg, "%T f(" HEXF ") ", (Eterm) ap[0], target);
 		ap += 2;
 		size += 2;
 		n--;
@@ -667,7 +671,8 @@ print_op(fmtfn_t to, void *to_arg, int op, int size, BeamInstr* addr)
             size++;
             ix = n;
             while (ix--) {
-                erts_print(to, to_arg, "f(" HEXF ") ", ap[0]);
+                BeamInstr* target = f_to_addr(addr, op, ap);
+                erts_print(to, to_arg, "f(" HEXF ") ", target);
                 ap++;
                 size++;
             }
@@ -678,7 +683,8 @@ print_op(fmtfn_t to, void *to_arg, int op, int size, BeamInstr* addr)
 	{
 	    int n;
 	    for (n = ap[-2]; n > 0; n--) {
-		erts_print(to, to_arg, "f(" HEXF ") ", ap[0]);
+                BeamInstr* target = f_to_addr(addr, op, ap);
+		erts_print(to, to_arg, "f(" HEXF ") ", target);
 		ap++;
 		size++;
 	    }
@@ -689,7 +695,8 @@ print_op(fmtfn_t to, void *to_arg, int op, int size, BeamInstr* addr)
 	{
 	    int n;
 	    for (n = ap[-1]; n > 0; n--) {
-		erts_print(to, to_arg, "f(" HEXF ") ", ap[0]);
+                BeamInstr* target = f_to_addr(addr, op, ap);
+		erts_print(to, to_arg, "f(" HEXF ") ", target);
 		ap++;
 		size++;
 	    }
@@ -787,6 +794,12 @@ static void print_bif_name(fmtfn_t to, void* to_arg, BifFunction bif)
 	erts_print(to, to_arg, "%T/%u", name, arity);
     }
 }
+
+static BeamInstr* f_to_addr(BeamInstr* base, int op, BeamInstr* ap)
+{
+    return base - 1 + opc[op].adjust + *ap;
+}
+
 
 /*
  * Dirty BIF testing.
