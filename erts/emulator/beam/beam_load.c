@@ -82,14 +82,13 @@ ErlDrvBinary* erts_gzinflate_buffer(char*, int);
 #define TE_SHORT_WINDOW (-2)
 
 typedef struct {
-    Uint value;			/* Value of label (NULL if not known yet). */
-    Sint patches;		/* Index (into code buffer) to first
-				 * location which must be patched with
-				 * the value of this label.
-				 */
+    Uint value;			/* Value of label (0 if not known yet). */
     Uint looprec_targeted;	/* Non-zero if this label is the target of a loop_rec
 				 * instruction.
 				 */
+    Uint* patches;              /* Array of positions to be patched. */
+    Uint num_patches;           /* Number of patches in array. */
+    Uint num_allocated;         /* Number of allocated patches. */
 } Label;
 
 /*
@@ -1051,6 +1050,10 @@ loader_state_dtor(Binary* magic)
         stp->codev = 0;
     }
     if (stp->labels != 0) {
+        Uint num;
+        for (num = 0; num < stp->num_labels; num++) {
+            erts_free(ERTS_ALC_T_PREPARED_CODE, (void *) stp->labels[num].patches);
+        }
 	erts_free(ERTS_ALC_T_PREPARED_CODE, (void *) stp->labels);
 	stp->labels = 0;
     }
@@ -1534,7 +1537,7 @@ read_export_table(LoaderState* stp)
 	 * any other functions that walk through all local functions.
 	 */
 
-	if (stp->labels[n].patches >= 0) {
+	if (stp->labels[n].num_patches > 0) {
 	    LoadError3(stp, "there are local calls to the stub for "
 		       "the BIF %T:%T/%d",
 		       stp->module, func, arity);
@@ -1881,8 +1884,11 @@ read_code_header(LoaderState* stp)
 				       stp->num_labels * sizeof(Label));
     for (i = 0; i < stp->num_labels; i++) {
 	stp->labels[i].value = 0;
-	stp->labels[i].patches = -1;
 	stp->labels[i].looprec_targeted = 0;
+        stp->labels[i].num_patches = 0;
+        stp->labels[i].num_allocated = 4;
+	stp->labels[i].patches = erts_alloc(ERTS_ALC_T_PREPARED_CODE,
+                                            stp->labels[i].num_allocated * sizeof(Uint));
     }
 
     stp->catches = 0;
@@ -1911,11 +1917,28 @@ read_code_header(LoaderState* stp)
     
 #define TermWords(t) (((t) / (sizeof(BeamInstr)/sizeof(Eterm))) + !!((t) % (sizeof(BeamInstr)/sizeof(Eterm))))
 
+static void
+register_label_patch(LoaderState* stp, Uint label, Uint offset)
+{
+    Label* lp;
+
+    ASSERT(label < stp->num_labels);
+    lp = &stp->labels[label];
+    if (lp->num_allocated <= lp->num_patches) {
+        lp->num_allocated *= 2;
+        lp->patches = erts_realloc(ERTS_ALC_T_PREPARED_CODE,
+                                   (void *) lp->patches,
+                                   lp->num_allocated * sizeof(Uint));
+    }
+    lp->patches[lp->num_patches++] = offset;
+}
+
 static int
 load_code(LoaderState* stp)
 {
     int i;
-    int ci;
+    Uint ci;
+    int last_instr_start;       /* Needed for relative jumps */
     int last_func_start = 0;	/* Needed by nif loading and line instructions */
     char* sign;
     int arg;			/* Number of current argument. */
@@ -2272,6 +2295,7 @@ load_code(LoaderState* stp)
 
 	    stp->specific_op = specific;
 	    CodeNeed(opc[stp->specific_op].sz+16); /* Extra margin for packing */
+            last_instr_start = ci + opc[stp->specific_op].adjust;
 	    code[ci++] = BeamOpCode(stp->specific_op);
 	}
 	
@@ -2401,16 +2425,16 @@ load_code(LoaderState* stp)
 		break;
 	    case 'f':		/* Destination label */
 		VerifyTag(stp, tag_to_letter[tag], *sign);
-		code[ci] = stp->labels[tmp_op->a[arg].val].patches;
-		stp->labels[tmp_op->a[arg].val].patches = ci;
+                register_label_patch(stp, tmp_op->a[arg].val, ci);
+		code[ci] = 0;
 		ci++;
 		break;
 	    case 'j':		/* 'f' or 'p' */
 		if (tag == TAG_p) {
 		    code[ci] = 0;
 		} else if (tag == TAG_f) {
-		    code[ci] = stp->labels[tmp_op->a[arg].val].patches;
-		    stp->labels[tmp_op->a[arg].val].patches = ci;
+                    register_label_patch(stp, tmp_op->a[arg].val, ci);
+                    code[ci] = 0;
 		} else {
 		    LoadError3(stp, "bad tag %d; expected %d or %d",
 			       tag, TAG_f, TAG_p);
@@ -2430,7 +2454,6 @@ load_code(LoaderState* stp)
 		    LoadError1(stp, "label %d defined more than once", last_label);
 		}
 		stp->labels[last_label].value = ci;
-		ASSERT(stp->labels[last_label].patches < ci);
 		break;
 	    case 'e':		/* Export entry */
 		VerifyTag(stp, tag, TAG_u);
@@ -2555,8 +2578,8 @@ load_code(LoaderState* stp)
 		break;
 	    case TAG_f:
 		CodeNeed(1);
-		code[ci] = stp->labels[tmp_op->a[arg].val].patches;
-		stp->labels[tmp_op->a[arg].val].patches = ci;
+                register_label_patch(stp, tmp_op->a[arg].val, ci);
+		code[ci] = 0;
 		ci++;
 		break;
 	    case TAG_x:
@@ -2628,17 +2651,17 @@ load_code(LoaderState* stp)
                    the size of the ops.tab i_func_info instruction is not
                    the same as FUNC_INFO_SZ */
 		ASSERT(stp->labels[last_label].value == ci - FUNC_INFO_SZ);
-		stp->hdr->functions[function_number] = (ErtsCodeInfo*) stp->labels[last_label].patches;
 		offset = function_number;
-		stp->labels[last_label].patches = offset;
+		stp->hdr->functions[offset] = 0;
+                register_label_patch(stp, last_label, offset);
 		function_number++;
 		if (stp->arity > MAX_ARG) {
 		    LoadError1(stp, "too many arguments: %d", stp->arity);
 		}
 #ifdef DEBUG
-		ASSERT(stp->labels[0].patches < 0); /* Should not be referenced. */
+		ASSERT(stp->labels[0].num_patches == 0); /* Should not be referenced. */
 		for (i = 1; i < stp->num_labels; i++) {
-		    ASSERT(stp->labels[i].patches < ci);
+                    ASSERT(stp->labels[i].num_patches <= stp->labels[i].num_allocated);
 		}
 #endif
 	    }
@@ -4827,21 +4850,17 @@ freeze_code(LoaderState* stp)
      */
 
     for (i = 0; i < stp->num_labels; i++) {
-	Sint this_patch;
-	Sint next_patch;
+	Uint patch;
 	Uint value = stp->labels[i].value;
-	
-	if (value == 0 && stp->labels[i].patches >= 0) {
+
+	if (value == 0 && stp->labels[i].num_patches != 0) {
 	    LoadError1(stp, "label %d not resolved", i);
 	}
 	ASSERT(value < stp->ci);
-	this_patch = stp->labels[i].patches;
-	while (this_patch >= 0) {
-	    ASSERT(this_patch < stp->ci);
-	    next_patch = codev[this_patch];
-	    ASSERT(next_patch < stp->ci);
-	    codev[this_patch] = (BeamInstr) (codev + value);
-	    this_patch = next_patch;
+        for (patch = 0; patch < stp->labels[i].num_patches; patch++) {
+            Sint offset = stp->labels[i].patches[patch];
+	    ASSERT(offset < stp->ci);
+	    codev[offset] += (BeamInstr) (codev + value);
 	}
     }
     CHKBLK(ERTS_ALC_T_CODE,code_hdr);
@@ -5574,7 +5593,11 @@ new_label(LoaderState* stp)
 					 (void *) stp->labels,
 					 stp->num_labels * sizeof(Label));
     stp->labels[num].value = 0;
-    stp->labels[num].patches = -1;
+    stp->labels[num].looprec_targeted = 0;
+    stp->labels[num].num_patches = 0;
+    stp->labels[num].num_allocated = 4;
+    stp->labels[num].patches = erts_alloc(ERTS_ALC_T_PREPARED_CODE,
+                                          stp->labels[num].num_allocated * sizeof(Uint));
     return num;
 }
 
