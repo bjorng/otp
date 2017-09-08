@@ -45,14 +45,22 @@ SET_REL_I(Dst, Offset) {
 
 FAIL(Fail) {
     //| -no_prefetch
-    $SET_I_REL($Fail);
-    Goto(*I);
+    if ($ARG_POSITION($Fail) == 1 && !$IS_PACKED($Fail)) {
+        goto common_relative_jump;
+    } else {
+        $SET_I_REL($Fail);
+        Goto(*I);
+    }
 }
 
 JUMP(Fail) {
     //| -no_next
-    $SET_I_REL($Fail);
-    Goto(*I);
+    if ($ARG_POSITION($Fail) == 1 && !$IS_PACKED($Fail)) {
+        goto common_relative_jump;
+    } else {
+        $SET_I_REL($Fail);
+        Goto(*I);
+    }
 }
 
 GC_TEST(Ns, Nh, Live) {

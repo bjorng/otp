@@ -877,6 +877,11 @@ void process_main(Eterm * x_reg_array, FloatDef* f_reg_array)
      goto do_schedule1;
  }
 
+  common_relative_jump:
+     ASSERT(VALID_INSTR(*(I + I[1])));
+     I += I[1];
+     Goto(*I);
+
 #include "beam_warm.h"
 
  OpCase(normal_exit): {
