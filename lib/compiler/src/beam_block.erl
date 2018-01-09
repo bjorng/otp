@@ -22,7 +22,7 @@
 
 -module(beam_block).
 
--export([module/2]).
+-export([module/2,opt_function_code/1]).
 -import(lists, [reverse/1,reverse/2,member/2]).
 
 -spec module(beam_utils:module_code(), [compile:option()]) ->
@@ -51,6 +51,16 @@ function({function,Name,Arity,CLabel,Is0}) ->
 	    io:fwrite("Function: ~w/~w\n", [Name,Arity]),
 	    erlang:raise(Class, Error, Stack)
     end.
+
+-spec opt_function_code([beam_utils:instruction()]) ->
+                               [beam_utils:instruction()].
+
+opt_function_code(Is0) ->
+    Is1 = beam_utils:anno_defs(Is0),
+    Is2 = move_allocates(Is1),
+    Is3 = beam_utils:live_opt(Is2),
+    Is4 = opt_blocks(Is3),
+    beam_utils:delete_live_annos(Is4).
 
 %% blockify(Instructions0) -> Instructions
 %%  Collect sequences of instructions to basic blocks.

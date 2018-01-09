@@ -921,6 +921,25 @@ live_opt([{get_map_elements,Fail,Src,{list,List}}=I|Is], Regs0, D, Acc) ->
     Regs1 = x_live([Src|Ss], x_dead(Ds, Regs0)),
     Regs = live_join_label(Fail, D, Regs1),
     live_opt(Is, Regs, D, [I|Acc]);
+live_opt([{gc_bif,N,F,R,As,Dst}=I|Is], Regs0, D, Acc) ->
+    Bl = [{set,[Dst],As,{alloc,R,{gc_bif,N,F}}}],
+    {_,Regs} = live_opt_block(Bl, Regs0, D, []),
+    live_opt(Is, Regs, D, [I|Acc]);
+live_opt([{bif,N,F,As,Dst}=I|Is], Regs0, D, Acc) ->
+    Bl = [{set,[Dst],As,{bif,N,F}}],
+    {_,Regs} = live_opt_block(Bl, Regs0, D, []),
+    live_opt(Is, Regs, D, [I|Acc]);
+live_opt([{get_tuple_element,Src,Idx,Dst}=I|Is], Regs0, D, Acc) ->
+    Bl = [{set,[Dst],[Src],{get_tuple_element,Idx}}],
+    {_,Regs} = live_opt_block(Bl, Regs0, D, []),
+    live_opt(Is, Regs, D, [I|Acc]);
+live_opt([{move,Src,Dst}=I|Is], Regs0, D, Acc) ->
+    Regs = x_live([Src], x_dead([Dst], Regs0)),
+    live_opt(Is, Regs, D, [I|Acc]);
+live_opt([{put_map,F,Op,S,Dst,R,{list,Puts}}=I|Is], Regs0, D, Acc) ->
+    Bl = [{set,[Dst],[S|Puts],{alloc,R,{put_map,Op,F}}}],
+    {_,Regs} = live_opt_block(Bl, Regs0, D, []),
+    live_opt(Is, Regs, D, [I|Acc]);
 
 %% Transparent instructions - they neither use nor modify x registers.
 live_opt([{deallocate,_}=I|Is], Regs, D, Acc) ->
@@ -936,6 +955,10 @@ live_opt([{wait_timeout,_,nil}=I|Is], Regs, D, Acc) ->
 live_opt([{wait_timeout,_,{Tag,_}}=I|Is], Regs, D, Acc) when Tag =/= x ->
     live_opt(Is, Regs, D, [I|Acc]);
 live_opt([{line,_}=I|Is], Regs, D, Acc) ->
+    live_opt(Is, Regs, D, [I|Acc]);
+live_opt([{'catch',_,_}=I|Is], Regs, D, Acc) ->
+    live_opt(Is, Regs, D, [I|Acc]);
+live_opt([{'try',_,_}=I|Is], Regs, D, Acc) ->
     live_opt(Is, Regs, D, [I|Acc]);
 
 %% The following instructions can occur if the "compilation" has been
