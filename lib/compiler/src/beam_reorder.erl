@@ -79,6 +79,25 @@ reorder_1([{Op,_,_}=TryCatch|[I|Is]=Is0], D, Acc)
 reorder_1([{label,L}=I|_], D, Acc) ->
     Is = beam_utils:code_at(L, D),
     reorder_1(Is, D, [I|Acc]);
+reorder_1([{test,bs_get_binary2,{f,_},_Live,_,Dst}=Bs,
+           {test,_,{f,L},Ss}=Test|Is], D0, Acc) ->
+    case member(Dst, Ss) of
+        true ->
+            reorder_1([Test|Is], D0, [Bs|Acc]);
+        false ->
+            case beam_utils:is_killed_at(Dst, L, D0) of
+                false ->
+                    case beam_utils:is_killed(Dst, Is, D0) of
+                        false ->
+                            reorder_1([Test|Is], D0, [Bs|Acc]);
+                        true ->
+                            D = prepend_instr_at(Bs, L, D0),
+                            reorder_1(Is, D, [Test|Acc])
+                    end;
+                true ->
+                    reorder_1([Bs|Is], D0, [Test|Acc])
+            end
+    end;
 reorder_1([{test,is_nonempty_list,_,_}=I|Is], D, Acc) ->
     %% The run-time system may combine the is_nonempty_list test with
     %% the following get_list instruction.
@@ -137,6 +156,15 @@ reorder_1([{allocate_zero,N,Live}=I0|Is], D,
 reorder_1([I|Is], D, Acc) ->
     reorder_1(Is, D, [I|Acc]);
 reorder_1([], _, Acc) -> reverse(Acc).
+
+prepend_instr_at(Instr, L, D) ->
+    case beam_utils:code_at(L, D) of
+        [Instr|_] ->
+            D;
+        [_|_]=Code0 ->
+            Code = [Instr|Code0],
+            beam_utils:index_label(L, Code, D)
+    end.
 
 %% is_safe(Instruction) -> true|false
 %%  Test whether an instruction is safe (cannot cause an exception).
