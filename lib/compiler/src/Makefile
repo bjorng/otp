@@ -65,6 +65,8 @@ MODULES =  \
 	beam_reorder \
 	beam_record \
 	beam_split \
+	beam_ssa_codegen \
+	beam_kernel_to_ssa \
 	beam_trim \
 	beam_type \
 	beam_utils \
@@ -185,7 +187,8 @@ release_docs_spec:
 # ---------------------------------------------------- 
 
 $(EBIN)/beam_disasm.beam: $(EGEN)/beam_opcodes.hrl beam_disasm.hrl
-$(EBIN)/beam_listing.beam: core_parse.hrl v3_kernel.hrl
+$(EBIN)/beam_listing.beam: core_parse.hrl v3_kernel.hrl beam_ssa.hrl
+$(EBIN)/beam_kernerl_to_ssa.beam: v3_kernel.hrl beam_ssa.hrl
 $(EBIN)/beam_validator.beam: beam_disasm.hrl
 $(EBIN)/cerl.beam: core_parse.hrl
 $(EBIN)/compile.beam: core_parse.hrl ../../stdlib/include/erl_compile.hrl

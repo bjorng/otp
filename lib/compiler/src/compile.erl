@@ -741,7 +741,9 @@ kernel_passes() ->
      ?pass(v3_kernel),
      {iff,dkern,{listing,"kernel"}},
      {iff,'to_kernel',{done,"kernel"}},
-     {pass,v3_codegen},
+     {pass,beam_kernel_to_ssa},
+     {iff,dssa,{listing,"ssa"}},
+     {pass,beam_ssa_codegen},
      {iff,dcg,{listing,"codegen"}}
      | asm_passes()].
 
