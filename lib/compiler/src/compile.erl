@@ -1966,6 +1966,7 @@ pre_load() ->
 	 beam_except,
 	 beam_flatten,
 	 beam_jump,
+	 beam_kernel_to_ssa,
 	 beam_opcodes,
 	 beam_peep,
 	 beam_receive,
