@@ -1,6 +1,12 @@
 -module(t).
 -compile([export_all,nowarn_export_all]).
 
+opt(Config) when is_list(Config) ->
+    N = 16,
+    BadSz = 2.5,
+    {'EXIT',_} = (catch <<<<N,56,0,2>>:BadSz/binary>>),
+    ok.
+
 try_try_notail(E) ->
     try
         E()

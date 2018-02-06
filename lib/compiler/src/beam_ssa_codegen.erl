@@ -25,7 +25,8 @@
 
 -include("beam_ssa.hrl").
 
--spec module(#b_module{}, [compile:option()]) -> {'ok',beam_asm:module_code()}.
+%%-spec module(#b_module{}, [compile:option()]) -> {'ok',beam_asm:module_code()}.
+-spec module(#b_module{}, [compile:option()]) -> {'ok','nyi'}.
 
 module(#b_module{}, _Opts) ->
     io:put_chars("*** WARNING: " ++ ?MODULE_STRING ++
