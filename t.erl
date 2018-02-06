@@ -1,6 +1,14 @@
 -module(t).
 -compile([export_all,nowarn_export_all]).
 
+y_catch() ->
+    ok = try
+             lists:flatten([])
+	 catch
+	     throw:pattern ->
+		 ok
+	 end.
+
 efficient({Var}) ->
     catch
 	receive _ ->
