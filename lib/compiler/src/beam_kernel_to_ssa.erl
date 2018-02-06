@@ -900,7 +900,6 @@ protected_cg(Ts, [], Fail, Vdb, Bef, St0) ->
     {Tis,Aft,St1} = guard_cg_list(Ts, Fail, Vdb, Bef, St0#cg{bfail=Fail}),
     {Tis,Aft,St1#cg{bfail=St0#cg.bfail}};
 protected_cg(Ts, Rs, _Fail, Vdb, Bef, St0) ->
-    error(blurf),
     {Pfail,St1} = new_label(St0),
     {Psucc,St2} = new_label(St1),
     {Tis,Aft,St3} = guard_cg_list(Ts, Pfail, Vdb, Bef,
@@ -908,6 +907,7 @@ protected_cg(Ts, Rs, _Fail, Vdb, Bef, St0) ->
     %%ok = io:fwrite("cg ~w: ~p~n", [?LINE,{Rs,I,Vdb,Aft}]),
     %% Set return values to false.
     %% FIXME: Must rewrite this.
+    error(nyi),
     Mis = [{move,{atom,false},fetch_var(V,Aft)}||#k_var{name=V} <- Rs],
     {Tis ++ [{jump,{f,Psucc}},
 	     {label,Pfail}] ++ Mis ++ [{label,Psucc}],
@@ -1106,14 +1106,16 @@ recv_loop_cg(Te, Rvar, Rm, Tes, Rs, Le, Vdb, Bef, St0) ->
     {Rl,St1} = new_label(St0),
     {Tl,St2} = new_label(St1),
     {Bl,St3} = new_label(St2),
-    St4 = St3#cg{break=Bl,recv=Rl},		%Set correct receive labels
+    St4 = St3#cg{break=Bl,recv=Rl},
     {Ris,Raft,St5} = cg_recv_mesg(Rvar, Rm, Tl, Int1, Le, St4),
     {Wis,Taft,St6} = cg_recv_wait(Te, Tes, Le#l.i, Int1, St5),
     Int2 = sr_merge(Raft, Taft),		%Merge stack/registers
     Reg = load_vars(Rs, Int2#sr.reg),
-    {Ris ++ [{label,Tl}] ++ Wis ++ [{label,Bl}],
+    {BreakVars,St} = new_ssa_vars(Rs, St6),
+    {Ris ++ [{label,Tl}] ++ Wis ++
+         [{label,Bl},#cg_phi{vars=BreakVars}],
      clear_dead(Int2#sr{reg=Reg}, Le#l.i, Vdb),
-     St6#cg{break=St0#cg.break,recv=St0#cg.recv}}.
+     St#cg{break=St0#cg.break,recv=St0#cg.recv}}.
 
 %% cg_recv_mesg( ) -> {[Ainstr],Aft,St}.
 

@@ -1,6 +1,42 @@
 -module(t).
 -compile([export_all,nowarn_export_all]).
 
+efficient({Var}) ->
+    catch
+	receive _ ->
+		Var
+	end.
+
+r() ->
+    R = receive
+            {x,Msg} ->
+                Msg+4;
+            Any ->
+                {any,Any}
+        end,
+    {ok,R}.
+
+r(Mref, Process, Timeout) ->
+    receive
+        {Mref, Reply} ->
+            erlang:demonitor(Mref, [flush]),
+            {ok, Reply};
+        {'DOWN', Mref, _, _, noconnection} ->
+            Node = ?MODULE:get_node(Process),
+            exit({nodedown, Node});
+        {'DOWN', Mref, _, _, Reason} ->
+            exit(Reason)
+    after Timeout ->
+            erlang:demonitor(Mref, [flush]),
+            exit(timeout)
+    end.
+
+%% burns(Richmond) when Richmond#{true := 0}; a ->
+%%     specification.
+
+%% csemi7(A, B, C) when A#{a:=B} > #{a=>1}; abs(C) > 2 -> ok;
+%% csemi7(_, _, _) -> error.
+
 try_catch(E) ->
     {ok,catch E()}.
 
@@ -114,27 +150,6 @@ from_term(T) ->
 try_not(A) ->
     A.
 
-r() ->
-    receive
-        Any ->
-            {ok,Any}
-    end.
-
-r(Mref, Process, Timeout) ->
-    receive
-        {Mref, Reply} ->
-            erlang:demonitor(Mref, [flush]),
-            {ok, Reply};
-        {'DOWN', Mref, _, _, noconnection} ->
-            Node = ?MODULE:get_node(Process),
-            exit({nodedown, Node});
-        {'DOWN', Mref, _, _, Reason} ->
-            exit(Reason)
-    after Timeout ->
-            erlang:demonitor(Mref, [flush]),
-            exit(timeout)
-    end.
-
 foldit([H|T], A) when H rem 2 =:= 0 ->
     foldit(T, A+1);
 foldit([_|T], A) ->
@@ -192,6 +207,5 @@ setelement(_Config) ->
     {a,_} = T0,
     {b,_} = setelement(1, T0, b),
     ok.
-
 
 id(I) -> I.
