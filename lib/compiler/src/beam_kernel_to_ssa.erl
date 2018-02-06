@@ -1411,15 +1411,19 @@ cg_size_calc(1, SzCalc0, Fail, St0) ->
 cg_size_calc_1(SzCalc, Fail, St0) ->
     cg_size_calc_2(SzCalc, #b_literal{val=0}, Fail, St0).
 
-cg_size_calc_2([{_,#b_literal{}=Sz}|T], Sum0, Fail, St0) ->
-    {Sum1,Pre0,St1} = cg_size_calc_2(T, Sum0, Fail, St0),
-    {Sum,Pre,St} = cg_size_add(Sum1, Sz, 1, Fail, St1),
-    {Sum,Pre0++Pre,St};
 cg_size_calc_2([{_,{'*',Unit,{_,_}=Bif}}|T], Sum0, Fail, St0) ->
     {Sum1,Pre0,St1} = cg_size_calc_2(T, Sum0, Fail, St0),
     {BifDst,Pre1,St2} = cg_size_bif(Bif, Fail, St1),
     {Sum,Pre2,St} = cg_size_add(Sum1, BifDst, Unit, Fail, St2),
     {Sum,Pre0++Pre1++Pre2,St};
+cg_size_calc_2([{_,#b_literal{}=Sz}|T], Sum0, Fail, St0) ->
+    {Sum1,Pre0,St1} = cg_size_calc_2(T, Sum0, Fail, St0),
+    {Sum,Pre,St} = cg_size_add(Sum1, Sz, 1, Fail, St1),
+    {Sum,Pre0++Pre,St};
+cg_size_calc_2([{_,#b_var{}=Sz}|T], Sum0, Fail, St0) ->
+    {Sum1,Pre0,St1} = cg_size_calc_2(T, Sum0, Fail, St0),
+    {Sum,Pre,St} = cg_size_add(Sum1, Sz, 1, Fail, St1),
+    {Sum,Pre0++Pre,St};
 cg_size_calc_2([{_,{_,_}=Bif}|T], Sum0, Fail, St0) ->
     {Sum1,Pre0,St1} = cg_size_calc_2(T, Sum0, Fail, St0),
     {BifDst,Pre1,St2} = cg_size_bif(Bif, Fail, St1),

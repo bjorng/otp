@@ -1,6 +1,9 @@
 -module(t).
 -compile([export_all,nowarn_export_all]).
 
+eval_exp_field(Val, Size, Unit, integer, native, signed) ->
+    <<Val:(Size*Unit)/native-signed>>.
+
 opt() ->
     N = 16,
     BadSz = 2.5,
