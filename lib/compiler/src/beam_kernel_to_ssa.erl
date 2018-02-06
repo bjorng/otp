@@ -985,7 +985,7 @@ enter_cg(Func0, As0, Le, Vdb, Bef, St0) ->
     Anno = line_anno(Le),
     Func = call_target(Func0, As0, St0),
     As = ssa_args(As0, St0),
-    {Ret,St} = new_ssa_var(ret, St0),
+    {Ret,St} = new_ssa_var('@ssa_ret', St0),
     Call = #b_set{anno=Anno,op=call,dst=Ret,args=[Func|As]},
     {[Call,#b_ret{arg=Ret}],
      clear_dead(Aft#sr{reg=clear_regs(Aft#sr.reg)}, Le#l.i, Vdb),
@@ -1890,7 +1890,8 @@ new_ssa_vars([#k_var{name=V0}|Vs], Acc, St0) ->
 new_ssa_vars([], Acc, St) ->
     {reverse(Acc),St}.
 
-new_ssa_var(VarBase, #cg{lcount=Uniq,vars=Vars}=St0) when is_atom(VarBase) ->
+new_ssa_var(VarBase, #cg{lcount=Uniq,vars=Vars}=St0)
+  when is_atom(VarBase); is_integer(VarBase) ->
     case Vars of
         #{VarBase:=_} ->
             Var = #b_var{name={VarBase,Uniq}},
@@ -1902,7 +1903,8 @@ new_ssa_var(VarBase, #cg{lcount=Uniq,vars=Vars}=St0) when is_atom(VarBase) ->
             {Var,St}
     end.
 
-set_ssa_var(VarBase, Val, #cg{vars=Vars}=St) when is_atom(VarBase) ->
+set_ssa_var(VarBase, Val, #cg{vars=Vars}=St)
+  when is_atom(VarBase); is_integer(VarBase) ->
     St#cg{vars=Vars#{VarBase=>Val}}.
 
 %% new_label(St) -> {L,St}.

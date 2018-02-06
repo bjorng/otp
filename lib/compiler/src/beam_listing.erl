@@ -178,9 +178,16 @@ format_op(Name) ->
     io_lib:format("~p", [Name]).
 
 format_var(#b_var{name={Name,Uniq}}) ->
-    io_lib:format("~s:~p", [Name,Uniq]);
+    if
+        is_atom(Name) ->
+            io_lib:format("~s:~p", [Name,Uniq]);
+        is_integer(Name) ->
+            io_lib:format("_~s:~p", [Name,Uniq])
+    end;
+format_var(#b_var{name=Name}) when is_atom(Name) ->
+    atom_to_list(Name);
 format_var(#b_var{name=Name}) ->
-    atom_to_list(Name).
+    "_"++integer_to_list(Name).
 
 format_args(Args) ->
     Ss = [format_arg(Arg) || Arg <- Args],
