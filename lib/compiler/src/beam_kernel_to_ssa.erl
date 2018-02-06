@@ -1337,8 +1337,9 @@ put_cg([#k_var{name=R}], #k_map{op=Op,var=Map,es=Es}, Le, Vdb, Bef, St0) ->
     {Dst,St1} = new_ssa_var(R, St0),
     {Is,St} = put_cg_map(LineAnno, Op, SrcMap, Dst, List, St1),
     {Is,Aft,St};
-put_cg([#k_var{name=R}], Con, Le, Vdb, Bef, St0) ->
+put_cg([#k_var{name=R}], Con0, Le, Vdb, Bef, St0) ->
     Int = Bef#sr{reg=put_reg(R, Bef#sr.reg)},
+    Con = ssa_arg(Con0, St0),
     St = set_ssa_var(R, Con, St0),
     {[],clear_dead(Int, Le#l.i, Vdb),St}.
 
@@ -1386,6 +1387,9 @@ cg_binary(PutCode, SzCalc, Dst, Fail, Anno, St0) ->
 %%         {ActualUnit,SizeVariable,SizeCode,St}.
 %%  Generate size calculation code.
 
+cg_size_calc(Unit, error, Fail, St) ->
+    Pre = [make_uncond_branch(Fail),#cg_unreachable{}],
+    {#b_literal{val=Unit},#b_literal{val=badarg},Pre,St};
 cg_size_calc(8, [{1,_}|_]=SzCalc, Fail, St) ->
     cg_size_calc(1, SzCalc, Fail, St);
 cg_size_calc(8, SzCalc, Fail, St0) ->
@@ -1479,7 +1483,12 @@ bin_size_calc(_Type, _Src, Size, Unit) ->
     {Unit,Size}.
 
 fold_size_calc([{Unit,#b_literal{val=Size}}|T], Bits, Acc) ->
-    fold_size_calc(T, Bits + Unit*Size, Acc);
+    if
+        is_integer(Size) ->
+            fold_size_calc(T, Bits + Unit*Size, Acc);
+        true ->
+            error
+    end;
 fold_size_calc([{_,_}=H|T], Bits, Acc) ->
     fold_size_calc(T, Bits, [H|Acc]);
 fold_size_calc([], Bits, Acc) ->

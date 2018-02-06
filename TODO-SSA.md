@@ -5,11 +5,10 @@ TO DO
 
 * Rewrite second clause in `protected_cg/6`.
 
-* Complete implementation of try/catch and catch.
+* Implement an `invoke` instruction to call functions
+  and BIFs within the scope of a try/catch or catch.
 
-* Fix bugs so that dets.erl can be compiled.
-
-* Fix bugs so that beam_reorder_SUITE.erl can be compiled.
+* Fix bugs so that the compiler test suite can be compile.
 
 * Rip out register and stack state handling.
 
