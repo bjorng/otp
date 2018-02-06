@@ -1,12 +1,36 @@
 -module(t).
 -compile([export_all,nowarn_export_all]).
 
+try_try_notail(E) ->
+    try
+        E()
+    catch
+        throw:Thrown:Stk ->
+            {Thrown,Stk};
+        Class:Reason:Stk ->
+            erlang:raise(Class, Reason, Stk)
+    end,
+    ok.
+
+try_catch(E) ->
+    {ok,catch E()}.
+
+try_try(E) ->
+    try
+        E()
+    catch
+        throw:Thrown:Stk ->
+            {Thrown,Stk};
+        Class:Reason:Stk ->
+            erlang:raise(Class, Reason, Stk)
+    end.
+
 y_catch() ->
     ok = try
              lists:flatten([])
 	 catch
 	     throw:pattern ->
-		 ok
+		 matched
 	 end.
 
 efficient({Var}) ->
@@ -44,30 +68,6 @@ r(Mref, Process, Timeout) ->
 
 %% csemi7(A, B, C) when A#{a:=B} > #{a=>1}; abs(C) > 2 -> ok;
 %% csemi7(_, _, _) -> error.
-
-try_catch(E) ->
-    {ok,catch E()}.
-
-try_try(E) ->
-    try
-        E()
-    catch
-        throw:Thrown:Stk ->
-            {Thrown,Stk};
-        Class:Reason:Stk ->
-            erlang:raise(Class, Reason, Stk)
-    end.
-
-try_try_notail(E) ->
-    try
-        E()
-    catch
-        throw:Thrown:Stk ->
-            {Thrown,Stk};
-        Class:Reason:Stk ->
-            erlang:raise(Class, Reason, Stk)
-    end,
-    ok.
 
 map(#{x:=X,y:=_}) ->
     X.

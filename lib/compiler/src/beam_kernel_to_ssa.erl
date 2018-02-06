@@ -1186,16 +1186,17 @@ try_cg(Ta, Vs, Tb, Evs, Th, Rs, Le, Vdb, Bef, St0) ->
     {His,Haft,St7} = cg(Th, Vdb, Int3#sr{reg=load_vars(Evs, Int3#sr.reg)}, St6),
     Int4 = sr_merge(Baft, Haft),		%Merge stack/registers
     Aft = Int4#sr{reg=load_vars(Rs, Int4#sr.reg)},
-    {CatchedAgg,St} = new_ssa_var('@ssa_agg', St7),
+    {BreakVars,St8} = new_ssa_vars(Rs, St7),
+    {CatchedAgg,St} = new_ssa_var('@ssa_agg', St8),
     ExtractVs = extract_vars(SsaEvs, CatchedAgg, 0),
     Handler = [{label,H},
                #b_set{dst=CatchedAgg,op=try_case,args=[TryReg]}|ExtractVs],
     {[#b_set{dst=TryReg,op=new_try_tag,args=[]},
       #b_br{bool=TryReg,succ=Next,fail=H},{label,Next}] ++ Ais ++
-
          [{label,B},#cg_phi{vars=SsaVs},
           #b_set{op=try_end,args=[TryReg]}] ++ Bis ++
-         Handler ++ His ++ [{label,E}],
+         Handler ++ His ++
+         [{label,E},#cg_phi{vars=BreakVars}],
      clear_dead(Aft, Le#l.i, Vdb),
      St#cg{break=St0#cg.break}}.
 
