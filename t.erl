@@ -1,6 +1,16 @@
 -module(t).
 -compile([export_all,nowarn_export_all]).
 
+burns(Richmond) when Richmond#{true := 0}; a ->
+    specification.
+
+town(overall, {{If}, Healing = alcohol})
+  when Healing#{[] => Healing}; include ->
+    [If || Healing <- awareness].
+
+csemi7(A, B, C) when A#{a:=B} > #{a=>1}; abs(C) > 2 -> ok;
+csemi7(_, _, _) -> error.
+
 eval_exp_field(Val, Size, Unit, integer, native, signed) ->
     <<Val:(Size*Unit)/native-signed>>.
 
@@ -71,12 +81,6 @@ r(Mref, Process, Timeout) ->
             erlang:demonitor(Mref, [flush]),
             exit(timeout)
     end.
-
-%% burns(Richmond) when Richmond#{true := 0}; a ->
-%%     specification.
-
-%% csemi7(A, B, C) when A#{a:=B} > #{a=>1}; abs(C) > 2 -> ok;
-%% csemi7(_, _, _) -> error.
 
 map(#{x:=X,y:=_}) ->
     X.
