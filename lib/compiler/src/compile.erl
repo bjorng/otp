@@ -741,9 +741,11 @@ kernel_passes() ->
      ?pass(v3_kernel),
      {iff,dkern,{listing,"kernel"}},
      {iff,'to_kernel',{done,"kernel"}},
-     {pass,beam_kernel_to_ssa},
-     {iff,dssa,{listing,"ssa"}},
-     {pass,beam_ssa_codegen},
+     {iff,dssa,[{pass,beam_kernel_to_ssa},
+                {iff,dssa,{listing,"ssa"}}]},
+     {unless,dssa,?pass(smoke_test_ssa)},
+     %%{pass,beam_ssa_codegen},
+     {pass,v3_codegen},
      {iff,dcg,{listing,"codegen"}}
      | asm_passes()].
 
@@ -1355,6 +1357,11 @@ v3_kernel(Code0, #compile{options=Opts,warnings=Ws0}=St) ->
 	    %% warnings. Ignore any such warnings.
 	    {ok,Code,St}
     end.
+
+smoke_test_ssa(Code0, #compile{options=Opts}=St) ->
+    {ok,_Code} = beam_kernel_to_ssa:module(Code0, Opts),
+    %% Discard the result of the pass.
+    {ok,Code0,St}.
 
 block2(Code0, #compile{options=Opts}=St) ->
     {ok,Code} = beam_block:module(Code0, [no_blockify|Opts]),
