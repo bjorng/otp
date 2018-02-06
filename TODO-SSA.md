@@ -3,7 +3,8 @@ TO DO
 
 ## beam_kernel_to_ssa ##
 
-* Rewrite second clause in `protected_cg/6`.
+* Correct code generator for a #k_protected{} with a
+  variable.
 
 * Implement an `invoke` instruction to call functions
   and BIFs within the scope of a try/catch or catch.
@@ -23,7 +24,7 @@ in beam_kernel_to_ssa. To avoid producing worse code, the
 following optimizations must be done in some optimization
 pass run before beam_ssa_codegen.
 
-* In binary mapping, if a matched out segment is not used,
+* In binary matching, if a matched out segment is not used,
 replace the bs_get* instruction with a bs_skip_* instruction,
 test_unit instruction, or nothing (if skipping the tail of
 1-bit aligned bitstring).

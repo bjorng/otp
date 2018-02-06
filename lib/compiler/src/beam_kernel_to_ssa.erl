@@ -24,7 +24,7 @@
 %% The main interface.
 -export([module/2]).
 
--import(lists, [member/2,keymember/3,keysort/2,
+-import(lists, [duplicate/2,member/2,keymember/3,keysort/2,
 		append/1,flatmap/2,foldl/3,foldr/3,mapfoldl/3,
 		sort/1,reverse/1,reverse/2,map/2]).
 -import(ordsets, [add_element/2,intersection/2,union/2]).
@@ -42,6 +42,7 @@ get_kanno(Kthing) -> element(2, Kthing).
 	     break,                 %Break label
 	     recv,                  %Receive label
 	     in_catch=false,        %Inside a catch or not.
+             prot=[],               %A list of variables if in k_protected{}.
 	     ultimate_failure,      %Label for ultimate match failure.
              badarg_failure,        %Label for badarg failure.
              ctx                    %Match context.
@@ -435,15 +436,16 @@ match_cg(M, Rs, Le, Vdb, Bef, St0) ->
 guard_match_cg(M, Rs, Le, Vdb, Bef, St0) ->
     I = Le#l.i,
     {B,St1} = new_label(St0),
-    Fail = case St0 of
-               #cg{bfail=0,ultimate_failure=Fail0} -> Fail0;
-               #cg{bfail=Fail0} -> Fail0
-           end,
-    {Mis,Aft,St2} = match_cg(M, Fail, Bef, St1#cg{break=B}),
-    {BreakVars,St} = new_ssa_vars(Rs, St2),
+    Fail0 = case St0 of
+                #cg{bfail=0,ultimate_failure=F} -> F;
+                #cg{bfail=F} -> F
+            end,
+    {Prot,Fail,St2} = make_protected(Fail0, St1),
+    {Mis,Aft,St3} = match_cg(M, Fail, Bef, St2#cg{break=B}),
+    {BreakVars,St} = new_ssa_vars(Rs, St3),
     %% Update the register descriptors for the return registers.
     Reg = guard_match_regs(Aft#sr.reg, Rs),
-    {Mis ++ [{label,B},#cg_phi{vars=BreakVars}],
+    {Mis ++ Prot ++ [{label,B},#cg_phi{vars=BreakVars}],
      clear_dead(Aft#sr{reg=Reg}, I, Vdb),
      St#cg{break=St1#cg.break}}.
 
@@ -897,21 +899,24 @@ guard_cg_list(Kes, Fail, Vdb, Bef, St0) ->
 
 protected_cg(Ts, [], Fail, Vdb, Bef, St0) ->
     %% Protect these calls, revert when done.
-    {Tis,Aft,St1} = guard_cg_list(Ts, Fail, Vdb, Bef, St0#cg{bfail=Fail}),
-    {Tis,Aft,St1#cg{bfail=St0#cg.bfail}};
+    {Tis,Aft,St1} = guard_cg_list(Ts, Fail, Vdb, Bef, St0#cg{bfail=Fail,prot=[]}),
+    {Tis,Aft,St1#cg{bfail=St0#cg.bfail,prot=St0#cg.prot}};
 protected_cg(Ts, Rs, _Fail, Vdb, Bef, St0) ->
+    %% FIXME: The generated seems to be wrong. See csemi7 in guard_SUITE.
+    Prot = length(Rs),
+    {Tis,Aft,St} = guard_cg_list(Ts, no_fail, Vdb, Bef, St0#cg{prot=Prot}),
+    {Tis,Aft,St#cg{prot=St0#cg.prot}}.
+
+make_protected(Fail, #cg{prot=[]}=St) ->
+    {[],Fail,St};
+make_protected(_Fail, #cg{prot=NumBreaks,break=Br}=St0) ->
     {Pfail,St1} = new_label(St0),
-    {Psucc,St2} = new_label(St1),
-    {Tis,Aft,St3} = guard_cg_list(Ts, Pfail, Vdb, Bef,
-				  St2#cg{bfail=Pfail}),
-    %%ok = io:fwrite("cg ~w: ~p~n", [?LINE,{Rs,I,Vdb,Aft}]),
-    %% Set return values to false.
-    %% FIXME: Must rewrite this.
-    error(nyi),
-    Mis = [{move,{atom,false},fetch_var(V,Aft)}||#k_var{name=V} <- Rs],
-    {Tis ++ [{jump,{f,Psucc}},
-	     {label,Pfail}] ++ Mis ++ [{label,Psucc}],
-     Aft,St3#cg{bfail=St0#cg.bfail}}.
+    {Psucc,St} = new_label(St1),
+    Breaks = duplicate(NumBreaks, #b_literal{val=false}),
+    {[make_uncond_branch(Psucc),
+      {label,Pfail},#cg_break{args=Breaks,phi=Br},
+      {label,Psucc}],
+     Pfail,St#cg{break=Pfail,prot=[]}}.
 
 %% match_fmf(Fun, LastFail, State, [Clause]) -> {Is,Aft,State}.
 %%  This is a special flatmapfoldl for match code gen where we
@@ -969,7 +974,7 @@ call_cg(Func0, As, [#k_var{name=R}|MoreRs]=Rs, Le, Vdb, Bef, St0) ->
             Call = #b_set{anno=line_anno(Le),op=call,dst=Ret,args=[Func|Args]},
 
             %% FIXME: Dummy variables are only need when there is a
-            %% call erlang:error(). Instead of generating the dummy variables,
+            %% call to erlang:error(). Instead of generating the dummy variables,
             %% we should eliminate branch out the block (perhaps best done in
             %% finalize()).
             St = foldl(fun(#k_var{name=Dummy}, S) ->
