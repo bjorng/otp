@@ -51,8 +51,7 @@ get_kanno(Kthing) -> element(2, Kthing).
 %% Stack/register state record.
 %% FIXME: To be eliminated.
 -record(sr, {reg=[],				%Register table
-	     stk=[],				%Stack table
-	     res=[]}).				%Registers to reserve
+	     stk=[]}).				%Stack table
 
 %% Internal records.
 -record(cg_block, {anno=[] :: term(),
@@ -483,29 +482,6 @@ match_cg(#cg_block{anno=Le,es=Es}, _Fail, Bef, St) ->
 
 block_cg(Es, Le, Bef, St) ->
     cg_list(Es, Le#l.vdb, Bef, St).
-
-%% reserve(Bef) -> Aft.
-%%  Try to reserve more registers. The registers we wish to reserve
-%%  are found in Bef#sr.res.
-
-reserve(#sr{reg=Regs,stk=Stk,res=Res}=Sr) ->
-    Sr#sr{reg=reserve_1(Res, Regs, Stk)}.
-
-reserve_1([{I,V}|Rs], [free|Regs], Stk) ->
-    [{reserved,I,V}|reserve_1(Rs, Regs, Stk)];
-reserve_1([{I,V}|Rs], [{I,V}|Regs], Stk) ->
-    [{I,V}|reserve_1(Rs, Regs, Stk)];
-reserve_1([{I,V}|Rs], [{I,Var}|Regs], Stk) ->
-    case on_stack(Var, Stk) of
-	true -> [{reserved,I,V}|reserve_1(Rs, Regs, Stk)];
-	false -> [{I,Var}|reserve_1(Rs, Regs, Stk)]
-    end;
-reserve_1([{I,V}|Rs], [{reserved,I,_}|Regs], Stk) ->
-    [{reserved,I,V}|reserve_1(Rs, Regs, Stk)];
-reserve_1([{I,V}|Rs], [], Stk) ->
-    [{reserved,I,V}|reserve_1(Rs, [], Stk)];
-reserve_1([], Regs, _) -> Regs.
-
 
 %% select_cg(Sclause, V, TypeFail, ValueFail, StackReg, State) ->
 %%      {Is,StackReg,State}.
@@ -1547,7 +1523,7 @@ guard_break_cg(Bs, #l{i=I}, Vdb, Bef, #cg{break=Br}=St) ->
 cg_setup_call(As, Bef, I, Vdb) ->
     {Ms,Int0} = cg_call_args(As, Bef, I, Vdb),
     %% Have set up arguments, can now clean up, compress and save to stack.
-    Int1 = Int0#sr{stk=clear_dead_stk(Int0#sr.stk, I, Vdb),res=[]},
+    Int1 = Int0#sr{stk=clear_dead_stk(Int0#sr.stk, I, Vdb)},
     {Sis,Int2} = adjust_stack(Int1, I, I+1, Vdb),
     {Ms ++ Sis,Int2}.
 
@@ -1670,9 +1646,8 @@ break_up_cycle1(Dst, [M|Path], LastMove) ->
 %%  Remove all variables in Sr which have died AT ALL so far.
 
 clear_dead(#sr{stk=Stk}=Sr0, Until, Vdb) ->
-    Sr = Sr0#sr{reg=clear_dead_reg(Sr0, Until, Vdb),
-                stk=clear_dead_stk(Stk, Until, Vdb)},
-    reserve(Sr).
+    Sr0#sr{reg=clear_dead_reg(Sr0, Until, Vdb),
+           stk=clear_dead_stk(Stk, Until, Vdb)}.
 
 clear_dead_reg(Sr, Until, Vdb) ->
     [case R of
@@ -1681,7 +1656,6 @@ clear_dead_reg(Sr, Until, Vdb) ->
                  {V,_,L} when L > Until -> IV;
                  _ -> free                      %Remove anything else
              end;
-         {reserved,_I,_V}=Reserved -> Reserved;
          free -> free
      end || R <- Sr#sr.reg].
 
@@ -1703,9 +1677,9 @@ clear_dead_stk(Stk, Until, Vdb) ->
 %%  the same.  Allow frame size 'void' to make easy creation of
 %%  "empty" frame.
 
-sr_merge(#sr{reg=R1,stk=S1,res=[]}, #sr{reg=R2,stk=S2,res=[]}) ->
-    #sr{reg=longest(R1, R2),stk=longest(S1, S2),res=[]};
-sr_merge(void, S2) -> S2#sr{res=[]}.
+sr_merge(#sr{reg=R1,stk=S1}, #sr{reg=R2,stk=S2}) ->
+    #sr{reg=longest(R1, R2),stk=longest(S1, S2)};
+sr_merge(void, S2) -> S2#sr{}.
 
 longest([H|T1], [H|T2]) -> [H|longest(T1, T2)];
 longest([dead|T1], [free|T2]) -> [dead|longest(T1, T2)];
