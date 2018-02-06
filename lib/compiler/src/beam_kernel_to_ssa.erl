@@ -94,7 +94,7 @@ function(#k_fdef{anno=#k{a=Anno},func=Name,arity=Arity,
         {As,St1} = init_ssa_args(As0, St0),
         {Asm,St} = cg_fun(Body, As0, Vdb, St1),
         FuncInfo = [{func_info,{{Mod,Name,Arity},line_anno(Anno)}}],
-        #b_func{anno=FuncInfo,args=As,bs=Asm,cnt=St#cg.lcount}
+        #b_function{anno=FuncInfo,args=As,bs=Asm,cnt=St#cg.lcount}
     catch
         Class:Error:Stack ->
             io:fwrite("Function: ~w/~w\n", [Name,Arity]),

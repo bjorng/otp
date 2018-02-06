@@ -19,14 +19,24 @@
 %%
 
 -record(b_module, {anno=[],name,exports,attributes,body}).
--record(b_func, {anno=[],args,bs,cnt}).
--record(b_blk, {anno=[],is,last}).
--record(b_set, {anno=[],dst=none,op,args=[]}).
+-record(b_function, {anno=[],args,bs,cnt}).
+-record(b_blk, {anno=[],
+                is :: [beam_ssa:b_set()],
+                last :: beam_ssa:terminator()}).
+-record(b_set, {anno=[],dst=none :: 'none'|beam_ssa:b_var(),
+                op,
+                args=[] :: [beam_ssa:argument()]}).
 
--record(b_ret, {anno=[],arg}).
--record(b_br, {anno=[],bool,succ,fail}).
--record(b_switch, {anno=[],bool,fail,list}).
--record(b_try, {anno=[],var,body,handler}).
+-record(b_ret, {anno=[],
+                arg :: beam_ssa:value()}).
+-record(b_br, {anno=[],
+               bool :: beam_ssa:value(),
+               succ :: beam_ssa:label(),
+               fail :: beam_ssa:label()}).
+-record(b_switch, {anno=[],
+                   bool=beam_ssa:value(),
+                   fail :: beam_ssa:label(),
+                   list :: {beam_ssa:b_literal(),beam_ssa:label()}}).
 
 -record(b_var, {name}).
 -record(b_literal, {val}).

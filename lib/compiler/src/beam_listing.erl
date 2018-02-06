@@ -75,7 +75,7 @@ format_asm([]) -> [].
 %%% Pretty print the SSA immediate format.
 %%%
 
-format_ssa_function(File, #b_func{anno=Anno,args=Args,
+format_ssa_function(File, #b_function{anno=Anno,args=Args,
                                   bs=Blocks,cnt=Counter}) ->
     [{func_info,{{M,F,_},Loc}}] = Anno,
     io:nl(File),
@@ -126,8 +126,6 @@ update_ws_1(#b_br{succ=Succ,fail=Fail}) ->
     [Succ,Fail];
 update_ws_1(#b_switch{fail=Fail,list=List}) ->
     [Fail|[L || {_,L} <- List]];
-update_ws_1(#b_try{body=Body,handler=Fail}) ->
-    [Body,Fail];
 update_ws_1(#b_ret{}) ->
     [];
 update_ws_1({jump,{f,L}}) ->
@@ -164,9 +162,6 @@ format_terminator(File, #b_br{bool=Bool,succ=Succ,fail=Fail}) ->
 format_terminator(File, #b_switch{bool=Bool,fail=Fail,list=List}) ->
     io:format(File, "  switch ~s, label ~p, ~s\n",
               [format_arg(Bool),Fail,format_list(List)]);
-format_terminator(File, #b_try{var=Var,body=Body,handler=Fail}) ->
-    io:format(File, "  try ~s, label ~p, label ~p\n",
-              [format_arg(Var),Body,Fail]);
 format_terminator(File, #b_ret{arg=Arg}) ->
     io:format(File, "  return ~s\n", [format_arg(Arg)]);
 format_terminator(File, I) ->
