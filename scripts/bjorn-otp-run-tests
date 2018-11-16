@@ -1,1 +1,2 @@
 #!/bin/sh
+docker run --mount type=bind,source=$ERL_TOP,target=/test_results -t otp-run-tests
