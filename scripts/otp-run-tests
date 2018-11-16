@@ -1,0 +1,79 @@
+#!/usr/bin/perl -w
+use strict;
+use File::Find;
+
+my $test_type_prefix = 'progress';
+my $test_results = '..';
+my $test_results_tar = "../test_results.tar.gz";
+
+sub run_tests {
+}
+
+save_test_results();
+
+sub save_test_results {
+    my ($rel,$platform_name) = get_some_variables();
+    print "rel: $rel\n";
+    print "platform_name: $platform_name\n";
+    my $save_test_results = "$test_results/$test_type_prefix$rel";
+    print "save_test_results: $save_test_results\n";
+    my $dest_dir = "$save_test_results/$platform_name";
+    print "dest_dir: $dest_dir\n";
+
+    my $cmd = "|tar zcTf - $test_results_tar";
+    print "cmd: $cmd\n";
+
+    #
+    # Print the names of all files to copy to the "tar" processes
+    # started above.
+    #
+    open(TAR, $cmd) or die "Failed to save test results: $!\n";
+    print TAR "variables\n" if -f "variables";
+    print TAR "index.html\n" if -f "index.html";
+    print TAR "motp_build_info\n" if -f "motp_build_info";
+    print TAR "all_runs.html\n" if -f "all_runs.html";
+    print TAR "ct_default.css\n" if -f "ct_default.css";
+    print TAR "jquery-latest.js\n" if -f "jquery-latest.js";
+    print TAR "jquery.tablesorter.min.js\n" if -f "jquery.tablesorter.min.js";
+
+    # Look for common_test log files.
+    my @flogs = <ct_run*/{*.logs,*.html,*.css,*.js}>;
+    find sub {
+	$File::Find::prune = 1, return if $_ eq 'log_private';
+	return if $_ eq 'last_link.html';
+	print TAR "$File::Find::name\n"
+            if m/(\.html|\.log|\.summary|\.css|\.js)$/;
+    }, @flogs if @flogs;
+
+    my @crash_dumps = <*_erl_crash.dump>;
+    if (@crash_dumps) {
+        print "Found these crash dumps: ", @crash_dumps, "\n";
+        foreach my $crashfile (@crash_dumps) {
+            chmod 0444, $crashfile;
+            print TAR "$crashfile\n";
+        }
+    }
+    close TAR or die "Failed to save test results: $!\n";
+    print "Closed TAR\n";
+    print "$test_results_tar has been created\n";
+}
+
+
+sub get_some_variables {
+    my $rel = 'unknown_release';
+    my $platform = 'unknown_platform';
+    my $filename = "variables";
+    unless (open(VARS, $filename)) {
+        die "Failed to open $filename for reading: $!\n";
+    } else {
+        while (<VARS>) {
+            if (m/^\{erl_release,\"([^\"]*)\"/) {
+                $rel = $1;
+            } elsif (m/^\{platform_filename,\"([^\"]*)\"/) {
+                $platform = $1;
+            }
+        }
+        close VARS;
+    }
+    ($rel,$platform);
+}
