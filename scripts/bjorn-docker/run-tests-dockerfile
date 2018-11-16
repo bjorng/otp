@@ -21,4 +21,4 @@ ENV PATH=$install_dir/bin:$PATH
 COPY otp-run-tests /daily_build/otp-run-tests
 
 WORKDIR /daily_build/test/test_server
-RUN /daily_build/otp/bin/erl -noinput -s ts install -s ts smoke_test batch -s init stop
+CMD /daily_build/otp-run-tests

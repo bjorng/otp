@@ -7,8 +7,11 @@ my $test_results = '..';
 my $test_results_tar = "../test_results.tar.gz";
 
 sub run_tests {
+#    system "/daily_build/otp/bin/erl -noinput -s ts install -s ts run compiler batch -s init stop";
+    system "/daily_build/otp/bin/erl -noinput -s ts install -s init stop";
 }
 
+run_tests();
 save_test_results();
 
 sub save_test_results {

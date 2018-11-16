@@ -1,4 +1,3 @@
 #!/bin/sh
-docker build -f scripts/bjorn-docker/otp-src-dockerfile scripts/bjorn-docker
-mkdir scripts/bjorn-docker/empty-context
-docker build -f scripts/bjorn-docker/run-tests-dockerfile scripts/bjorn-docker/empty-context
+docker build -f scripts/bjorn-docker/otp-src-dockerfile -t otp-src scripts/bjorn-docker
+docker build -f scripts/bjorn-docker/run-tests-dockerfile -t otp-run-tests scripts/bjorn-docker
