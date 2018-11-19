@@ -1,0 +1,28 @@
+FROM otp-src
+
+ENV install_dir=/daily_build/otp
+ENV test_dir=/daily_build/test
+
+WORKDIR otp_src
+ENV MAKEFLAGS=-j8
+ENV ERL_TOP=/daily_build/otp_src
+RUN ./otp_build autoconf && \
+    ./otp_build configure && \
+    ./otp_build boot -a && \
+    ./otp_build release -a $install_dir && \
+    ./otp_build tests $test_dir
+
+WORKDIR $install_dir
+RUN ./Install -minimal $install_dir
+
+WORKDIR /daily_build
+ENV PATH=$install_dir/bin:$PATH
+
+WORKDIR /daily_build/test/test_server
+
+# Install and replace the temporary hostname with 'docker'
+# in the variables file.
+RUN /daily_build/otp/bin/erl -noinput -s ts install -s init stop && \
+  perl -pi -e "/^[{]platform/ && s/$(hostname)/docker/g" variables
+
+CMD /daily_build/otp-run-tests
