@@ -25,4 +25,6 @@ WORKDIR /daily_build/test/test_server
 RUN /daily_build/otp/bin/erl -noinput -s ts install -s init stop && \
   perl -pi -e "/^[{]platform/ && s/$(hostname)/docker/g" variables
 
+COPY otp-run-tests /daily_build/otp-run-tests
+
 CMD /daily_build/otp-run-tests
