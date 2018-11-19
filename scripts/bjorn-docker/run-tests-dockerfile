@@ -21,4 +21,10 @@ ENV PATH=$install_dir/bin:$PATH
 COPY otp-run-tests /daily_build/otp-run-tests
 
 WORKDIR /daily_build/test/test_server
+
+# Install and replace the temporary hostname with 'docker'
+# in the variables file.
+RUN /daily_build/otp/bin/erl -noinput -s ts install -s init stop && \
+  perl -pi -e "/^[{]platform/ && s/$(hostname)/docker/g" variables
+
 CMD /daily_build/otp-run-tests

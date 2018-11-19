@@ -7,7 +7,7 @@ my $test_results = '..';
 my $test_results_tar = "/test_results/test_results.tar.gz";
 
 sub run_tests {
-    system "/daily_build/otp/bin/erl -noinput -s ts install -s ts run compiler -s init stop";
+    system "/daily_build/otp/bin/erl -noinput -s ts run compiler -s init stop";
 }
 
 run_tests();
