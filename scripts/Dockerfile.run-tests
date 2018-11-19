@@ -1,4 +1,5 @@
-FROM otp-src
+ARG BRANCH
+FROM otp-src-$BRANCH
 
 ENV install_dir=/daily_build/otp
 ENV test_dir=/daily_build/test

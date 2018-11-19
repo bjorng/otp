@@ -1,5 +1,6 @@
 #!/bin/sh
+BRANCH=maint
 git archive --prefix=otp_src/ -o scripts/otp_src.tar.gz HEAD
-docker build -f scripts/Dockerfile.pack-otp -t otp-src scripts
+docker build -f scripts/Dockerfile.pack-otp -t otp-src-$BRANCH scripts
 rm scripts/otp_src.tar.gz
-docker build -f scripts/Dockerfile.run-tests -t otp-run-tests scripts
+docker build -f scripts/Dockerfile.run-tests --build-arg "BRANCH=maint" -t otp-run-tests-$BRANCH scripts
