@@ -1,3 +1,3 @@
 #!/bin/sh
 BRANCH=maint
-docker run --hostname docker --mount type=bind,source=$ERL_TOP,target=/test_results -t otp-run-tests-$BRANCH
+docker run --hostname docker --mount type=bind,source=$ERL_TOP,target=/test_results otp-run-tests-$BRANCH

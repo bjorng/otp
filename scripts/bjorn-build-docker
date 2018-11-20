@@ -16,7 +16,7 @@ RUN git clone --bare --depth 1 -b $BRANCH $REPO && \
 
 CMD cp /otp_src.tar.gz /target
 EOF
-docker run --mount type=bind,source=$ERL_TOP/scripts,target=/target -t git-archive
+docker run --rm --mount type=bind,source=$ERL_TOP/scripts,target=/target git-archive
 
 docker build -f scripts/Dockerfile.pack-otp -t otp-src-$BRANCH scripts
 rm scripts/otp_src.tar.gz
