@@ -6,12 +6,18 @@ my $test_type_prefix = 'progress';
 my $test_results = '..';
 my $test_results_tar = "/test_results/test_results.tar.gz";
 
-sub run_tests {
-    system "/daily_build/otp/bin/erl -noinput -s ts run compiler -s init stop";
-}
+my $app = shift || 'smoke_test';
 
-run_tests();
+run_tests($app);
 save_test_results();
+
+sub run_tests {
+    my($app) = @_;
+    my $ts_args = "run $app";
+    $ts_args = "smoke_test batch" if $app =~ /^smoke/;
+    $ts_args = "all_tests" if $app eq 'all';
+    system "/daily_build/otp/bin/erl -noinput -s ts $ts_args -s init stop";
+}
 
 sub save_test_results {
     my ($rel,$platform_name) = get_some_variables();

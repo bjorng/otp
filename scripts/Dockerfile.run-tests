@@ -28,4 +28,5 @@ RUN /daily_build/otp/bin/erl -noinput -s ts install -s init stop && \
 
 COPY otp-run-tests /daily_build/otp-run-tests
 
-CMD /daily_build/otp-run-tests
+ENTRYPOINT ["/daily_build/otp-run-tests"]
+CMD ["smoke_test"]
