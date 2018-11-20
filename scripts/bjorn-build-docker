@@ -1,6 +1,23 @@
 #!/bin/sh
+REPO=https://github.com/bjorng/otp.git
 BRANCH=maint
-git archive --prefix=otp_src/ -o scripts/otp_src.tar.gz HEAD
+
+docker build -t git-archive --build-arg "REPO=$REPO,BRANCH=$BRANCH" -<<EOF
+FROM alpine
+ARG REPO
+ARG BRANCH
+RUN apk --update add git openssh && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm /var/cache/apk/*
+
+RUN git clone --bare --depth 1 -b $BRANCH $REPO && \
+  cd otp.git && \
+  git archive --prefix=otp_src/ -o /otp_src.tar.gz HEAD
+
+CMD cp /otp_src.tar.gz /target
+EOF
+docker run --mount type=bind,source=$ERL_TOP/scripts,target=/target -t git-archive
+
 docker build -f scripts/Dockerfile.pack-otp -t otp-src-$BRANCH scripts
 rm scripts/otp_src.tar.gz
 docker build -f scripts/Dockerfile.run-tests --build-arg "BRANCH=maint" -t otp-run-tests-$BRANCH scripts
