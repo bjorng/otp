@@ -1267,7 +1267,8 @@ static BIF_RETTYPE lists_reverse_trap(BIF_ALIST_1)
                                 context->list_original,
                                 context->acc_original);
     } else {
-        BIF_RET(context->result);
+        BIF_TRAP2(bif_export[BIF_lists_reverse_2],
+                  BIF_P, NIL, context->result);
     }
 }
 
