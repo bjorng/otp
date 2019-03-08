@@ -1125,7 +1125,10 @@ x_exc_body(ExcOpts, {M,F}=Func, Args, Apply) ->
 
 x_exc_value(Rtt, ?MODULE, lists_reverse, [La,Lb], 2, R) ->
     L = lists:reverse(Lb, La),
-    expect([fun ({ctt,{lists,reverse},[L1,L2]}) ->
+    expect([fun ({ctt,{lists,reverse},[Ref,[]]})
+                  when is_reference(Ref) ->
+                    next;
+                ({ctt,{lists,reverse},[L1,L2]}) ->
                     same(L, lists:reverse(L2, L1)),
                     next;
                 (Msg) ->
@@ -1140,7 +1143,10 @@ x_exc_value(_Rtt, M, F, _, Arity, Value) ->
 
 x_exc_exception(_Rtt, ?MODULE, lists_reverse, [La,Lb], 2, CR) ->
     L = lists:reverse(Lb, La),
-    expect([fun ({ctt,{lists,reverse},[L1,L2]}) ->
+    expect([fun ({ctt,{lists,reverse},[Ref,[]]})
+                  when is_reference(Ref) ->
+                    next;
+                ({ctt,{lists,reverse},[L1,L2]}) ->
                     same(L, lists:reverse(L2, L1)),
                     next;
                 (Msg) ->
