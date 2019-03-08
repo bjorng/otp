@@ -32,6 +32,15 @@
 #include "bif.h"
 #include "erl_binary.h"
 
+static Export lists_reverse_trap_export;
+static BIF_RETTYPE lists_reverse_trap(BIF_ALIST_1);
+
+void erts_init_bif_lists(void)
+{
+    erts_init_trap_export(&lists_reverse_trap_export,
+			  am_lists, am_reverse_trap, 1,
+			  &lists_reverse_trap);
+}
 
 static Eterm keyfind(int Bif, Process* p, Eterm Key, Eterm Pos, Eterm List);
 
@@ -1070,9 +1079,34 @@ BIF_RETTYPE lists_member_2(BIF_ALIST_2)
     BIF_RET2(am_false, reds_left - max_iter/16);
 }
 
-static BIF_RETTYPE lists_reverse_alloc(Process *c_p,
-                                       Eterm list_in,
-                                       Eterm tail_in)
+/* lists:reverse/2 */
+typedef struct {
+    Eterm list_original;
+    Eterm acc_original;
+    Eterm list;
+    Eterm result;
+} ErtsReverseContext;
+
+static int reverse_ctx_bin_dtor(Binary *context_bin) {
+    return 1;
+}
+
+static Eterm reverse_create_trap_state(Process *p,
+                                       ErtsReverseContext *from_context) {
+    ErtsReverseContext *to_context;
+    Binary *state_bin;
+    Eterm *hp;
+
+    state_bin = erts_create_magic_binary(sizeof(ErtsReverseContext),
+                                         reverse_ctx_bin_dtor);
+    to_context = ERTS_MAGIC_BIN_DATA(state_bin);
+    *to_context = *from_context;
+    hp = HAlloc(p, ERTS_MAGIC_REF_THING_SIZE);
+    return erts_mk_magic_ref(&hp, &MSO(p), state_bin);
+}
+
+static int
+lists_reverse_alloc(Process *c_p, ErtsReverseContext* context)
 {
     static const Uint CELLS_PER_RED = 40;
 
@@ -1081,8 +1115,8 @@ static BIF_RETTYPE lists_reverse_alloc(Process *c_p,
     Eterm list, tail;
     Eterm lookahead;
 
-    list = list_in;
-    tail = tail_in;
+    list = context->list;
+    tail = context->result;
 
     cells_left = max_cells = CELLS_PER_RED * ERTS_BIF_REDS_LEFT(c_p);
     lookahead = list;
@@ -1095,7 +1129,7 @@ static BIF_RETTYPE lists_reverse_alloc(Process *c_p,
     BUMP_REDS(c_p, (max_cells - cells_left) / CELLS_PER_RED);
 
     if (is_not_list(lookahead) && is_not_nil(lookahead)) {
-        BIF_ERROR(c_p, BADARG);
+        return -1;
     }
 
     alloc_top = HAlloc(c_p, 2 * (max_cells - cells_left));
@@ -1112,17 +1146,21 @@ static BIF_RETTYPE lists_reverse_alloc(Process *c_p,
         alloc_top += 2;
     }
 
+    context->list = list;
+    context->result = tail;
+
     if (is_nil(list)) {
-        BIF_RET(tail);
+        /* Done */
+        return 1;
     }
 
+    /* Out of reductions but more work to do. */
     ASSERT(is_list(tail) && cells_left == 0);
-    BIF_TRAP2(bif_export[BIF_lists_reverse_2], c_p, list, tail);
+    return 0;
 }
 
-static BIF_RETTYPE lists_reverse_onheap(Process *c_p,
-                                        Eterm list_in,
-                                        Eterm tail_in)
+static int
+lists_reverse_onheap(Process *c_p, ErtsReverseContext* context)
 {
     static const Uint CELLS_PER_RED = 60;
 
@@ -1130,8 +1168,8 @@ static BIF_RETTYPE lists_reverse_onheap(Process *c_p,
     Uint cells_left, max_cells;
     Eterm list, tail;
 
-    list = list_in;
-    tail = tail_in;
+    list = context->list;
+    tail = context->result;
 
     cells_left = max_cells = CELLS_PER_RED * ERTS_BIF_REDS_LEFT(c_p);
 
@@ -1158,37 +1196,110 @@ static BIF_RETTYPE lists_reverse_onheap(Process *c_p,
     ASSERT(cells_left >= 0 && cells_left <= max_cells);
     BUMP_REDS(c_p, (max_cells - cells_left) / CELLS_PER_RED);
 
+    context->list = list;
+    context->result = tail;
+
     if (is_nil(list)) {
-        BIF_RET(tail);
+        /* Done */
+        return 1;
     } else if (is_list(list)) {
         if (cells_left > CELLS_PER_RED) {
-            return lists_reverse_alloc(c_p, list, tail);
+            return lists_reverse_alloc(c_p, context);
         }
+        /* Run out of reductions, but more work to do. */
+        return 0;
+    } else {
+        /* Error */
+        return -1;
+    }
+}
 
-        BUMP_ALL_REDS(c_p);
-        BIF_TRAP2(bif_export[BIF_lists_reverse_2], c_p, list, tail);
+static int reverse_continue(Process *c_p,
+                            ErtsReverseContext *context) {
+    /* We build the reversal on the unused part of the heap if
+     * possible to save us the trouble of having to figure out the
+     * list size. We fall back to lists_reverse_alloc when we run out
+     * of space. */
+    if (HeapWordsLeft(c_p) > 8) {
+        return lists_reverse_onheap(c_p, context);
     }
 
-    BIF_ERROR(c_p, BADARG);
+    return lists_reverse_alloc(c_p, context);
+}
+
+static int reverse_start(Process *p, Eterm list, Eterm acc,
+                         ErtsReverseContext *context) {
+    context->list_original = list;
+    context->acc_original = acc;
+    context->list = list;
+    context->result = acc;
+    return reverse_continue(p, context);
+}
+
+static BIF_RETTYPE lists_reverse_trap(BIF_ALIST_1)
+{
+    ErtsReverseContext *context;
+    int (*dtor)(Binary*);
+    Binary *magic_bin;
+    int res;
+
+    ASSERT(is_internal_magic_ref(BIF_ARG_1));
+    magic_bin = erts_magic_ref2bin(BIF_ARG_1);
+    dtor = ERTS_MAGIC_BIN_DESTRUCTOR(magic_bin);
+
+    if (dtor != reverse_ctx_bin_dtor) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
+
+    ASSERT(BIF_P->flags & F_DISABLE_GC);
+    context = ERTS_MAGIC_BIN_DATA(magic_bin);
+    res = reverse_continue(BIF_P, context);
+    if (res == 0) {
+        /* More work to do. */
+        BIF_TRAP1(&lists_reverse_trap_export, BIF_P, BIF_ARG_1);
+    }
+
+    erts_set_gc_state(BIF_P, 1);
+
+    if (res < 0) {
+        ERTS_BIF_ERROR_TRAPPED2(BIF_P, BADARG,
+                                bif_export[BIF_lists_reverse_2],
+                                context->list_original,
+                                context->acc_original);
+    } else {
+        BIF_RET(context->result);
+    }
 }
 
 BIF_RETTYPE lists_reverse_2(BIF_ALIST_2)
 {
-    /* Handle legal and illegal non-lists quickly. */
     if (is_nil(BIF_ARG_1)) {
         BIF_RET(BIF_ARG_2);
     } else if (is_not_list(BIF_ARG_1)) {
         BIF_ERROR(BIF_P, BADARG);
-    }
+    } else {
+        ErtsReverseContext context;
+        int res;
 
-    /* We build the reversal on the unused part of the heap if possible to save
-     * us the trouble of having to figure out the list size. We fall back to
-     * lists_reverse_alloc when we run out of space. */
-    if (HeapWordsLeft(BIF_P) > 8) {
-        return lists_reverse_onheap(BIF_P, BIF_ARG_1, BIF_ARG_2);
-    }
+        /* Start with the context on the stack, hoping that we won't
+         * have to trap. */
+        res = reverse_start(BIF_P, BIF_ARG_1, BIF_ARG_2, &context);
+        if (res == 0) {
+            Eterm state_mref;
 
-    return lists_reverse_alloc(BIF_P, BIF_ARG_1, BIF_ARG_2);
+            /* Allocate the magic ref before trapping for the
+             * first time. */
+            state_mref = reverse_create_trap_state(BIF_P, &context);
+            erts_set_gc_state(BIF_P, 0);
+            BIF_TRAP1(&lists_reverse_trap_export, BIF_P, state_mref);
+        } else if (res < 0) {
+            /* Error. */
+            BIF_ERROR(BIF_P, BADARG);
+        } else {
+            /* Done. */
+            BIF_RET(context.result);
+        }
+    }
 }
 
 BIF_RETTYPE

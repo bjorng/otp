@@ -551,6 +551,7 @@ atom restart
 atom return_from
 atom return_to
 atom return_trace
+atom reverse_trap
 atom run_queue
 atom run_queue_lengths
 atom run_queue_lengths_all
