@@ -1208,20 +1208,17 @@ map_pair_pattern(#c_map_pair{op=#c_literal{val=exact},key=K0,val=V0}=Pair,{Isub,
     {V,Osub} = pattern(V0,Isub,Osub0),
     {Pair#c_map_pair{key=K,val=V},{Isub,Osub}}.
 
-bin_pattern_list(Ps0, Isub, Osub0) ->
-    {Ps,{_,Osub}} = mapfoldl(fun bin_pattern/2, {Isub,Osub0}, Ps0),
-    {Ps,Osub}.
+bin_pattern_list(Ps, Isub, Osub0) ->
+    mapfoldl(fun(P, Osub) ->
+                     bin_pattern(P, Isub, Osub)
+             end, Osub0, Ps).
 
-bin_pattern(#c_bitstr{val=E0,size=Size0}=Pat0, {Isub0,Osub0}) ->
-    Size1 = expr(Size0, Isub0),
-    {E1,Osub} = pattern(E0, Isub0, Osub0),
-    Isub = case E0 of
-	       #c_var{} -> sub_set_var(E0, E1, Isub0);
-	       _ -> Isub0
-	   end,
+bin_pattern(#c_bitstr{val=E0,size=Size0}=Pat0, Isub, Osub0) ->
+    Size1 = expr(Size0, Isub),
+    {E1,Osub} = pattern(E0, Isub, Osub0),
     Pat = Pat0#c_bitstr{val=E1,size=Size1},
     bin_pat_warn(Pat),
-    {Pat,{Isub,Osub}}.
+    {Pat,Osub}.
 
 pattern_list(Ps, Sub) -> pattern_list(Ps, Sub, Sub).
 
