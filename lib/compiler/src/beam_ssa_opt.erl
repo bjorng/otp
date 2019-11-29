@@ -1474,7 +1474,7 @@ do_opt_try([{L,Blk}|Bs]=Bs0, Ws0) ->
             end
     end;
 do_opt_try([], Ws) ->
-    0 = map_size(Ws),                           %Assertion.
+    0 = cerl_sets:size(Ws),                           %Assertion.
     [].
 
 is_safe_without_try([#b_set{op=kill_try_tag}|Is]) ->
