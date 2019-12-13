@@ -30,7 +30,7 @@
 -export([is_pattern_expr/1,is_guard_test/1,is_guard_test/2,is_guard_test/3]).
 -export([is_guard_expr/1]).
 -export([bool_option/4,value_option/3,value_option/7]).
-
+-export([topsort/1]).                           %Used from v3_core, erl_eval.
 -import(lists, [member/2,map/2,foldl/3,foldr/3,mapfoldl/3,all/2,reverse/1]).
 
 %% bool_option(OnOpt, OffOpt, Default, Options) -> boolean().
@@ -4117,3 +4117,79 @@ maps_prepend(Key, Value, Map) ->
         error ->
             maps:put(Key, [Value], Map)
     end.
+
+%% topsort([{Before,After}]) ->
+%%       {ok,TopSorted} | {cycle,TopSorted,CyclePairs}
+%%  Do a topological sort of the list of dependencies. The same
+%%  input list is guaranteed to produce the same output list every
+%%  time.
+
+topsort(Deps) ->
+    Map = topsort_init(Deps, 0, #{}),
+    NoPredecessors0 = [{Order,V} || {V,{0,Order,_}} <- maps:to_list(Map)],
+    NoPredecessors = gb_sets:from_list(NoPredecessors0),
+    topsort(NoPredecessors, Map, []).
+
+topsort_init([{Item,Item}|Deps], Order, Map) ->
+    %% This item should be included in the output, even if it depends
+    %% on nothing else and nothing else depends on it.
+    case Map of
+        #{Item := {_,_,_}} ->
+            topsort_init(Deps, Order + 1, Map);
+        #{} ->
+            topsort_init(Deps, Order + 1, Map#{Item => {0,Order,[]}})
+    end;
+topsort_init([{BefV,AftV}|Deps], Order, Map0) ->
+    %% Update the list of successors for BefV.
+    Map1 = case Map0 of
+               #{BefV := {N,_,Successors}} ->
+                   Map0#{BefV := {N,Order,[AftV|Successors]}};
+               #{} ->
+                   Map0#{BefV => {0,Order,[AftV]}}
+           end,
+    %% Update the number of predecessors for AftV.
+    Map = case Map1 of
+              #{AftV := {Num,Ord,Succ}} ->
+                  Map1#{AftV := {Num+1,Ord,Succ}};
+              #{} ->
+                  Map1#{AftV => {1,Order,[]}}
+          end,
+    topsort_init(Deps, Order + 1, Map);
+topsort_init([], _Order, Map) -> Map.
+
+topsort(NoPreds0, Map0, Acc) ->
+    case gb_sets:is_empty(NoPreds0) of
+        true ->
+            TopSorted = reverse(Acc),
+            case maps:to_list(Map0) of
+                [] ->
+                    {ok,TopSorted};
+                [_|_]=InCycles ->
+                    Pairs = cycle_to_pairs(InCycles, []),
+                    {cycle,TopSorted,Pairs}
+            end;
+        false ->
+            {{_Order,V},NoPreds1} = gb_sets:take_smallest(NoPreds0),
+            {0,_,Successors} = map_get(V, Map0),
+            {Map1,NoPreds} = topsort_dec_succ(Successors, Map0, NoPreds1),
+            Map = maps:remove(V, Map1),
+            topsort(NoPreds, Map, [V|Acc])
+    end.
+
+cycle_to_pairs([{V,{_,_,Successors}}|T], Acc0) ->
+    Acc = foldl(fun(V1, A) -> [{V,V1}|A] end, Acc0, Successors),
+    cycle_to_pairs(T, Acc);
+cycle_to_pairs([], Acc) -> Acc.
+
+topsort_dec_succ([V|Vs], Map0, NoPreds) ->
+    {N0,Order,Successors} = map_get(V, Map0),
+    N = N0 - 1,
+    Map = Map0#{V := {N,Order,Successors}},
+    case N0 - 1 of
+        0 ->
+            topsort_dec_succ(Vs, Map, gb_sets:insert({Order,V}, NoPreds));
+        N ->
+            topsort_dec_succ(Vs, Map, NoPreds)
+    end;
+topsort_dec_succ([], Map, NoPreds) ->
+    {Map,NoPreds}.
