@@ -19,15 +19,16 @@
 %%
 -module(match_SUITE).
 
--export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1, 
+-export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
 	 pmatch/1,mixed/1,aliases/1,non_matching_aliases/1,
 	 match_in_call/1,untuplify/1,shortcut_boolean/1,letify_guard/1,
 	 selectify/1,deselectify/1,underscore/1,match_map/1,map_vars_used/1,
 	 coverage/1,grab_bag/1,literal_binary/1,
-         unary_op/1,eq_types/1,match_after_return/1,match_right_tuple/1,
-         tuple_size_in_try/1,match_boolean_list/1]).
-	 
+	 unary_op/1,eq_types/1,match_after_return/1,match_right_tuple/1,
+	 tuple_size_in_try/1,match_boolean_list/1,
+	 bind_in_same_scope/1]).
+
 -include_lib("common_test/include/ct.hrl").
 
 suite() -> [{ct_hooks,[ts_install_cth]}].
@@ -43,7 +44,8 @@ groups() ->
        underscore,match_map,map_vars_used,coverage,
        grab_bag,literal_binary,unary_op,eq_types,
        match_after_return,match_right_tuple,
-       tuple_size_in_try,match_boolean_list]}].
+       tuple_size_in_try,match_boolean_list,
+       bind_in_same_scope]}].
 
 
 init_per_suite(Config) ->
@@ -951,5 +953,83 @@ match_boolean_list(Config) when is_list(Config) ->
              [true | _] -> error;
              [false | _] -> ok
          end.
+
+-record(rr, {bin,map}).
+
+bind_in_same_scope(_Config) ->
+    777 = record_match(#rr{bin= <<777:16>>, map=#{sz=>16}}),
+    16#beefbeef = convoluted(make_ref(),
+                             #{node() => node(), 42 => universal_answer},
+                             [{node(), 4}, 1, 2, 3, 4],
+                             <<16#beefbeef:(4*8+4),42>>),
+    1 = my_map_get(x, #{x=>1}),
+    10 = bs_sum(<<1:7,3:7,6:7>>, 7),
+    {<<"ABC">>,3} = (fun_bs_match())(1, 2, <<"ABCXYZ">>),
+    42 = match_map_bs(#{key1 => {bin,<<42:7>>}, key2 => 7}, {key1,key2}),
+    7956 = chained(#{key1 => <<7956:32>>, key2 => {bin,key1},
+                     key3 => [key2], key4 => #{key => key3}}, key4),
+    value = repeated_vars(#{a => value}, #{b => value}, [a,b]),
+    value = repeated_vars(#{a => value, b => value}, [a,b]),
+    ok.
+
+record_match(#rr{bin = <<Int:Size>>, map = #{sz:=Size}}) ->
+    Int.
+
+convoluted(Ref,
+           #{ node(Ref) := NodeId, Loop := universal_answer},
+           [{NodeId, Size} | T],
+           <<Int:(Size*8+length(T)),Loop>>) when is_reference(Ref) ->
+    Int.
+
+my_map_get(Key, #{Key := Value}) -> Value.
+
+bs_sum(<<Int:Size,Rest/bitstring>>, Size) -> Int + bs_sum(Rest, Size);
+bs_sum(<<>>, _Size) -> 0.
+
+fun_bs_match() ->
+    fun(X, Y, <<Bin:(X+Y)/binary,_/binary>>) ->
+            {Bin,X+Y}
+    end.
+
+match_map_bs(Arg1, Arg2) ->
+    case {Arg1,Arg2} of
+        {#{K1 := {bin,<<Int:Sz>>}, K2 := Sz}, {K1,K2}} ->
+            Int = match_map_bs1(Arg1, Arg2),
+            self() ! {Arg1,Arg2},
+            Int = match_map_bs2()
+    end.
+
+match_map_bs1(#{K1 := {bin,<<Int:Sz>>}, K2 := Sz}, {K1,K2}) ->
+    Int.
+
+match_map_bs2() ->
+    receive
+        {#{K1 := {bin,<<Int:Sz>>}, K2 := Sz}, {K1,K2}} ->
+            Int
+    end.
+
+chained(#{K1 := <<Result:32>>, K2 := {bin,K1}, K3 := [K2], K4 := #{key := K3}}, K4) ->
+    Result.
+
+repeated_vars(#{K1 := V}, #{K2 := V}, [K1,K2]) -> V.
+
+repeated_vars(#{K1 := V, K2 := V}, [K1,K2]) -> V.
+
+%% repeated_vars(#{K := #{K := K}}, K) -> K.
+
+%% match_map_bs(#{K1 := {bin,<<Int:Sz>>}, K2 := <<Sz:8>>}, {K1,K2}) -> Int.
+
+%% bar(#{B := X}, {<<B:Sz>>,Sz}) ->
+%%     {Sz,B,X}.
+
+%% deeper_bar(#{B := X}, {<<B:Sz>>,{tagged,Sz}}) ->
+%%     {Sz,B,X}.
+
+%% even_deeper_bar([#{B := X}, {<<B:Sz>>,{tagged,Sz}}]) ->
+%%     {Sz,B,X}.
+
+%% bazzier(#{{key,K1} := <<Result:32>>, size_key := Sz, {key,K2} := {bin,<<K1:Sz>>}}, K2) ->
+%%     Result.
+
 
 id(I) -> I.

@@ -3068,13 +3068,103 @@ split_fc_clause(Args, Anno0, #core{gcount=Count}=St0) ->
     {#c_clause{anno=[dialyzer_ignore|Anno],pats=Vars,
                guard=#c_literal{val=true},body=Apply},St1}.
 
+var_deps(Ps) ->
+    var_deps_arg_list(Ps, 0, []).
+
+var_deps_arg_list([P|Ps], N,Acc0) ->
+    Arg = {arg,N},
+    Acc = var_deps(P, Arg, [{Arg,Arg}|Acc0]),
+    var_deps_arg_list(Ps, N+1, Acc);
+var_deps_arg_list([], _, Acc) ->
+    reverse(Acc).
+
+var_deps_list([P|Ps], In, Acc0) ->
+    Acc = var_deps(P, In, Acc0),
+    var_deps_list(Ps, In, Acc);
+var_deps_list([], _In, Acc) -> Acc.
+
+var_deps(#c_literal{}, _In, Acc) -> Acc;
+var_deps(#c_var{name=V}, In, Acc) -> [{In,V}|Acc];
+var_deps(#c_binary{segments=Segments}, In, Acc) ->
+    var_deps_bin(Segments, In, Acc);
+var_deps(#c_map{es=Es}, In, Acc) ->
+    Deps0 = var_deps_list(Es, In, []),
+    Used = [V || {V,_} <- Deps0, is_atom(V) orelse is_integer(V)],
+    Def = [V || {_,V} <- Deps0, is_atom(V) orelse is_integer(V)],
+    Cycle = ordsets:intersection(ordsets:from_list(Used),
+                                 ordsets:from_list(Def)),
+    Deps = [P || {U,D}=P <- Deps0, not member(U, Cycle), not member(D, Cycle)],
+    Deps ++ Acc;
+var_deps(#c_map_pair{key=Key,val=Val}, In, Acc) ->
+    var_deps_map_pair(Key, Val, In, Acc);
+var_deps(#c_alias{var=#c_var{name=V},pat=Pat}, In, Acc) ->
+    var_deps(Pat, In, [{In,V}|Acc]);
+var_deps(Data, In, Acc) ->
+    true = cerl:is_data(Data),                  %Assertion.
+    Deps0 = var_deps_list(cerl:data_es(Data), In, []),
+    Used = [V || {V,_} <- Deps0, is_atom(V) orelse is_integer(V)],
+    Def = [V || {_,V} <- Deps0, is_atom(V) orelse is_integer(V)],
+    Cycle = ordsets:intersection(ordsets:from_list(Used),
+                                 ordsets:from_list(Def)),
+    Deps = [P || {U,D}=P <- Deps0, not member(U, Cycle), not member(D, Cycle)],
+    Deps ++ Acc.
+
+var_deps_bin([#c_bitstr{val=Val,size=Size}|Es], In, Acc0) ->
+    Acc1 = var_deps(Val, In, Acc0),
+    Acc = var_deps_bin_size(expr_vars(Size), In, Acc1),
+    var_deps_bin(Es, In, Acc);
+var_deps_bin([], _, Acc) -> Acc.
+
+var_deps_bin_size([V|Vs], In, Acc) ->
+    case member({In,V}, Acc) of
+        true ->
+            var_deps_bin_size(Vs, In, Acc);
+        false ->
+            var_deps_bin_size(Vs, In, [{V,In}|Acc])
+    end;
+var_deps_bin_size([], _In, Acc) -> Acc.
+
+var_deps_map_pair(Key, Val, In, Acc0) ->
+    Acc = [{V,In} || V <- expr_vars(Key)] ++ Acc0,
+    var_deps(Val, In, Acc).
+
+expr_vars(Expr) -> cerl_trees:free_variables(Expr).
+
 split_clause(#c_clause{pats=Ps0}, St0) ->
-    case split_pats(Ps0, St0) of
-        none ->
-            none;
-        {Ps,Case,St} ->
-            {Ps,Case,St}
+    Deps = var_deps(Ps0),
+    case must_reorder(Deps) of
+        false ->
+            case split_pats(Ps0, St0) of
+                none ->
+                    none;
+                {Ps,Case,St} ->
+                    {Ps,Case,St}
+            end;
+        true ->
+            {ok,Top0} = erl_lint:topsort(Deps),
+            Top = [N || {arg,N} <- Top0],
+            reorder_args(Top, Ps0, St0)
     end.
+
+must_reorder(Deps) ->
+    case [V || {V,_} <- Deps, is_atom(V) orelse is_integer(V)] of
+        [] ->
+            false;
+        [_|_]=Used ->
+            Def = [V || {_,V} <- Deps, is_atom(V) orelse is_integer(V)],
+            not ordsets:is_disjoint(ordsets:from_list(Used),
+                                    ordsets:from_list(Def))
+    end.
+
+reorder_args(ArgOrder, Ps, St0) ->
+    {NewVars,St1} = new_vars(length(ArgOrder), St0),
+    Zipped = lists:zip(NewVars, Ps),
+    L = [lists:nth(Order + 1, Zipped) || Order <- ArgOrder],
+    {NewVars,split_args(L),St1}.
+
+split_args([{V,Pat}|T]) ->
+    {split,[V],Pat,split_args(T)};
+split_args([]) -> nil.
 
 split_pats([P0|Ps0], St0) ->
     case split_pats(Ps0, St0) of
@@ -3100,8 +3190,14 @@ split_pat(#c_binary{segments=Segs0}=Bin, St0) ->
             BefBin = Bin#c_binary{segments=Bef},
             {BefBin,{split,[TailVar],Wrap,Bin#c_binary{segments=Aft},nil},St}
     end;
-split_pat(#c_map{es=Es}=Map, St) ->
-    split_map_pat(Es, Map, St, []);
+split_pat(#c_map{es=Es0}=Map, St) ->
+    Deps = var_deps(Es0),
+    case must_reorder(Deps) of
+        false ->
+            split_map_pat(Es0, Map, St, []);
+        true ->
+            reorder_map_pairs(Deps, Map, St)
+    end;
 split_pat(#c_var{}, _) ->
     none;
 split_pat(#c_alias{pat=Pat}=Alias0, St0) ->
@@ -3113,10 +3209,32 @@ split_pat(#c_alias{pat=Pat}=Alias0, St0) ->
             Alias = Alias0#c_alias{pat=Var},
             {Alias,{split,[Var],Ps,Split},St}
     end;
-split_pat(Data, St0) ->
-    Type = cerl:data_type(Data),
-    Es = cerl:data_es(Data),
-    split_data(Es, Type, St0, []).
+split_pat(Data0, St0) ->
+    Type = cerl:data_type(Data0),
+    Es0 = cerl:data_es(Data0),
+    Deps = var_deps(Es0),
+    case must_reorder(Deps) of
+        true ->
+            {ok,Top0} = erl_lint:topsort(Deps),
+            Top = [N || {arg,N} <- Top0],
+            {Es,Split,St} = reorder_args(Top, Es0, St0),
+            Data = cerl:make_data(Type, Es),
+            {Data,Split,St};
+        false ->
+            split_data(Es0, Type, St0, [])
+    end.
+
+reorder_map_pairs(Deps, #c_map{es=MapPairs}=Map, St0) ->
+    {MapVar,St} = new_var(St0),
+    {ok,Top0} = erl_lint:topsort(Deps),
+    Top = [N || {arg,N} <- Top0],
+    L = [lists:nth(Order + 1, MapPairs) || Order <- Top],
+    Split = reorder_map_pairs_1(L, MapVar, Map),
+    {MapVar,Split,St}.
+
+reorder_map_pairs_1([P|Ps], MapVar, Map) ->
+    {split,[MapVar],Map#c_map{es=[P]},reorder_map_pairs_1(Ps, MapVar, Map)};
+reorder_map_pairs_1([], _MapVar, _Map) -> nil.
 
 split_map_pat([#c_map_pair{key=Key,val=Val}=E0|Es], Map0, St0, Acc) ->
     case eval_map_key(Key, E0, Es, Map0, St0) of

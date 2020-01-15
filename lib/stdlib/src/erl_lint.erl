@@ -31,7 +31,8 @@
 -export([is_guard_expr/1]).
 -export([bool_option/4,value_option/3,value_option/7]).
 -export([topsort/1]).                           %Used from v3_core, erl_eval.
--import(lists, [member/2,map/2,foldl/3,foldr/3,mapfoldl/3,all/2,reverse/1]).
+-import(lists, [all/2,foldl/3,foldr/3,keymember/3,map/2,
+                mapfoldl/3,member/2,reverse/1]).
 
 %% bool_option(OnOpt, OffOpt, Default, Options) -> boolean().
 %% value_option(Flag, Default, Options) -> Value.
@@ -267,6 +268,10 @@ format_error({illegal_guard_local_call, {F,A}}) ->
     io_lib:format("call to local/imported function ~tw/~w is illegal in guard",
 		  [F,A]);
 format_error(illegal_guard_expr) -> "illegal guard expression";
+format_error({in_cycle,Vars}) ->
+    VarList = [io_lib:format(" ~s", [V]) || V <- Vars],
+    io_lib:format("the following variables are mutually dependent:~s",
+                  [VarList]);
 %% --- maps ---
 format_error(illegal_map_construction) ->
     "only association operators '=>' are allowed in map construction";
@@ -1508,11 +1513,104 @@ clause({clause,_Line,H,G,B}, St0) ->
 head(Ps, Vt, St0) ->
     head(Ps, Vt, Vt, St0).    % Old = Vt
 
-head([P|Ps], Vt, Old, St0) ->
+head(Ps, Vt0, Old, St0) ->
+    Deps = var_deps(Ps, St0),
+    case topsort(Deps) of
+        {cycle,_,InCycle} ->
+            {Vt,Bvt,_} = do_head(Ps, Vt0, Old, St0),
+            InCycleVars = [V || {V,_} <- InCycle, is_atom(V)],
+            Line = element(2, hd(Ps)),
+            St1 = add_error(Line, {in_cycle,InCycleVars}, St0),
+            {Vt,Bvt,St1};
+        {ok,_} ->
+            Vt1 = ordsets:from_list([{Bef,{bound,unused,[]}} ||
+                                        {Bef,_} <- Deps,
+                                        not is_integer(Bef)]),
+            Vt2 = vtupdate(Vt1, Vt0),
+            {Vt,Bvt,St1} = do_head(Ps, Vt2, Old, St0),
+            {Vt,Bvt,St1}
+    end.
+
+do_head([P|Ps], Vt, Old, St0) ->
     {Pvt,Bvt1,St1} = pattern(P, Vt, Old, [], St0),
-    {Psvt,Bvt2,St2} = head(Ps, Vt, Old, St1),
+    {Psvt,Bvt2,St2} = do_head(Ps, Vt, Old, St1),
     {vtmerge_pat(Pvt, Psvt),vtmerge_pat(Bvt1,Bvt2),St2};
-head([], _Vt, _Env, St) -> {[],[],St}.
+do_head([], _Vt, _Env, St) -> {[],[],St}.
+
+var_deps(Ps, St) ->
+    var_deps_list(Ps, -1, St, []).
+
+var_deps_list([P|Ps], In, St, Acc0) ->
+    Acc = var_deps(P, In, St, Acc0),
+    var_deps_list(Ps, In, St, Acc);
+var_deps_list([], _, _, Acc) -> Acc.
+
+var_deps({atom,_,_}, _In, _St, Acc) -> Acc;
+var_deps({char,_,_}, _In, _St, Acc) -> Acc;
+var_deps({float,_,_}, _In, _St, Acc) -> Acc;
+var_deps({integer,_,_}, _In, _St, Acc) -> Acc;
+var_deps({nil,_}, _In, _St, Acc) -> Acc;
+var_deps({string,_,_}, _In, _St, Acc) -> Acc;
+var_deps({var,_,'_'}, _In, _St, Acc) -> Acc;
+var_deps({var,_,V}, In, _St, Acc) ->
+    [{In,V}|Acc];
+var_deps({bin,_,Segments}, In, St, Acc) ->
+    var_deps_bin(Segments, In, St, []) ++  Acc;
+var_deps({cons,_,H,T}, In, St, Acc0) ->
+    Acc = var_deps(H, In, St, Acc0),
+    var_deps(T, In, St, Acc);
+var_deps({map,_,Ps}, In, St, Acc) ->
+    var_deps_list(Ps, In, St, Acc);
+var_deps({map_field_assoc,_,Key,Val}, _In, St, Acc) ->
+    var_deps_map_field(Key, Val, St, Acc);
+var_deps({map_field_exact,_,Key,Val}, _In, St, Acc) ->
+    var_deps_map_field(Key, Val, St, Acc);
+var_deps({match,_,Left,Right}, In, St, Acc0) ->
+    Acc = var_deps(Left, In, St, Acc0),
+    var_deps(Right, In, St, Acc);
+var_deps({op,_,_Op,Operand}, In, St, Acc) ->
+    var_deps(Operand, In, St, Acc);
+var_deps({op,_,_Op,Left,Right}, In, St, Acc0) ->
+    Acc = var_deps(Left, In, St, Acc0),
+    var_deps(Right, In, St, Acc);
+var_deps({record,_,_Name,Pfs}, In, St, Acc) ->
+    var_deps_list(Pfs, In, St, Acc);
+var_deps({record_field,_,_Name,Pat}, In, St, Acc) ->
+    var_deps(Pat, In, St, Acc);
+var_deps({record_index,_,_,_}, _In, _St, Acc) ->
+    Acc;
+var_deps({tuple,_,Ps}, In, St, Acc) ->
+    var_deps_list(Ps, In, St, Acc).
+
+var_deps_map_field(Key, Val, St, Acc0) ->
+    MF = length(Acc0),
+    Acc = [{V,MF} || V <- expr_vars(Key, St)] ++ Acc0,
+    var_deps(Val, MF, St, Acc).
+
+var_deps_bin([{bin_element,_,Val,Size,_}|Es], In, St, Acc0) ->
+    BE = length(Acc0),
+    Acc1 = var_deps(Val, BE, St, [{In,BE}|Acc0]),
+    case Size of
+        default ->
+            Acc1;
+        _ ->
+            Acc = var_deps_bin_size(expr_vars(Size, St), BE, Acc1),
+            var_deps_bin(Es, BE, St, Acc)
+    end;
+var_deps_bin([], _, _, Acc) -> Acc.
+
+var_deps_bin_size([V|Vs], In, Acc) ->
+    case keymember(V, 2, Acc) of
+        true ->
+            var_deps_bin_size(Vs, In, Acc);
+        false ->
+            var_deps_bin_size(Vs, In, [{V,In}|Acc])
+    end;
+var_deps_bin_size([], _In, Acc) -> Acc.
+
+expr_vars(E, St) ->
+    {Es,_} = expr(E, [], St),
+    [V || {V,_} <- Es].
 
 %% pattern(Pattern, VarTable, Old, BinVarTable, State) ->
 %%                  {UpdVarTable,BinVarTable,State}.
