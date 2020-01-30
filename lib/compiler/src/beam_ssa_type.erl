@@ -1610,7 +1610,7 @@ bs_match_type(integer, Args) ->
             NumBits = Size * Unit,
             case member(unsigned, Flags) of
                 true ->
-                    beam_types:make_integer(0, (1 bsl NumBits)-1);
+                    #t_integer{elements={0,(1 bsl NumBits)-1},no_cycle=true}; 
                 false ->
                     %% Signed integer. Don't bother.
                     #t_integer{}

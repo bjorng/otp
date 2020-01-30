@@ -599,11 +599,15 @@ limit_depth(#t_fun{}=T, Depth) ->
     limit_depth_fun(T, Depth);
 limit_depth(#t_map{}=T, Depth) ->
     limit_depth_map(T, Depth);
-limit_depth(#t_union{list=List0,tuple_set=TupleSet0,other=Other0}=U, Depth) ->
+limit_depth(#t_integer{}=T, _Depth) ->
+    T#t_integer{no_cycle=false};
+limit_depth(#t_union{list=List0,number=Number0,
+                     tuple_set=TupleSet0,other=Other0}=U, Depth) ->
+    Number = limit_depth(Number0, Depth),
     TupleSet = limit_depth_tuple(TupleSet0, Depth),
     List = limit_depth_list(List0, Depth),
     Other = limit_depth(Other0, Depth),
-    shrink_union(U#t_union{list=List,tuple_set=TupleSet,other=Other});
+    shrink_union(U#t_union{list=List,number=Number,tuple_set=TupleSet,other=Other});
 limit_depth(Type, _Depth) ->
     Type.
 
@@ -753,17 +757,20 @@ glb(#t_fun{arity=any,type=TypeA}, #t_fun{type=TypeB}=T) ->
     T#t_fun{type=meet(TypeA, TypeB)};
 glb(#t_fun{type=TypeA}=T, #t_fun{arity=any,type=TypeB}) ->
     T#t_fun{type=meet(TypeA, TypeB)};
-glb(#t_integer{elements={_,_}}=T, #t_integer{elements=any}) ->
-    T;
-glb(#t_integer{elements=any}, #t_integer{elements={_,_}}=T) ->
-    T;
-glb(#t_integer{elements={MinA,MaxA}}, #t_integer{elements={MinB,MaxB}})
+glb(#t_integer{elements={_,_},no_cycle=C1}=T, 
+    #t_integer{elements=any,no_cycle=C2}) ->
+    T#t_integer{no_cycle=C1 or C2};
+glb(#t_integer{elements=any,no_cycle=C1},
+    #t_integer{elements={_,_},no_cycle=C2}=T) ->
+    T#t_integer{no_cycle=C1 or C2};
+glb(#t_integer{elements={MinA,MaxA},no_cycle=C1},
+    #t_integer{elements={MinB,MaxB},no_cycle=C2})
   when MinA >= MinB, MinA =< MaxB;
        MinB >= MinA, MinB =< MaxA ->
     true = MinA =< MaxA andalso MinB =< MaxB,   %Assertion.
-    #t_integer{elements={max(MinA, MinB),min(MaxA, MaxB)}};
+    #t_integer{elements={max(MinA, MinB),min(MaxA, MaxB)},no_cycle=C1 or C2};
 glb(#t_integer{}=T, number) ->
-    T;
+    T#t_integer{no_cycle=false};
 glb(#t_float{}=T, number) ->
     T;
 glb(#t_list{type=TypeA,terminator=TermA},
@@ -782,7 +789,7 @@ glb(#t_list{}, nil) ->
 glb(nil, #t_list{}) ->
     nil;
 glb(number, #t_integer{}=T) ->
-    T;
+    T#t_integer{no_cycle=false};
 glb(number, #t_float{}=T) ->
     T;
 glb(#t_map{super_key=SKeyA,super_value=SValueA},
@@ -909,9 +916,9 @@ lub(#t_fun{arity=Same,type=TypeA}, #t_fun{arity=Same,type=TypeB}) ->
     #t_fun{arity=Same,type=join(TypeA, TypeB)};
 lub(#t_fun{type=TypeA}, #t_fun{type=TypeB}) ->
     #t_fun{type=join(TypeA, TypeB)};
-lub(#t_integer{elements={MinA,MaxA}},
-    #t_integer{elements={MinB,MaxB}}) ->
-    #t_integer{elements={min(MinA,MinB),max(MaxA,MaxB)}};
+lub(#t_integer{elements={MinA,MaxA},no_cycle=C1},
+    #t_integer{elements={MinB,MaxB},no_cycle=C2}) ->
+    #t_integer{elements={min(MinA,MinB),max(MaxA,MaxB)},no_cycle=C1 and C2};
 lub(#t_integer{}, #t_integer{}) ->
     #t_integer{};
 lub(#t_integer{}, #t_float{}) ->

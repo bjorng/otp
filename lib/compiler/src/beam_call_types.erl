@@ -203,6 +203,16 @@ types(erlang, 'div', [_,_]) ->
 types(erlang, 'rem', [_,_]) ->
     sub_unsafe(#t_integer{}, [#t_integer{}, #t_integer{}]);
 
+types(erlang, '+', [#t_integer{elements={Min,Max},no_cycle=true}=T,
+                    #t_integer{elements={C,C}}]) ->
+    Type = T#t_integer{elements={Min+C,Max+C}},
+    sub_unsafe(Type, [number, number]);
+
+types(erlang, '-', [#t_integer{elements={Min,Max},no_cycle=true}=T,
+                    #t_integer{elements={C,C}}]) ->
+    Type = T#t_integer{elements={Min-C,Max-C}},
+    sub_unsafe(Type, [number, number]);
+
 %% Mixed-type arithmetic; '+'/2 and friends are handled in the catch-all
 %% clause for the 'erlang' module.
 types(erlang, 'abs', [_]=Args) ->
@@ -725,11 +735,11 @@ erlang_band_type_1(LHS, Int) ->
             Min = Intersection band Int,
             Max = min(Max0, Union band Int),
 
-            #t_integer{elements={Min,Max}};
+            #t_integer{elements={Min,Max},no_cycle=true};
         _ when Int >= 0 ->
             %% The range is either unknown or too wide, conservatively assume
             %% that the new range is 0 .. Int.
-            #t_integer{elements={0,Int}};
+            #t_integer{elements={0,Int},no_cycle=true};
         _ when Int < 0 ->
             %% We can't infer boundaries when the range is unknown and the
             %% other operand is a negative number, as the latter sign-extends
