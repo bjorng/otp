@@ -59,7 +59,8 @@
 -record(t_float, {elements=any :: 'any' | {float(),float()}}).
 -record(t_fun, {arity=any :: arity() | 'any',
                 type=any :: type() }).
--record(t_integer, {elements=any :: 'any' | {integer(),integer()}}).
+-record(t_integer, {elements=any :: 'any' | {integer(),integer()},
+                    no_cycle=false :: boolean()}).
 
 %% `super_key` and `super_value` are the join of all key and value types.
 %%
