@@ -144,17 +144,9 @@ int ei_big_comp(erlang_big *x, erlang_big *y)
  * Handling of floating point exceptions.
  */
 
-#ifdef NO_FPE_SIGNALS
-#  define ERTS_FP_CHECK_INIT() do {} while (0)
-#  define ERTS_FP_ERROR(f, Action) if (!isfinite(f)) { Action; } else {}
-#  define ERTS_SAVE_FP_EXCEPTION()
-#  define ERTS_RESTORE_FP_EXCEPTION()
-#else
-/* extern volatile int erl_fp_exception; */
 static volatile int erl_fp_exception;
 #  define ERTS_FP_CHECK_INIT() do {erl_fp_exception = 0;} while (0)
 #  if defined(__i386__) && defined(__GNUC__)
-/* extern void erts_restore_x87(void); */
 
 static void unmask_fpe(void)
 {
@@ -185,7 +177,6 @@ static int erts_check_x87(double f)
 #  define ERTS_SAVE_FP_EXCEPTION() int old_erl_fp_exception = erl_fp_exception
 #  define ERTS_RESTORE_FP_EXCEPTION() \
               do {erl_fp_exception = old_erl_fp_exception;} while (0)
-#endif
 
 
 #ifdef INLINED_FP_CONVERSION

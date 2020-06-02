@@ -98,10 +98,6 @@
 #  define ERTS_NOINLINE
 #endif
 
-#if defined(VALGRIND) && !defined(NO_FPE_SIGNALS)
-#  define NO_FPE_SIGNALS
-#endif
-
 #define ERTS_I64_LITERAL(X) X##LL
 
 #define ErtsInArea(ptr,start,nbytes) \

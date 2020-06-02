@@ -46,9 +46,7 @@ struct hipe_process_state {
     void (*nra)(void);		/* Native code return address. */
 #endif
     unsigned int narity;	/* Arity of BIF call, for stack walks. */
-#ifdef NO_FPE_SIGNALS
-    double float_result;        /* to be checked for inf/NaN by hipe_emulate_fpe */ 
-#endif
+    double float_result;        /* to be checked for inf/NaN by hipe_emulate_fpe */
 #if defined(ERTS_ENABLE_LOCK_CHECK)
     void (*bif_callee)(void);   /* When calling BIF's via debug wrapper */
 #endif

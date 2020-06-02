@@ -4251,10 +4251,6 @@ dec_term_atom_common:
 	case NEW_FLOAT_EXT:
 	    {
 		FloatDef ff;
-#ifndef NO_FPE_SIGNALS
-		volatile unsigned long *fpexnp = erts_get_current_fp_exception();
-#endif
-
 #if defined(WORDS_BIGENDIAN) || defined(DOUBLE_MIDDLE_ENDIAN)
 		ff.fw[0] = get_int32(ep);
 		ep += 4;
@@ -4267,7 +4263,7 @@ dec_term_atom_common:
 		ep += 4;
 #endif		
 		__ERTS_FP_CHECK_INIT(fpexnp);
-		__ERTS_FP_ERROR_THOROUGH(fpexnp, ff.fd, goto error);
+		__ERTS_FP_ERROR(fpexnp, ff.fd, goto error);
 		*objp = make_float(hp);
 		PUT_DOUBLE(ff, hp);
 		hp += FLOAT_SIZE_OBJECT;

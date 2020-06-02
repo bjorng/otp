@@ -1648,9 +1648,6 @@ big_to_double(Wterm x, double* resp)
     ErtsDigit* s = BIG_V(xp) + xl;
     short xsgn = BIG_SIGN(xp);
     double dbase = ((double)(D_MASK)+1);
-#ifndef NO_FPE_SIGNALS 
-    volatile unsigned long *fpexnp = erts_get_current_fp_exception();
-#endif
     __ERTS_SAVE_FP_EXCEPTION(fpexnp);
 
     __ERTS_FP_CHECK_INIT(fpexnp);

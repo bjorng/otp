@@ -11933,7 +11933,7 @@ erl_create_process(Process* parent, /* Parent of process (default group leader).
     p->trace_msg_q = NULL;
     p->scheduler_data = NULL;
 
-#if !defined(NO_FPE_SIGNALS) || defined(HIPE)
+#if defined(HIPE)
     p->fp_exception = 0;
 #endif
 
@@ -12458,7 +12458,7 @@ void erts_init_empty_process(Process *p)
     erts_proc_unlock(p, ERTS_PROC_LOCKS_ALL);
     erts_init_runq_proc(p, ERTS_RUNQ_IX(0), 0);
 
-#if !defined(NO_FPE_SIGNALS) || defined(HIPE)
+#if defined(HIPE)
     p->fp_exception = 0;
 #endif
 

@@ -286,11 +286,9 @@ int _finite(double x);
 
 #define erts_isfinite _finite
 
-/*#define NO_FPE_SIGNALS*/
 #define erts_get_current_fp_exception() NULL
 #define __ERTS_FP_CHECK_INIT(fpexnp) do {} while (0)
 #define __ERTS_FP_ERROR(fpexnp, f, Action) if (!_finite(f)) { Action; } else {}
-#define __ERTS_FP_ERROR_THOROUGH(fpexnp, f, Action) __ERTS_FP_ERROR(fpexnp, f, Action)
 #define __ERTS_SAVE_FP_EXCEPTION(fpexnp)
 #define __ERTS_RESTORE_FP_EXCEPTION(fpexnp)
 
@@ -298,7 +296,6 @@ int _finite(double x);
 #define ERTS_FP_ERROR(p, f, A)		__ERTS_FP_ERROR(&(p)->fp_exception, f, A)
 #define ERTS_SAVE_FP_EXCEPTION(p)	__ERTS_SAVE_FP_EXCEPTION(&(p)->fp_exception)
 #define ERTS_RESTORE_FP_EXCEPTION(p)	__ERTS_RESTORE_FP_EXCEPTION(&(p)->fp_exception)
-#define ERTS_FP_ERROR_THOROUGH(p, f, A)	__ERTS_FP_ERROR_THOROUGH(&(p)->fp_exception, f, A)
 
 #define erts_sys_block_fpe() 0
 #define erts_sys_unblock_fpe(x) do{}while(0)

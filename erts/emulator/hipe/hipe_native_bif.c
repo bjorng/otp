@@ -178,11 +178,7 @@ void hipe_select_msg(Process *p)
 
 void hipe_fclearerror_error(Process *p)
 {
-#if !defined(NO_FPE_SIGNALS)
-    erts_fp_check_init_error(&p->fp_exception);
-#else
     erts_exit(ERTS_ABORT_EXIT, "Emulated FPE not cleared by HiPE");
-#endif
 }
 
 /* Saving a stacktrace from native mode. Right now, we only create a

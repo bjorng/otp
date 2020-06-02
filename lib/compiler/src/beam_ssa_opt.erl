@@ -1025,8 +1025,7 @@ cse_suitable(#b_set{}) -> false.
 %%%
 
 -record(fs,
-        {s=undefined :: 'undefined' | 'cleared',
-         regs=#{} :: #{beam_ssa:b_var():=beam_ssa:b_var()},
+        {regs=#{} :: #{beam_ssa:b_var():=beam_ssa:b_var()},
          vars=cerl_sets:new() :: cerl_sets:set(),
          fail=none :: 'none' | beam_ssa:label(),
          non_guards :: gb_sets:set(beam_ssa:label()),
@@ -1132,7 +1131,8 @@ float_conv([{L,#b_blk{is=Is0}=Blk0}|Bs0], Fail, Count0) ->
             end
     end.
 
-float_maybe_flush(Blk0, #fs{s=cleared,fail=Fail,bs=Blocks}=Fs0, Count0) ->
+float_maybe_flush(Blk0, #fs{regs=Regs,bs=Blocks}=Fs0, Count0)
+  when map_size(Regs) =/= 0 ->
     #b_blk{last=#b_br{bool=#b_var{},succ=Succ}=Br} = Blk0,
 
     %% If the success block starts with a floating point operation, we can
@@ -1145,20 +1145,10 @@ float_maybe_flush(Blk0, #fs{s=cleared,fail=Fail,bs=Blocks}=Fs0, Count0) ->
             %% No flush needed.
             {[],Blk0,Fs0,Count0};
         _ ->
-            %% Flush needed.
-            {Bool0,Count1} = new_reg('@ssa_bool', Count0),
-            Bool = #b_var{name=Bool0},
-
-            %% Allocate block numbers.
-            CheckL = Count1,              %For checkerror.
-            FlushL = Count1 + 1,          %For flushing of float regs.
-            Count = Count1 + 2,
-            Blk = Blk0#b_blk{last=Br#b_br{succ=CheckL}},
-
-            %% Build the block with the checkerror instruction.
-            CheckIs = [#b_set{op={float,checkerror},dst=Bool}],
-            CheckBr = #b_br{bool=Bool,succ=FlushL,fail=Fail},
-            CheckBlk = #b_blk{is=CheckIs,last=CheckBr},
+            %% Flush needed. Allocate block numbers.
+            FlushL = Count0 + 0,          %For flushing of float regs.
+            Count = Count0 + 1,
+            Blk = Blk0#b_blk{last=Br#b_br{succ=FlushL}},
 
             %% Build the block that flushes all registers.
             FlushIs = float_flush_regs(Fs0),
@@ -1166,8 +1156,8 @@ float_maybe_flush(Blk0, #fs{s=cleared,fail=Fail,bs=Blocks}=Fs0, Count0) ->
             FlushBlk = #b_blk{is=FlushIs,last=FlushBr},
 
             %% Update state and blocks.
-            Fs = Fs0#fs{s=undefined,regs=#{},fail=none},
-            FlushBs = [{CheckL,CheckBlk},{FlushL,FlushBlk}],
+            Fs = Fs0#fs{regs=#{},fail=none},
+            FlushBs = [{FlushL,FlushBlk}],
             {FlushBs,Blk,Fs,Count}
     end;
 float_maybe_flush(Blk, Fs, Count) ->
@@ -1192,28 +1182,20 @@ float_opt_is([#b_set{anno=Anno0}=I0|Is0], Fs0, Count0, Acc) ->
         #{} ->
             float_opt_is(Is0, Fs0#fs{regs=#{}}, Count0, [I0|Acc])
     end;
-float_opt_is([], Fs, _Count, _Acc) ->
-    #fs{s=undefined} = Fs,                      %Assertion.
+float_opt_is([], _Fs, _Count, _Acc) ->
     none.
 
 float_make_op(#b_set{op={bif,Op},dst=Dst,args=As0,anno=Anno}=I0,
-              Ts, #fs{s=S,regs=Rs0,vars=Vs0}=Fs, Count0) ->
+              Ts, #fs{regs=Rs0,vars=Vs0}=Fs, Count0) ->
     {As1,Rs1,Count1} = float_load(As0, Ts, Anno, Rs0, Count0, []),
     {As,Is0} = unzip(As1),
-    {Fr,Count2} = new_reg('@fr', Count1),
+    {Fr,Count} = new_reg('@fr', Count1),
     FrDst = #b_var{name=Fr},
     I = I0#b_set{op={float,Op},dst=FrDst,args=As},
     Vs = cerl_sets:add_element(Dst, Vs0),
     Rs = Rs1#{Dst=>FrDst},
     Is = append(Is0) ++ [I],
-    case S of
-        undefined ->
-            {Ignore,Count} = new_reg('@ssa_ignore', Count2),
-            C = #b_set{op={float,clearerror},dst=#b_var{name=Ignore}},
-            {[C|Is],Fs#fs{s=cleared,regs=Rs,vars=Vs},Count};
-        cleared ->
-            {Is,Fs#fs{regs=Rs,vars=Vs},Count2}
-    end.
+    {Is,Fs#fs{regs=Rs,vars=Vs},Count}.
 
 float_load([A|As], [T|Ts], Anno, Rs0, Count0, Acc) ->
     {Load,Rs,Count} = float_reg_arg(A, T, Anno, Rs0, Count0),

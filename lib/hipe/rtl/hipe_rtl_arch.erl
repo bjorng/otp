@@ -554,20 +554,7 @@ eval_cond_bits(Cond, N, Z, V, C) ->
 %%----------------------------------------------------------------------
 
 fwait() ->
-    case ?ERTS_NO_FPE_SIGNALS of
-	1 -> [];
-	0 -> fwait_real()
-    end.
-
-fwait_real() ->
-  case get(hipe_target_arch) of
-    x86 -> [hipe_rtl:mk_call([], 'fwait', [], [], [], not_remote)];
-    amd64 -> [hipe_rtl:mk_call([], 'fwait', [], [], [], not_remote)];
-    arm -> [];
-    powerpc -> [];
-    ppc64 -> [];
-    ultrasparc -> []
-  end.
+  [].
 
 %% @spec handle_fp_exception() -> [term()]
 %%
@@ -575,32 +562,7 @@ fwait_real() ->
 %%   Returns RTL code to restore the FPU after a floating-point exception.
 %% @end
 handle_fp_exception() ->
-    case ?ERTS_NO_FPE_SIGNALS of
-	1 -> [];
-	0 -> handle_real_fp_exception()
-    end.
-
-handle_real_fp_exception() ->
-  case get(hipe_target_arch) of
-    x86 ->
-      ContLbl = hipe_rtl:mk_new_label(),
-      [hipe_rtl:mk_call([], handle_fp_exception, [],
-			hipe_rtl:label_name(ContLbl), [], not_remote),
-       ContLbl];
-    amd64 ->
-      ContLbl = hipe_rtl:mk_new_label(),
-      [hipe_rtl:mk_call([], handle_fp_exception, [],
-			hipe_rtl:label_name(ContLbl), [], not_remote),
-       ContLbl];
-    arm ->
-      [];
-    powerpc ->
-      [];
-    ppc64 ->
-      [];
-    ultrasparc ->
-      []
-  end.
+  [].
 
 %%
 %% PCB accesses.
@@ -666,12 +628,7 @@ nr_of_return_regs() ->
 
 
 mk_fp_check_result(Result) ->
-    case ?ERTS_NO_FPE_SIGNALS of
-	0 ->
-	    [];
-	1 ->
-	    [hipe_rtl:mk_fstore(proc_pointer(),
-				hipe_rtl:mk_imm(?P_FLOAT_RESULT),
-				Result),
-	     hipe_rtl:mk_call([], emulate_fpe, [], [], [], not_remote)]
-    end.
+  [hipe_rtl:mk_fstore(proc_pointer(),
+                      hipe_rtl:mk_imm(?P_FLOAT_RESULT),
+                      Result),
+   hipe_rtl:mk_call([], emulate_fpe, [], [], [], not_remote)].

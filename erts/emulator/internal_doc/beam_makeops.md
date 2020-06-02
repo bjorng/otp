@@ -474,10 +474,8 @@ on a 64-bit machine.
 
 The condition can be inverted by using `%unless` instead of `%if`:
 
-    %unless NO_FPE_SIGNALS
-    fcheckerror p => i_fcheckerror
-    i_fcheckerror
-    fclearerror
+    %unless USE_VM_PROBES
+    call_ext Arity u$func:erlang:dt_get_tag/0 => move a=am_undefined x=0
     %endif
 
 It is also possible to add an `%else` clause:
@@ -511,8 +509,6 @@ The `Makefile` for building the emulator currently defines the
 following symbols by using the `-D` option on the command line for
 **beam\_makeops**.
 
-* `NO_FPE_SIGNALS` - 1 if FPE signals are not enable in runtime system,
-0 otherwise.
 * `USE_VM_PROBES` - 1 if the runtime system is compiled to use VM probes (support for dtrace or systemtap), 0 otherwise.
 
 ### Defining external generic instructions ###

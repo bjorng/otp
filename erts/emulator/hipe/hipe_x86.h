@@ -61,8 +61,5 @@ static __inline__ int hipe_word32_address_ok(void *address)
 #define hipe_arch_name	am_x86
 
 extern void nbif_inc_stack_0(void);
-#ifndef NO_FPE_SIGNALS
-extern void nbif_handle_fp_exception(void);
-#endif
 
 #endif /* HIPE_X86_H */

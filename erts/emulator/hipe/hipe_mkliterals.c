@@ -444,7 +444,7 @@ static const struct rts_param rts_params[] = {
       1, offsetof(struct process, scheduler_data)
     },
     { 14, "P_FP_EXCEPTION",
-#if !defined(NO_FPE_SIGNALS) || defined(HIPE)
+#if defined(HIPE)
       1, offsetof(struct process, fp_exception)
 #endif
     },
@@ -452,15 +452,6 @@ static const struct rts_param rts_params[] = {
     { 15, "ERTS_IS_SMP",
       1,
       1
-    },
-    /* This flag is always defined, but its value is configuration-dependent. */
-    { 16, "ERTS_NO_FPE_SIGNALS",
-      1,
-#if defined(NO_FPE_SIGNALS)
-      1
-#else
-      0
-#endif
     },
     /* This flag is always defined, but its value is configuration-dependent. */
     { 17, "ERTS_USE_LITERAL_TAG",
@@ -509,10 +500,7 @@ static const struct rts_param rts_params[] = {
 #endif
     },
     { 46, "P_NARITY", 1, offsetof(struct process, hipe.narity) },
-    { 47, "P_FLOAT_RESULT",
-#ifdef NO_FPE_SIGNALS
-	1, offsetof(struct process, hipe.float_result)
-#endif
+    { 47, "P_FLOAT_RESULT", 1, offsetof(struct process, hipe.float_result)
     },
     { 48, "P_BIF_CALLEE",
 #if defined(ERTS_ENABLE_LOCK_CHECK)

@@ -236,15 +236,6 @@ thr_create_prepare_child(void *vtcdp)
     erts_lcnt_thread_setup();
 #endif
 
-#ifndef NO_FPE_SIGNALS
-    /*
-     * We do not want fp exeptions in other threads than the
-     * scheduler threads. We enable fpe explicitly in the scheduler
-     * threads after this.
-     */
-    erts_thread_disable_fpe();
-#endif
-
     erts_sched_bind_atthrcreate_child(tcdp->sched_bind_data);
 }
 

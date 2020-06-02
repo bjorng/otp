@@ -471,14 +471,6 @@ init_emulator(void)
 #define ERTS_DBG_CHK_REDS(P, FC)
 #endif
 
-#ifdef NO_FPE_SIGNALS
-#  define ERTS_NO_FPE_CHECK_INIT ERTS_FP_CHECK_INIT
-#  define ERTS_NO_FPE_ERROR ERTS_FP_ERROR
-#else
-#  define ERTS_NO_FPE_CHECK_INIT(p)
-#  define ERTS_NO_FPE_ERROR(p, a, b)
-#endif
-
 /*
  * process_main() is called twice:
  * The first call performs some initialisation, including exporting

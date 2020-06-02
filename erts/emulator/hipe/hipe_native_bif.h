@@ -98,10 +98,8 @@ struct erl_bin_match_buffer;
 int hipe_bs_validate_unicode_retract(struct erl_bin_match_buffer*, Eterm);
 Uint hipe_is_divisible(Uint, Uint);
 
-#ifdef NO_FPE_SIGNALS
 AEXTERN(void,nbif_emulate_fpe,(Process*));
 void hipe_emulate_fpe(Process*);
-#endif
 
 AEXTERN(void,nbif_emasculate_binary,(Eterm));
 void hipe_emasculate_binary(Eterm);

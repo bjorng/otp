@@ -955,7 +955,7 @@ struct process {
     Uint min_vheap_size;        /* Minimum size of virtual heap (in words). */
     Uint max_heap_size;         /* Maximum size of heap (in words). */
 
-#if !defined(NO_FPE_SIGNALS) || defined(HIPE)
+#if defined(HIPE)
     volatile unsigned long fp_exception;
 #endif
 

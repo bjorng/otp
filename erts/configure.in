@@ -2869,15 +2869,6 @@ if test X${enable_hipe} = Xyes; then
 fi
 AC_SUBST(HIPEBEAMLDFLAGS)
 
-dnl Permanently disable floating point exceptions.
-dnl On x86/amd64, floating points exceptions have
-dnl unresolved stability issues.
-AC_MSG_CHECKING([for unreliable floating point exceptions])
-FPE=unreliable
-AC_SUBST(FPE)
-AC_MSG_RESULT([unreliable])
-AC_DEFINE(NO_FPE_SIGNALS,[],[Define if floating points exceptions are non-existing/not reliable])
-
 dnl
 dnl Some operating systems allow you to redefine FD_SETSIZE to be able
 dnl to select on more than the default number of file descriptors.

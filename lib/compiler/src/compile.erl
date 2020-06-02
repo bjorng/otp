@@ -282,7 +282,7 @@ expand_opt(no_type_opt=O, Os) ->
 expand_opt(O, Os) -> [O|Os].
 
 expand_opt_before_21(Os) ->
-    [no_shared_fun_wrappers, no_swap,
+    [no_ssa_opt_float, no_shared_fun_wrappers, no_swap,
      no_put_tuple2, no_get_hd_tl, no_ssa_opt_record,
      no_utf8_atoms | expand_opt(no_bsm3, Os)].
 

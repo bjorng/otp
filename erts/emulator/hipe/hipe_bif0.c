@@ -912,9 +912,7 @@ BIF_RETTYPE nbif_impl_hipe_conv_big_to_float(NBIF_ALIST_1)
     BIF_RET(res);
 }
 
-#ifdef NO_FPE_SIGNALS
-
-/* 
+/*
    This is the current solution to make hipe run without FPE.
    The native code is the same except that a call to this primop
    is made after _every_ float operation to check the result.
@@ -930,7 +928,6 @@ void hipe_emulate_fpe(Process* p)
 	p->fp_exception = 1;
     }
 }
-#endif
 
 void hipe_emasculate_binary(Eterm bin)
 {
