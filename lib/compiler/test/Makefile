@@ -103,10 +103,6 @@ INLINE= \
 	receive \
 	record
 
-R21= \
-        bs_construct \
-        bs_match
-
 DIALYZER = bs_match
 
 CORE_MODULES = \
@@ -127,8 +123,6 @@ NO_CORE_OPT_MODULES= $(NO_OPT:%=%_no_copt_SUITE)
 NO_CORE_OPT_ERL_FILES= $(NO_CORE_OPT_MODULES:%=%.erl)
 INLINE_MODULES= $(INLINE:%=%_inline_SUITE)
 INLINE_ERL_FILES= $(INLINE_MODULES:%=%.erl)
-R21_MODULES= $(R21:%=%_r21_SUITE)
-R21_ERL_FILES= $(R21_MODULES:%=%.erl)
 NO_MOD_OPT_MODULES= $(NO_MOD_OPT:%=%_no_module_opt_SUITE)
 NO_MOD_OPT_ERL_FILES= $(NO_MOD_OPT_MODULES:%=%.erl)
 NO_SSA_OPT_MODULES= $(NO_SSA_OPT:%=%_no_ssa_opt_SUITE)
@@ -168,7 +162,7 @@ EBIN = .
 DISABLE_SSA_OPT = +no_bool_opt +no_share_opt +no_bsm_opt +no_fun_opt +no_ssa_opt +no_recv_opt
 
 make_emakefile: $(NO_OPT_ERL_FILES) $(POST_OPT_ERL_FILES) $(NO_SSA_OPT_ERL_FILES) \
-  $(NO_CORE_OPT_ERL_FILES) $(INLINE_ERL_FILES) $(R21_ERL_FILES) \
+  $(NO_CORE_OPT_ERL_FILES) $(INLINE_ERL_FILES) \
   $(NO_MOD_OPT_ERL_FILES) $(NO_TYPE_OPT_ERL_FILES) \
   $(DIALYZER_ERL_FILES)
 	$(ERL_TOP)/make/make_emakefile $(ERL_COMPILE_FLAGS) -o$(EBIN) $(MODULES) \
@@ -183,8 +177,6 @@ make_emakefile: $(NO_OPT_ERL_FILES) $(POST_OPT_ERL_FILES) $(NO_SSA_OPT_ERL_FILES
 	  -o$(EBIN) $(NO_CORE_OPT_MODULES) >> $(EMAKEFILE)
 	$(ERL_TOP)/make/make_emakefile +inline $(ERL_COMPILE_FLAGS) \
 	  -o$(EBIN) $(INLINE_MODULES) >> $(EMAKEFILE)
-	$(ERL_TOP)/make/make_emakefile +r21 $(ERL_COMPILE_FLAGS) \
-	  -o$(EBIN) $(R21_MODULES) >> $(EMAKEFILE)
 	$(ERL_TOP)/make/make_emakefile +no_module_opt $(ERL_COMPILE_FLAGS) \
 	  -o$(EBIN) $(NO_MOD_OPT_MODULES) >> $(EMAKEFILE)
 	$(ERL_TOP)/make/make_emakefile +from_core $(ERL_COMPILE_FLAGS) \
@@ -223,9 +215,6 @@ docs:
 %_inline_SUITE.erl: %_SUITE.erl
 	sed -e 's;-module($(basename $<));-module($(basename $@));' $< > $@
 
-%_r21_SUITE.erl: %_SUITE.erl
-	sed -e 's;-module($(basename $<));-module($(basename $@));' $< > $@
-
 %_no_module_opt_SUITE.erl: %_SUITE.erl
 	sed -e 's;-module($(basename $<));-module($(basename $@));' $< > $@
 
@@ -247,7 +236,7 @@ release_tests_spec: make_emakefile
 	$(INSTALL_DATA) compiler.spec compiler.cover \
 		$(EMAKEFILE) $(ERL_FILES) "$(RELSYSDIR)"
 	$(INSTALL_DATA) $(NO_OPT_ERL_FILES) $(POST_OPT_ERL_FILES) \
-		$(INLINE_ERL_FILES) $(R21_ERL_FILES) \
+		$(INLINE_ERL_FILES) \
 		$(NO_CORE_OPT_ERL_FILES) \
 		$(NO_MOD_OPT_ERL_FILES) \
 		$(NO_SSA_OPT_ERL_FILES) \
