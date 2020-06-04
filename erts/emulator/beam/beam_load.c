@@ -159,12 +159,12 @@ typedef struct {
 #define MakeIffId(a, b, c, d) \
   (((Uint) (a) << 24) | ((Uint) (b) << 16) | ((Uint) (c) << 8) | (Uint) (d))
 
-#define ATOM_CHUNK 0
+#define UTF8_ATOM_CHUNK 0
 #define CODE_CHUNK 1
 #define STR_CHUNK 2
 #define IMP_CHUNK 3
 #define EXP_CHUNK 4
-#define MIN_MANDATORY 1
+#define MIN_MANDATORY 0
 #define MAX_MANDATORY 5
 
 #define LAMBDA_CHUNK 5
@@ -172,7 +172,6 @@ typedef struct {
 #define ATTR_CHUNK 7
 #define COMPILE_CHUNK 8
 #define LINE_CHUNK 9
-#define UTF8_ATOM_CHUNK 10
 
 #define NUM_CHUNK_TYPES (sizeof(chunk_types)/sizeof(chunk_types[0]))
 
@@ -182,13 +181,9 @@ typedef struct {
 
 static Uint chunk_types[] = {
     /*
-     * Atom chunk types -- Atom or AtU8 MUST be present.
-     */
-    MakeIffId('A', 't', 'o', 'm'), /* 0 */
-
-    /*
      * Mandatory chunk types -- these MUST be present.
      */
+    MakeIffId('A', 't', 'U', '8'), /* 0 */
     MakeIffId('C', 'o', 'd', 'e'), /* 1 */
     MakeIffId('S', 't', 'r', 'T'), /* 2 */
     MakeIffId('I', 'm', 'p', 'T'), /* 3 */
@@ -202,7 +197,6 @@ static Uint chunk_types[] = {
     MakeIffId('A', 't', 't', 'r'), /* 7 */
     MakeIffId('C', 'I', 'n', 'f'), /* 8 */
     MakeIffId('L', 'i', 'n', 'e'), /* 9 */
-    MakeIffId('A', 't', 'U', '8'), /* 10 */
 };
 
 /*
@@ -314,7 +308,6 @@ typedef struct LoaderState {
     int on_load;		/* Index in the code for the on_load function
 				 * (or 0 if there is no on_load function)
 				 */
-    int otp_20_or_higher;       /* Compiled with OTP 20 or higher */
     unsigned max_opcode;        /* Highest opcode used in module */
 
     /*
@@ -698,16 +691,9 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
      */
 
     CHKBLK(ERTS_ALC_T_CODE,stp->code);
-    if (stp->chunks[UTF8_ATOM_CHUNK].size > 0) {
-        define_file(stp, "utf8 atom table", UTF8_ATOM_CHUNK);
-        if (!load_atom_table(stp, ERTS_ATOM_ENC_UTF8)) {
-            goto load_error;
-        }
-    } else {
-        define_file(stp, "atom table", ATOM_CHUNK);
-        if (!load_atom_table(stp, ERTS_ATOM_ENC_LATIN1)) {
-            goto load_error;
-        }
+    define_file(stp, "utf8 atom table", UTF8_ATOM_CHUNK);
+    if (!load_atom_table(stp, ERTS_ATOM_ENC_UTF8)) {
+        goto load_error;
     }
 
     /*
@@ -755,13 +741,6 @@ erts_prepare_loading(Binary* magic, Process *c_p, Eterm group_leader,
 	    goto load_error;
 	}
     }
-
-    /*
-     * Find out whether the code was compiled with OTP 20
-     * or higher.
-     */
-
-    stp->otp_20_or_higher = stp->chunks[UTF8_ATOM_CHUNK].size > 0;
 
     /*
      * Load the code chunk.
@@ -1332,14 +1311,6 @@ verify_chunks(LoaderState* stp)
     MD5_CTX context;
 
     MD5Init(&context);
-
-    if (stp->chunks[UTF8_ATOM_CHUNK].start != NULL) {
-	MD5Update(&context, stp->chunks[UTF8_ATOM_CHUNK].start, stp->chunks[UTF8_ATOM_CHUNK].size);
-    } else if (stp->chunks[ATOM_CHUNK].start != NULL) {
-	MD5Update(&context, stp->chunks[ATOM_CHUNK].start, stp->chunks[ATOM_CHUNK].size);
-    } else {
-        LoadError0(stp, "mandatory chunk of type 'Atom' or 'AtU8' not found\n");
-    }
 
     for (i = MIN_MANDATORY; i < MAX_MANDATORY; i++) {
 	if (stp->chunks[i].start != NULL) {
@@ -2996,12 +2967,6 @@ load_code(LoaderState* stp)
 
 #define never(St) 0
 
-static int
-compiled_with_otp_20_or_higher(LoaderState* stp)
-{
-    return stp->otp_20_or_higher;
-}
-
 /*
  * Predicate that tests whether the following two moves are independent:
  *
@@ -3209,44 +3174,6 @@ gen_element(LoaderState* stp, GenOpArg Fail, GenOpArg Index,
 	op->a[3] = Dst;
     }
 
-    return op;
-}
-
-static GenOp*
-gen_bs_save(LoaderState* stp, GenOpArg Reg, GenOpArg Index)
-{
-    GenOp* op;
-
-    NEW_GENOP(stp, op);
-    GENOP_NAME_ARITY(op, i_bs_save2, 2);
-    op->a[0] = Reg;
-    op->a[1] = Index;
-    if (Index.type == TAG_u) {
-	op->a[1].val = Index.val+1;
-    } else if (Index.type == TAG_a && Index.val == am_start) {
-	op->a[1].type = TAG_u;
-	op->a[1].val = 0;
-    }
-    op->next = NULL;
-    return op;
-}
-
-static GenOp*
-gen_bs_restore(LoaderState* stp, GenOpArg Reg, GenOpArg Index)
-{
-    GenOp* op;
-
-    NEW_GENOP(stp, op);
-    GENOP_NAME_ARITY(op, i_bs_restore2, 2);
-    op->a[0] = Reg;
-    op->a[1] = Index;
-    if (Index.type == TAG_u) {
-	op->a[1].val = Index.val+1;
-    } else if (Index.type == TAG_a && Index.val == am_start) {
-	op->a[1].type = TAG_u;
-	op->a[1].val = 0;
-    }
-    op->next = NULL;
     return op;
 }
 
@@ -4444,55 +4371,6 @@ gen_is_function2(LoaderState* stp, GenOpArg Fail, GenOpArg Fun, GenOpArg Arity)
         op->a[2].val = 1023;
         return move_fun;
     }
-}
-
-static GenOp*
-tuple_append_put5(LoaderState* stp, GenOpArg Arity, GenOpArg Dst,
-		  GenOpArg* Puts, GenOpArg S1, GenOpArg S2, GenOpArg S3,
-		  GenOpArg S4, GenOpArg S5)
-{
-    GenOp* op;
-    int arity = Arity.val;	/* Arity of tuple, not the instruction */
-    int i;
-
-    NEW_GENOP(stp, op);
-    op->next = NULL;
-    GENOP_NAME_ARITY(op, i_put_tuple, 2);
-    GENOP_ARITY(op, arity+2+5);
-    op->a[0] = Dst;
-    op->a[1].type = TAG_u;
-    op->a[1].val = arity + 5;
-    for (i = 0; i < arity; i++) {
-	op->a[i+2] = Puts[i];
-    }
-    op->a[arity+2] = S1;
-    op->a[arity+3] = S2;
-    op->a[arity+4] = S3;
-    op->a[arity+5] = S4;
-    op->a[arity+6] = S5;
-    return op;
-}
-
-static GenOp*
-tuple_append_put(LoaderState* stp, GenOpArg Arity, GenOpArg Dst,
-		 GenOpArg* Puts, GenOpArg S)
-{
-    GenOp* op;
-    int arity = Arity.val;	/* Arity of tuple, not the instruction */
-    int i;
-
-    NEW_GENOP(stp, op);
-    op->next = NULL;
-    GENOP_NAME_ARITY(op, i_put_tuple, 2);
-    GENOP_ARITY(op, arity+2+1);
-    op->a[0] = Dst;
-    op->a[1].type = TAG_u;
-    op->a[1].val = arity + 1;
-    for (i = 0; i < arity; i++) {
-	op->a[i+2] = Puts[i];
-    }
-    op->a[arity+2] = S;
-    return op;
 }
 
 /*
@@ -7003,16 +6881,9 @@ erts_make_stub_module(Process* p, Eterm hipe_magic_bin, Eterm Beam, Eterm Info)
     if (!read_code_header(stp)) {
 	goto error;
     }
-    if (stp->chunks[UTF8_ATOM_CHUNK].size > 0) {
-        define_file(stp, "utf8 atom table", UTF8_ATOM_CHUNK);
-        if (!load_atom_table(stp, ERTS_ATOM_ENC_UTF8)) {
-            goto error;
-        }
-    } else {
-        define_file(stp, "atom table", ATOM_CHUNK);
-        if (!load_atom_table(stp, ERTS_ATOM_ENC_LATIN1)) {
-            goto error;
-        }
+    define_file(stp, "utf8 atom table", UTF8_ATOM_CHUNK);
+    if (!load_atom_table(stp, ERTS_ATOM_ENC_UTF8)) {
+        goto error;
     }
     define_file(stp, "export table", EXP_CHUNK);
     if (!stub_read_export_table(stp)) {

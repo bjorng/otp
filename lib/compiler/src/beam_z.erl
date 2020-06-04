@@ -24,20 +24,18 @@
 
 -export([module/2]).
 
--import(lists, [dropwhile/2,map/2]).
+-import(lists, [dropwhile/2]).
 
 -spec module(beam_utils:module_code(), [compile:option()]) ->
                     {'ok',beam_asm:module_code()}.
 
-module({Mod,Exp,Attr,Fs0,Lc}, Opts) ->
-    NoGetHdTl = proplists:get_bool(no_get_hd_tl, Opts),
-    Fs = [function(F, NoGetHdTl) || F <- Fs0],
+module({Mod,Exp,Attr,Fs0,Lc}, _Opts) ->
+    Fs = [function(F) || F <- Fs0],
     {ok,{Mod,Exp,Attr,Fs,Lc}}.
 
-function({function,Name,Arity,CLabel,Is0}, NoGetHdTl) ->
+function({function,Name,Arity,CLabel,Is0}) ->
     try
-	Is1 = undo_renames(Is0),
-        Is = maybe_eliminate_get_hd_tl(Is1, NoGetHdTl),
+	Is = undo_renames(Is0),
 	{function,Name,Arity,CLabel,Is}
     catch
         Class:Error:Stack ->
@@ -147,17 +145,3 @@ undo_rename({test,is_eq_exact,Fail,[Src,nil]}) ->
 undo_rename({select,I,Reg,Fail,List}) ->
     {I,Reg,Fail,{list,List}};
 undo_rename(I) -> I.
-
-%%%
-%%% Eliminate get_hd/get_tl instructions if requested by
-%%% the no_get_hd_tl option.
-%%%
-
-maybe_eliminate_get_hd_tl(Is, true) ->
-    map(fun({get_hd,Cons,Hd}) ->
-                {get_list,Cons,Hd,{x,1022}};
-           ({get_tl,Cons,Tl}) ->
-                {get_list,Cons,{x,1022},Tl};
-           (I) -> I
-        end, Is);
-maybe_eliminate_get_hd_tl(Is, false) -> Is.
