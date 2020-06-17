@@ -527,9 +527,8 @@ erts_bs_get_float_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuffer
 		  fptr + NBYTES(num_bits) - 1, 0, -1,
 		  num_bits);
     }
-    ERTS_FP_CHECK_INIT(p);
     if (num_bits == 32) {
-	ERTS_FP_ERROR(p, f32, return THE_NON_VALUE);
+	ERTS_FP_ERROR(f32, return THE_NON_VALUE);
 	f.fd = f32;
     } else {
 #ifdef DOUBLE_MIDDLE_ENDIAN
@@ -537,9 +536,9 @@ erts_bs_get_float_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuffer
 	ftmp.fd = f64;
 	f.fw[0] = ftmp.fw[1];
 	f.fw[1] = ftmp.fw[0];
-	ERTS_FP_ERROR(p, f.fd, return THE_NON_VALUE);
+	ERTS_FP_ERROR(f.fd, return THE_NON_VALUE);
 #else
-	ERTS_FP_ERROR(p, f64, return THE_NON_VALUE);
+	ERTS_FP_ERROR(f64, return THE_NON_VALUE);
 	f.fd = f64;
 #endif
     }
@@ -1104,9 +1103,8 @@ erts_new_bs_put_float(Process *c_p, Eterm arg, Uint num_bits, int flags)
 	    if (is_float(arg)) {
 		FloatDef f;
 		GET_DOUBLE(arg, f);
-		ERTS_FP_CHECK_INIT(c_p);
 		u.f32 = f.fd;
-		ERTS_FP_ERROR(c_p,u.f32,;);
+		ERTS_FP_ERROR(u.f32,;);
 		a = u.i32;
 	    } else if (is_small(arg)) {
 		u.f32 = (float) signed_val(arg);
@@ -1116,9 +1114,8 @@ erts_new_bs_put_float(Process *c_p, Eterm arg, Uint num_bits, int flags)
 		if (big_to_double(arg, &f64) < 0) {
 		    return 0;
 		}
-		ERTS_FP_CHECK_INIT(c_p);
 		u.f32 = (float) f64;
-		ERTS_FP_ERROR(c_p,u.f32,;);
+		ERTS_FP_ERROR(u.f32,;);
 		a = u.i32;
 	    } else {
 		return 0;
@@ -1222,9 +1219,8 @@ erts_new_bs_put_float(Process *c_p, Eterm arg, Uint num_bits, int flags)
 	    if (is_float(arg)) {
 		FloatDef f;
 		GET_DOUBLE(arg, f);
-		ERTS_FP_CHECK_INIT(c_p);
 		f32 = f.fd;
-		ERTS_FP_ERROR(c_p,f32,;);
+		ERTS_FP_ERROR(f32,;);
 		bptr = (byte *) &f32;
 	    } else if (is_small(arg)) {
 		f32 = (float) signed_val(arg);
@@ -1233,9 +1229,8 @@ erts_new_bs_put_float(Process *c_p, Eterm arg, Uint num_bits, int flags)
 		if (big_to_double(arg, &f64) < 0) {
 		    return 0;
 		}
-		ERTS_FP_CHECK_INIT(c_p);
 		f32 = (float) f64;
-		ERTS_FP_ERROR(c_p,f32,;);
+		ERTS_FP_ERROR(f32,;);
 		bptr = (byte *) &f32;
 	    } else {
 		return 0;

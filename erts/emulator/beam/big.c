@@ -1648,18 +1648,14 @@ big_to_double(Wterm x, double* resp)
     ErtsDigit* s = BIG_V(xp) + xl;
     short xsgn = BIG_SIGN(xp);
     double dbase = ((double)(D_MASK)+1);
-    __ERTS_SAVE_FP_EXCEPTION(fpexnp);
-
-    __ERTS_FP_CHECK_INIT(fpexnp);
     while (xl--) {
 	d = d * dbase + *--s;
 
-	__ERTS_FP_ERROR(fpexnp, d, __ERTS_RESTORE_FP_EXCEPTION(fpexnp); return -1);
+	ERTS_FP_ERROR(d, return -1);
     }
 
     *resp = xsgn ? -d : d;
-    __ERTS_FP_ERROR(fpexnp,*resp,;);
-    __ERTS_RESTORE_FP_EXCEPTION(fpexnp);
+    ERTS_FP_ERROR(*resp,;);
     return 0;
 }
 

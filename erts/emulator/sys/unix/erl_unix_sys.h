@@ -355,16 +355,10 @@ extern void erts_sys_unix_later_init(void);
 
 #define erts_get_current_fp_exception() NULL
 #define erts_thread_init_fp_exception() do{}while(0)
-#  define __ERTS_FP_CHECK_INIT(fpexnp) do {} while (0)
-#  define __ERTS_FP_ERROR(fpexnp, f, Action) if (!isfinite(f)) { Action; } else {}
-#  define __ERTS_SAVE_FP_EXCEPTION(fpexnp)
-#  define __ERTS_RESTORE_FP_EXCEPTION(fpexnp)
+#  define ERTS_FP_ERROR(f, Action) if (!isfinite(f)) { Action; } else {}
 
 #define erts_sys_block_fpe() 0
 #define erts_sys_unblock_fpe(x) do{}while(0)
-
-#define ERTS_FP_CHECK_INIT(p)		__ERTS_FP_CHECK_INIT(&(p)->fp_exception)
-#define ERTS_FP_ERROR(p, f, A)		__ERTS_FP_ERROR(&(p)->fp_exception, f, A)
 
 
 /* Threads */

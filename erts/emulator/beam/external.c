@@ -4262,8 +4262,7 @@ dec_term_atom_common:
 		ff.fw[0] = get_int32(ep);
 		ep += 4;
 #endif		
-		__ERTS_FP_CHECK_INIT(fpexnp);
-		__ERTS_FP_ERROR(fpexnp, ff.fd, goto error);
+		ERTS_FP_ERROR(ff.fd, goto error);
 		*objp = make_float(hp);
 		PUT_DOUBLE(ff, hp);
 		hp += FLOAT_SIZE_OBJECT;

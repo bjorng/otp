@@ -322,7 +322,6 @@ erts_mixed_plus(Process* p, Eterm arg1, Eterm arg2)
     Eterm* hp;
     Sint ires;
 
-    ERTS_FP_CHECK_INIT(p);
     switch (arg1 & _TAG_PRIMARY_MASK) {
     case TAG_PRIMARY_IMMED1:
 	switch ((arg1 & _TAG_IMMED1_MASK) >> _TAG_PRIMARY_SIZE) {
@@ -437,7 +436,7 @@ erts_mixed_plus(Process* p, Eterm arg1, Eterm arg2)
 
 		do_float:
 		    f1.fd = f1.fd + f2.fd;
-		    ERTS_FP_ERROR(p, f1.fd, goto badarith);
+		    ERTS_FP_ERROR(f1.fd, goto badarith);
 		    hp = HeapFragOnlyAlloc(p, FLOAT_SIZE_OBJECT);
 		    res = make_float(hp);
 		    PUT_DOUBLE(f1, hp);
@@ -467,7 +466,6 @@ erts_mixed_minus(Process* p, Eterm arg1, Eterm arg2)
     Eterm* hp;
     Sint ires;
 
-    ERTS_FP_CHECK_INIT(p);
     switch (arg1 & _TAG_PRIMARY_MASK) {
     case TAG_PRIMARY_IMMED1:
 	switch ((arg1 & _TAG_IMMED1_MASK) >> _TAG_PRIMARY_SIZE) {
@@ -580,7 +578,7 @@ erts_mixed_minus(Process* p, Eterm arg1, Eterm arg2)
 
 		do_float:
 		    f1.fd = f1.fd - f2.fd;
-		    ERTS_FP_ERROR(p, f1.fd, goto badarith);
+		    ERTS_FP_ERROR(f1.fd, goto badarith);
 		    hp = HeapFragOnlyAlloc(p, FLOAT_SIZE_OBJECT);
 		    res = make_float(hp);
 		    PUT_DOUBLE(f1, hp);
@@ -609,7 +607,6 @@ erts_mixed_times(Process* p, Eterm arg1, Eterm arg2)
     int need_heap;
     Eterm* hp;
 
-    ERTS_FP_CHECK_INIT(p);
     switch (arg1 & _TAG_PRIMARY_MASK) {
     case TAG_PRIMARY_IMMED1:
 	switch ((arg1 & _TAG_IMMED1_MASK) >> _TAG_PRIMARY_SIZE) {
@@ -770,7 +767,7 @@ erts_mixed_times(Process* p, Eterm arg1, Eterm arg2)
 
 		do_float:
 		    f1.fd = f1.fd * f2.fd;
-		    ERTS_FP_ERROR(p, f1.fd, goto badarith);
+		    ERTS_FP_ERROR(f1.fd, goto badarith);
 		    hp = HeapFragOnlyAlloc(p, FLOAT_SIZE_OBJECT);
 		    res = make_float(hp);
 		    PUT_DOUBLE(f1, hp);
@@ -794,7 +791,6 @@ erts_mixed_div(Process* p, Eterm arg1, Eterm arg2)
     Eterm* hp;
     Eterm hdr;
 
-    ERTS_FP_CHECK_INIT(p);
     switch (arg1 & _TAG_PRIMARY_MASK) {
     case TAG_PRIMARY_IMMED1:
 	switch ((arg1 & _TAG_IMMED1_MASK) >> _TAG_PRIMARY_SIZE) {
@@ -896,7 +892,7 @@ erts_mixed_div(Process* p, Eterm arg1, Eterm arg2)
 
 		do_float:
 		    f1.fd = f1.fd / f2.fd;
-		    ERTS_FP_ERROR(p, f1.fd, goto badarith);
+		    ERTS_FP_ERROR(f1.fd, goto badarith);
 		    hp = HeapFragOnlyAlloc(p, FLOAT_SIZE_OBJECT);
 		    PUT_DOUBLE(f1, hp);
 		    return make_float(hp);
