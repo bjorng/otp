@@ -119,7 +119,8 @@
                    'timeout' |
                    'wait' | 'wait_timeout'.
 
--type float_op() :: 'convert' | 'get' | 'put' | '+' | '-' | '*' | '/'.
+-type float_op() :: 'checkerror' | 'clearerror' | 'convert' | 'get' | 'put' |
+                    '+' | '-' | '*' | '/'.
 
 %% Primops only used internally during code generation.
 -type cg_prim_op() :: 'bs_get' | 'bs_get_position' | 'bs_match_string' |

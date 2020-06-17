@@ -21,6 +21,7 @@
   {label,4}.
     {fconv,{x,0},{fr,0}}.
     {fconv,{x,1},{fr,1}}.
+    fclearerror.
     {bif,fmul,{f,0},[{fr,0},{fr,1}],{fr,0}}.
     {fmove,{fr,0},{x,0}}.
     {'%live',1}.
@@ -32,8 +33,10 @@
   {label,6}.
     {fconv,{x,0},{fr,0}}.
     {fconv,{x,1},{fr,1}}.
+    fclearerror.
     {bif,fmul,{f,0},[{fr,0},{fr,1}],{fr,0}}.
     {bif,'-',{f,0},[{x,1},{x,0}],{x,1}}.
+    {fcheckerror,{f,0}}.
     {fmove,{fr,0},{x,0}}.
     {'%live',1}.
     return.
@@ -42,6 +45,7 @@
   {label,6}.
     {func_info,{atom,t},{atom,sum_4},2}.
   {label,8}.
+    {fcheckerror,{f,0}}.
     {fmove,{fr,0},{x,0}}.
     {'%live',1}.
     return.
@@ -50,4 +54,6 @@
   {label,9}.
     {func_info,{atom,t},{atom,sum_5},2}.
   {label,10}.
+    fclearerror.
+    fclearerror.
     return.

@@ -191,6 +191,8 @@ validate_0([{function, Name, Arity, Entry, Code} | Fs], Module, Level, Ft) ->
          h=0,
          %%Available heap size for floats.
          hf=0,
+         %% Floating point state.
+         fls=undefined,
          %% List of hot catch/try tags
          ct=[],
          %% Previous instruction was setelement/3.
@@ -383,6 +385,7 @@ vi({fmove,Src,{fr,_}=Dst}, Vst) ->
     set_freg(Dst, Vst);
 vi({fmove,{fr,_}=Src,Dst}, Vst0) ->
     assert_freg_set(Src, Vst0),
+    assert_fls(checked, Vst0),
     Vst = eat_heap_float(Vst0),
     create_term(#t_float{}, fmove, [], Dst, Vst);
 vi({kill,Reg}, Vst) ->
@@ -654,6 +657,8 @@ vi(return, Vst) ->
 vi({bif,Op,{f,Fail},Ss,Dst}, Vst0) ->
     case is_float_arith_bif(Op, Ss) of
         true ->
+            %% Float arithmetic BIFs neither fail nor throw an exception;
+            %% errors are postponed until the next fcheckerror instruction.
             ?EXCEPTION_LABEL = Fail,            %Assertion.
             validate_float_arith_bif(Ss, Dst, Vst0);
         false ->
@@ -890,12 +895,26 @@ vi({fconv,Src,{fr,_}=Dst}, Vst) ->
 
     branch(?EXCEPTION_LABEL, Vst,
            fun(FailVst) ->
-                   FailVst
+                   %% This is a hack to supress assert_float_checked/1 in
+                   %% fork_state/2, since this instruction is legal even when
+                   %% the state is unchecked.
+                   set_fls(checked, FailVst)
            end,
            fun(SuccVst0) ->
                    SuccVst = update_type(fun meet/2, number, Src, SuccVst0),
                    set_freg(Dst, SuccVst)
            end);
+vi(fclearerror, Vst) ->
+    case get_fls(Vst) of
+        undefined -> ok;
+        checked -> ok;
+        Fls -> error({bad_floating_point_state,Fls})
+    end,
+    set_fls(cleared, Vst);
+vi({fcheckerror,_}, Vst0) ->
+    assert_fls(cleared, Vst0),
+    Vst = set_fls(checked, Vst0),
+    branch(?EXCEPTION_LABEL, Vst);
 
 %%
 %% Exception-raising instructions
@@ -1068,6 +1087,8 @@ validate_var_info([], _Reg, Vst) ->
 %%  The stackframe must have a known size and be initialized.
 %%  Does not return to the instruction following the call.
 validate_tail_call(Deallocate, Func, Live, #vst{current=#st{numy=NumY}}=Vst0) ->
+    assert_float_checked(Vst0),
+
     verify_y_init(Vst0),
     verify_live(Live, Vst0),
     verify_call_args(Func, Live, Vst0),
@@ -1094,6 +1115,8 @@ validate_tail_call(Deallocate, Func, Live, #vst{current=#st{numy=NumY}}=Vst0) ->
 %%  The instruction will return to the instruction following the call.
 validate_body_call(Func, Live,
                    #vst{current=#st{numy=NumY}}=Vst) when is_integer(NumY)->
+    assert_float_checked(Vst),
+
     verify_y_init(Vst),
     verify_live(Live, Vst),
     verify_call_args(Func, Live, Vst),
@@ -1118,6 +1141,13 @@ validate_body_call(Func, Live,
     end;
 validate_body_call(_, _, #vst{current=#st{numy=NumY}}) ->
     error({allocated, NumY}).
+
+assert_float_checked(Vst) ->
+    case get_fls(Vst) of
+        undefined -> ok;
+        checked -> ok;
+        Fls -> error({unsafe_instruction,{float_error_state,Fls}})
+    end.
 
 init_try_catch_branch(Kind, Dst, Fail, Vst0) ->
     assert_no_exception(Fail),
@@ -1268,6 +1298,7 @@ verify_return(#vst{current=#st{recv_marker=Mark}}) when Mark =/= none ->
     %% the message.
     error({return_with_receive_marker,Mark});
 verify_return(Vst) ->
+    assert_float_checked(Vst),
     verify_no_ct(Vst),
     kill_state(Vst).
 
@@ -1279,8 +1310,8 @@ verify_return(Vst) ->
 %% have clobbered the sources.
 %%
 
-validate_bif(Kind, Op, Fail, Ss, Dst, OrigVst, Vst0) ->
-    Vst = kill_fregs(Vst0),
+validate_bif(Kind, Op, Fail, Ss, Dst, OrigVst, Vst) ->
+    assert_float_checked(Vst),
     case {will_bif_succeed(Op, Ss, Vst), Fail} of
         {yes, _} ->
             %% This BIF cannot fail (neither throw nor branch), make sure it's
@@ -1623,10 +1654,6 @@ heap_alloc_2([{floats,Floats}|T], St0) ->
     heap_alloc_2(T, St);
 heap_alloc_2([], St) -> St.
 
-kill_fregs(#vst{current=St0}=Vst) ->
-    St = St0#st{f=init_fregs()},
-    Vst#vst{current=St}.
-
 prune_x_regs(Live, #vst{current=St0}=Vst) when is_integer(Live) ->
     #st{fragile=Fragile0,xs=Xs0} = St0,
     Fragile = cerl_sets:filter(fun({x,X}) ->
@@ -1689,9 +1716,22 @@ is_float_arith_bif(fnegate, [_]) -> true;
 is_float_arith_bif(fsub, [_, _]) -> true;
 is_float_arith_bif(_, _) -> false.
 
-validate_float_arith_bif(Ss, Dst, Vst) ->
-    _ = [assert_freg_set(S, Vst) || S <- Ss],
+validate_float_arith_bif(Ss, Dst, Vst0) ->
+    _ = [assert_freg_set(S, Vst0) || S <- Ss],
+    assert_fls(cleared, Vst0),
+    Vst = set_fls(cleared, Vst0),
     set_freg(Dst, Vst).
+
+assert_fls(Fls, Vst) ->
+    case get_fls(Vst) of
+	Fls -> ok;
+	OtherFls -> error({bad_floating_point_state,OtherFls})
+    end.
+
+set_fls(Fls, #vst{current=#st{}=St}=Vst) when is_atom(Fls) ->
+    Vst#vst{current=St#st{fls=Fls}}.
+
+get_fls(#vst{current=#st{fls=Fls}}) when is_atom(Fls) -> Fls.
 
 init_fregs() -> 0.
 
@@ -2142,7 +2182,7 @@ new_value(Type, Op, Ss, #vst{current=#st{vs=Vs0}=St,ref_ctr=Counter}=Vst) ->
     {Ref, Vst#vst{current=St#st{vs=Vs},ref_ctr=Counter+1}}.
 
 kill_catch_tag(Reg, #vst{current=#st{ct=[Tag|Tags]}=St}=Vst0) ->
-    Vst = Vst0#vst{current=St#st{ct=Tags}},
+    Vst = Vst0#vst{current=St#st{ct=Tags,fls=undefined}},
     Tag = get_tag_type(Reg, Vst),               %Assertion.
     kill_tag(Reg, Vst).
 
@@ -2383,11 +2423,13 @@ branch(Fail, Vst) ->
 fork_state(?EXCEPTION_LABEL, Vst0) ->
     #vst{current=#st{ct=CatchTags,numy=NumY}} = Vst0,
 
+    %% Floating-point exceptions must be checked before any other kind of
+    %% exception can be raised.
+    assert_float_checked(Vst0),
+
     %% The stack will be scanned looking for a catch tag, so all Y registers
     %% must be initialized.
     verify_y_init(Vst0),
-
-    Vst1 = kill_fregs(Vst0),
 
     case CatchTags of
         [{_, [Fail]} | _] when is_integer(Fail) ->
@@ -2395,11 +2437,11 @@ fork_state(?EXCEPTION_LABEL, Vst0) ->
             true = NumY =/= none,               %Assertion.
 
             %% Clear the receive marker and fork to our exception handler.
-            Vst = set_receive_marker(none, Vst1),
+            Vst = set_receive_marker(none, Vst0),
             fork_state(Fail, Vst);
         [] ->
             %% No catch handler; the exception leaves the function.
-            Vst1;
+            Vst0;
         _ ->
             error(ambiguous_catch_try_state)
     end;
