@@ -22,7 +22,7 @@
 -export([scan/1, scan/3]).
 
 scan(Inport) ->
-    scan(Inport, '', 1).
+    scan(Inport, '', {1, 1}).
 
 scan(Inport, Prompt, Line1) ->
     case catch io:scan_erl_form(Inport, Prompt, Line1) of
