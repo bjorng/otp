@@ -211,10 +211,16 @@ void** beam_ops;
  */
 static void init_emulator_finish(void) ERTS_NOINLINE;
 
+static Sint emulator_loop(Process* c_p,
+                          Eterm* reg,
+                          FloatDef* freg,
+                          struct erl_bits_state *EBS,
+                          int neg_o_reds);
+
 void
 init_emulator(void)
 {
-    process_main(0);
+    (void) emulator_loop(0, 0, 0, 0, 0);
 }
 
 /*
@@ -251,7 +257,6 @@ init_emulator(void)
 ERTS_NO_RETPOLINE
 void process_main(ErtsSchedulerData *esdp)
 {
-    static int init_done = 0;
     Process* c_p = NULL;
     int reds_used;
 #ifdef DEBUG
@@ -262,22 +267,6 @@ void process_main(ErtsSchedulerData *esdp)
      * in all other cases x0 is used.
      */
     register Eterm* reg = NULL;
-
-    /*
-     * Top of heap (next free location); grows upwards.
-     */
-    register Eterm* HTOP REG_htop = NULL;
-
-    /* Stack pointer.  Grows downwards; points
-     * to last item pushed (normally a saved
-     * continuation pointer).
-     */
-    register Eterm* E REG_stop = NULL;
-
-    /*
-     * Pointer to next threaded instruction.
-     */
-    register const BeamInstr *I REG_I = NULL;
 
     /* Number of reductions left.  This function
      * returns to the scheduler when FCALLS reaches zero.
@@ -294,17 +283,6 @@ void process_main(ErtsSchedulerData *esdp)
      * For keeping the negative old value of 'reds' when call saving is active.
      */
     int neg_o_reds = 0;
-
-#ifdef ERTS_OPCODE_COUNTER_SUPPORT
-    static void* counting_opcodes[] = { DEFINE_COUNTING_OPCODES };
-#else
-#ifndef NO_JUMP_TABLE
-    static void* opcodes[] = { DEFINE_OPCODES };
-#else
-    register BeamInstr Go;
-#endif
-#endif
-
     Uint64 start_time = 0;          /* Monitor long schedule */
     ErtsCodePtr start_time_i = NULL;
 
@@ -312,40 +290,13 @@ void process_main(ErtsSchedulerData *esdp)
 
     ERL_BITS_DECLARE_STATEP; /* Has to be last declaration */
 
-    /*
-     * Note: In this function, we attempt to place rarely executed code towards
-     * the end of the function, in the hope that the cache hit rate will be better.
-     * The initialization code is only run once, so it is at the very end.
-     *
-     * Note: c_p->arity must be set to reflect the number of useful terms in
-     * c_p->arg_reg before calling the scheduler.
-     */
-    if (ERTS_UNLIKELY(!init_done)) {
-       /* This should only be reached during the init phase when only the main
-        * process is running. I.e. there is no race for init_done.
-        */
-	init_done = 1;
-	goto init_emulator;
-    }
-
     reg = (esdp->registers)->x_reg_array.d;
     freg = (esdp->registers)->f_reg_array.d;
 
     c_p = NULL;
     reds_used = 0;
 
-    goto do_schedule1;
-
- do_schedule:
-    ASSERT(c_p->arity < 6);
-    ASSERT(c_p->debug_reds_in == REDS_IN(c_p));
-    if (!ERTS_PROC_GET_SAVED_CALLS_BUF(c_p))
-	reds_used = REDS_IN(c_p) - FCALLS;
-    else
-	reds_used = REDS_IN(c_p) - (CONTEXT_REDS + FCALLS);
-    ASSERT(reds_used >= 0);
  do_schedule1:
-
     if (start_time != 0) {
         check_monitor_long_schedule(c_p, start_time, start_time_i);
     }
@@ -372,7 +323,6 @@ void process_main(ErtsSchedulerData *esdp)
     ERL_BITS_RELOAD_STATEP(c_p);
     {
 	int reds;
-	BeamInstr next;
 
         copy_in_registers(c_p, reg);
 
@@ -381,8 +331,6 @@ void process_main(ErtsSchedulerData *esdp)
 	 * the code size (referencing a field in a struct through a pointer stored
 	 * in a register gives smaller code than referencing a global variable).
 	 */
-
-	SET_I(c_p->i);
 
 	REDS_IN(c_p) = reds = c_p->fcalls;
 #ifdef DEBUG
@@ -398,10 +346,6 @@ void process_main(ErtsSchedulerData *esdp)
 	}
 
 	ERTS_DBG_CHK_REDS(c_p, FCALLS);
-
-	next = *I;
-	SWAPIN;
-	ASSERT(VALID_INSTR(next));
 
 #ifdef USE_VM_PROBES
         if (DTRACE_ENABLED(process_scheduled)) {
@@ -425,8 +369,95 @@ void process_main(ErtsSchedulerData *esdp)
             DTRACE2(process_scheduled, process_buf, fun_buf);
         }
 #endif
-	Goto(next);
+        FCALLS = emulator_loop(c_p, reg, freg, EBS, neg_o_reds);
+        if (erts_atomic32_read_nob(&c_p->state) & ERTS_PSFLG_EXITING) {
+            c_p->i = beam_exit;
+            c_p->arity = 0;
+            c_p->current = NULL;
+        }
+
+        ASSERT(c_p->arity < 6);
+        ASSERT(c_p->debug_reds_in == REDS_IN(c_p));
+        if (!ERTS_PROC_GET_SAVED_CALLS_BUF(c_p))
+            reds_used = REDS_IN(c_p) - FCALLS;
+        else
+            reds_used = REDS_IN(c_p) - (CONTEXT_REDS + FCALLS);
+        ASSERT(reds_used >= 0);
+        copy_out_registers(c_p, reg);
+        goto do_schedule1;
     }
+}
+
+static Sint
+emulator_loop(register Process* c_p,
+              register Eterm* reg,
+              register FloatDef* freg,
+              struct erl_bits_state *EBS,
+              int neg_o_reds)
+{
+    static int init_done = 0;
+#ifdef DEBUG
+    ERTS_DECLARE_DUMMY(Eterm pid);
+#endif
+
+    /*
+     * Top of heap (next free location); grows upwards.
+     */
+    register Eterm* HTOP REG_htop = NULL;
+
+    /* Stack pointer.  Grows downwards; points
+     * to last item pushed (normally a saved
+     * continuation pointer).
+     */
+    register Eterm* E REG_stop = NULL;
+
+    /*
+     * Pointer to next threaded instruction.
+     */
+    register const BeamInstr *I REG_I = NULL;
+
+    /* Number of reductions left.  This function
+     * returns to the scheduler when FCALLS reaches zero.
+     */
+    register Sint FCALLS REG_fcalls = 0;
+
+#ifdef ERTS_OPCODE_COUNTER_SUPPORT
+    static void* counting_opcodes[] = { DEFINE_COUNTING_OPCODES };
+#else
+#ifndef NO_JUMP_TABLE
+    static void* opcodes[] = { DEFINE_OPCODES };
+#else
+    register BeamInstr Go;
+#endif
+#endif
+    if (ERTS_UNLIKELY(!init_done)) {
+        /*
+         * This should only be reached during the init phase when only the main
+         * process is running. I.e. there is no race for init_done.
+         */
+	init_done = 1;
+#ifndef NO_JUMP_TABLE
+#ifdef ERTS_OPCODE_COUNTER_SUPPORT
+#ifdef DEBUG
+     counting_opcodes[op_catch_end_y] = LabelAddr(lb_catch_end_y);
+#endif
+     counting_opcodes[op_i_func_info_IaaI] = LabelAddr(lb_i_func_info_IaaI);
+     beam_ops = counting_opcodes;
+#else /* #ifndef ERTS_OPCODE_COUNTER_SUPPORT */
+     beam_ops = opcodes;
+#endif /* ERTS_OPCODE_COUNTER_SUPPORT */
+#endif /* NO_JUMP_TABLE */
+     init_emulator_finish();
+     return 0;
+    }
+
+    erts_printf("%T\n", c_p->common.id);
+    SWAPIN;
+    SET_I(c_p->i);
+    Goto(*I);
+
+ do_schedule:
+    return FCALLS;
 
 #if defined(DEBUG) || defined(NO_JUMP_TABLE)
  emulator_loop:
@@ -457,34 +488,9 @@ void process_main(ErtsSchedulerData *esdp)
     c_p->current = erts_code_to_codemfa(I);
 
  context_switch3:
-
- {
-
-     if (erts_atomic32_read_nob(&c_p->state) & ERTS_PSFLG_EXITING) {
-         c_p->i = beam_exit;
-         c_p->arity = 0;
-         c_p->current = NULL;
-         goto do_schedule;
-     }
-
-     /*
-      * Since REDS_IN(c_p) is stored in the save area (c_p->arg_reg) we must read it
-      * now before saving registers.
-      */
-
-     ASSERT(c_p->debug_reds_in == REDS_IN(c_p));
-     if (!ERTS_PROC_GET_SAVED_CALLS_BUF(c_p))
-         reds_used = REDS_IN(c_p) - FCALLS;
-     else
-         reds_used = REDS_IN(c_p) - (CONTEXT_REDS + FCALLS);
-     ASSERT(reds_used >= 0);
-
-     copy_out_registers(c_p, reg);
-
      SWAPOUT;
      c_p->i = I;
-     goto do_schedule1;
- }
+     return FCALLS;
 
 #include "beam_warm.h"
 
@@ -578,33 +584,12 @@ void process_main(ErtsSchedulerData *esdp)
  OpCase(int_func_end):
     erts_exit(ERTS_ERROR_EXIT, "meta op\n");
 
-    /*
-     * One-time initialization of Beam emulator.
-     */
-
- init_emulator:
- {
-#ifndef NO_JUMP_TABLE
-#ifdef ERTS_OPCODE_COUNTER_SUPPORT
-#ifdef DEBUG
-     counting_opcodes[op_catch_end_y] = LabelAddr(lb_catch_end_y);
-#endif
-     counting_opcodes[op_i_func_info_IaaI] = LabelAddr(lb_i_func_info_IaaI);
-     beam_ops = counting_opcodes;
-#else /* #ifndef ERTS_OPCODE_COUNTER_SUPPORT */
-     beam_ops = opcodes;
-#endif /* ERTS_OPCODE_COUNTER_SUPPORT */
-#endif /* NO_JUMP_TABLE */
-
-     init_emulator_finish();
-     return;
- }
 #ifdef NO_JUMP_TABLE
  default:
     erts_exit(ERTS_ERROR_EXIT, "unexpected op code %d\n",Go);
   }
 #endif
-    return;			/* Never executed */
+    return 0;			/* Never executed */
 }
 
 /*
