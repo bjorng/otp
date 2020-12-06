@@ -215,12 +215,14 @@ static Sint emulator_loop(Process* c_p,
                           Eterm* reg,
                           FloatDef* freg,
                           struct erl_bits_state *EBS,
-                          int neg_o_reds);
+                          Sint FCALLS,
+                          int neg_o_reds,
+                          int* schedp);
 
 void
 init_emulator(void)
 {
-    (void) emulator_loop(0, 0, 0, 0, 0);
+    (void) emulator_loop(0, 0, 0, 0, 0, 0, 0);
 }
 
 /*
@@ -285,6 +287,7 @@ void process_main(ErtsSchedulerData *esdp)
     int neg_o_reds = 0;
     Uint64 start_time = 0;          /* Monitor long schedule */
     ErtsCodePtr start_time_i = NULL;
+    int sched;
 
     ERTS_MSACC_DECLARE_CACHE_X() /* a cached value of the tsd pointer for msacc */
 
@@ -369,8 +372,8 @@ void process_main(ErtsSchedulerData *esdp)
             DTRACE2(process_scheduled, process_buf, fun_buf);
         }
 #endif
-        FCALLS = emulator_loop(c_p, reg, freg, EBS, neg_o_reds);
-        if (erts_atomic32_read_nob(&c_p->state) & ERTS_PSFLG_EXITING) {
+        FCALLS = emulator_loop(c_p, reg, freg, EBS, FCALLS, neg_o_reds, &sched);
+        if (!sched && erts_atomic32_read_nob(&c_p->state) & ERTS_PSFLG_EXITING) {
             c_p->i = beam_exit;
             c_p->arity = 0;
             c_p->current = NULL;
@@ -383,7 +386,10 @@ void process_main(ErtsSchedulerData *esdp)
         else
             reds_used = REDS_IN(c_p) - (CONTEXT_REDS + FCALLS);
         ASSERT(reds_used >= 0);
-        copy_out_registers(c_p, reg);
+
+        if (!sched) {
+            copy_out_registers(c_p, reg);
+        }
         goto do_schedule1;
     }
 }
@@ -393,7 +399,9 @@ emulator_loop(register Process* c_p,
               register Eterm* reg,
               register FloatDef* freg,
               struct erl_bits_state *EBS,
-              int neg_o_reds)
+              register Sint FCALLS,
+              int neg_o_reds,
+              int* schedp)
 {
     static int init_done = 0;
 #ifdef DEBUG
@@ -415,11 +423,6 @@ emulator_loop(register Process* c_p,
      * Pointer to next threaded instruction.
      */
     register const BeamInstr *I REG_I = NULL;
-
-    /* Number of reductions left.  This function
-     * returns to the scheduler when FCALLS reaches zero.
-     */
-    register Sint FCALLS REG_fcalls = 0;
 
 #ifdef ERTS_OPCODE_COUNTER_SUPPORT
     static void* counting_opcodes[] = { DEFINE_COUNTING_OPCODES };
@@ -451,12 +454,12 @@ emulator_loop(register Process* c_p,
      return 0;
     }
 
-    erts_printf("%T\n", c_p->common.id);
     SWAPIN;
     SET_I(c_p->i);
     Goto(*I);
 
  do_schedule:
+    *schedp = 1;
     return FCALLS;
 
 #if defined(DEBUG) || defined(NO_JUMP_TABLE)
@@ -488,9 +491,10 @@ emulator_loop(register Process* c_p,
     c_p->current = erts_code_to_codemfa(I);
 
  context_switch3:
-     SWAPOUT;
-     c_p->i = I;
-     return FCALLS;
+    SWAPOUT;
+    c_p->i = I;
+    *schedp = 0;
+    return FCALLS;
 
 #include "beam_warm.h"
 
