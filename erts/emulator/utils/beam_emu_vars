@@ -53,8 +53,8 @@ while (<>) {
 	last;
     }
     if ($inside) {
-	if (/##DEBUG_VALUE:\s*process_main:([A-Za-z]*)\s*<-\s*(.*)/) {
-	    # clang
+        if (/DEBUG_VALUE:\s*process_main:([_A-Za-z]*)\s*<-\s*(.*)/) {
+	    # clang (x86/ARM)
 	    my($var,$reg) = ($1,$2);
 	    next if $reg =~ /^[-\d]+$/; # Ignore if number.
 	    $count{$var}->{$reg}++ if $vars{$var};
