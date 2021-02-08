@@ -645,12 +645,18 @@ simplify_terminator(#b_br{bool=Bool}=Br0, Ts, Ds, Sub) ->
 simplify_terminator(#b_switch{arg=Arg0,fail=Fail,list=List0}=Sw0,
                     Ts, Ds, Sub) ->
     Arg = simplify_arg(Arg0, Ts, Sub),
-    %% Ensure that no label in the switch list is the same as the
-    %% failure label.
-    List = [{Val,Lbl} || {Val,Lbl} <- List0, Lbl =/= Fail],
+    ArgType = raw_type(Arg, Ts),
+
+    %% Remove values that can't match or values whose label
+    %% is the same as the failure label for the switch.
+    List = [{Val,Lbl} ||
+               {Val,Lbl} <- List0,
+               beam_types:meet(raw_type(Val, Ts), ArgType) =/= none,
+               Lbl =/= Fail],
+
     case beam_ssa:normalize(Sw0#b_switch{arg=Arg,list=List}) of
         #b_switch{}=Sw ->
-            case beam_types:is_boolean_type(raw_type(Arg, Ts)) of
+            case beam_types:is_boolean_type(ArgType) of
                 true -> simplify_switch_bool(Sw, Ts, Ds, Sub);
                 false -> Sw
             end;
