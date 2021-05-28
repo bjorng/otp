@@ -34,6 +34,8 @@ extern "C"
 #endif
 }
 
+#include <sys/time.h>
+
 #ifdef ERLANG_FRAME_POINTERS
 ErtsFrameLayout ERTS_WRITE_UNLIKELY(erts_frame_layout);
 #endif
@@ -169,7 +171,12 @@ static JitAllocator *pick_allocator() {
     dual_params.options = JitAllocator::kOptionUseDualMapping,
     dual_params.blockSize = 4 << 20;
 
+    struct timeval st, et;
+    gettimeofday(&st, NULL);
     if (auto *alloc = create_allocator(&dual_params)) {
+        gettimeofday(&et, NULL);
+        long elapsed = ((et.tv_sec - st.tv_sec) * 1000000L) + (et.tv_usec - st.tv_usec);
+        erts_printf("%ld\n", elapsed);
         return alloc;
     } else if (auto *alloc = create_allocator(&single_params)) {
         return alloc;
