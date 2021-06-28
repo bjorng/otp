@@ -301,6 +301,7 @@ epilogue_passes(Opts) ->
           ?PASS(ssa_opt_bsm_shortcut),
           ?PASS(ssa_opt_sink),
           ?PASS(ssa_opt_blockify),
+          ?PASS(ssa_opt_redundant_br),
           ?PASS(ssa_opt_merge_blocks),
           ?PASS(ssa_opt_get_tuple_element),
           ?PASS(ssa_opt_tail_calls),
@@ -3100,6 +3101,63 @@ is_tail_call_is([#b_set{op=call,dst=Dst}=Call,
 is_tail_call_is([I|Is], Bool, Ret, Acc) ->
     is_tail_call_is(Is, Bool, Ret, [I|Acc]);
 is_tail_call_is([], _Bool, _Ret, _Acc) -> no.
+
+%%%
+%%% Eliminate redundant two-way `br` instructions. For example:
+%%%
+%%%        Bool = bif:BooleanBif ...
+%%%        br Bool, ^Succ, ^Fail
+%%%
+%%%    Succ: ret true
+%%%    Fail: ret false
+%%%
+%%% can be rewritten to:
+%%%
+%%%        Bool = bif:BooleanBif ...
+%%%        ret Bool
+%%%
+
+ssa_opt_redundant_br({#opt_st{ssa=Blocks0}=St, FuncDb}) ->
+    Blocks = redundant_br(maps:to_list(Blocks0), Blocks0),
+    {St#opt_st{ssa=Blocks}, FuncDb}.
+
+redundant_br([{L,#b_blk{is=Is,last=Last}=Blk0}|Ls], Blocks0) ->
+    case Last of
+        #b_br{bool=#b_var{}=Bool,succ=Succ,fail=Fail} ->
+            case Blocks0 of
+                #{Succ := #b_blk{is=[],last=#b_ret{arg=#b_literal{val=true}}},
+                  Fail := #b_blk{is=[],last=#b_ret{arg=#b_literal{val=false}}}} ->
+                    case suitable_bool_instruction(Is, Bool) of
+                        true ->
+                            Blk = Blk0#b_blk{last=#b_ret{arg=Bool}},
+                            Blocks = Blocks0#{L => Blk},
+                            redundant_br(Ls, Blocks);
+                        false ->
+                            redundant_br(Ls, Blocks0)
+                    end;
+                #{} ->
+                    redundant_br(Ls, Blocks0)
+            end;
+        _ ->
+            redundant_br(Ls, Blocks0)
+    end;
+redundant_br([], Blocks) -> Blocks.
+
+suitable_bool_instruction([#b_set{op={bif,_}}], _Bool) ->
+    %% Safe, regardless of whether the boolean is defined by this
+    %% instruction or by a previous instruction.
+    true;
+suitable_bool_instruction([#b_set{dst=Bool}], Bool) ->
+    %% An instruction such as is_nonempty_list that MUST be followed
+    %% by a a two-way `br` terminator. Not safe.
+    false;
+suitable_bool_instruction([_|Is], Bool) ->
+    suitable_bool_instruction(Is, Bool);
+suitable_bool_instruction([], _Bool) ->
+    %% The boolean is not defined in the last instruction in the
+    %% block, but by a previous instruction. Safe since the definition
+    %% of the boolean and its test are clearly already separated.
+    true.
 
 %%%
 %%% Common utilities.
