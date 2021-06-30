@@ -1694,12 +1694,16 @@ void BeamModuleAssembler::emit_try_end(const ArgVal &Y) {
 }
 
 void BeamModuleAssembler::emit_try_case(const ArgVal &Y) {
-    a.dec(x86::qword_ptr(c_p, offsetof(Process, catches)));
-    mov_arg(Y, NIL);
+    emit_try_reset(Y);
     a.movups(x86::xmm0, x86::xmmword_ptr(registers, 1 * sizeof(Eterm)));
     a.mov(RET, getXRef(3));
     a.movups(x86::xmmword_ptr(registers, 0 * sizeof(Eterm)), x86::xmm0);
     a.mov(getXRef(2), RET);
+}
+
+void BeamModuleAssembler::emit_try_reset(const ArgVal &Y) {
+    a.dec(x86::qword_ptr(c_p, offsetof(Process, catches)));
+    mov_arg(Y, NIL);
 
 #ifdef DEBUG
     Label fvalue_ok = a.newLabel(), assertion_failed = a.newLabel();
@@ -1715,6 +1719,7 @@ void BeamModuleAssembler::emit_try_case(const ArgVal &Y) {
     a.cmp(x86::qword_ptr(c_p, offsetof(Process, fvalue)), NIL);
     a.short_().jne(assertion_failed);
 #endif
+
 }
 
 void BeamModuleAssembler::emit_try_case_end(const ArgVal &Src) {

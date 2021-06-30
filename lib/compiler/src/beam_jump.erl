@@ -459,6 +459,7 @@ is_shareable([{catch_end,_}|_]) -> false;
 is_shareable([if_end|_]) -> false;
 is_shareable([{'try',_,_}|_]) -> false;
 is_shareable([{try_case,_}|_]) -> false;
+is_shareable([{try_reset,_}|_]) -> false;
 is_shareable([{try_end,_}|_]) -> false;
 is_shareable([_|Is]) -> is_shareable(Is);
 is_shareable([]) -> true.
@@ -493,6 +494,8 @@ classify_labels([{'try',_,_}|Is], Scope, Safe) ->
 classify_labels([{'try_end',_}|Is], Scope, Safe) ->
     classify_labels(Is, Scope+1, Safe);
 classify_labels([{'try_case',_}|Is], Scope, Safe) ->
+    classify_labels(Is, Scope+1, Safe);
+classify_labels([{'try_reset',_}|Is], Scope, Safe) ->
     classify_labels(Is, Scope+1, Safe);
 classify_labels([{'try_case_end',_}|Is], Scope, Safe) ->
     classify_labels(Is, Scope+1, Safe);

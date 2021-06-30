@@ -211,6 +211,7 @@ catch_end y
 try Y F => catch Y F
 
 try_case y
+try_reset y
 try_end y
 
 try_case_end s

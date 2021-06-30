@@ -1476,6 +1476,10 @@ void BeamModuleAssembler::emit_try_case(const ArgVal &Y) {
     a.mov(XREG1, XREG2);
     a.mov(XREG2, XREG3);
 
+    emit_try_reset(Y);
+}
+
+void BeamModuleAssembler::emit_try_reset(const ArgVal &Y) {
     a.ldr(TMP1, arm::Mem(c_p, offsetof(Process, catches)));
     a.sub(TMP1, TMP1, imm(1));
     a.str(TMP1, arm::Mem(c_p, offsetof(Process, catches)));

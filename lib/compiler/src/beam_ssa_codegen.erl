@@ -1840,7 +1840,12 @@ cg_try(Agg, Tag, T0, Context, St0) ->
     Moves = order_moves(Moves0),
     [#cg_set{op=kill_try_tag}|T2] = T1,
     {T,St} = cg_block(T2, Context, St0),
-    {[{try_case,Tag}|Moves++T],St}.
+    case T0 of
+        [#cg_set{op=extract}|_] ->
+            {[{try_case,Tag}|Moves++T],St};
+        _ ->
+            {[{try_reset,Tag}|T],St}
+    end.
 
 cg_extract([#cg_set{op=extract,dst=Dst0,args=Args0}|Is0], Agg, St) ->
     [Dst,Agg,{integer,X}] = beam_args([Dst0|Args0], St),

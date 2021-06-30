@@ -1173,6 +1173,12 @@ resolve_inst({recv_marker_reserve,[Reg]},_,_,_) ->
 resolve_inst({recv_marker_use,[Reg]},_,_,_) ->
     {recv_marker_use,Reg};
 
+%%
+%% OTP 25.
+%%
+
+resolve_inst({try_reset,[Reg]},_,_,_) ->
+    {try_reset,Reg};
 
 %%
 %% Catches instructions that are not yet handled.

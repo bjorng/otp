@@ -808,6 +808,17 @@ vi({try_case,Reg}, #vst{current=#st{ct=[Tag|_]}}=Vst0) ->
         Type ->
             error({wrong_tag_type,Type})
     end;
+vi({try_reset,Reg}, #vst{current=#st{ct=[Tag|_]}}=Vst0) ->
+    case get_tag_type(Reg, Vst0) of
+        {trytag,_Fail}=Tag ->
+            %% Kill the catch tag and all other state (as if we've been
+            %% scheduled out with no live registers). Only previously allocated
+            %% Y registers are alive at this point.
+            Vst = kill_catch_tag(Reg, Vst0),
+            schedule_out(0, Vst);
+        Type ->
+            error({wrong_tag_type,Type})
+    end;
 vi(build_stacktrace, Vst0) ->
     verify_y_init(Vst0),
     verify_live(1, Vst0),

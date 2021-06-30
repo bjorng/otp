@@ -241,6 +241,8 @@ try Y F => catch Y F
 try_case y
 try_end y
 
+try_reset Y => try_case Y
+
 %cold
 try_case_end s
 %hot
