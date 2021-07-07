@@ -56,16 +56,15 @@
       it will require more memory and keys can no longer be shared
       with other instances of the map.</p></item>
 
-      <item><p>When creating a new map, always create it with the
-      all the keys that will ever be used. To maximize sharing of
-      keys (thus minimizing memory use), create a single function
-      that constructs the map using the map syntax and always use
-      it.</p></item>
+      <item><p>When creating a new map, always create it with all keys
+      that will ever be used. To maximize sharing of keys (thus
+      minimizing memory use), create a single function that constructs
+      the map using the map syntax and always use it.</p></item>
 
       <item><p>Always update the map using the
       <c>:=</c> operator (that is, requiring that an element with
       that key already exists).  The <c>:=</c> operator is slightly
-      more efficient, and it will help catch mispellings of
+      more efficient, and it helps catching mispellings of
       keys.</p></item>
 
       <item><p>Whenever possible, match multiple map elements at
@@ -96,7 +95,7 @@
       <item><p>Keys are usually variables not known at compile-time.</p></item>
       <item><p>There can be any number of elements in the map.</p></item>
       <item><p>Usually, no more than one element is looked up or
-      updated at the time.</p></item>
+      updated at once.</p></item>
     </list>
 
     <p>Given that usage pattern, there is usually less performance to
@@ -108,13 +107,13 @@
     with a few possible exceptions:</p>
 
     <list type="bulleted">
-      <item><p>If it is necessary to frequenquently convert a
-      dictionary to a sorted listed, or from a sorted list to a
+      <item><p>If it is necessary to frequently convert a
+      dictionary to a sorted list, or from a sorted list to a
       dictionary, using <seeerl marker="stdlib:gb_trees">gb_trees</seeerl>
-      could be a better choice.</p></item>
+      can be a better choice.</p></item>
 
       <item><p>If all keys are non-negative integers, the <seeerl
-      marker="stdlib:array">array</seeerl> module could be a better
+      marker="stdlib:array">array</seeerl> module can be a better
       choice.</p></item>
     </list>
   </section>
@@ -123,7 +122,7 @@
     <title>Using Maps as Sets</title>
 
     <p>Starting in OTP 24, the <seeerl marker="stdlib:sets">sets</seeerl> module
-    has an option to represent its sets as map. Examples:</p>
+    has an option to represent sets as map. Examples:</p>
 
     <code type="erl"><![CDATA[
 1> sets:new([{version,2}]).
@@ -137,16 +136,16 @@
     <list type="bulleted">
       <item><p><seemfa
       marker="stdlib:ordsets#intersection/2">ordsets:intersection/2</seemfa>
-      could be more efficient than <seemfa
+      can be more efficient than <seemfa
       marker="stdlib:sets#intersection/2">sets:intersection/2</seemfa>.
       If the intersection operation is frequently used and operations
       that operate on a single element in a set (such as
       <c>is_element/2</c>) are avoided, <seeerl
-      marker="stdlib:ordsets">ordsets</seeerl> could be a better
+      marker="stdlib:ordsets">ordsets</seeerl> can be a better
       choice than <seeerl marker="stdlib:sets">sets</seeerl>.</p></item>
 
       <item><p>If the elements of the set are integers in a fairly
-      compact range, the set could be represented as an integer where
+      compact range, the set can be represented as an integer where
       each bit represents an element in the set. The union operation
       is performed by <c>bor</c> and the intersection operation by
       <c>band</c>.</p></item>
@@ -156,7 +155,7 @@
   <section>
     <title>How Maps are Implemented</title>
     <p>Internally, maps have two distinct representations depending on
-    the number of elements in the map. The representation will change
+    the number of elements in the map. The representation changes
     when a map grows beyond 32 elements, or when it shrinks to 32
     elements or less.</p>
 
@@ -204,7 +203,7 @@
       </taglist>
 
       <p>As an example, let us look at how the map <c>#{a => foo, z => bar}</c>
-      would be represented:</p>
+      is represented:</p>
 
       <table align="left">
         <row>
@@ -217,8 +216,8 @@
         <tcaption>#{a => foo, z => bar}</tcaption>
       </table>
 
-      <p>Let us update the map: <c>M#{q => baz}</c>. The map will
-      now look like:</p>
+      <p>Let us update the map: <c>M#{q => baz}</c>. The map now looks
+      like this:</p>
 
       <table align="left">
         <row>
@@ -232,8 +231,8 @@
         <tcaption>#{a => foo, q => baz, z => bar}</tcaption>
       </table>
 
-      <p>Finally, change the value of one element: <c>M#{z := bird}</c>. The map will
-      now look like:</p>
+      <p>Finally, change the value of one element: <c>M#{z :=
+      bird}</c>. The map now looks like this:</p>
 
       <table align="left">
         <row>
@@ -247,7 +246,7 @@
         <tcaption>#{a => foo, q => baz, z => bird}</tcaption>
       </table>
 
-      <p>When the value for an existing key is updated, the key tuple will not
+      <p>When the value for an existing key is updated, the key tuple is not
       be updated, allowing the key tuple to be shared with instances of the
       map that have the same keys. In fact, the key tuple can be shared between all
       instances of a map with some care. To arrange that, define a function that
@@ -258,7 +257,7 @@ new() ->
     #{a => default, b => default, c => default}.]]></code>
 
       <p>Defined like this, the key tuple <c>{a,b,c}</c> will be a
-      global literal.  To ensure that the key tuple is shared,
+      global literal. To ensure that the key tuple is shared
       when creating an instance of the map, always call
       <c>new()</c> and modify the returned map:</p>
 
@@ -266,7 +265,7 @@ new() ->
     (SOME_MODULE:new())#{a := 42}.]]></code>
 
       <p>Using the map syntax with small maps is particularly efficient.
-      As long as the keys are known at compile-time, the map will be updated
+      As long as the keys are known at compile-time, the map is updated
       in one go, making the time to update a map essentially constant regardless
       of the number of keys updated. The same goes for matching.</p>
 
@@ -286,13 +285,13 @@ new() ->
 
       <p>There is less performance to be gained by matching or
       updating multiple elements using the map syntax on a large map
-      compared to a small map. The execution time will be roughly proportional
+      compared to a small map. The execution time is roughly proportional
       to the number of elements matched or updated.</p>
 
       <p>The storage overhead for a large map is higher than for a
       small map. For a large map, the extra number of words besides
       the keys and values is roughly proportional to the number of
-      elements. For a map with 33 elements the overhead will be at
+      elements. For a map with 33 elements the overhead is at
       least 53 heap words according to the formula in <seeguide
       marker="advanced#memory">Advanced</seeguide> (compared to 5
       extra words for a small map regardless of the number of
@@ -306,7 +305,8 @@ new() ->
       <p>Therefore, if maps are used instead of records and it is
       expected that many instances of the map will be created, it is
       more efficient from a memory standpoint to avoid using large
-      maps.</p>
+      maps (for example, by grouping related map elements into sub
+      maps to reduce the number of elements).</p>
     </section>
   </section>
 
@@ -339,17 +339,17 @@ new() ->
     Map3 = maps:update(y, Y, Map2),
     Map = maps:update(z, Z, Map3)]]></code>
 
-    <p>If the map is a small map, the first example will be roughly
+    <p>If the map is a small map, the first example runs roughly
     three times as fast.</p>
 
-    <p>Note that for variable keys, the elements will be updated
+    <p>Note that for variable keys, the elements are updated
     sequentially from left to right. For example, given the following
     update with variable keys:</p>
 
     <code type="erl"><![CDATA[
     Map = Map1#{Key1 := X, Key2 := Y, Key3 := Z}]]></code>
 
-    <p>the compiler will rewrite it like this to ensure that the updates
+    <p>the compiler rewrites it like this to ensure that the updates
     are applied from left to right:</p>
 
     <code type="erl"><![CDATA[
@@ -381,13 +381,13 @@ new() ->
       worst-case performance horrible.</p>
 
       <p>For example, <seemfa
-      marker="stdlib:maps#map/2">maps:map/2</seemfa> will iterate over
-      all elements of the map, calling the mapping fun, collect the
-      updated map elements in a list, and finally convert the list
+      marker="stdlib:maps#map/2">maps:map/2</seemfa> iterates over
+      all elements of the map, calling the mapping fun, collects the
+      updated map elements in a list, and finally converts the list
       back to a map using <seemfa
-      marker="stdlib:maps#from_list/1">maps:from_list/1</seemfa>.  If
+      marker="stdlib:maps#from_list/1">maps:from_list/1</seemfa>. If
       it is known that at most one percent of the values in the map
-      will change, it could be more efficient to update only the
+      will change, it can be more efficient to update only the
       changed values.</p></item>
     </list>
 
@@ -395,7 +395,7 @@ new() ->
       <title>maps:filter/2</title>
       <p><seemfa marker="stdlib:maps#filter/2">maps:filter/2</seemfa> is
       implemented in Erlang. It will build a new map. If it is known
-      that only a minority of the values will be removed, it could
+      that only a minority of the values will be removed, it can
       be more efficient to avoid <c>maps:filter/2</c> and write a
       function that will use <seemfa
       marker="stdlib:maps#remove/2">maps:remove/3</seemfa> to remove
@@ -408,7 +408,7 @@ new() ->
       marker="stdlib:maps#filtermap/2">maps:filtermap/2</seemfa> is
       implemented in Erlang. It will build a new map. See the notes
       for <c>maps:map/2</c> and <c>maps:filter/2</c> for hints on how
-      to implement a more efficent version.</p>
+      to implement a more efficient version.</p>
     </section>
 
     <section>
@@ -457,7 +457,7 @@ get(Key, Map, Default) ->
 
       <p>Whether that is faster than calling <c>maps:get/3</c>
       multiple times depends on the size of the map and the number of
-      default values that must be handled.</p>
+      default values.</p>
     </section>
 
     <section>
@@ -487,8 +487,8 @@ get(Key, Map, Default) ->
 
     <section>
       <title>maps:is_key/2</title>
-      <p>The compiler will rewrite a call to <seemfa
-      marker="stdlib:maps#is_key/2">maps:is_key/2</seemfa> to a call
+      <p>The compiler rewrites calls to <seemfa
+      marker="stdlib:maps#is_key/2">maps:is_key/2</seemfa> to calls
       to the guard BIF <seemfa
       marker="erts:erlang#is_map_key/2">is_map_key/2</seemfa>. A call
       to a guard BIF is more efficient than calls to other BIFs.</p>
@@ -511,8 +511,8 @@ get(Key, Map, Default) ->
     <section>
       <title>maps:map/2</title>
       <p><seemfa marker="stdlib:maps#map/2">maps:map/2</seemfa> is
-      implemented in Erlang. It will build a new map. If it is known
-      that only a minority of the values will be updated, it could
+      implemented in Erlang. It builds a new map. If it is known
+      that only a minority of the values will be updated, it can
       be more efficient to avoid <c>maps:map/2</c> and write a
       function that will call <seemfa
       marker="stdlib:maps#update/3">maps:update/3</seemfa> to update
@@ -528,15 +528,15 @@ get(Key, Map, Default) ->
     <section>
       <title>maps:merge_with/3</title>
       <p><seemfa marker="stdlib:maps#merge_with/3">maps:merge_with/3</seemfa>
-      is implemented in Erlang. It will update and return the larger of the
+      is implemented in Erlang. It updates and returns the larger of the
       two maps.</p>
     </section>
 
     <section>
       <title>maps:new/0</title>
-      <p>The compiler will rewrite a call to
-      <seemfa marker="stdlib:maps#new/0">maps:new/0</seemfa>
-      to using the syntax <c>#{}</c> for constructing an empty map.</p>
+      <p>The compiler rewrites a call to <seemfa
+      marker="stdlib:maps#new/0">maps:new/0</seemfa> to using the
+      syntax <c>#{}</c> for constructing an empty map.</p>
     </section>
 
     <section>
@@ -553,7 +553,7 @@ get(Key, Map, Default) ->
       marker="stdlib:maps#update/3">maps:update/3</seemfa> is
       slightly more efficient than <c>maps:put/3</c>.</p>
       <p>If the keys are constants known at compile-time, using the
-      map update syntax with the <c>=></c> operator will be more
+      map update syntax with the <c>=></c> operator is more
       efficient than multiple calls to <c>maps:put/3</c>,
       especially for small maps.</p>
     </section>
@@ -582,7 +582,7 @@ get(Key, Map, Default) ->
       <note><p>Maps are usually more performant than <seeerl
       marker="stdlib:gb_trees">gb_trees</seeerl>, but if it is
       necessary to frequently convert to and from sorted lists,
-      <c>gb_trees</c> could be a better choice.</p></note>
+      <c>gb_trees</c> can be a better choice.</p></note>
     </section>
 
     <section>
@@ -591,7 +591,7 @@ get(Key, Map, Default) ->
       is implemented in C.</p>
 
       <p>If the keys are constants known at compile-time, using the
-      map update syntax with the <c>:=</c> operator will be more
+      map update syntax with the <c>:=</c> operator is more
       efficient than multiple calls to <c>maps:update/3</c>,
       especially for small maps.</p>
     </section>
@@ -605,13 +605,13 @@ get(Key, Map, Default) ->
     <section>
       <title>maps:with/2</title>
       <p><seemfa marker="stdlib:maps#with/2">maps:with/2</seemfa>
-      is implemented in Erlang. It will return new map.</p>
+      is implemented in Erlang. It returns a new map.</p>
     </section>
 
     <section>
       <title>maps:without/2</title>
       <p><seemfa marker="stdlib:maps#without/2">maps:without/2</seemfa>
-      is implemented in Erlang. It will returned a modified copy of the
+      is implemented in Erlang. It returns a modified copy of the
       input map.</p>
     </section>
   </section>
