@@ -65,8 +65,7 @@
 -type b_switch()   :: #b_switch{}.
 -type terminator() :: b_br() | b_ret() | b_switch().
 
--type construct()  :: b_module() | b_function() | b_blk() | b_set() |
-                      terminator().
+-type anno_construct() :: b_function() | b_blk() | b_set() | terminator().
 
 -type b_var()      :: #b_var{}.
 -type b_literal()  :: #b_literal{}.
@@ -136,7 +135,7 @@
 -spec add_anno(Key, Value, Construct) -> Construct when
       Key :: atom(),
       Value :: any(),
-      Construct :: construct().
+      Construct :: anno_construct().
 
 add_anno(Key, Val, #b_function{anno=Anno}=Bl) ->
     Bl#b_function{anno=Anno#{Key=>Val}};
@@ -151,12 +150,12 @@ add_anno(Key, Val, #b_ret{anno=Anno}=Bl) ->
 add_anno(Key, Val, #b_switch{anno=Anno}=Bl) ->
     Bl#b_switch{anno=Anno#{Key=>Val}}.
 
--spec get_anno(atom(), construct()) -> any().
+-spec get_anno(atom(), anno_construct()) -> any().
 
 get_anno(Key, Construct) ->
     map_get(Key, get_anno(Construct)).
 
--spec get_anno(atom(), construct(),any()) -> any().
+-spec get_anno(atom(), anno_construct(),any()) -> any().
 
 get_anno(Key, Construct, Default) ->
     maps:get(Key, get_anno(Construct), Default).

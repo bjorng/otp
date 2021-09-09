@@ -66,7 +66,9 @@
 
 %%
 
--spec opt_start(term(), term()) -> term().
+-spec opt_start(StMap, FuncDb) -> {StMap, FuncDb} when
+      StMap :: st_map(),
+      FuncDb :: func_info_db().
 opt_start(StMap, FuncDb0) when FuncDb0 =/= #{} ->
     {ArgDb, FuncDb} = signatures(StMap, FuncDb0),
 

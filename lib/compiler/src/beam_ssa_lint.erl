@@ -38,7 +38,7 @@ module(#b_module{body=Fs,name=Name}=Mod0, _Options) ->
             {error,[{atom_to_list(Name), Es}]}
     end.
 
--spec format_error(term()) -> iolist().
+-spec format_error({mfa(),term()}) -> iolist().
 format_error({{_M,F,A},Error}) ->
     [io_lib:format("~p/~p: ", [F,A]),format_error_1(Error)].
 

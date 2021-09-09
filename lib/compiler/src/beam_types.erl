@@ -600,13 +600,14 @@ make_float(Float) when is_float(Float) ->
 make_float(Min, Max) when is_float(Min), is_float(Max), Min =< Max ->
     #t_float{elements={Min, Max}}.
 
--spec make_integer(integer()) -> type().
+-spec make_integer(integer()) -> #t_integer{}.
 make_integer(Int) when is_integer(Int) ->
     make_integer(Int, Int).
 
--spec make_integer(Min, Max) -> type() when
+-spec make_integer(Min, Max) -> IntegerType when
       Min :: integer(),
-      Max :: integer().
+      Max :: integer(),
+      IntegerType :: #t_integer{}.
 make_integer(Min, Max) when is_integer(Min), is_integer(Max), Min =< Max ->
     #t_integer{elements={Min,Max}}.
 

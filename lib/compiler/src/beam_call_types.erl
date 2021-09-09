@@ -966,10 +966,11 @@ proper_list(ElementType) ->
 
 %% Constructs a new list type based on another, optionally keeping the same
 %% length and/or making it proper.
--spec copy_list(List, Length, Proper) -> type() when
+-spec copy_list(List, Length, Proper) -> CopiedList when
       List :: type(),
       Length :: same_length | new_length,
-      Proper :: proper | maybe_improper.
+      Proper :: proper | maybe_improper,
+      CopiedList :: #t_cons{} | #t_list{} | nil.
 copy_list(#t_cons{terminator=Term}=T, Length, maybe_improper) ->
     copy_list_1(T, Length, Term);
 copy_list(#t_list{terminator=Term}=T, Length, maybe_improper) ->

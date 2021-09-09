@@ -40,9 +40,11 @@
 
 -type index()        :: non_neg_integer().
 -type literals()     :: 'none' | gb_trees:tree(index(), term()).
--type symbolic_tag() :: 'a' | 'f' | 'h' | 'i' | 'u' | 'x' | 'y' | 'z'.
--type disasm_tag()   :: symbolic_tag() | 'fr' | 'atom' | 'float' | 'literal'.
--type disasm_term()  :: 'nil' | {disasm_tag(), _}.
+-type primitive_tag() :: 'a' | 'f' | 'h' | 'i' | 'u' | 'x' | 'y'.
+-type symbolic_tag() :: primitive_tag() | 'z'.
+-type disasm_tag()   :: primitive_tag() | 'fr' | 'float'.
+-type all_disasm_tag() :: disasm_tag() | 'atom' | 'literal'.
+-type disasm_term()  :: 'nil' | {all_disasm_tag(), _}.
 
 %%-----------------------------------------------------------------------
 
