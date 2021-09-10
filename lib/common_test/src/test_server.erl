@@ -1970,6 +1970,9 @@ adjusted_sleep(MSecs) ->
 %%
 %% Immediately calls exit. Included because test suites are easier
 %% to read when using this function, rather than exit directly.
+
+-spec fail(term()) -> no_return().
+
 fail(Reason) ->
     comment(cast_to_list(Reason)),
     try
@@ -1994,6 +1997,9 @@ cast_to_list(X) -> lists:flatten(io_lib:format("~tp", [X])).
 %%
 %% Immediately calls exit. Included because test suites are easier
 %% to read when using this function, rather than exit directly.
+
+-spec fail() -> no_return().
+
 fail() ->
     try
 	exit(suite_failed)
