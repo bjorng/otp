@@ -24,6 +24,7 @@
 #include <queue>
 #include <map>
 #include <functional>
+#include <algorithm>
 
 #ifndef ASMJIT_ASMJIT_H_INCLUDED
 #    include <asmjit/asmjit.hpp>
@@ -589,6 +590,13 @@ protected:
         a.tbnz(Src, imm(bitNumber), Fail);
     }
 
+    void emit_is_not_boxed(Label Fail, arm::Gp Src) {
+        const int bitNumber = 0;
+        ERTS_CT_ASSERT(_TAG_PRIMARY_MASK - TAG_PRIMARY_BOXED ==
+                       (1 << bitNumber));
+        a.tbz(Src, imm(bitNumber), Fail);
+    }
+
     arm::Gp emit_ptr_val(arm::Gp Dst, arm::Gp Src) {
 #if !defined(TAG_LITERAL_PTR)
         return Src;
@@ -1148,11 +1156,38 @@ protected:
         return beam->types.entries[arg.typeIndex()].type_union;
     }
 
+    bool hasIntRange(const ArgVal &arg) const {
+        ASSERT(arg.typeIndex() < beam->types.count);
+        return beam->types.entries[arg.typeIndex()].min <=
+               beam->types.entries[arg.typeIndex()].max;
+    }
+
+    void getIntRange(const ArgVal &arg, Sint &min, Sint &max) const {
+        if (is_small(arg.getValue())) {
+            min = max = signed_val(arg.getValue());
+        } else {
+            ASSERT(arg.typeIndex() < beam->types.count);
+            min = beam->types.entries[arg.typeIndex()].min;
+            max = beam->types.entries[arg.typeIndex()].max;
+        }
+    }
+
+    bool always_small(const ArgVal &arg) const {
+        if (arg.isImmed() && is_small(arg.getValue())) {
+            return true;
+        }
+        int type_union = getTypeUnion(arg);
+        return type_union == BEAM_TYPE_INTEGER && hasIntRange(arg);
+    }
+
     bool always_immediate(const ArgVal &arg) const {
         if (arg.isImmed()) {
             return true;
         }
         int type_union = getTypeUnion(arg);
+        if (hasIntRange(arg)) {
+            type_union &= ~BEAM_TYPE_INTEGER;
+        }
         return (type_union & BEAM_TYPE_MASK_ALWAYS_IMMEDIATE) == type_union;
     }
 
@@ -1207,11 +1242,37 @@ protected:
         return always_one_of(arg, type_id);
     }
 
+    bool is_sum_small(const ArgVal &LHS, const ArgVal &RHS) {
+        if (!(always_small(LHS) && always_small(RHS))) {
+            return false;
+        } else {
+            Sint min, max, min1, max1, min2, max2;
+            getIntRange(LHS, min1, max1);
+            getIntRange(RHS, min2, max2);
+            min = min1 + min2;
+            max = max1 + max2;
+            return IS_SSMALL(min) && IS_SSMALL(max);
+        }
+    }
+
+    bool is_difference_small(const ArgVal &LHS, const ArgVal &RHS) {
+        if (!(always_small(LHS) && always_small(RHS))) {
+            return false;
+        } else {
+            Sint min, max, min1, max1, min2, max2;
+            getIntRange(LHS, min1, max1);
+            getIntRange(RHS, min2, max2);
+            min = min1 - min2;
+            max = max1 - max2;
+            return IS_SSMALL(min) && IS_SSMALL(max);
+        }
+    }
+
     bool is_product_small(const ArgVal &LHS, const ArgVal &RHS) {
         if (!(always_small(LHS) && always_small(RHS))) {
             return false;
         } else {
-            Sint64 res, min, max, min1, max1, min2, max2;
+            Sint res, min, max, min1, max1, min2, max2;
             getIntRange(LHS, min1, max1);
             getIntRange(RHS, min2, max2);
             min = std::min(abs(min1), abs(min2));
@@ -1261,7 +1322,11 @@ protected:
     void emit_div_rem(const ArgVal &Fail,
                       const ArgVal &LHS,
                       const ArgVal &RHS,
-                      const ErtsCodeMFA *error_mfa);
+                      const ErtsCodeMFA *error_mfa,
+                      const ArgVal &Quotient,
+                      const ArgVal &Remainder,
+                      bool need_div,
+                      bool need_rem);
 
     void emit_i_bif(const ArgVal &Fail, const ArgVal &Bif, const ArgVal &Dst);
 
