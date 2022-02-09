@@ -22,7 +22,7 @@
 -module(beam_ssa_codegen).
 
 -export([module/2]).
--export([classify_heap_need/2]).    %Called from beam_ssa_pre_codegen.
+-export([classify_heap_need/3]).    %Called from beam_ssa_pre_codegen.
 
 -export_type([ssa_register/0]).
 
@@ -256,8 +256,8 @@ need_heap_is([#cg_set{anno=Anno,op=bs_create_bin}=I0|Is], N, Acc) ->
             end,
     I = I0#cg_set{anno=Anno#{alloc=>Alloc}},
     need_heap_is(Is, #need{}, [I|Acc]);
-need_heap_is([#cg_set{op=Op,args=Args}=I|Is], N, Acc) ->
-    case classify_heap_need(Op, Args) of
+need_heap_is([#cg_set{anno=Anno,op=Op,args=Args}=I|Is], N, Acc) ->
+    case classify_heap_need(Anno, Op, Args) of
         {put,Words} ->
             %% Pass through adding to needed heap.
             need_heap_is(Is, add_heap_words(N, Words), [I|Acc]);
@@ -312,7 +312,7 @@ add_heap_fun(#need{h=Heap, l=Lambdas}=N, NArgs) ->
 add_heap_float(#need{f=F}=N) ->
     N#need{f=F+1}.
 
-%% classify_heap_need(Operation, Arguments) ->
+%% classify_heap_need(Operation, Arguments, AllowYield) ->
 %%        gc | neutral | {put,Words} | put_float.
 %%  Classify the heap need for this instruction. The return
 %%  values have the following meaning.
@@ -329,11 +329,19 @@ add_heap_float(#need{f=F}=N) ->
 %%
 %%  'neutral' means that the instruction does nothing to disturb the heap.
 
--spec classify_heap_need(beam_ssa:op(), [beam_ssa:value()]) ->
-                                'gc' | 'neutral' |
-                                {'put',non_neg_integer()} |
-                                {'put_fun', non_neg_integer()} |
-                                'put_float'.
+-spec classify_heap_need(#{}, beam_ssa:op(), [beam_ssa:value()]) ->
+          'gc' | 'neutral' |
+          {'put',non_neg_integer()} |
+          {'put_fun', non_neg_integer()} |
+          'put_float'.
+
+classify_heap_need(Anno, {bif,Name}, Args) ->
+    case is_gc_bif(Anno, Name, Args) of
+        false -> neutral;
+        true -> gc
+    end;
+classify_heap_need(_Anno, Name, Args) ->
+    classify_heap_need(Name, Args).
 
 classify_heap_need(put_list, _) ->
     {put,2};
@@ -341,11 +349,6 @@ classify_heap_need(put_tuple, Elements) ->
     {put,length(Elements)+1};
 classify_heap_need(make_fun, Args) ->
     {put_fun,length(Args)-1};
-classify_heap_need({bif,Name}, Args) ->
-    case is_gc_bif(Name, Args) of
-        false -> neutral;
-        true -> gc
-    end;
 classify_heap_need({float,Op}, _Args) ->
     case Op of
         get -> put_float;
@@ -742,7 +745,9 @@ def_is([#cg_set{anno=Anno0,op=call,dst=Dst}=I0|Is],
 def_is([#cg_set{anno=Anno0,op={bif,Bif},dst=Dst,args=Args}=I0|Is],
        Regs, Def0, Acc) ->
     Arity = length(Args),
-    I = case is_gc_bif(Bif, Args) orelse not erl_bifs:is_safe(erlang, Bif, Arity) of
+    NeverFails = erl_bifs:is_safe(erlang, Bif, Arity) orelse
+        maps:get(never_fails, Anno0, false),
+    I = case is_gc_bif(Anno0, Bif, Args) orelse not NeverFails of
             true ->
                 I0#cg_set{anno=Anno0#{def_yregs=>Def0}};
             false ->
@@ -1047,7 +1052,7 @@ cg_block([#cg_set{anno=Anno,op={bif,Name},dst=Dst0,args=Args0}=I,
                {f,0} -> Line0;
                {f,_} -> []
            end,
-    case is_gc_bif(Name, Args) of
+    case is_gc_bif(Anno, Name, Args) of
         true ->
             Live = get_live(I),
             Kill = kill_yregs(Anno, St),
@@ -1089,18 +1094,23 @@ cg_block([#cg_set{anno=Anno,op={bif,Name},dst=Dst0,args=Args0}]=Is0,
     end;
 cg_block([#cg_set{anno=Anno,op={bif,Name},dst=Dst0,args=Args0}=I|T],
          Context, St0) ->
+    %% The lack of a `succeeded` instruction and failure label implies
+    %% that this BIF is known to either always succeed or always fail.
+    %% If it is known to always succeed, the annotation has no
+    %% location information, which will suppress the `line`
+    %% instruction.
     Args = typed_args(Args0, Anno, St0),
     Dst = beam_arg(Dst0, St0),
     {Is0,St} = cg_block(T, Context, St0),
-    case is_gc_bif(Name, Args) of
+    Line = call_line(body, {extfunc,erlang,Name,length(Args)}, Anno),
+    case is_gc_bif(Anno, Name, Args) of
         true ->
-            Line = call_line(body, {extfunc,erlang,Name,length(Args)}, Anno),
             Live = get_live(I),
             Kill = kill_yregs(Anno, St),
             Is = Kill++Line++[{gc_bif,Name,{f,0},Live,Args,Dst}|Is0],
             {Is,St};
         false ->
-            Is = [{bif,Name,{f,0},Args,Dst}|Is0],
+            Is = Line ++ [{bif,Name,{f,0},Args,Dst}|Is0],
             {Is,St}
     end;
 cg_block([#cg_set{op=bs_create_bin,dst=Dst0,args=Args0,anno=Anno}=I,
@@ -2190,22 +2200,59 @@ local_func_label(Key, #cg{functable=Map}=St0) ->
             {Label,St#cg{functable=Map#{Key => Label}}}
     end.
 
-%% is_gc_bif(Name, Args) -> true|false.
-%%  Determines whether the BIF Name/Arity might do a GC.
+%% is_gc_bif(Name, Args, AllowYield) -> true|false.
+%%  Determines whether the BIF Name/Arity is a "GC BIF".
+%%
+%%  The definition of a "GC BIF" has changed. It used to mean that the
+%%  BIF might have to do a garbage collection because it needed to
+%%  return a non-immediate value such as bignum. That has been changed
+%%  to allocate a heap fragment to hold non-immediate return values.
+%%
+%%  The current definition of a GC BIF is a BIF that could do a
+%%  considerable amount of work and that it might yield to allow the
+%%  scheduler thread to schedule other work. Currently, the only GC
+%%  BIF that will actually yield is length/1. In the future, we might
+%%  implement yielding for other BIFs, for example for '*'/2 and
+%%  'div'/2.
 
--spec is_gc_bif(atom(), [beam_ssa:value()]) -> boolean().
+is_gc_bif(_Anno, length, [_]) ->
+    %% length/1 is always a GC BIF because it will yield if the list
+    %% is very long.
+    true;
+is_gc_bif(_Anno, _, [_,_,_]) ->
+    %% There is currently no "bif3" instruction.
+    true;
+is_gc_bif(Anno, Name, Args) ->
+    Arity = length(Args),
+    NeverFails = erl_bifs:is_safe(erlang, Name, Arity) orelse
+        maps:get(never_fails, Anno, false),
 
-is_gc_bif(hd, [_]) -> false;
-is_gc_bif(tl, [_]) -> false;
-is_gc_bif(self, []) -> false;
-is_gc_bif(node, []) -> false;
-is_gc_bif(node, [_]) -> false;
-is_gc_bif(element, [_,_]) -> false;
-is_gc_bif(get, [_]) -> false;
-is_gc_bif(is_map_key, [_,_]) -> false;
-is_gc_bif(map_get, [_,_]) -> false;
-is_gc_bif(tuple_size, [_]) -> false;
-is_gc_bif(Bif, Args) ->
+    %% If the BIF cannot fail, assume that the arguments are of
+    %% limited size and that it will not need to yield.
+    case NeverFails of
+        true ->
+            %% This particular call to this BIF is known to have
+            %% arguments of limited size, so there is no need to
+            %% yield.
+            false;
+        false ->
+            %% We don't have enough information about the arguments.
+            %% Decide based on the BIF. Generally, BIFs whose
+            %% complexity is O(1) or O(log N) never need to yield.
+            is_gc_bif_1(Name, Args)
+    end.
+
+is_gc_bif_1(hd, [_]) -> false;
+is_gc_bif_1(tl, [_]) -> false;
+is_gc_bif_1(node, [_]) -> false;
+is_gc_bif_1(element, [_,_]) -> false;
+is_gc_bif_1(is_map_key, [_,_]) -> false;        %O(log N)
+is_gc_bif_1(map_get, [_,_]) -> false;
+is_gc_bif_1(bit_size, [_]) -> false;
+is_gc_bif_1(map_size, [_]) -> false;
+is_gc_bif_1(size, [_]) -> false;
+is_gc_bif_1(tuple_size, [_]) -> false;
+is_gc_bif_1(Bif, Args) ->
     Arity = length(Args),
     not (erl_internal:bool_op(Bif, Arity) orelse
 	 erl_internal:new_type_test(Bif, Arity) orelse
@@ -2223,24 +2270,28 @@ new_label(#cg{lcount=Next}=St) ->
 call_line(_Context, {extfunc,Mod,Name,Arity}, Anno) ->
     case erl_bifs:is_safe(Mod, Name, Arity) of
 	false ->
-	    %% The call could be to a BIF.
-	    %% We'll need a line instruction in case the
-	    %% BIF call fails.
-	    [line(Anno)];
+            %% The call could be to a BIF. We'll need a line
+            %% instruction in case the BIF call fails.
+            call_line(Anno);
 	true ->
-	    %% Call to a safe BIF. Since it cannot fail,
-	    %% we don't need any line instruction here.
+	    %% Call to a safe BIF. Since it cannot fail, we don't need
+	    %% any line instruction here.
 	    []
     end;
 call_line(body, _, Anno) ->
-    [line(Anno)];
+    call_line(Anno);
 call_line(tail, local, _) ->
     %% Tail-recursive call to a local function. A line
     %% instruction will not be useful.
     [];
 call_line(tail, _, Anno) ->
     %% Call to a fun.
-    [line(Anno)].
+    call_line(Anno).
+
+call_line(#{location:={File,Line}}) ->
+    [{line,[{location,File,Line}]}];
+call_line(#{}) ->
+    [].
 
 %% line(Le) -> {line,[] | {location,File,Line}}
 %%  Create a line instruction, containing information about

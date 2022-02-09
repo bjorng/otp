@@ -356,17 +356,26 @@ pre_opt_is([#b_set{op=phi,dst=Dst,args=Args0}=I0|Is], Reached, Sub0, Acc) ->
             end
     end;
 pre_opt_is([#b_set{op={succeeded,_},dst=Dst,args=Args0}=I0|Is],
-           Reached, Sub0, Acc) ->
+           Reached, Sub0, Acc0) ->
     [Arg] = Args = sub_args(Args0, Sub0),
     I = I0#b_set{args=Args},
     case pre_is_safe_bool(Arg, Sub0) of
         true ->
             %% The preceding boolean operation can't fail. Get rid
-            %% of this `succeeded` instruction.
+            %% of this `succeeded` instruction. Also ensure that
+            %% no `line` will instruction will be emitted.
             Sub = Sub0#{Dst=>#b_literal{val=true}},
-            pre_opt_is(Is, Reached, Sub, Acc);
+            case Acc0 of
+                [#b_set{anno=Anno0}=PrevI0|Acc1] ->
+                    Anno1 = maps:remove(location, Anno0),
+                    Anno = Anno1#{never_fails => true},
+                    PrevI = PrevI0#b_set{anno=Anno},
+                    pre_opt_is(Is, Reached, Sub, [PrevI|Acc1]);
+                _ ->
+                    pre_opt_is(Is, Reached, Sub, Acc0)
+            end;
         false ->
-            pre_opt_is(Is, Reached, Sub0, [I|Acc])
+            pre_opt_is(Is, Reached, Sub0, [I|Acc0])
     end;
 pre_opt_is([#b_set{dst=Dst,args=Args0}=I0|Is], Reached, Sub0, Acc) ->
     Args = sub_args(Args0, Sub0),

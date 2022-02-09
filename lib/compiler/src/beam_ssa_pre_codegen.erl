@@ -2624,8 +2624,8 @@ res_place_gc_instrs([#b_set{op=Op}=I|Is], Acc)
         [_|_] ->
             res_place_gc_instrs(Is, [I,gc|Acc])
     end;
-res_place_gc_instrs([#b_set{op=Op,args=Args}=I|Is], Acc0) ->
-    case beam_ssa_codegen:classify_heap_need(Op, Args) of
+res_place_gc_instrs([#b_set{anno=Anno,op=Op,args=Args}=I|Is], Acc0) ->
+    case beam_ssa_codegen:classify_heap_need(Anno, Op, Args) of
         neutral ->
             case Acc0 of
                 [test_heap|Acc] ->

@@ -583,6 +583,31 @@ opt_is([#b_set{op=MakeFun,args=Args0,dst=Dst}=I0|Is],
     Ts = update_types(I, Ts0, Ds0),
     Ds = Ds0#{ Dst => I },
     opt_is(Is, Ts, Ds, Ls, Fdb, Sub0, Meta, [I|Acc]);
+opt_is([#b_set{op={succeeded,_},args=[Src]}=I0|Is],
+       Ts0, Ds0, Ls, Fdb, Sub0, Meta, Acc0) ->
+    case simplify(I0, Ts0, Ds0, Ls, Sub0) of
+        {#b_set{}=I1, Ts, Ds} ->
+            I = opt_anno_types(I1, Ts),
+            opt_is(Is, Ts, Ds, Ls, Fdb, Sub0, Meta, [I|Acc0]);
+        Sub when is_map(Sub) ->
+            case Acc0 of
+                [#b_set{op={bif,length}}|_] ->
+                    %% Keep the location information for length/1,
+                    %% because it can yield when the argument is a
+                    %% huge list.
+                    opt_is(Is, Ts0, Ds0, Ls, Fdb, Sub, Meta, Acc0);
+                [#b_set{anno=Anno0,op={bif,_},dst=Src}=PrevI0|Acc1] ->
+                    %% A guard BIF that cannot fail will be emitted as
+                    %% a `bif` instruction. Since a `bif` never yields,
+                    %% there is no need for a `line` instruction.
+                    Anno1 = maps:remove(location, Anno0),
+                    Anno = Anno1#{never_fails => true},
+                    PrevI = PrevI0#b_set{anno=Anno},
+                    opt_is(Is, Ts0, Ds0, Ls, Fdb, Sub, Meta, [PrevI|Acc1]);
+                _ ->
+                    opt_is(Is, Ts0, Ds0, Ls, Fdb, Sub, Meta, Acc0)
+            end
+    end;
 opt_is([I0 | Is], Ts0, Ds0, Ls, Fdb, Sub0, Meta, Acc) ->
     case simplify(I0, Ts0, Ds0, Ls, Sub0) of
         {#b_set{}=I1, Ts, Ds} ->
