@@ -104,6 +104,9 @@ integers(_Config) ->
 
     -693 = do_integers_9(id(7), id(1)),
 
+    3 = do_integers_10(1, 2),
+    10 = do_integers_10(-2, -5),
+
     ok.
 
 do_integers_1(B0) ->
@@ -174,6 +177,12 @@ do_integers_8() ->
 
 do_integers_9(X, Y) ->
     X * (-100 bor (Y band 1)).
+
+do_integers_10(A, B) when is_integer(A), is_integer(B), A < 2, B < 5 ->
+    if
+        A < B -> A + B;
+        true -> A * B
+    end.
 
 numbers(_Config) ->
     Int = id(42),
