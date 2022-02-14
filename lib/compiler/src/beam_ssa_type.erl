@@ -27,7 +27,8 @@
 %%
 
 -module(beam_ssa_type).
--export([opt_start/2, opt_continue/4, opt_finish/3, opt_ranges/1]).
+-export([opt_start/2, opt_continue/4, opt_finish/3,
+         opt_recursive_vars/1, opt_ranges/1]).
 
 -include("beam_ssa_opt.hrl").
 -include("beam_types.hrl").
@@ -764,6 +765,157 @@ opt_finish_1([Arg | Args], [TypeMap | TypeMaps], Acc0) ->
     end;
 opt_finish_1([], [], Acc) ->
     Acc.
+
+%%%
+%%% Try to annotate recursive variables with a range.
+%%%
+%%% Consider these functions:
+%%%
+%%%     number(L) -> number(L, 0).
+%%%
+%%%     number([L|Ls], N) -> [{L,N}|number(Ls, N+1)];
+%%%     number([], _) -> [].
+%%%
+%%% Because the variable `N` in number/2 is updated recursively, the
+%%% main type pass is not able to calculate its range.
+%%%
+%%% This optimization pass will annotate the `N+1` operation with
+%%% a conservative range for `N`. That will enable the JIT to remove
+%%% all range and type checks for the addition.
+%%%
+
+-spec opt_recursive_vars(term()) -> term().
+
+opt_recursive_vars({#opt_st{anno=Anno,args=Args,ssa=Blocks0}=OptSt0, FuncDb}) ->
+    Id = get_func_id(Anno),
+    case FuncDb of
+        #{Id := #func_info{arg_types=ArgTypes}} ->
+            case opt_recursive_vars_1(Args, ArgTypes, Id, Blocks0) of
+                none ->
+                    {OptSt0, FuncDb};
+                Blocks ->
+                    OptSt = OptSt0#opt_st{ssa=Blocks},
+                    {OptSt, FuncDb}
+            end;
+        #{} ->
+            {OptSt0, FuncDb}
+    end.
+
+opt_recursive_vars_1(Args, ArgTypes, Id, Blocks0) ->
+    case find_recursive_vars(ArgTypes, Id, 1, []) of
+        [] ->
+            none;
+        [_|_]=Vs ->
+            opt_recursive_vars_2(Vs, Args, Blocks0)
+    end.
+
+opt_recursive_vars_2([{Index,Init,Ds}|T], Args, Blocks0) ->
+    RPO = beam_ssa:rpo(Blocks0),
+    Acc0 = {[],unknown},
+    ArgVar = lists:nth(Index, Args),
+    Info = {{ArgVar,Init},{Ds,Index}},
+    F = fun(I, Acc) -> anno_recursive_vars(I, Info, Acc) end,
+    {Blocks,Acc} = beam_ssa:mapfold_instrs(F, RPO, Acc0, Blocks0),
+    case Acc of
+        none ->
+            opt_recursive_vars_2(T, Args, Blocks0);
+        {[_|_],Stride} ->
+            true = is_integer(Stride),          %Assertion.
+            opt_recursive_vars_2(T, Args, Blocks)
+    end;
+opt_recursive_vars_2([], _Args, Blocks) -> Blocks.
+
+find_recursive_vars([A|As], Id, N, Acc) ->
+    {Init,Dst} = find_recursive_vars_1(maps:to_list(A), Id, none, []),
+    case Init of
+        #t_integer{elements={_,_}} when Dst =/= [] ->
+            find_recursive_vars(As, Id, N +1, [{N,Init,Dst}|Acc]);
+        _ ->
+            find_recursive_vars(As, Id, N + 1, Acc)
+    end;
+find_recursive_vars([], _, _, Acc) ->
+    reverse(Acc).
+
+find_recursive_vars_1([{{Id,Dst},Value}|Calls], Id, Init0, Acc) ->
+    case Value of
+        #t_integer{elements={_,_}} ->
+            Init = beam_types:join(Init0, Value),
+            find_recursive_vars_1(Calls, Id, Init, Acc);
+        _ ->
+            find_recursive_vars_1(Calls, Id, Init0, [Dst|Acc])
+    end;
+find_recursive_vars_1([{{_,_},Value}|Calls], Id, Init0, Acc) ->
+    Init = beam_types:join(Init0, Value),
+    find_recursive_vars_1(Calls, Id, Init, Acc);
+find_recursive_vars_1([], _, Init, Acc) ->
+    {Init,Acc}.
+
+%% We will assume that this number cannot be reached when counting up
+%% from zero. On my computer (4.2 GHz Quad-Core Intel Core i7 from
+%% 2017), the following code would take more than 10 years to run
+%% to completion:
+%%
+%%     count(?SIZE_UPPER_LIMIT) -> ok;
+%%     count(N) -> count(N + 1).
+%%
+%% To avoid relying on such assumptions, we could ensure that the
+%% recursion is limited in some way. For example, the following
+%% function is limited by the maximum length of a list that will
+%% fit in memory:
+%%
+%%     my_length([_|T], N) -> my_length(T, N + 1);
+%%     my_length([], N) -> N.
+
+-define(SIZE_UPPER_LIMIT, ((1 bsl 58) - 1)).
+
+anno_recursive_vars(I, _, none) ->
+    {I,none};
+anno_recursive_vars(#b_set{op={bif,Op},args=[#b_var{}=ArgVar,
+                                             #b_literal{val=1}],
+                           dst=Dst}=I0,
+     {{ArgVar,Init},_}, Acc0) ->
+    case anno_recursive_vars_op(Op, Init) of
+        {Type,Stride} ->
+            Ts = #{ArgVar => Type},
+            I = update_anno_types(I0, Ts),
+            {ArithVars,StrideAcc} = Acc0,
+            case anno_recursive_vars_stride(Stride, StrideAcc) of
+                Stride when is_integer(Stride) ->
+                    Acc = {[Dst|ArithVars],Stride},
+                    {I,Acc};
+                _ ->
+                    {I0,none}
+            end;
+        none ->
+            {I0,Acc0}
+    end;
+anno_recursive_vars(#b_set{op=call,args=[_|Args],dst=Dst}=I,
+                    {_,{Ds,Index}}, Acc0) ->
+    case member(Dst, Ds) of
+        false ->
+            {I,Acc0};
+        true ->
+            ArithVar = lists:nth(Index, Args),
+            {ArithVars,_} = Acc0,
+            case member(ArithVar, ArithVars) of
+                true ->
+                    {I,Acc0};
+                false ->
+                    {I,none}
+            end
+    end;
+anno_recursive_vars(I, _Info, Acc) ->
+    {I,Acc}.
+
+anno_recursive_vars_op('+', #t_integer{elements={Min,Max}}) ->
+    {#t_integer{elements={Min,Max+?SIZE_UPPER_LIMIT}}, 1};
+anno_recursive_vars_op('-', #t_integer{elements={Min,Max}}) ->
+    {#t_integer{elements={Min-?SIZE_UPPER_LIMIT,Max}}, -1};
+anno_recursive_vars_op(_, _) -> none.
+
+anno_recursive_vars_stride(Same, Same) -> Same;
+anno_recursive_vars_stride(Stride, unknown) -> Stride;
+anno_recursive_vars_stride(_, _) -> different.
 
 %%%
 %%% This sub pass is run once after the main type sub pass

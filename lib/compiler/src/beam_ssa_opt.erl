@@ -293,6 +293,7 @@ epilogue_passes(Opts) ->
           ?PASS(ssa_opt_tail_literals),
           ?PASS(ssa_opt_trim_unreachable),
           ?PASS(ssa_opt_unfold_literals),
+          ?PASS(ssa_opt_recursive_vars),
           ?PASS(ssa_opt_ranges)],
     passes_1(Ps, Opts).
 
@@ -446,6 +447,9 @@ ssa_opt_merge_blocks({#opt_st{ssa=Blocks0}=St, FuncDb}) ->
 
 ssa_opt_ranges({#opt_st{ssa=Blocks}=St, FuncDb}) ->
     {St#opt_st{ssa=beam_ssa_type:opt_ranges(Blocks)}, FuncDb}.
+
+ssa_opt_recursive_vars(OptInfo) ->
+    beam_ssa_type:opt_recursive_vars(OptInfo).
 
 %%%
 %%% Split blocks before certain instructions to enable more optimizations.
