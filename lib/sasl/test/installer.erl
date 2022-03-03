@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 2011-2020. All Rights Reserved.
+%% Copyright Ericsson AB 2011-2022. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -466,9 +466,10 @@ upgrade_restart_3(TestNode) ->
 
 client1_1(TestNode,PrivDir,MasterDir,ClientSname) ->
     TestHost = test_host(),
-    ?print(["client1_1 start"]),
+    ?print(["client1_1 start",TestHost]),
 
     {ok,IP} = inet:getaddr(TestHost,inet),
+    ?print(["erl_boot_server start",IP,code:root_dir()]),
     erl_boot_server:start([IP]),
 
     ok = net_kernel:monitor_nodes(true),
