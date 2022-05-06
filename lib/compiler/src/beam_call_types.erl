@@ -498,32 +498,18 @@ types(erlang, element, [Pos, Tuple0]) ->
         _ ->
             sub_unsafe(any, [PosRange, #t_tuple{}])
     end;
-types(erlang, setelement, [PosType, TupleType, ArgType]) ->
-    RetType = case {normalize(PosType),normalize(TupleType)} of
-                  {#t_integer{elements={Index,Index}},
-                   #t_tuple{elements=Es0,size=Size}=T} when Index >= 1 ->
-                      %% This is an exact index, update the type of said
-                      %% element or return 'none' if it's known to be out of
-                      %% bounds.
-                      Es = beam_types:set_tuple_element(Index, ArgType, Es0),
-                      case T#t_tuple.exact of
-                          false ->
-                              T#t_tuple{size=max(Index, Size),elements=Es};
-                          true when Index =< Size ->
-                              T#t_tuple{elements=Es};
-                          true ->
-                              none
-                      end;
-                  {_,#t_tuple{}=T} ->
-                      %% Position unknown, so we have to discard all element
-                      %% information.
+types(erlang, setelement, [PosType, TupleType0, ArgType]) ->
+    PosRange = #t_integer{elements={1,?MAX_TUPLE_SIZE}},
+    TupleType = meet(TupleType0, #t_tuple{size=1}),
+    RetType = case {meet(PosType, PosRange), normalize(TupleType)} of
+                  {#t_integer{elements={Same,Same}}, #t_tuple{}} ->
+                      beam_types:update_tuple(TupleType, [{Same, ArgType}]);
+                  {#t_integer{}, #t_tuple{}=T} ->
                       T#t_tuple{elements=#{}};
-                  {#t_integer{elements={Min,_Max}},_} ->
-                      #t_tuple{size=Min};
-                  {_,_} ->
-                      #t_tuple{}
+                  {_, _} ->
+                      none
               end,
-    sub_unsafe(RetType, [#t_integer{}, #t_tuple{}, any]);
+    sub_unsafe(RetType, [PosRange, #t_tuple{size=1}, any]);
 
 types(erlang, make_fun, [_,_,Arity0]) ->
     Type = case meet(Arity0, #t_integer{}) of

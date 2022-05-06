@@ -1306,6 +1306,24 @@ simplify(#b_set{op=peek_message,args=[#b_literal{val=Val}]}=I, _Ts) ->
 simplify(#b_set{op=recv_marker_clear,args=[#b_literal{}]}, _Ts) ->
     %% Not a receive marker: see the 'peek_message' case.
     #b_literal{val=none};
+simplify(#b_set{op=update_tuple,args=[Src | Updates]}=I, Ts) ->
+    case {normalized_type(Src, Ts), update_tuple_highest_index(Updates, -1)} of
+        {#t_tuple{exact=true,size=Size}, Highest} when Highest =< Size,
+                                                       Size < 512 ->
+            Args = [#b_literal{val=Size}, Src | Updates],
+            I#b_set{op=update_record,args=Args};
+        {_, _} ->
+            I
+    end;
+simplify(#b_set{op=update_record,args=[Size, Src | Updates0]}=I, Ts) ->
+    case simplify_update_record(Updates0, Src, Ts) of
+        {changed, [_|_]=Updates} ->
+            I#b_set{op=update_record,args=[Size, Src | Updates]};
+        {changed, []} ->
+            Src;
+        unchanged ->
+            I
+    end;
 simplify(I, _Ts) ->
     I.
 
@@ -1345,14 +1363,14 @@ will_succeed_1(#b_set{op=bs_start_match,args=[_, Arg]}, _Src, Ts) ->
     end;
 
 will_succeed_1(#b_set{op={bif,Bif},args=BifArgs}, _Src, Ts) ->
-    ArgTypes = normalized_types(BifArgs, Ts),
+    ArgTypes = concrete_types(BifArgs, Ts),
     beam_call_types:will_succeed(erlang, Bif, ArgTypes);
 will_succeed_1(#b_set{op=call,
                       args=[#b_remote{mod=#b_literal{val=Mod},
                                       name=#b_literal{val=Func}} |
                             CallArgs]},
                _Src, Ts) ->
-    ArgTypes = normalized_types(CallArgs, Ts),
+    ArgTypes = concrete_types(CallArgs, Ts),
     beam_call_types:will_succeed(Mod, Func, ArgTypes);
 
 will_succeed_1(#b_set{op=get_hd}, _Src, _Ts) ->
@@ -1365,6 +1383,21 @@ will_succeed_1(#b_set{op=get_tuple_element}, _Src, _Ts) ->
     yes;
 will_succeed_1(#b_set{op=put_tuple}, _Src, _Ts) ->
     yes;
+will_succeed_1(#b_set{op=update_tuple,args=[Tuple | Updates]}, _Src, Ts) ->
+    case beam_types:meet(normalized_type(Tuple, Ts), #t_tuple{}) of
+        none ->
+            no;
+        #t_tuple{exact=Exact,size=Size} ->
+            Index = update_tuple_highest_index(Updates, -1),
+            if
+                Index > Size, Exact -> no;
+                Index > Size, not Exact -> 'maybe';
+                Index =< Size -> yes
+            end
+    end;
+will_succeed_1(#b_set{op=update_record}, _Src, _Ts) ->
+    yes;
+
 will_succeed_1(#b_set{op=bs_create_bin}, _Src, _Ts) ->
     %% Intentionally don't try to determine whether construction will
     %% fail. Construction is unlikely to fail, and if it fails, the
@@ -1400,6 +1433,40 @@ will_succeed_1(#b_set{op=wait_timeout}, _Src, _Ts) ->
 
 will_succeed_1(#b_set{}, _Src, _Ts) ->
     'maybe'.
+
+simplify_update_record(Updates, Src, Ts) ->
+    case sur_filter(Updates, concrete_type(Src, Ts), Ts) of
+        [_|_]=Skipped ->
+            {changed, sur_skip(Updates, Skipped)};
+        [] ->
+            unchanged
+    end.
+
+sur_filter([Index, Arg | Updates], RecordType, Ts) ->
+    %% We can skip setting fields when we KNOW that they already have the value
+    %% we're trying to set.
+    FieldType = concrete_type(Arg, Ts),
+    case beam_types:is_singleton_type(FieldType) of
+        true ->
+            ArgTypes = [concrete_type(Index, Ts), RecordType],
+            case beam_call_types:types(erlang, element, ArgTypes) of
+                {FieldType, _, _} ->
+                    [Index | sur_filter(Updates, RecordType, Ts)];
+                {_, _, _} ->
+                    sur_filter(Updates, RecordType, Ts)
+            end;
+        false ->
+            sur_filter(Updates, RecordType, Ts)
+    end;
+sur_filter([], _RecordType, _Ts) ->
+    [].
+
+sur_skip([Index, _Arg | Updates], [Index | Skipped]) ->
+    sur_skip(Updates, Skipped);
+sur_skip([Index, Arg | Updates], Skipped) ->
+    [Index, Arg | sur_skip(Updates, Skipped)];
+sur_skip([], []) ->
+    [].
 
 simplify_is_record(I, #t_tuple{exact=Exact,
                                size=Size,
@@ -1904,7 +1971,7 @@ update_types(#b_set{op=Op,dst=Dst,anno=Anno,args=Args}, Ts, Ds) ->
     Ts#{ Dst => T }.
 
 type({bif,Bif}, Args, _Anno, Ts, _Ds) ->
-    ArgTypes = normalized_types(Args, Ts),
+    ArgTypes = concrete_types(Args, Ts),
     case beam_call_types:types(erlang, Bif, ArgTypes) of
         {any, _, _} ->
             case {Bif, Args} of
@@ -1956,7 +2023,7 @@ type(bs_get_tail, [Ctx], _Anno, Ts, _Ds) ->
 type(call, [#b_remote{mod=#b_literal{val=Mod},
                       name=#b_literal{val=Name}}|Args], _Anno, Ts, _Ds)
   when is_atom(Mod), is_atom(Name) ->
-    ArgTypes = normalized_types(Args, Ts),
+    ArgTypes = concrete_types(Args, Ts),
     {RetType, _, _} = beam_call_types:types(Mod, Name, ArgTypes),
     RetType;
 type(call, [#b_remote{mod=Mod,name=Name} | _Args], _Anno, Ts, _Ds) ->
@@ -2012,8 +2079,10 @@ type(get_tl, [Src], _Anno, Ts, _Ds) ->
     SrcType = #t_cons{} = normalized_type(Src, Ts), %Assertion.
     {RetType, _, _} = beam_call_types:types(erlang, tl, [SrcType]),
     RetType;
-type(get_map_element, [_, _]=Args0, _Anno, Ts, _Ds) ->
-    [#t_map{}=Map, Key] = normalized_types(Args0, Ts), %Assertion.
+type(get_map_element, [Map0, Key0], _Anno, Ts, _Ds) ->
+    Map = concrete_type(Map0, Ts),
+    Key = concrete_type(Key0, Ts),
+    %% Note the reversed argument order!
     {RetType, _, _} = beam_call_types:types(erlang, map_get, [Key, Map]),
     RetType;
 type(get_tuple_element, [Tuple, Offset], _Anno, _Ts, _Ds) ->
@@ -2026,9 +2095,12 @@ type(get_tuple_element, [Tuple, Offset], _Anno, _Ts, _Ds) ->
             true = Index =< Size,               %Assertion.
             beam_types:get_tuple_element(Index, Es)
     end;
-type(has_map_field, [_, _]=Args0, _Anno, Ts, _Ds) ->
-    [#t_map{}=Map, Key] = normalized_types(Args0, Ts), %Assertion.
+type(has_map_field, [Map0, Key0], _Anno, Ts, _Ds) ->
+    Map = concrete_type(Map0, Ts),
+    Key = concrete_type(Key0, Ts),
+    %% Note the reversed argument order!
     {RetType, _, _} = beam_call_types:types(erlang, is_map_key, [Key, Map]),
+    true = none =/= RetType,                    %Assertion.
     RetType;
 type(is_nonempty_list, [_], _Anno, _Ts, _Ds) ->
     beam_types:make_boolean();
@@ -2071,11 +2143,35 @@ type(raw_raise, [Class, _, _], _Anno, Ts, _Ds) ->
     end;
 type(resume, [_, _], _Anno, _Ts, _Ds) ->
     none;
+type(update_record, [_Size, Src | Updates], _Anno, Ts, _Ds) ->
+    update_tuple_type(Updates, Src, Ts);
+type(update_tuple, [Src | Updates], _Anno, Ts, _Ds) ->
+    update_tuple_type(Updates, Src, Ts);
 type(wait_timeout, [#b_literal{val=infinity}], _Anno, _Ts, _Ds) ->
     %% Waits forever, never reaching the 'after' block.
     beam_types:make_atom(false);
 type(_, _, _, _, _) ->
     any.
+
+update_tuple_type([_|_]=Updates0, Src, Ts) ->
+    Filter = #t_tuple{size=update_tuple_highest_index(Updates0, -1)},
+    case beam_types:meet(concrete_type(Src, Ts), Filter) of
+        none ->
+            none;
+        TupleType ->
+            Updates = update_tuple_type_1(Updates0, Ts),
+            beam_types:update_tuple(TupleType, Updates)
+    end.
+
+update_tuple_type_1([#b_literal{val=Index}, Value | Updates], Ts) ->
+    [{Index, concrete_type(Value, Ts)} | update_tuple_type_1(Updates, Ts)];
+update_tuple_type_1([], _Ts) ->
+    [].
+
+update_tuple_highest_index([#b_literal{val=Index}, _Value | Updates], Acc) ->
+    update_tuple_highest_index(Updates, max(Index, Acc));
+update_tuple_highest_index([], Acc) ->
+    Acc.
 
 join_tuple_elements(Tuple) ->
     join_tuple_elements(tuple_size(Tuple), Tuple, none).
@@ -2088,11 +2184,11 @@ join_tuple_elements(I, Tuple, Type0) ->
     join_tuple_elements(I - 1, Tuple, Type).
 
 put_map_type(Map, Ss, Ts) ->
-    pmt_1(Ss, Ts, normalized_type(Map, Ts)).
+    pmt_1(Ss, Ts, concrete_type(Map, Ts)).
 
 pmt_1([Key0, Value0 | Ss], Ts, Acc0) ->
-    Key = normalized_type(Key0, Ts),
-    Value = normalized_type(Value0, Ts),
+    Key = concrete_type(Key0, Ts),
+    Value = concrete_type(Value0, Ts),
     {Acc, _, _} = beam_call_types:types(maps, put, [Key, Value, Acc0]),
     pmt_1(Ss, Ts, Acc);
 pmt_1([], _Ts, Acc) ->
@@ -2371,7 +2467,7 @@ infer_type(_Op, _Args, _Ts, _Ds) ->
     {[], []}.
 
 infer_success_type({bif,Op}, Args, Ts, _Ds) ->
-    ArgTypes = normalized_types(Args, Ts),
+    ArgTypes = concrete_types(Args, Ts),
 
     {_, PosTypes0, CanSubtract} = beam_call_types:types(erlang, Op, ArgTypes),
     PosTypes = [T || {#b_var{},_}=T <- zip(Args, PosTypes0)],

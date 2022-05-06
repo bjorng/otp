@@ -35,7 +35,9 @@
          is_singleton_type/1,
          normalize/1]).
 
--export([get_tuple_element/2, set_tuple_element/3]).
+-export([get_tuple_element/2,
+         set_tuple_element/3,
+         update_tuple/2]).
 
 -export([make_type_from_value/1]).
 
@@ -499,6 +501,46 @@ get_tuple_element(Index, Es) ->
         #{ Index := T } -> T;
         #{} -> any
     end.
+
+%% Helper routine for `update_tuple` / `update_record` instructions, which copy
+%% an existing type and updates a few fields.
+-spec update_tuple(Tuple0, Updates) -> Tuple when
+    Tuple0 :: type(),
+    Updates :: [{pos_integer(), type()}, ...],
+    Tuple :: type().
+update_tuple(#t_union{tuple_set=[_|_]=Set}=Union0, [_|_]=Updates) ->
+    #t_union{atom=none,list=none,number=none,other=none}=Union0, %Assertion
+    case Updates of
+        [{1, _} | _] ->
+            %% The update overwrites the tag, so we can no longer keep any
+            %% records apart. Normalize it before trying again.
+            update_tuple(normalize(Union0), Updates);
+        [_ | _] ->
+            Union = Union0#t_union{tuple_set=update_tuple_set(Set, Updates)},
+            verified_type(shrink_union(Union))
+    end;
+update_tuple(Tuple, [_|_]=Updates) ->
+    #t_tuple{exact=Exact,size=Size,elements=Es0}=Tuple, %Assertion,
+    case update_tuple_1(Updates, Size, Es0) of
+        {MinSize, _Es} when Exact, MinSize > Size ->
+            none;
+        {MinSize, Es} ->
+            verified_normal_type(Tuple#t_tuple{size=MinSize,elements=Es})
+    end.
+
+update_tuple_set([{Tag, Record0} | Set], Updates) ->
+    case update_tuple(Record0, Updates) of
+        none -> update_tuple_set(Set, Updates);
+        #t_tuple{}=Record -> [{Tag, Record} | update_tuple_set(Set, Updates)]
+    end;
+update_tuple_set([], _Es) ->
+    [].
+
+update_tuple_1([{Index, Type} | Updates], MinSize, Es0) ->
+    Es = set_tuple_element(Index, Type, Es0),
+    update_tuple_1(Updates, max(Index, MinSize), Es);
+update_tuple_1([], MinSize, Es) ->
+    {MinSize, Es}.
 
 -spec normalize(type()) -> normal_type().
 normalize(#t_union{atom=Atom,list=List,number=Number,
