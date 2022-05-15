@@ -1429,10 +1429,41 @@ void BeamGlobalAssembler::emit_bs_bit_size_shared() {
     a.ret(a64::x30);
 }
 
+/*
+ * ARG1 = tagged bignum term
+ */
+void BeamGlobalAssembler::emit_get_sint64_shared() {
+    Label success = a.newLabel();
+    Label fail = a.newLabel();
+
+    emit_is_boxed(fail, ARG1);
+    arm::Gp boxed_ptr = emit_ptr_val(TMP3, ARG1);
+    a.ldr(TMP1, emit_boxed_val(boxed_ptr));
+    a.ldr(TMP2, emit_boxed_val(boxed_ptr, sizeof(Eterm)));
+    a.and_(TMP1, TMP1, imm(_TAG_HEADER_MASK));
+    a.cmp(TMP1, imm(POS_BIG_SUBTAG));
+    a.b_eq(success);
+
+    a.cmp(TMP1, imm(NEG_BIG_SUBTAG));
+    a.b_ne(fail);
+
+    a.neg(TMP2, TMP2);
+
+    a.bind(success);
+    a.mov(ARG1, TMP2);
+    mov_imm(TMP1, 1);
+    a.tst(TMP1, TMP1);
+    a.ret(a64::x30);
+
+    a.bind(fail);
+    a.tst(ZERO, ZERO);
+    a.ret(a64::x30);
+}
+
 struct BscSegment {
     BscSegment()
             : type(am_false), unit(1), flags(0), src(ArgNil()), size(ArgNil()),
-              error_info(0), effectiveSize(-1) {
+              error_info(0), effectiveSize(-1), action(NONE) {
     }
 
     Eterm type;
@@ -1443,7 +1474,158 @@ struct BscSegment {
 
     Uint error_info;
     Sint effectiveSize;
+    enum action { NONE, ACCUMULATE_FIRST, ACCUMULATE, STORE } action;
 };
+
+static std::vector<BscSegment> bs_combine_segments(
+        const std::vector<BscSegment> segments) {
+    std::vector<BscSegment> segs;
+
+    for (auto seg : segments) {
+        switch (seg.type) {
+        case am_integer: {
+            if (!(0 < seg.effectiveSize && seg.effectiveSize <= 64)) {
+                segs.push_back(seg);
+                continue;
+            }
+
+            if (seg.flags & BSF_LITTLE || segs.size() == 0 ||
+                segs.back().action == BscSegment::NONE) {
+                seg.action = BscSegment::ACCUMULATE_FIRST;
+                segs.push_back(seg);
+                seg.action = BscSegment::STORE;
+                segs.push_back(seg);
+                continue;
+            }
+
+            auto prev = segs.back();
+            if (prev.flags & BSF_LITTLE) {
+                seg.action = BscSegment::ACCUMULATE_FIRST;
+                segs.push_back(seg);
+                seg.action = BscSegment::STORE;
+                segs.push_back(seg);
+                continue;
+            }
+
+            if (prev.effectiveSize + seg.effectiveSize <= 64) {
+                segs.pop_back();
+                prev.effectiveSize += seg.effectiveSize;
+                seg.action = BscSegment::ACCUMULATE;
+                segs.push_back(seg);
+                segs.push_back(prev);
+            } else {
+                seg.action = BscSegment::ACCUMULATE_FIRST;
+                segs.push_back(seg);
+                seg.action = BscSegment::STORE;
+                segs.push_back(seg);
+            }
+            break;
+        }
+        default:
+            segs.push_back(seg);
+            break;
+        }
+    }
+    return segs;
+}
+
+void BeamModuleAssembler::update_bin_state(arm::Gp bin_base,
+                                           arm::Gp bin_offset,
+                                           Sint size,
+                                           arm::Gp size_reg) {
+    int cur_bin_offset =
+            offsetof(ErtsSchedulerRegisters, aux_regs.d.erl_bits_state) +
+            offsetof(struct erl_bits_state, erts_current_bin_);
+    arm::Mem mem_bin_base = arm::Mem(scheduler_registers, cur_bin_offset);
+    arm::Mem mem_bin_offset =
+            arm::Mem(scheduler_registers, cur_bin_offset + sizeof(Eterm));
+
+    ERTS_CT_ASSERT(offsetof(struct erl_bits_state, erts_bin_offset_) -
+                           offsetof(struct erl_bits_state, erts_current_bin_) ==
+                   8);
+    a.ldp(bin_base, bin_offset, mem_bin_base);
+
+    if (size_reg.isValid()) {
+        a.add(TMP1, bin_offset, size_reg);
+    } else {
+        a.add(TMP1, bin_offset, imm(size));
+    }
+    a.str(TMP1, mem_bin_offset);
+
+    a.add(TMP1, bin_base, bin_offset, arm::lsr(3));
+}
+
+void BeamModuleAssembler::set_zero(Sint effectiveSize) {
+    Label words = a.newLabel();
+    Label less_than_a_word = a.newLabel();
+    Sint store_unit = 1;
+
+    update_bin_state(ARG1, ARG2, -1, ARG3);
+
+    if (effectiveSize >= 128) {
+        /* Store two 64-bit words machine words when the size is
+         * known and at least 128 bits. */
+        store_unit = 2;
+    }
+
+    if (effectiveSize < Sint(store_unit * 8 * sizeof(Eterm))) {
+        /* The size is either not known or smaller than a word. */
+        a.cmp(ARG3, imm(store_unit * 8 * sizeof(Eterm)));
+        a.b_lt(less_than_a_word);
+    }
+
+    a.bind(words);
+    if (store_unit == 2) {
+        a.stp(ZERO, ZERO, arm::Mem(TMP1).post(2 * sizeof(Eterm)));
+    } else {
+        a.str(ZERO, arm::Mem(TMP1).post(sizeof(Eterm)));
+    }
+    a.sub(ARG3, ARG3, imm(store_unit * 8 * sizeof(Eterm)));
+    a.cmp(ARG3, imm(store_unit * 8 * sizeof(Eterm)));
+    a.b_ge(words);
+
+    a.bind(less_than_a_word);
+    if (effectiveSize < 0) {
+        /* Unknown size. */
+        Label byte_loop = a.newLabel();
+        Label done = a.newLabel();
+
+        ASSERT(store_unit = 1);
+
+        a.cbz(ARG3, done);
+
+        a.bind(byte_loop);
+        a.strb(ZERO.w(), arm::Mem(TMP1).post(1));
+        a.subs(ARG3, ARG3, imm(8));
+        a.b_gt(byte_loop);
+
+        a.bind(done);
+    } else if (effectiveSize % (store_unit * 8 * sizeof(Eterm)) != 0) {
+        /* The size is known, and we know that there are less than
+         * 128 bits to initialize. */
+        ASSERT(store_unit = 1);
+
+        if ((effectiveSize & 127) >= 64) {
+            a.str(ZERO, arm::Mem(TMP1).post(8));
+        }
+
+        if ((effectiveSize & 63) >= 32) {
+            a.str(ZERO.w(), arm::Mem(TMP1).post(4));
+        }
+
+        if ((effectiveSize & 31) >= 16) {
+            a.strh(ZERO.w(), arm::Mem(TMP1).post(2));
+        }
+
+        if ((effectiveSize & 15) >= 8) {
+            a.strb(ZERO.w(), arm::Mem(TMP1).post(1));
+        }
+
+        if ((effectiveSize & 7) > 0) {
+            a.strb(ZERO.w(), arm::Mem(TMP1));
+        }
+    }
+}
 
 void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
                                                const ArgWord &Alloc,
@@ -1799,11 +1981,16 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
     }
     a.str(ARG1, TMP_MEM1q);
 
+    segments = bs_combine_segments(segments);
+
+    Sint bit_offset = 0;
+
     /* Build each segment of the binary. */
     for (auto seg : segments) {
         switch (seg.type) {
         case am_append:
         case am_private_append:
+            bit_offset = -1;
             break;
         case am_binary: {
             Uint error_info;
@@ -1904,38 +2091,229 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
             emit_branch_if_value(ARG1, resolve_label(error, dispUnknown));
             break;
         case am_integer:
-            comment("construct integer segment");
-            if (seg.effectiveSize >= 0) {
-                mov_imm(ARG3, seg.effectiveSize);
-            } else {
-                mov_arg(ARG3, seg.size);
-                a.asr(ARG3, ARG3, imm(_TAG_IMMED1_SIZE));
-                if (seg.unit != 1) {
-                    mov_imm(TMP1, seg.unit);
-                    a.mul(ARG3, ARG3, TMP1);
+            switch (seg.action) {
+            case BscSegment::ACCUMULATE_FIRST:
+            case BscSegment::ACCUMULATE: {
+                Label value_is_small = a.newLabel();
+                Label done = a.newLabel();
+
+                comment("accumulate value for integer segment");
+                auto src = load_source(seg.src, ARG1);
+                if (seg.effectiveSize < 64 &&
+                    seg.action == BscSegment::ACCUMULATE) {
+                    a.lsl(ARG8, ARG8, imm(seg.effectiveSize));
                 }
+
+                if (!always_small(seg.src)) {
+                    if (always_one_of(seg.src,
+                                      BEAM_TYPE_INTEGER |
+                                              BEAM_TYPE_MASK_ALWAYS_BOXED)) {
+                        comment("simplified small test since all other types "
+                                "are boxed");
+                        emit_is_boxed(value_is_small, seg.src, src.reg);
+                    } else {
+                        a.and_(TMP1, src.reg, imm(_TAG_IMMED1_MASK));
+                        a.cmp(TMP1, imm(_TAG_IMMED1_SMALL));
+                        a.b_eq(value_is_small);
+                    }
+
+                    /* The value is boxed. If it is a bignum, extract the
+                     * least significant 64 bits. */
+                    mov_var(ARG1, src);
+                    fragment_call(ga->get_get_sint64_shared());
+                    if (seg.effectiveSize == 64) {
+                        a.mov(ARG8, ARG1);
+                    } else {
+                        a.bfxil(ARG8,
+                                ARG1,
+                                arm::lsr(0),
+                                imm(seg.effectiveSize));
+                    }
+                    a.b_ne(done);
+
+                    /* Not a bignum. Signal error. */
+                    if (Fail.get() == 0) {
+                        mov_imm(ARG4,
+                                beam_jit_update_bsc_reason_info(
+                                        seg.error_info,
+                                        BSC_REASON_BADARG,
+                                        BSC_INFO_TYPE,
+                                        BSC_VALUE_ARG1));
+                    }
+                    a.b(resolve_label(error, disp128MB));
+                }
+
+                a.bind(value_is_small);
+                if (seg.effectiveSize == 64) {
+                    a.asr(ARG8, src.reg, imm(_TAG_IMMED1_SIZE));
+                } else if (seg.effectiveSize + _TAG_IMMED1_SIZE > 64) {
+                    a.asr(TMP1, src.reg, imm(_TAG_IMMED1_SIZE));
+                    a.bfxil(ARG8, TMP1, arm::lsr(0), imm(seg.effectiveSize));
+                } else {
+                    a.bfxil(ARG8,
+                            src.reg,
+                            arm::lsr(_TAG_IMMED1_SIZE),
+                            imm(seg.effectiveSize));
+                }
+
+                a.bind(done);
+                break;
             }
-            mov_arg(ARG2, seg.src);
-            mov_imm(ARG4, seg.flags);
-            load_erl_bits_state(ARG1);
+            case BscSegment::STORE: {
+                Label store = a.newLabel();
+                Label done = a.newLabel();
 
-            emit_enter_runtime(Live.get());
-            runtime_call<4>(erts_new_bs_put_integer);
-            emit_leave_runtime(Live.get());
-
-            if (exact_type(seg.src, BEAM_TYPE_INTEGER)) {
-                comment("skipped test for success because construction can't "
-                        "fail");
-            } else {
-                if (Fail.get() == 0) {
-                    mov_arg(ARG3, seg.src);
-                    mov_imm(ARG4,
-                            beam_jit_update_bsc_reason_info(seg.error_info,
-                                                            BSC_REASON_BADARG,
-                                                            BSC_INFO_TYPE,
-                                                            BSC_VALUE_ARG3));
+                comment("construct integer segment from accumulator");
+                if (seg.effectiveSize % 8) {
+                    if (seg.flags & BSF_LITTLE) {
+                        a.bfc(ARG8,
+                              arm::lsr(seg.effectiveSize),
+                              64 - seg.effectiveSize);
+                    } else {
+                        a.lsl(ARG8, ARG8, imm(64 - seg.effectiveSize));
+                        a.rev64(ARG8, ARG8);
+                    }
+                } else if ((seg.flags & BSF_LITTLE) == 0) {
+                    switch (seg.effectiveSize) {
+                    case 8:
+                        break;
+                    case 16:
+                        a.rev16(ARG8, ARG8);
+                        break;
+                    case 32:
+                        a.rev32(ARG8, ARG8);
+                        break;
+                    case 64:
+                        a.rev64(ARG8, ARG8);
+                        break;
+                    default:
+                        a.rev64(ARG8, ARG8);
+                        a.lsr(ARG8, ARG8, imm(64 - seg.effectiveSize));
+                    }
                 }
-                a.cbz(ARG1, resolve_label(error, disp1MB));
+
+                arm::Gp bin_base = ARG2;
+                arm::Gp bin_offset = ARG3;
+                arm::Gp bin_data = ARG8;
+
+                update_bin_state(bin_base,
+                                 bin_offset,
+                                 seg.effectiveSize,
+                                 arm::Gp());
+
+                if (bit_offset < 0) {
+                    /* Bit offset is unknown. Must test alignment. */
+                    a.tst(bin_offset, imm(7));
+                    a.b_eq(store);
+                }
+
+                if (bit_offset % 8 != 0) {
+                    /* Bit offset is unknown or known to be unaligned. */
+                    a.str(bin_data, TMP_MEM2q); /* MEM1q is already in use. */
+                    lea(ARG1, TMP_MEM2q);
+                    mov_imm(ARG4, seg.effectiveSize);
+
+                    emit_enter_runtime(Live.get());
+                    runtime_call<4>(erts_copy_bits_restricted);
+                    emit_leave_runtime(Live.get());
+
+                    if (bit_offset < 0) {
+                        /* Need to jump around the store code. */
+                        a.b(done);
+                    }
+                }
+
+                a.bind(store);
+
+                if (bit_offset <= 0 || bit_offset % 8 == 0) {
+                    /* Either the bit offset is unknown or it is known
+                     * to be byte-aligned. */
+                    int num_bytes = (seg.effectiveSize + 7) / 8;
+                    do {
+                        switch (num_bytes) {
+                        case 1:
+                            a.strb(bin_data.w(), arm::Mem(TMP1));
+                            break;
+                        case 2:
+                            a.strh(bin_data.w(), arm::Mem(TMP1));
+                            break;
+                        case 3:
+                            a.strh(bin_data.w(), arm::Mem(TMP1));
+                            a.lsr(bin_data, bin_data, imm(16));
+                            a.strb(bin_data.w(), arm::Mem(TMP1, 2));
+                            break;
+                        case 4:
+                            a.str(bin_data.w(), arm::Mem(TMP1));
+                            break;
+                        case 5:
+                        case 6:
+                        case 7:
+                            a.str(bin_data.w(), arm::Mem(TMP1).post(4));
+                            a.lsr(bin_data, bin_data, imm(32));
+                            break;
+                        case 8:
+                            a.str(bin_data, arm::Mem(TMP1));
+                            num_bytes = 0;
+                            break;
+                        }
+                        num_bytes -= 4;
+                    } while (num_bytes > 0);
+                }
+
+                a.bind(done);
+                break;
+            }
+            case BscSegment::NONE:
+                comment("construct integer segment");
+                if (seg.effectiveSize >= 0) {
+                    mov_imm(ARG3, seg.effectiveSize);
+                } else if (seg.unit == 0) {
+                    /* Silly but legal. */
+                    mov_imm(ARG3, 0);
+                } else {
+                    auto size = load_source(seg.size, TMP1);
+                    a.lsr(ARG3, size.reg, imm(_TAG_IMMED1_SIZE));
+                    if (Support::isPowerOf2(seg.unit)) {
+                        Uint trailing_bits = Support::ctz<Eterm>(seg.unit);
+                        if (trailing_bits) {
+                            a.lsl(ARG3, ARG3, imm(trailing_bits));
+                        }
+                    } else {
+                        mov_imm(TMP1, seg.unit);
+                        a.mul(ARG3, ARG3, TMP1);
+                    }
+                }
+
+                if (bit_offset % 8 == 0 && seg.src.isSmall() &&
+                    seg.src.as<ArgSmall>().getSigned() == 0) {
+                    comment("optimized setting segment to 0");
+                    set_zero(seg.effectiveSize);
+                } else {
+                    mov_arg(ARG2, seg.src);
+                    mov_imm(ARG4, seg.flags);
+                    load_erl_bits_state(ARG1);
+
+                    emit_enter_runtime(Live.get());
+                    runtime_call<4>(erts_new_bs_put_integer);
+                    emit_leave_runtime(Live.get());
+
+                    if (exact_type(seg.src, BEAM_TYPE_INTEGER)) {
+                        comment("skipped test for success because construction "
+                                "can't "
+                                "fail");
+                    } else {
+                        if (Fail.get() == 0) {
+                            mov_arg(ARG3, seg.src);
+                            mov_imm(ARG4,
+                                    beam_jit_update_bsc_reason_info(
+                                            seg.error_info,
+                                            BSC_REASON_BADARG,
+                                            BSC_INFO_TYPE,
+                                            BSC_VALUE_ARG3));
+                        }
+                        a.cbz(ARG1, resolve_label(error, disp1MB));
+                    }
+                }
             }
             break;
         case am_string: {
@@ -2015,6 +2393,15 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
         default:
             ASSERT(0);
             break;
+        }
+
+        if (bit_offset >= 0 && (seg.action == BscSegment::NONE ||
+                                seg.action == BscSegment::STORE)) {
+            if (seg.effectiveSize >= 0) {
+                bit_offset += seg.effectiveSize;
+            } else {
+                bit_offset = -1;
+            }
         }
     }
 

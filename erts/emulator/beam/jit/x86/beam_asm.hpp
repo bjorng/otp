@@ -1263,6 +1263,12 @@ protected:
     void emit_bs_get_utf16(const ArgRegister &Ctx,
                            const ArgLabel &Fail,
                            const ArgWord &Flags);
+    void update_bin_state(x86::Gp bin_base,
+                          x86::Gp bin_offset,
+                          Sint size,
+                          x86::Gp size_reg);
+    bool need_mask(const ArgVal Val, Sint size);
+    void set_zero(Sint effectiveSize);
 
     void emit_raise_exception();
     void emit_raise_exception(const ErtsCodeMFA *exp);
