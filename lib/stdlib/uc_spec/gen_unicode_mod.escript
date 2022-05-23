@@ -248,7 +248,7 @@ gen_header(Fd) ->
 gen_static(Fd) ->
     io:put_chars(Fd, "-spec lookup(char()) -> #{'canon':=[{byte(),char()}], 'ccc':=byte(), "
                  "'compat':=[] | {atom(),[{byte(),char()}]}, 'category':={atom(),atom()}}.\n"),
-    io:put_chars(Fd, "lookup(Codepoint) when is_integer(Codepoint) ->\n"
+    io:put_chars(Fd, "lookup(Codepoint) when is_integer(Codepoint), 0 =< Codepoint, Codepoint < 16#110000 ->\n"
                  "    {CCC,Can,Comp,Cat} = unicode_table(Codepoint),\n"
                  "    #{ccc=>CCC, canon=>Can, compat=>Comp, category=>category(Codepoint,Cat)}.\n\n"),
 
@@ -865,6 +865,7 @@ gen_gc(Fd, GBP) ->
                  "                _ -> gc_extend2(R1, R0, Acc)\n"
                  "            end\n    end.\n\n"),
     io:put_chars(Fd, "%% Handle Hangul LV\n"),
+    io:put_chars(Fd, "gc_h_lv_lvt([CP|_], _R0, _Acc) when not is_integer(CP); CP < 0; CP > 16#110000 -> error(badarg);\n"),
     GenHangulLV = fun(Range) -> io:format(Fd, "gc_h_lv_lvt~s gc_h_V(R1,[CP|Acc]);\n",
                                           [gen_clause2(Range)]) end,
     [GenHangulLV(CP) || CP <- merge_ranges(maps:get(lv,GBP))],
