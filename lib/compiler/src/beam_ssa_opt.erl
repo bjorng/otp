@@ -241,6 +241,7 @@ prologue_passes(Opts) ->
           ?PASS(ssa_opt_tail_phis),
           ?PASS(ssa_opt_element),
           ?PASS(ssa_opt_linearize),
+          ?PASS(ssa_opt_private_append),
           ?PASS(ssa_opt_tuple_size),
           ?PASS(ssa_opt_record),
           ?PASS(ssa_opt_cse),                   % Helps the first type pass.
@@ -3112,6 +3113,80 @@ redundant_br_safe_bool(Is, Bool) ->
         #b_set{op=has_map_field} -> true;
         #b_set{dst=Dst} -> Dst =/= Bool
     end.
+
+%%% Proof of concept of replacing append with private_append in
+%%% bs_create_bin instructions. NOT safe in general.
+
+ssa_opt_private_append({#opt_st{ssa=Linear0,cnt=Cnt0}=St, FuncDb}) ->
+    {Linear,Cnt} = private_append(Linear0, Cnt0),
+    {St#opt_st{ssa=Linear,cnt=Cnt}, FuncDb}.
+
+private_append([{L,#b_blk{is=Is0}=Blk}|Bs0], Cnt0) ->
+    {Is,Cnt1} = private_append_is(Is0, Cnt0, []),
+    {Bs,Cnt} = private_append(Bs0, Cnt1),
+    {[{L,Blk#b_blk{is=Is}}|Bs],Cnt};
+private_append([], Cnt) ->
+    {[],Cnt}.
+
+private_append_is([#b_set{op=bs_create_bin,args=Args0}=I0|Is], Cnt, Acc) ->
+    case Args0 of
+        [#b_literal{val=append}|Args1] ->
+            %% The source binary **must** have been created using
+            %% bs_writable_binary or from a previous invocation
+            %% of private_append. If not, the runtime system will crash.
+            %%
+            %% The following function must not be rewritten to use
+            %% private_append:
+            %%
+            %% bad(L) ->
+            %%     bad(L, <<>>).
+            %%
+            %% bad([H|T], Bin) ->
+            %%     bad(T, <<Bin/bytes,H:1>>);
+            %% bad([], Bin) ->
+            %%     Bin.
+            %%
+            %% `Bin` is required to be a binary of byte size
+            %% (bit_size(Bin) rem 8 is equal to 0), but the binary
+            %% construction constructs a binary that violates that
+            %% requirement, resulting in the following error message
+            %% if the input list has more than one element:
+            %%
+            %% 1> t:bad([1,0]).
+            %% ** exception error: construction of binary failed
+            %%      in function  t:bad/2 (t.erl, line 20)
+            %%         *** segment 1 of type 'binary': the size of the value <<1:1>> is not a multiple of the unit for the segment
+            %%
+            %% private_append does not check the unit of Bin, so that
+            %% construction would succeed.
+
+            Args = [#b_literal{val=private_append}|Args1],
+            I = I0#b_set{args=Args},
+            private_append_is(Is, Cnt, [I|Acc]);
+        _ ->
+            private_append_is(Is, Cnt, [I0|Acc])
+    end;
+private_append_is([#b_set{op=call,args=[#b_local{}=F|Args0]}=I0|Is], Cnt0, Acc) ->
+    {Args1,NewIs,Cnt} = fix_args(Args0, Cnt0, [], []),
+    Args = [F|Args1],
+    I = I0#b_set{args=Args},
+    private_append_is(Is, Cnt, [I|NewIs++Acc]);
+private_append_is([I|Is], Cnt, Acc) ->
+    private_append_is(Is, Cnt, [I|Acc]);
+private_append_is([], Cnt, Acc) ->
+    {reverse(Acc),Cnt}.
+
+fix_args([#b_literal{val=(<<>>)}|As], Cnt0, IsAcc, ArgAcc) ->
+    %% Creating a writable binary that we will not be used by
+    %% private_append will not crash the runtime system but is
+    %% wasteful.
+    {Dst,Cnt} = new_var(writable_binary, Cnt0),
+    I = #b_set{op=bs_init_writable,dst=Dst,args=[#b_literal{val=256}]},
+    fix_args(As, Cnt, [I|IsAcc], [Dst|ArgAcc]);
+fix_args([A|As], Cnt, IsAcc, ArgAcc) ->
+    fix_args(As, Cnt, IsAcc, [A|ArgAcc]);
+fix_args([], Cnt, IsAcc, ArgAcc) ->
+    {reverse(ArgAcc),IsAcc,Cnt}.
 
 %%%
 %%% Common utilities.
