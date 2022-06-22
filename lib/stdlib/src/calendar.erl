@@ -129,7 +129,10 @@
       Month :: month(),
       Day :: day(),
       Days :: non_neg_integer().
-date_to_gregorian_days(Year, Month, Day) when is_integer(Day), Day > 0 ->
+date_to_gregorian_days(Year, Month, Day)
+  when is_integer(Year),
+       is_integer(Month), 1 =< Month, Month =< 12,
+       is_integer(Day), Day > 0 ->
     Last = last_day_of_the_month(Year, Month),
     if
 	Day =< Last ->
@@ -178,7 +181,7 @@ day_of_the_week({Year, Month, Day}) ->
 %%
 -spec gregorian_days_to_date(Days) -> date() when
       Days :: non_neg_integer().
-gregorian_days_to_date(Days) ->
+gregorian_days_to_date(Days) when is_integer(Days), Days >= 0 ->
     {Year, DayOfYear} = day_to_year(Days),
     {Month, DayOfMonth} = year_day_to_date(Year, DayOfYear),
     {Year, Month, DayOfMonth}.
@@ -188,7 +191,7 @@ gregorian_days_to_date(Days) ->
 %%
 -spec gregorian_seconds_to_datetime(Seconds) -> datetime() when
       Seconds :: non_neg_integer().
-gregorian_seconds_to_datetime(Secs) when Secs >= 0 ->
+gregorian_seconds_to_datetime(Secs) when is_integer(Secs), Secs >= 0 ->
     Days = Secs div ?SECONDS_PER_DAY,
     Rest = Secs rem ?SECONDS_PER_DAY,
     {gregorian_days_to_date(Days), seconds_to_time(Rest)}.
@@ -223,15 +226,16 @@ iso_week_number() ->
 %%
 -spec iso_week_number(Date) -> yearweeknum() when
       Date :: date().
-iso_week_number({Year, Month, Day}) ->
+iso_week_number({Year, Month, Day})
+  when is_integer(Year), is_integer(Month), is_integer(Day) ->
     D = date_to_gregorian_days({Year, Month, Day}),
     W01_1_Year = gregorian_days_of_iso_w01_1(Year),
     W01_1_NextYear = gregorian_days_of_iso_w01_1(Year + 1),
     if W01_1_Year =< D andalso D < W01_1_NextYear ->
-	    % Current Year Week 01..52(,53)
+            %% Current Year Week 01..52(,53)
 	    {Year, (D - W01_1_Year) div 7 + 1};
 	D < W01_1_Year ->
-	    % Previous Year 52 or 53
+            %% Previous Year 52 or 53
 	    PWN = case day_of_the_week(Year - 1, 1, 1) of
 		4 -> 53;
 		_ -> case day_of_the_week(Year - 1, 12, 31) of
@@ -241,7 +245,7 @@ iso_week_number({Year, Month, Day}) ->
 		end,
 	    {Year - 1, PWN};
 	W01_1_NextYear =< D ->
-	    % Next Year, Week 01
+            %% Next Year, Week 01
 	    {Year + 1, 1}
     end.
 
@@ -325,7 +329,8 @@ local_time_to_universal_time_dst(DateTime) ->
 %% 
 -spec now_to_datetime(Now) -> datetime1970() when
       Now :: erlang:timestamp().
-now_to_datetime({MSec, Sec, _uSec}) ->
+now_to_datetime({MSec, Sec, USec})
+  when is_integer(MSec), is_integer(Sec), is_integer(USec)  ->
     system_time_to_datetime(MSec*1_000_000 + Sec).
 
 -spec now_to_universal_time(Now) -> datetime1970() when
@@ -402,7 +407,7 @@ seconds_to_daystime(Secs) ->
 -type secs_per_day() :: 0..?SECONDS_PER_DAY.
 -spec seconds_to_time(Seconds) -> time() when
       Seconds :: secs_per_day().
-seconds_to_time(Secs) when Secs >= 0, Secs < ?SECONDS_PER_DAY ->
+seconds_to_time(Secs) when is_integer(Secs), Secs >= 0, Secs < ?SECONDS_PER_DAY ->
     Secs0 = Secs rem ?SECONDS_PER_DAY,
     Hour = Secs0 div ?SECONDS_PER_HOUR,
     Secs1 = Secs0 rem ?SECONDS_PER_HOUR,
@@ -648,10 +653,9 @@ year_day_to_date2(E, Day) when 334 + E =< Day ->
 %%
 %% Days in previous years.
 %%
--spec dy(integer()) -> non_neg_integer().
-dy(Y) when Y =< 0 -> 
+dy(Y) when is_integer(Y), Y =< 0 ->
     0; 
-dy(Y) -> 
+dy(Y) when is_integer(Y) ->
     X = Y - 1, 
     (X div 4) - (X div 100) + (X div 400) + 
 	X*?DAYS_PER_YEAR + ?DAYS_PER_LEAP_YEAR.
@@ -672,7 +676,6 @@ dm(9) -> 243;  dm(10) -> 273;  dm(11) -> 304;  dm(12) -> 334.
 %%  Accounts for an extra day in February if Year is
 %%  a leap year, and if Month > 2.
 %%
--spec df(year(), month()) -> 0 | 1.
 df(_, Month) when Month < 3 ->
     0;
 df(Year, _) ->
@@ -681,8 +684,10 @@ df(Year, _) ->
 	false  -> 0
     end.
 
-check(_Arg, _Options, Secs) when Secs >= - ?SECONDS_FROM_0_TO_1970,
-                                 Secs < ?SECONDS_FROM_0_TO_10000 ->
+check(_Arg, _Options, Secs)
+  when is_integer(Secs),
+       Secs >= - ?SECONDS_FROM_0_TO_1970,
+       Secs < ?SECONDS_FROM_0_TO_10000 ->
     ok;
 check(Arg, Options, _Secs) ->
     erlang:error({badarg, [Arg, Options]}).
