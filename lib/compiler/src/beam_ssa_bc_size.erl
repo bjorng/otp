@@ -44,7 +44,7 @@
 
 -spec opt(st_map()) -> st_map().
 
-opt(StMap) ->
+opt(StMap) when is_map(StMap) ->
     opt(maps:keys(StMap), StMap).
 
 opt([Id|Ids], StMap0) ->
