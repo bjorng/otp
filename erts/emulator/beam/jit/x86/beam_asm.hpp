@@ -1086,7 +1086,7 @@ class BeamModuleAssembler : public BeamAssembler {
     /* Save the last PC for an error. */
     size_t last_error_offset = 0;
 
-    /* Skip unnecessary moves in mov_arg. */
+    /* Skip unnecessary moves in mov_arg() and cmp_arg(). */
     size_t last_movarg_offset = 0;
     x86::Gp last_movarg_from;
     x86::Mem last_movarg_to;
@@ -1514,13 +1514,29 @@ protected:
     }
 
     void cmp_arg(x86::Mem mem, const ArgVal &val, const x86::Gp &spill) {
-        /* Note that the cast to Sint is necessary to handle negative numbers
-         * such as NIL. */
-        if (val.isImmed() && Support::isInt32((Sint)val.as<ArgImmed>().get())) {
-            a.cmp(mem, imm(val.as<ArgImmed>().get()));
+        if (a.offset() == last_movarg_offset && mem == last_movarg_to) {
+            /* Note that the cast to Sint is necessary to handle
+             * negative numbers such as NIL. */
+            if (val.isImmed() && Support::isInt32((Sint)val.as<ArgImmed>().get())) {
+                comment("simplified compare of BEAM register");
+                a.cmp(last_movarg_from, imm(val.as<ArgImmed>().get()));
+            } else if (last_movarg_from != spill) {
+                comment("simplified compare of BEAM register");
+                mov_arg(spill, val);
+                a.cmp(last_movarg_from, spill);
+            } else {
+                mov_arg(spill, val);
+                a.cmp(mem, spill);
+            }
         } else {
-            mov_arg(spill, val);
-            a.cmp(mem, spill);
+            /* Note that the cast to Sint is necessary to handle
+             * negative numbers such as NIL. */
+            if (val.isImmed() && Support::isInt32((Sint)val.as<ArgImmed>().get())) {
+                a.cmp(mem, imm(val.as<ArgImmed>().get()));
+            } else {
+                mov_arg(spill, val);
+                a.cmp(mem, spill);
+            }
         }
     }
 
