@@ -2268,34 +2268,37 @@ bs_size_unit(Args, Ts) ->
 bs_size_unit([#b_literal{val=Type},#b_literal{val=[U1|_]},Value,SizeTerm|Args],
              Ts, Size0, U0) ->
     case {Type,Value,SizeTerm} of
+        {_,#b_literal{val=Bs},#b_literal{val=all}} when is_bitstring(Bs) ->
+            Size = safe_add(Size0, bit_size(Bs)),
+            bs_size_unit(Args, Ts, Size, U0);
         {_,_,#b_literal{val=all}} ->
             case concrete_type(Value, Ts) of
                 #t_bitstring{size_unit=U2} ->
                     U = safe_gcd(U0, max(U1, U2)),
-                    bs_size_unit(Args, Ts, none, U);
+                    bs_size_unit(Args, Ts, Size0, U);
                 _ ->
                     U = safe_gcd(U0, U1),
-                    bs_size_unit(Args, Ts, none, U)
+                    bs_size_unit(Args, Ts, Size0, U)
             end;
         {utf8,_,_} ->
-            U = gcd(U0, 8),
+            U = safe_gcd(Size0, safe_gcd(U0, 8)),
             bs_size_unit(Args, Ts, none, U);
         {utf16,_,_} ->
-            U = gcd(U0, 16),
+            U = safe_gcd(Size0, safe_gcd(U0, 16)),
             bs_size_unit(Args, Ts, none, U);
         {utf32,_,_} ->
-            U = gcd(U0, 32),
-            bs_size_unit(Args, Ts, none, U);
+            Size = safe_add(Size0, 4),
+            U = safe_gcd(U0, 32),
+            bs_size_unit(Args, Ts, Size, U);
         {_,_,_} ->
             case concrete_type(SizeTerm, Ts) of
                 #t_integer{elements={Size1, Size1}}
                   when is_integer(Size1), is_integer(U1), Size1 >= 0 ->
                     EffectiveSize = Size1 * U1,
-                    U = safe_gcd(U0, EffectiveSize),
                     Size = safe_add(Size0, EffectiveSize),
-                    bs_size_unit(Args, Ts, Size, U);
+                    bs_size_unit(Args, Ts, Size, U0);
                 _ when is_integer(U1) ->
-                    U = safe_gcd(U0, U1),
+                    U = safe_gcd(Size0, safe_gcd(U0, U1)),
                     bs_size_unit(Args, Ts, none, U);
                 _ ->
                     bs_size_unit(Args, Ts, none, 1)
@@ -2303,9 +2306,12 @@ bs_size_unit([#b_literal{val=Type},#b_literal{val=[U1|_]},Value,SizeTerm|Args],
     end;
 bs_size_unit([], _Ts, none, Unit) ->
     Unit;
+bs_size_unit([], _Ts, Size, Unit) when is_integer(Size) ->
+    safe_gcd(Size, Unit);
 bs_size_unit([], _Ts, Size, _Unit) when is_integer(Size) ->
     Size.
 
+safe_gcd(none, Other) -> Other;
 safe_gcd(0, Other) -> Other;
 safe_gcd(Other, 0) -> Other;
 safe_gcd(A, B) -> gcd(A, B).
