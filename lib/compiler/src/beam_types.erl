@@ -108,10 +108,12 @@ meet_unions(#t_union{atom=AtomA,list=ListA,number=NumberA,
                      tuple_set=TSetA,other=OtherA},
             #t_union{atom=AtomB,list=ListB,number=NumberB,
                      tuple_set=TSetB,other=OtherB}) ->
+    Set0 = meet_tuple_sets(TSetA, TSetB),
+    Set = simplify_tuple_set(Set0),
     Union = #t_union{atom=glb(AtomA, AtomB),
                      list=glb(ListA, ListB),
                      number=glb(NumberA, NumberB),
-                     tuple_set=meet_tuple_sets(TSetA, TSetB),
+                     tuple_set=Set,
                      other=glb(OtherA, OtherB)},
     shrink_union(Union);
 meet_unions(#t_union{atom=AtomA}, #t_atom{}=B) ->
@@ -130,7 +132,8 @@ meet_unions(#t_union{list=ListA}, B) when ?IS_LIST_TYPE(B) ->
         List -> List
     end;
 meet_unions(#t_union{tuple_set=Tuples}, #t_tuple{}=B) ->
-    Set = meet_tuple_sets(Tuples, new_tuple_set(B)),
+    Set0 = meet_tuple_sets(Tuples, new_tuple_set(B)),
+    Set = simplify_tuple_set(Set0),
     shrink_union(#t_union{tuple_set=Set});
 meet_unions(#t_union{other=OtherA}, OtherB) ->
     case glb(OtherA, OtherB) of
@@ -255,9 +258,11 @@ join(#t_tuple{}=A, #t_tuple{}=B) ->
         {_Key, none} ->
             lub(A, B);
         {KeyA, KeyB} when KeyA < KeyB ->
-            #t_union{tuple_set=[{KeyA, A}, {KeyB, B}]};
+            Set = simplify_tuple_set([{KeyA, A}, {KeyB, B}]),
+            shrink_union(#t_union{tuple_set=Set});
         {KeyA, KeyB} when KeyA > KeyB ->
-            #t_union{tuple_set=[{KeyB, B}, {KeyA, A}]}
+            Set = simplify_tuple_set([{KeyB, B}, {KeyA, A}]),
+            shrink_union(#t_union{tuple_set=Set})
     end;
 join(#t_tuple{}=A, B) ->
     %% All other combinations have been tried already, so B must be 'other'
@@ -275,7 +280,7 @@ join_unions(#t_union{atom=AtomA,list=ListA,number=NumberA,
     Union = #t_union{atom=lub(AtomA, AtomB),
                      list=lub(ListA, ListB),
                      number=lub(NumberA, NumberB),
-                     tuple_set=join_tuple_sets(TSetA, TSetB),
+                     tuple_set=simplify_tuple_set(join_tuple_sets(TSetA, TSetB)),
                      other=lub(OtherA, OtherB)},
     shrink_union(Union);
 join_unions(#t_union{atom=AtomA}=A, #t_atom{}=B) ->
@@ -285,7 +290,8 @@ join_unions(#t_union{list=ListA}=A, B) when ?IS_LIST_TYPE(B) ->
 join_unions(#t_union{number=NumberA}=A, B) when ?IS_NUMBER_TYPE(B) ->
     shrink_union(A#t_union{number=lub(NumberA, B)});
 join_unions(#t_union{tuple_set=TSetA}=A, #t_tuple{}=B) ->
-    Set = join_tuple_sets(TSetA, new_tuple_set(B)),
+    Set0 = join_tuple_sets(TSetA, new_tuple_set(B)),
+    Set = simplify_tuple_set(Set0),
     shrink_union(A#t_union{tuple_set=Set});
 join_unions(#t_union{other=OtherA}=A, B) ->
     T = lub(OtherA, B),
@@ -423,10 +429,11 @@ subtract(#t_union{list=List}=A, B) when ?IS_LIST_TYPE(B) ->
     shrink_union(A#t_union{list=subtract(List, B)});
 subtract(#t_union{tuple_set=[_|_]=Records0}=A, #t_tuple{}=B) ->
     %% Filter out all records that are more specific than B.
-    NewSet = case [{Key, T} || {Key, T} <- Records0, meet(T, B) =/= T] of
-                 [_|_]=Records -> Records;
-                 [] -> none
-             end,
+    NewSet0 = case [{Key, T} || {Key, T} <- Records0, meet(T, B) =/= T] of
+                  [_|_]=Records -> Records;
+                  [] -> none
+              end,
+    NewSet = simplify_tuple_set(NewSet0),
     shrink_union(A#t_union{tuple_set=NewSet});
 subtract(#t_union{tuple_set=#t_tuple{}=Tuple}=A, #t_tuple{}=B) ->
     %% Exclude Tuple if it's more specific than B.
@@ -559,7 +566,8 @@ update_tuple(#t_union{tuple_set=[_|_]=Set0}, [_|_]=Updates) ->
             case update_tuple_set(Set0, Updates) of
                 [] ->
                     none;
-                [_|_]=Set ->
+                [_|_]=Set1 ->
+                    Set = simplify_tuple_set(Set1),
                     verified_type(shrink_union(#t_union{tuple_set=Set}))
             end
     end;
@@ -1231,6 +1239,71 @@ shrink_union(#t_union{atom=#t_atom{elements=any},
     any;
 shrink_union(#t_union{}=T) ->
     T.
+
+%%
+
+simplify_tuple_set([_]=Set) ->
+    Set;
+simplify_tuple_set([_|_]=Set) ->
+    case simplify_tuple_set_1(Set) of
+        Set ->
+            %% io:format("~p\n", [Set]),
+            Set;
+        Other ->
+            %% io:format("~p\n", [Set]),
+            %% io:format("~p\n", [Other]),
+            %% io:nl(),
+            Other
+    end;
+simplify_tuple_set(Other) ->
+    Other.
+
+simplify_tuple_set_1([{_,Tuple0}|Ts]=Ts0) ->
+    case simplify_tuple_set_2(Ts, Tuple0) of
+        error -> Ts0;
+        #t_tuple{}=Tuple -> new_tuple_set(Tuple)
+    end.
+
+simplify_tuple_set_2([{_,#t_tuple{size=Sz,elements=Es0}}|Ts],
+                     #t_tuple{size=Sz,elements=Es1}=T0) ->
+    case simplify_tuple_set_join(?TUPLE_SET_LIMIT, Es0, Es1) of
+        error ->
+            error;
+        Es2 when is_map(Es2) ->
+            El = join(map_get(1, Es0), map_get(1, Es1)),
+            Es = Es2#{1 := El},
+            T = T0#t_tuple{elements=Es},
+            simplify_tuple_set_2(Ts, T)
+    end;
+simplify_tuple_set_2([_|_], _Tuple) ->
+    error;
+simplify_tuple_set_2([], Tuple) ->
+    Tuple.
+
+simplify_tuple_set_join(1, _Es0, Es1) ->
+    Es1;
+simplify_tuple_set_join(N, Es0, Es1) ->
+    case {Es0,Es1} of
+        {#{N := El0}, #{N := El1}} ->
+            El = join(El0, El1),
+            case tuple_set_same(El0, El) andalso tuple_set_same(El1, El) of
+                true ->
+                    simplify_tuple_set_join(N - 1, Es0, Es1#{N := El});
+                false ->
+                    error
+            end;
+        {#{N := _}, #{}} ->
+            error;
+        {#{}, #{N := _}} ->
+            error;
+        {#{}, #{}} ->
+            simplify_tuple_set_join(N - 1, Es0, Es1)
+    end.
+
+tuple_set_same(#t_tuple{elements=Es0}, #t_tuple{elements=Es1}) ->
+    maps:remove(1, Es0) =:= maps:remove(1, Es1);
+tuple_set_same(T0, T1) ->
+    T0 =:= T1.
 
 %% Verifies that the given type is well-formed.
 
