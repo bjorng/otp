@@ -571,8 +571,8 @@ iterator_2_option_to_fun(F) when is_function(F, 2) ->
 iterator_2_check_order(M, OrdOption, RevOption) ->
     OrdCmpFun = iterator_2_option_to_fun(OrdOption),
     RevCmpFun = iterator_2_option_to_fun(RevOption),
-    OrdKVCmpFun = fun({A, _}, {B, _}) -> OrdCmpFun(A, B) end,
-    RevKVCmpFun = fun({A, _}, {B, _}) -> RevCmpFun(A, B) end,
+    OrdKVCmpFun = fun(A, B) -> OrdCmpFun(A, B) end,
+    RevKVCmpFun = fun(A, B) -> RevCmpFun(A, B) end,
 
     OrdKVList = lists:sort(OrdKVCmpFun, maps:to_list(M)),
     RevKVList = lists:sort(RevKVCmpFun, maps:to_list(M)),
