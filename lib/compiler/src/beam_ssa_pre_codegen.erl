@@ -1008,7 +1008,7 @@ sanitize_instr(is_tagged_tuple, [#b_literal{val=Tuple},
             {subst,#b_literal{val=false}}
     end;
 sanitize_instr(succeeded, [#b_literal{}], _I) ->
-    {subst,#b_literal{val=true}};
+    error({?MODULE,?LINE}), {subst,#b_literal{val=true}};
 sanitize_instr(_, _, _) ->
     ok.
 
@@ -1746,7 +1746,7 @@ rce_reroute_terminator(#b_br{fail=Exit}=Last, Exit, New) ->
 rce_reroute_terminator(#b_br{}=Last, _Exit, _New) ->
     Last;
 rce_reroute_terminator(#b_switch{fail=Exit}=Last, Exit, New) ->
-    rce_reroute_terminator(Last#b_switch{fail=New}, Exit, New);
+    error({?MODULE,?LINE}), rce_reroute_terminator(Last#b_switch{fail=New}, Exit, New);
 rce_reroute_terminator(#b_switch{list=List0}=Last, Exit, New) ->
     List = [if
                 Lbl =:= Exit -> {Arg, New};
@@ -1917,7 +1917,7 @@ find_rm_blocks_1([], _, _) -> [].
 find_rm_act([#b_set{op=Op}|Is]) ->
     case Op of
         remove_message -> found;
-        peek_message -> prune;
+        peek_message -> error({?MODULE,?LINE}), prune;
         recv_next -> prune;
         wait_timeout -> prune;
         _ -> find_rm_act(Is)
@@ -2735,7 +2735,7 @@ rename_vars(Vs, L, RPO, Blocks0, Count0) ->
     {NewVars,Blocks,Count}.
 
 insert_after_phis([#b_set{op=phi}=I|Is], InsertIs) ->
-    [I|insert_after_phis(Is, InsertIs)];
+    error({?MODULE,?LINE}), [I|insert_after_phis(Is, InsertIs)];
 insert_after_phis(Is, InsertIs) ->
     InsertIs ++ Is.
 
@@ -3035,7 +3035,7 @@ res_place_gc_instrs([], Acc) ->
 res_place_test_heap(I, Acc) ->
     case Acc of
         [test_heap|Acc] ->
-            [test_heap,I|Acc];
+            error({?MODULE,?LINE}), [test_heap,I|Acc];
         _ ->
             [test_heap,I|Acc]
     end.
@@ -3137,7 +3137,7 @@ reserve_terminator(L, Is, #b_br{bool=Bool,succ=Succ,fail=Fail},
         {_, _} ->
             %% Register hints from the success block may not
             %% be safe at the failure block, and vice versa.
-            #{}
+            error({?MODULE,?LINE}), #{}
     end;
 reserve_terminator(_, _, _, _, _, _) ->
     #{}.

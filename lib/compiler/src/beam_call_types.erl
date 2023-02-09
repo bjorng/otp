@@ -145,6 +145,7 @@ will_succeed(erlang, map_size, [Arg]) ->
 will_succeed(erlang, node, [Arg]) ->
     succeeds_if_type(Arg, identifier);
 will_succeed(erlang, 'and', [_, _]=Args) ->
+    error({?MODULE,?LINE}),
     Bool = beam_types:make_boolean(),
     succeeds_if_types(Args, [Bool, Bool]);
 will_succeed(erlang, 'not', [Arg]) ->

@@ -694,7 +694,7 @@ c_rewrite_phi([{Value,Pred}|As], {_,Pred,Values}) ->
     [{Value,P} || {_,P} <:- Values] ++ As;
 c_rewrite_phi([A|As], Info) ->
     [A|c_rewrite_phi(As, Info)];
-c_rewrite_phi([], _Info) -> [].
+c_rewrite_phi([], _Info) -> error({?MODULE,?LINE}), [].
 
 c_fix_branches([{_,Pred}|As], L, Blocks0) ->
     #b_blk{last=Last0} = Blk0 = map_get(Pred, Blocks0),
@@ -1728,7 +1728,7 @@ live_opt_is([#b_set{op={succeeded,guard},dst=SuccDst,args=[Dst]}=SuccI,
                     live_opt_is([I0|Is], Live, [SuccI|Acc])
             end;
         {false, true} ->
-            live_opt_is([I0|Is], Live0, Acc);
+            error({?MODULE,?LINE}), live_opt_is([I0|Is], Live0, Acc);
         {false, false} ->
             live_opt_is(Is, Live0, Acc)
     end;
@@ -3195,7 +3195,7 @@ insert_def_is([#b_set{op=Op}=I|Is]=Is0, V, Def) ->
     Action0 = case Op of
                   call -> beyond;
                   'catch_end' -> beyond;
-                  wait_timeout -> beyond;
+                  wait_timeout -> error({?MODULE,?LINE}), beyond;
                   _ -> here
               end,
     Action = case Is of
