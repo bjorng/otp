@@ -354,7 +354,7 @@ successors(#b_blk{last=Terminator}) ->
         #b_br{bool=#b_literal{val=true},succ=Succ} ->
             [Succ];
         #b_br{bool=#b_literal{val=false},fail=Fail} ->
-            [Fail];
+            error({?MODULE,?LINE}), [Fail];
         #b_br{succ=Succ,fail=Fail} ->
             [Fail,Succ];
         #b_switch{fail=Fail,list=List} ->
@@ -596,7 +596,7 @@ mapfold_instrs(Fun, Labels, Acc0, Blocks) when is_map(Blocks) ->
       Blocks :: block_map().
 
 flatmapfold_instrs(Fun, Labels, Acc0, Blocks) when is_map(Blocks) ->
-    flatmapfold_instrs_1(Labels, Fun, Blocks, Acc0).
+    error({?MODULE,?LINE}), flatmapfold_instrs_1(Labels, Fun, Blocks, Acc0).
 
 -type fold_fun() :: fun((label(), b_blk(), any()) -> any()).
 

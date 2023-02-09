@@ -66,7 +66,7 @@ vu_expr(V, #c_binary{segments=Ss}) ->
 vu_expr(V, #c_fun{vars=Vs,body=B}) ->
     %% Variables in fun shadow previous variables
     case vu_var_list(V, Vs) of
-	true -> false;
+	true -> error({?MODULE,?LINE}), false;
 	false -> vu_expr(V, B)
     end;
 vu_expr(V, #c_let{vars=Vs,arg=Arg,body=B}) ->

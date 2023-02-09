@@ -374,7 +374,7 @@ si_remote_call_1(Dst, [Callee | Args], Lbl, Blocks) ->
                     %% well, we'll treat it as a receive candidate.
                     uses_ref;
                 [_MRef, _Options] ->
-                    no
+                    error({?MODULE,?LINE}), no
             end;
         {erlang,make_ref,0} ->
             {makes_ref, Lbl, Dst};
@@ -542,14 +542,14 @@ pu_is_ref_used(#b_set{op=call,args=[Callee | Args]}, Ref, _Lbl, _Blocks) ->
                         arity=Arity} ->
                   {Mod, Func, Arity};
               _ ->
-                  none
+                  error({?MODULE,?LINE}), none
           end,
     case MFA of
         {erlang,demonitor,2} ->
             [MRef | _] = Args,
             MRef =:= Ref;
         _ ->
-            false
+            error({?MODULE,?LINE}), false
     end;
 pu_is_ref_used(#b_set{op=peek_message,dst=Msg}=I, Ref, Lbl, Blocks) ->
     #b_blk{is=[I | _]} = Blk = map_get(Lbl, Blocks), %Assertion.
@@ -824,7 +824,7 @@ insert_bind(Lbl, Ref, Marker, Blocks0, Count0) ->
 insert_bind_is([#b_set{}, #b_set{op={succeeded,_}}]=Is, Bind, _Last) ->
     [Bind | Is];
 insert_bind_is([#b_set{op=call,dst=Ret}]=Is, Bind, #b_ret{arg=Ret}) ->
-    [Bind | Is];
+    error({?MODULE,?LINE}), [Bind | Is];
 insert_bind_is([#b_set{op=new_try_tag}]=Is, Bind, _Last) ->
     [Bind | Is];
 insert_bind_is([#b_set{op=Op}=I | Is], Bind, Last) ->

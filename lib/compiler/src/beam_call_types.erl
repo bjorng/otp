@@ -142,11 +142,11 @@ will_succeed(erlang, map_size, [Arg]) ->
 will_succeed(erlang, node, [Arg]) ->
     succeeds_if_type(Arg, identifier);
 will_succeed(erlang, 'and', [_, _]=Args) ->
-    succeeds_if_types(Args, beam_types:make_boolean());
+    error({?MODULE,?LINE}), succeeds_if_types(Args, beam_types:make_boolean());
 will_succeed(erlang, 'not', [Arg]) ->
     succeeds_if_type(Arg, beam_types:make_boolean());
 will_succeed(erlang, 'or', [_, _]=Args) ->
-    succeeds_if_types(Args, beam_types:make_boolean());
+    error({?MODULE,?LINE}), succeeds_if_types(Args, beam_types:make_boolean());
 will_succeed(erlang, 'xor', [_, _]=Args) ->
     succeeds_if_types(Args, beam_types:make_boolean());
 will_succeed(erlang, setelement, [Pos, Tuple0, _Value]=Args) ->

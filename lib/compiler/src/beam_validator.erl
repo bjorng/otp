@@ -1141,7 +1141,7 @@ infer_relop_types(Op0, [Type1,Type2]) ->
             end
     end;
 infer_relop_types(_, _) ->
-    [].
+    error({?MODULE,?LINE}), [].
 
 infer_relop_any('=<', {none,any}, Type) ->
     N = #t_number{},
@@ -1321,7 +1321,7 @@ is_reg_initialized({y,_}=Reg, #vst{current=#st{ys=Ys}}) ->
         #{Reg:=Val} ->
             Val =/= uninitialized;
         #{} ->
-            false
+            error({?MODULE,?LINE}), false
     end;
 is_reg_initialized(V, #vst{}) -> error({not_a_register, V}).
 
@@ -1411,7 +1411,7 @@ update_tuple_type([_|_]=Updates0, Src, Vst) ->
     Filter = #t_tuple{size=update_tuple_highest_index(Updates0, -1)},
     case meet(get_term_type(Src, Vst), Filter) of
         none ->
-            none;
+            error({?MODULE,?LINE}), none;
         TupleType ->
             Updates = update_tuple_type_1(Updates0, Vst),
             beam_types:update_tuple(TupleType, Updates)
@@ -2013,7 +2013,7 @@ prune_x_regs(Live, Preserved, #vst{current=St0}=Vst) when is_integer(Live) ->
     Fragile = sets:filter(fun({x,X}=Reg) ->
                                   X < Live orelse Reg =:= Preserved;
                              ({y,_}) ->
-                                  true
+                                  error({?MODULE,?LINE}), true
                          end, Fragile0),
     Xs = #{Reg => Val || {x,X}=Reg := Val <- Xs0,
            (X < Live orelse X =:= Preserved)},
@@ -2029,7 +2029,7 @@ assert_choices([{Tag,_},{f,_}|T]) ->
         true ->
             error(bad_select_list)
     end;
-assert_choices([]) -> ok.
+assert_choices([]) -> error({?MODULE,?LINE}), ok.
 
 assert_choices_1([{Tag,_},{f,_}|T], Tag) ->
     assert_choices_1(T, Tag);
@@ -2342,7 +2342,7 @@ assign({y,_}=Src, {y,_}=Dst, Vst) ->
     %% The stack trimming optimization may generate a move from an initialized
     %% but unassigned Y register to another Y register.
     case get_raw_type(Src, Vst) of
-        initialized -> create_tag(initialized, init, [], Dst, Vst);
+        initialized -> error({?MODULE,?LINE}), create_tag(initialized, init, [], Dst, Vst);
         _ -> assign_1(Src, Dst, Vst)
     end;
 assign({Kind,_}=Src, Dst, Vst) when Kind =:= x; Kind =:= y ->
@@ -2654,7 +2654,7 @@ canonical_value(Val, Vst) ->
         true ->
             case beam_types:get_singleton_value(Type) of
                 {ok, Res} -> value_to_literal(Res);
-                error -> Val
+                error -> error({?MODULE,?LINE}), Val
             end;
         false ->
             Val
@@ -2688,16 +2688,16 @@ meet(#t_abstract{kind={ms_position, UnitA}},
     Unit = UnitA * UnitB div gcd(UnitA, UnitB),
     #t_abstract{kind={ms_position, Unit}};
 meet(#t_abstract{}=A, B) ->
-    #t_abstract{kind={meet, A, B}};
+    error({?MODULE,?LINE}), #t_abstract{kind={meet, A, B}};
 meet(A, #t_abstract{}=B) ->
-    #t_abstract{kind={meet, A, B}};
+    error({?MODULE,?LINE}), #t_abstract{kind={meet, A, B}};
 meet(A, B) ->
     beam_types:meet(A, B).
 
 subtract(#t_abstract{}=A, B) ->
-    #t_abstract{kind={subtract, A, B}};
+    error({?MODULE,?LINE}), #t_abstract{kind={subtract, A, B}};
 subtract(A, #t_abstract{}=B) ->
-    #t_abstract{kind={subtract, A, B}};
+    error({?MODULE,?LINE}), #t_abstract{kind={subtract, A, B}};
 subtract(A, B) ->
     beam_types:subtract(A, B).
 
@@ -2767,8 +2767,8 @@ get_tag_type({y,_}=Src, Vst) ->
     case get_raw_type(Src, Vst) of
         {catchtag, _}=Tag -> Tag;
         {trytag, _}=Tag -> Tag;
-        uninitialized=Tag -> Tag;
-        initialized=Tag -> Tag;
+        uninitialized=Tag -> error({?MODULE,?LINE}), Tag;
+        initialized=Tag -> error({?MODULE,?LINE}), Tag;
         Other -> error({invalid_tag,Src,Other})
     end;
 get_tag_type(Src, _) ->
@@ -2793,7 +2793,7 @@ get_raw_type({y,Y}=Src, #vst{current=#st{ys=Ys}}=Vst) when is_integer(Y) ->
 get_raw_type(#value_ref{}=Ref, #vst{current=#st{vs=Vs}}) ->
     case Vs of
         #{ Ref := #value{type=Type} } -> Type;
-        #{} -> none
+        #{} -> error({?MODULE,?LINE}), none
     end;
 get_raw_type(Src, #vst{current=#st{}}) ->
     get_literal_type(Src).
@@ -2850,7 +2850,7 @@ branch(Lbl, Vst0, FailFun, SuccFun) ->
         {type_conflict, _, _} ->
             SuccFun(Vst0);
         {invalid_argument, _} ->
-            SuccFun(Vst0)
+            error({?MODULE,?LINE}), SuccFun(Vst0)
     end.
 
 validate_branch(Lbl, #vst{current=#st{ct=Tags}}) ->
@@ -2986,13 +2986,13 @@ merge_regs_1([], _, _, Regs, Merge, Counter) ->
 merge_tags(Same, Same) ->
     Same;
 merge_tags(uninitialized, _) ->
-    uninitialized;
+    error({?MODULE,?LINE}), uninitialized;
 merge_tags(_, uninitialized) ->
     uninitialized;
 merge_tags({trytag, LblsA}, {trytag, LblsB}) ->
-    {trytag, ordsets:union(LblsA, LblsB)};
+    error({?MODULE,?LINE}), {trytag, ordsets:union(LblsA, LblsB)};
 merge_tags({catchtag, LblsA}, {catchtag, LblsB}) ->
-    {catchtag, ordsets:union(LblsA, LblsB)};
+    error({?MODULE,?LINE}), {catchtag, ordsets:union(LblsA, LblsB)};
 merge_tags(_A, _B) ->
     %% All other combinations leave the register initialized. Errors arising
     %% from this will be caught later on.
@@ -3121,11 +3121,11 @@ merge_ct(S, S) -> S;
 merge_ct(Ct0, Ct1) -> merge_ct_1(Ct0, Ct1).
 
 merge_ct_1([], []) ->
-    [];
+    error({?MODULE,?LINE}), [];
 merge_ct_1([{trytag, LblsA} | CtA], [{trytag, LblsB} | CtB]) ->
     [{trytag, ordsets:union(LblsA, LblsB)} | merge_ct_1(CtA, CtB)];
 merge_ct_1([{catchtag, LblsA} | CtA], [{catchtag, LblsB} | CtB]) ->
-    [{catchtag, ordsets:union(LblsA, LblsB)} | merge_ct_1(CtA, CtB)];
+    error({?MODULE,?LINE}), [{catchtag, ordsets:union(LblsA, LblsB)} | merge_ct_1(CtA, CtB)];
 merge_ct_1(_, _) ->
     undecided.
 
@@ -3322,7 +3322,7 @@ bif_types(Op, Ss, Vst) ->
                     RetType = join_tuple_elements(Tuple),
                     {RetType,ArgTypes,Safe};
                 Other ->
-                    Other
+                    error({?MODULE,?LINE}), Other
             end;
         {_,_} ->
             Res0 = beam_call_types:types(erlang, Op, Args),
@@ -3364,7 +3364,7 @@ will_bif_succeed(raise, [_,_], _Vst) ->
 will_bif_succeed(Op, Ss, Vst) ->
     case is_float_arith_bif(Op, Ss) of
         true ->
-            'maybe';
+            error({?MODULE,?LINE}), 'maybe';
         false ->
             %% Note: match contexts and the likes are rejected by
             %% validate_bif/7 when this is invalid. We don't need to duplicate

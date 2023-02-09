@@ -587,7 +587,7 @@ extract_seq([{label,_}|_]=Is, Acc) ->
 extract_seq(_, _) -> no.
 
 extract_seq_1([{line,_}=Line|Is], Acc) ->
-    extract_seq_1(Is, [Line|Acc]);
+    error({?MODULE,?LINE}), extract_seq_1(Is, [Line|Acc]);
 extract_seq_1([{label,_},{func_info,_,_,_}|_], _) ->
     no;
 extract_seq_1([{label,Lbl},{jump,{f,Lbl}}|_], _) ->
@@ -943,7 +943,7 @@ instr_labels({get_map_elements,Lbl,_Src,_List}) ->
     do_instr_labels(Lbl);
 instr_labels({bs_start_match4,Fail,_,_,_}) ->
     case Fail of
-        {f,L} -> [L];
+        {f,L} -> error({?MODULE,?LINE}), [L];
         {atom,_} -> []
     end;
 instr_labels({bs_match,{f,Fail},_Ctx,_List}) ->

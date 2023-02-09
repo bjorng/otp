@@ -72,8 +72,8 @@
 -spec meet([type()]) -> type().
 
 meet([T1, T2 | Ts]) ->
-    meet([meet(T1, T2) | Ts]);
-meet([T]) -> T.
+    error({?MODULE,?LINE}), meet([meet(T1, T2) | Ts]);
+meet([T]) -> error({?MODULE,?LINE}), T.
 
 %% Return the "meet" of Type1 and Type2, which is more specific than Type1 and
 %% Type2. This is identical to glb/2 but can operate on and produce unions.
@@ -681,7 +681,7 @@ mtfv_1(T) when is_tuple(T) ->
                    end, {#{}, 1}, tuple_to_list(T)),
     #t_tuple{exact=true,size=tuple_size(T),elements=Es};
 mtfv_1(_Term) ->
-    any.
+    error({?MODULE,?LINE}), any.
 
 mtfv_cons([Head | Tail], Type) ->
     mtfv_cons(Tail, join(mtfv_1(Head), Type));
@@ -824,9 +824,9 @@ limit_depth_tuple(none, _Depth) ->
 glb(T, T) ->
     verified_normal_type(T);
 glb(any, T) ->
-    verified_normal_type(T);
+    error({?MODULE,?LINE}), verified_normal_type(T);
 glb(T, any) ->
-    verified_normal_type(T);
+    error({?MODULE,?LINE}), verified_normal_type(T);
 glb(#t_atom{elements=[_|_]=Set1}, #t_atom{elements=[_|_]=Set2}) ->
     case ordsets:intersection(Set1, Set2) of
         [] ->
@@ -1562,7 +1562,7 @@ decode_fix(#t_integer{}, Range, _Unit) ->
 decode_fix(#t_number{}, Range, _Unit) ->
     #t_number{elements=Range};
 decode_fix(#t_bitstring{}, _Range, Unit) ->
-    #t_bitstring{size_unit=Unit+1};
+    error({?MODULE,?LINE}), #t_bitstring{size_unit=Unit+1};
 decode_fix(#t_union{}=Type0, Range, Unit) ->
     Type1 = case meet(Type0, #t_integer{}) of
                 #t_integer{} ->

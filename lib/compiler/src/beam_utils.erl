@@ -108,7 +108,7 @@ replace_labels_1([{put_map=I,{f,Lbl},Op,Src,Dst,Live,List}|Is], Acc, D, Fb)
 replace_labels_1([{get_map_elements=I,{f,Lbl},Src,List}|Is], Acc, D, Fb) when Lbl =/= 0 ->
     replace_labels_1(Is, [{I,{f,label(Lbl, D, Fb)},Src,List}|Acc], D, Fb);
 replace_labels_1([{bs_start_match4,{f,Lbl},Live,Src,Dst}|Is], Acc, D, Fb) ->
-    I = {bs_start_match4,{f,label(Lbl, D, Fb)},Live,Src,Dst},
+    error({?MODULE,?LINE}), I = {bs_start_match4,{f,label(Lbl, D, Fb)},Live,Src,Dst},
     replace_labels_1(Is, [I | Acc], D, Fb);
 replace_labels_1([{bs_match,{f,Lbl},Ctx,List}|Is], Acc, D, Fb) ->
     I = {bs_match,{f,label(Lbl, D, Fb)},Ctx,List},

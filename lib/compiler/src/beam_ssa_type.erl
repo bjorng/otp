@@ -1489,7 +1489,7 @@ will_succeed_1(#b_set{op=bs_start_match,args=[_, Arg]}, _Src, Ts) ->
         false ->
             %% Is it at all possible to match?
             case beam_types:meet(ArgType, #t_bs_matchable{}) of
-                none -> no;
+                none -> error({?MODULE,?LINE}), no;
                 _ -> 'maybe'
             end
     end;
@@ -1646,7 +1646,7 @@ simplify_not(#b_br{bool=#b_var{}=V,succ=Succ,fail=Fail}=Br0, Ts, Ds, Sub) ->
                     Br = Br0#b_br{bool=Bool,succ=Fail,fail=Succ},
                     simplify_terminator(Br, Ts, Ds, Sub);
                 false ->
-                    Br0
+                    error({?MODULE,?LINE}), Br0
             end;
         #{} ->
             Br0
@@ -2410,7 +2410,7 @@ bs_size_unit([#b_literal{val=Type},#b_literal{val=[U1|_]},Value,SizeTerm|Args],
                     bs_size_unit(Args, Ts, FixedSize, gcd(U1, Unit));
                 _ ->
                     %% Add element without known size or unit.
-                    bs_size_unit(Args, Ts, FixedSize, gcd(1, Unit))
+                    error({?MODULE,?LINE}), bs_size_unit(Args, Ts, FixedSize, gcd(1, Unit))
             end
     end;
 bs_size_unit([], _Ts, FixedSize, Unit) ->
@@ -2434,7 +2434,7 @@ bs_match_stride(utf16, _, _) ->
 bs_match_stride(utf32, _, _) ->
     32;
 bs_match_stride(_, _, _) ->
-    1.
+    error({?MODULE,?LINE}), 1.
 
 -define(UNICODE_MAX, (16#10FFFF)).
 
@@ -2963,7 +2963,7 @@ meet_types([], Ts) ->
     Ts.
 
 subtract_types([{#b_literal{}=Lit, T0} | Vs], Ts) ->
-    T1 = concrete_type(Lit, Ts),
+    error({?MODULE,?LINE}), T1 = concrete_type(Lit, Ts),
     case beam_types:subtract(T0, T1) of
         none -> none;
         _ -> subtract_types(Vs, Ts)

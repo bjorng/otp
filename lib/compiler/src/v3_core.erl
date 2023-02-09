@@ -231,7 +231,7 @@ form({attribute,_,nifs,Ns}, #imodule{nifs=Nifs0}=Module, _Opts) ->
                 none ->
                     sets:new();
                 _ ->
-                    Nifs0
+                    error({?MODULE,?LINE}), Nifs0
             end,
     Nifs = sets:union(sets:from_list(Ns, [{version,2}]), Nifs1),
     Module#imodule{nifs=Nifs};
@@ -4098,7 +4098,7 @@ is_simple_list(Es) -> lists:all(fun is_simple/1, Es).
 insert_nif_start([VF={V,F=#c_fun{body=Body}}|Funs]) ->
     case Body of
         #c_seq{arg=#c_primop{name=#c_literal{val=nif_start}}} ->
-            [VF|insert_nif_start(Funs)];
+            error({?MODULE,?LINE}), [VF|insert_nif_start(Funs)];
         #c_case{} ->
             NifStart = #c_primop{name=#c_literal{val=nif_start},args=[]},
             [{V,F#c_fun{body=#c_seq{arg=NifStart,body=Body}}}
@@ -4139,5 +4139,5 @@ add_warning(Anno, Term, #core{ws=Ws,file=[{file,File}]}=St) ->
         false ->
             St#core{ws=[{File,[{erl_anno:location(Anno),?MODULE,Term}]}|Ws]};
         true ->
-            St
+            error({?MODULE,?LINE}), St
     end.

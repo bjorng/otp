@@ -669,7 +669,7 @@ normalize_test_1(Bif, Args) ->
                true -> {turn_op(Bif),B,A}
             end;
         [#b_literal{},#b_literal{}] ->
-            none
+            error({?MODULE,?LINE}), none
     end.
 
 -spec invert_test(basic_test() | 'none') -> test() | 'none'.
@@ -822,7 +822,7 @@ will_succeed_1('==', A, '/=', B) ->
 	A == B -> no;
 	true -> yes
     end;
-will_succeed_1('/=', A, '/=', B) when A == B -> yes;
+will_succeed_1('/=', A, '/=', B) when A == B -> error({?MODULE,?LINE}), yes;
 will_succeed_1('/=', A, '==', B) when A == B -> no;
 
 will_succeed_1(_, _, _, _) -> 'maybe'.

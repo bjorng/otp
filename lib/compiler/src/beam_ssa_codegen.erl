@@ -875,7 +875,7 @@ will_bif_succeed(Bif, Args, ArgTypes) ->
     Types = will_bif_succeed_types(Args, ArgTypes, 0),
     case beam_call_types:will_succeed(erlang, Bif, Types) of
         yes -> true;
-        _ -> false
+        _ -> error({?MODULE,?LINE}), false
     end.
 
 will_bif_succeed_types([#b_literal{val=Val}|Args], ArgTypes, N) ->
@@ -1005,7 +1005,7 @@ cg_block(Is0, Last, Next, St0) ->
             %% An expression in this block *always* throws an exception, so we
             %% terminate it with an 'if_end' to make sure the validator knows
             %% that the following instructions won't actually be reached.
-            {Is,St} = cg_block(Is0, none, St0),
+            error({?MODULE,?LINE}), {Is,St} = cg_block(Is0, none, St0),
             {Is++[if_end],St};
         #cg_br{succ=Same,fail=Same} ->
             {Fail,St1} = use_block_label(Same, St0),
@@ -1579,18 +1579,18 @@ opt_call_moves_1([{move,Src,{x,_}=Tmp}=M1,{move,Tmp,Dst}=M2|Is], Arity) ->
             %% the two move instruction into one.
             [{move,Src,Dst}|opt_call_moves_1(Is, Arity)];
         false ->
-            [M1|opt_call_moves_1([M2|Is], Arity)]
+            error({?MODULE,?LINE}), [M1|opt_call_moves_1([M2|Is], Arity)]
     end;
 opt_call_moves_1([M|Ms], Arity) ->
     [M|opt_call_moves_1(Ms, Arity)];
 opt_call_moves_1([], _Arity) -> [].
 
 is_killed(R, [{move,R,_}|_], _) ->
-    false;
+    error({?MODULE,?LINE}), false;
 is_killed(R, [{move,_,R}|_], _) ->
     true;
 is_killed(R, [{move,_,_}|Is], Arity) ->
-    is_killed(R, Is, Arity);
+    error({?MODULE,?LINE}), is_killed(R, Is, Arity);
 is_killed({x,_}=R, [{init_yregs,_}|Is], Arity) ->
     is_killed(R, Is, Arity);
 is_killed({x,X}, [], Arity) ->
@@ -1739,7 +1739,7 @@ build_call(Prefix, Arity, Func, {return,Dst,none}, Dst) ->
         end,
     [{I,Arity,Func}];
 build_call(call_ext, Arity, {extfunc,Mod,Name,Arity}=Func, {return,_,none}, _Dst) ->
-    true = erl_bifs:is_exit_bif(Mod, Name, Arity), %Assertion.
+    error({?MODULE,?LINE}), true = erl_bifs:is_exit_bif(Mod, Name, Arity), %Assertion.
     [{call_ext_only,Arity,Func}];
 build_call(Prefix, Arity, Func, {return,Dst,N}, Dst) when is_integer(N) ->
     I = case Prefix of
@@ -1767,7 +1767,7 @@ build_fun_call(Arity, #tr{}=Func0, {return,Dst,N}, Dst, St0)
     {Is, St};
 build_fun_call(Arity, #tr{}=Func0, {return,Val,N}, _Dst, St0)
   when is_integer(N) ->
-    Func = Func0#tr{r={x,Arity}},
+    error({?MODULE,?LINE}),     Func = Func0#tr{r={x,Arity}},
     {Tag, St} = fun_call_tag(Arity, Func, St0),
     Is = [{call_fun2,Tag,Arity,Func},
           {move,Val,{x,0}},
@@ -1778,7 +1778,7 @@ build_fun_call(Arity, _Func, none, Dst, St) ->
 build_fun_call(Arity, _Func, {return,Dst,N}, Dst, St) when is_integer(N) ->
     {[{call_fun,Arity},{deallocate,N},return], St};
 build_fun_call(Arity, _Func, {return,Val,N}, _Dst, St) when is_integer(N) ->
-    {[{call_fun,Arity},{move,Val,{x,0}},{deallocate,N},return], St}.
+    error({?MODULE,?LINE}), {[{call_fun,Arity},{move,Val,{x,0}},{deallocate,N},return], St}.
 
 fun_call_tag(Arity, #tr{t=#t_fun{arity=Arity,target={Name,TotalArity}}}, St0) ->
     {FuncLbl, St} = local_func_label(Name, TotalArity, St0),
@@ -1791,7 +1791,7 @@ fun_call_tag(_Arity, _Func, St) ->
 build_apply(Arity, {return,Dst,N}, Dst) when is_integer(N) ->
     [{apply_last,Arity,N}];
 build_apply(Arity, {return,Val,N}, _Dst) when is_integer(N) ->
-    [{apply,Arity}|copy(Val, {x,0})++[{deallocate,N},return]];
+    error({?MODULE,?LINE}), [{apply,Arity}|copy(Val, {x,0})++[{deallocate,N},return]];
 build_apply(Arity, none, Dst) ->
     [{apply,Arity}|copy({x,0}, Dst)].
 
@@ -1832,7 +1832,7 @@ cg_instr(put_map, [{atom,exact},SrcBadMap|_Ss], _Dst, #cg_set{anno=Anno}=Set) ->
     %% optimization passes can figure out that the key is always
     %% present in the map and that the operation therefore can never
     %% fail.)
-    Live = get_live(Set),
+    error({?MODULE,?LINE}), Live = get_live(Set),
     [{test_heap,3,Live},
      {put_tuple2,{x,0},{list,[{atom,badmap},SrcBadMap]}},
      line(Anno),
@@ -1909,7 +1909,7 @@ cg_test(put_map, Fail, [{atom,exact},SrcMap|Ss], Dst, #cg_set{anno=Anno}=Set) ->
     Live = get_live(Set),
     [line(Anno),{put_map_exact,Fail,SrcMap,Dst,Live,{list,Ss}}];
 cg_test(set_tuple_element=Op, Fail, Args, Dst, Set) ->
-    {f,0} = Fail,                               %Assertion.
+    error({?MODULE,?LINE}), {f,0} = Fail,                               %Assertion.
     cg_instr(Op, Args, Dst, Set);
 cg_test(raw_raise, _Fail, Args, Dst, _I) ->
     cg_instr(raw_raise, Args, Dst);
@@ -2293,11 +2293,11 @@ bs_translate_fixup(Is) ->
 %% Fix up matching of multiple binaries in parallel. Example:
 %%    f(<<_:8>> = <<X:8>>) -> ...
 bs_seq_match_fixup([{test_tail,Bits},{ensure_exactly,Bits}|Is]) ->
-    [{ensure_exactly,Bits}|bs_seq_match_fixup(Is)];
+    error({?MODULE,?LINE}), [{ensure_exactly,Bits}|bs_seq_match_fixup(Is)];
 bs_seq_match_fixup([{test_tail,Bits0},{ensure_at_least,Bits1,Unit}|Is])
   when Bits0 >= Bits1, Bits0 rem Unit =:= 0 ->
     %% The tail test is at least as strict as the ensure_at_least test.
-    [{ensure_exactly,Bits0}|bs_seq_match_fixup(Is)];
+    error({?MODULE,?LINE}), [{ensure_exactly,Bits0}|bs_seq_match_fixup(Is)];
 bs_seq_match_fixup([{test_tail,Bits}|Is]) ->
     [{ensure_exactly,Bits}|bs_seq_match_fixup(Is)];
 bs_seq_match_fixup([I|Is]) ->
@@ -2325,7 +2325,7 @@ bs_eq_fixup_split(Bits, Value0) ->
 bs_translate_fixup_tail([{ensure_at_least,Bits0,_}|Is], Bits) ->
     [{ensure_exactly,Bits0+Bits}|Is];
 bs_translate_fixup_tail([I|Is], Bits) ->
-    [I|bs_translate_fixup_tail(Is, Bits)];
+    error({?MODULE,?LINE}), [I|bs_translate_fixup_tail(Is, Bits)];
 bs_translate_fixup_tail([], Bits) ->
     [{ensure_exactly,Bits}].
 

@@ -132,7 +132,7 @@ function_renumber([{function,Name,Arity,_Entry,Asm0}|Fs], St0, Acc) ->
 function_renumber([], St, Acc) -> {Acc,St}.
 
 renumber_labels([{label,Old}|Is], [{label,New}|_]=Acc, #st{lmap=D0}=St) ->
-    D = [{Old,New}|D0],
+    error({?MODULE,?LINE}), D = [{Old,New}|D0],
     renumber_labels(Is, Acc, St#st{lmap=D});
 renumber_labels([{label,Old}|Is], Acc, St0) ->
     New = St0#st.lc,
