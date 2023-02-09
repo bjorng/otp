@@ -478,7 +478,7 @@ translate_fc_args(As, Sub, Anno, #kern{fargs=Fargs}=St0) ->
                 %% The arguments for the `function_clause` exception are
                 %% the arguments for the current function in the correct
                 %% order.
-                {[], St0};
+                error({?MODULE,?LINE}), {[], St0};
             false ->
                 %% The arguments in the `function_clause` exception don't
                 %% match the arguments for the current function because of
@@ -497,8 +497,8 @@ translate_fc_args(As, Sub, Anno, #kern{fargs=Fargs}=St0) ->
     {As, ExtraAnno, St}.
 
 same_args([#c_var{name=Cv}|Vs], [#b_var{name=Kv}|As], Sub) ->
-    get_vsub(Cv, Sub) =:= Kv andalso same_args(Vs, As, Sub);
-same_args([], [], _Sub) -> true;
+    error({?MODULE,?LINE}), get_vsub(Cv, Sub) =:= Kv andalso same_args(Vs, As, Sub);
+same_args([], [], _Sub) -> error({?MODULE,?LINE}), true;
 same_args(_, _, _) -> false.
 
 expr_map(A, Var0, Ces, Sub, St0) ->

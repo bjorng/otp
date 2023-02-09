@@ -291,7 +291,7 @@ remap([{recv_marker_clear,Ref}|Is], Remap) ->
     I = {recv_marker_clear,remap_arg(Ref, Remap)},
     [I|remap(Is, Remap)];
 remap([{recv_marker_reserve,Mark}|Is], Remap) ->
-    I = {recv_marker_reserve,remap_arg(Mark, Remap)},
+    error({?MODULE,?LINE}), I = {recv_marker_reserve,remap_arg(Mark, Remap)},
     [I|remap(Is, Remap)];
 remap([{test,Name,Fail,Ss}|Is], Remap) ->
     I = {test,Name,Fail,remap_args(Ss, Remap)},
@@ -463,13 +463,13 @@ do_usage([{bs_set_position,Src1,Src2}|Is], Safe, Regs0, Ns, Acc) ->
 do_usage([{bs_start_match4,Fail,_Live,Src,Dst}|Is], Safe, Regs0, Ns, Acc) ->
     case (Fail =:= {atom,no_fail} orelse
           Fail =:= {atom,resume} orelse
-          is_safe_branch(Fail, Safe)) of
+          error({?MODULE,?LINE}) orelse is_safe_branch(Fail, Safe)) of
         true ->
             Regs = ordsets:union(Regs0, yregs([Src,Dst])),
             U = {Regs,Ns},
             do_usage(Is, Safe, Regs, Ns, [U|Acc]);
         false ->
-            none
+            error({?MODULE,?LINE}), none
     end;
 do_usage([{call,_,_}|Is], Safe, Regs, Ns, Acc) ->
     U = {Regs,Ns},
@@ -544,7 +544,7 @@ do_usage([{recv_marker_clear,Src}|Is], Safe, Regs0, Ns, Acc) ->
     U = {Regs,Ns},
     do_usage(Is, Safe, Regs, Ns, [U|Acc]);
 do_usage([{recv_marker_reserve,Src}|Is], Safe, Regs0, Ns, Acc) ->
-    Regs = ordsets:union(Regs0, yregs([Src])),
+    error({?MODULE,?LINE}), Regs = ordsets:union(Regs0, yregs([Src])),
     U = {Regs,Ns},
     do_usage(Is, Safe, Regs, Ns, [U|Acc]);
 do_usage([{test,_,Fail,Ss}|Is], Safe, Regs0, Ns, Acc) ->

@@ -1297,7 +1297,7 @@ eru_is([#b_set{op=update_record,
     {Extracts,ExtraArgs,Next,ArgTypes} =
         eru_args(Updates, First, Src, Size, TupleType, ArgTypes0),
     Anno = if map_size(ArgTypes) =:= 0 ->
-                   Anno0;
+                   error({?MODULE,?LINE}), Anno0;
               true ->
                    Anno0#{arg_types=>ArgTypes}
            end,

@@ -58,17 +58,17 @@ undo_renames([{call,A,F},{deallocate,N},return|Is]) ->
     [{call_last,A,F,N} | undo_renames(Is)];
 
 undo_renames([{call_ext,A,F},{'%',{var_info,{x,0},_}},{deallocate,N},return|Is]) ->
-    [{call_ext_last,A,F,N} | undo_renames(Is)];
+    error({?MODULE,?LINE}), [{call_ext_last,A,F,N} | undo_renames(Is)];
 undo_renames([{call_ext,A,F},{deallocate,N},return|Is]) ->
     [{call_ext_last,A,F,N} | undo_renames(Is)];
 
 undo_renames([{call,A,F},{'%',{var_info,{x,0},_}},return|Is]) ->
-    [{call_only,A,F} | undo_renames(Is)];
+    error({?MODULE,?LINE}), [{call_only,A,F} | undo_renames(Is)];
 undo_renames([{call,A,F},return|Is]) ->
     [{call_only,A,F}|undo_renames(Is)];
 
 undo_renames([{call_ext,A,F},{'%',{var_info,{x,0},_}},return|Is]) ->
-    [{call_ext_only,A,F} | undo_renames(Is)];
+    error({?MODULE,?LINE}), [{call_ext_only,A,F} | undo_renames(Is)];
 undo_renames([{call_ext,A,F},return|Is]) ->
     [{call_ext_only,A,F}|undo_renames(Is)];
 

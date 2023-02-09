@@ -1063,7 +1063,7 @@ clause_1(#c_clause{guard=G0,body=B0}=Cl, Ps1, Cexpr, Ctxt, Sub1) ->
 			   sub_set_var(Var, Cexpr, Sub1);
 		       true ->
 			   %% We must not copy funs, and especially not into guards.
-			   Sub1
+			   error({?MODULE,?LINE}), Sub1
 		   end;
 	       _ ->
 		   Sub1
@@ -2104,7 +2104,7 @@ is_bool_expr(#c_call{module=#c_literal{val=erlang},
         erl_internal:bool_op(Name, NumArgs);
 is_bool_expr(#c_try{arg=E,vars=[#c_var{name=X}],body=#c_var{name=X},
 		   handler=#c_literal{val=false}}) ->
-    is_bool_expr(E);
+    error({?MODULE,?LINE}), is_bool_expr(E);
 is_bool_expr(#c_case{clauses=Cs}) ->
     is_bool_expr_list(Cs);
 is_bool_expr(#c_clause{body=B}) ->

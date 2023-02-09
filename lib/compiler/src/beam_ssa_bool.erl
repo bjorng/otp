@@ -1144,7 +1144,7 @@ redirect_test_1(V, SuccFail, G) ->
             case SuccFail of
                 {fail,Fail} -> G;
                 {fail,_} -> not_possible();
-                {succ,_} -> not_possible()
+                {succ,_} -> error({?MODULE,?LINE}), not_possible()
             end;
         {br,Next} ->
             case SuccFail of

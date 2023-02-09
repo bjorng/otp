@@ -980,7 +980,7 @@ collect_opt_info_1(#b_set{op=Op,anno=Anno,dst=Dst}=I, Where, UseMap, Acc0) ->
             Uses0 = maps:get(Dst, UseMap, []),
             case [E || {_, #b_set{op=bs_extract}=E} <- Uses0] of
                 [Use] -> add_unopt_binary_info(Use, false, Where, UseMap, Acc0);
-                [] -> Acc0
+                [] -> error({?MODULE,?LINE}), Acc0
             end;
         true ->
             %% Add a warning for each use. Note that we don't do anything
@@ -1037,7 +1037,7 @@ add_unopt_binary_info(#b_set{anno=Anno}=I, Nested, Where, _UseMap, Acc) ->
 add_unopt_binary_info(#b_ret{anno=Anno}=I, Nested, Where, _UseMap, Acc) ->
     [make_promotion_warning(I, Nested, Anno, Where) | Acc];
 add_unopt_binary_info(#b_br{anno=Anno}=I, Nested, Where, _UseMap, Acc) ->
-    [make_promotion_warning(I, Nested, Anno, Where) | Acc].
+    error({?MODULE,?LINE}), [make_promotion_warning(I, Nested, Anno, Where) | Acc].
 
 make_promotion_warning(I, Nested, Anno, Where) ->
     make_warning({binary_created, I, Nested}, Anno, Where).
@@ -1094,16 +1094,16 @@ format_opt_info_1({no_match_on_entry, Call}) ->
     io_lib:format("binary is used in call to ~s which does not begin with a "
                   "suitable binary match", [format_call(Call)]);
 format_opt_info_1({used_before_match, #b_set{op=call,args=[Call|_]}}) ->
-    io_lib:format("binary is used in call to ~s before being matched",
+    error({?MODULE,?LINE}), io_lib:format("binary is used in call to ~s before being matched",
                   [format_call(Call)]);
 format_opt_info_1({used_before_match, #b_set{op={bif, BIF},args=Args}}) ->
     io_lib:format("binary is used in ~p/~p before being matched",
                   [BIF, length(Args)]);
 format_opt_info_1({used_before_match, #b_set{op=phi}}) ->
-    io_lib:format("binary is returned from an expression before being "
+    error({?MODULE,?LINE}), io_lib:format("binary is returned from an expression before being "
                   "matched", []);
 format_opt_info_1({used_before_match, #b_set{op=Op}}) ->
-    io_lib:format("binary is used in '~p' before being matched",[Op]);
+    error({?MODULE,?LINE}), io_lib:format("binary is used in '~p' before being matched",[Op]);
 format_opt_info_1(Term) ->
     io_lib:format("~w", [Term]).
 
