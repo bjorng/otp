@@ -265,20 +265,30 @@ do_set_props([], St) -> St.
 io_req({put_chars,Enc,Str}, _, _) when Enc =:= latin1; Enc =:= unicode  ->
     case Str of
 	["$tc_html",Str0] ->
-	    {false,unicode:characters_to_list(Str0, Enc)};
+	    {false,safe_unicode_characters_to_list(Str0, Enc)};
 	_ ->
-	    {true,unicode:characters_to_list(Str, Enc)}
+	    {true,safe_unicode_characters_to_list(Str, Enc)}
     end;
 io_req({put_chars,Encoding,Mod,Func,[Format,Args]}, _, _) ->
     case Format of
 	["$tc_html",Format0] ->
 	    Str = Mod:Func(Format0, Args),
-	    {false,unicode:characters_to_list(Str, Encoding)};
+	    {false,safe_unicode_characters_to_list(Str, Encoding)};
 	_ ->
 	    Str = Mod:Func(Format, Args),
-	    {true,unicode:characters_to_list(Str, Encoding)}
+	    {true,safe_unicode_characters_to_list(Str, Encoding)}
     end;
 io_req(_, _, _) -> passthrough.
+
+safe_unicode_characters_to_list(Str, Enc) ->
+    case unicode:characters_to_list(Str, Enc) of
+        List when is_list(List) ->
+            List;
+        {error,SoFar,_} ->
+            SoFar;
+        {incomplete,SoFar,_} ->
+            SoFar
+    end.
 
 output(Level, StrOrFun, Sender, From, St) when is_integer(Level) ->
     case selected_by_level(Level, stdout, St) of
