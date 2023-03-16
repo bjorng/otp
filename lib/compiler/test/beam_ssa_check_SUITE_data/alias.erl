@@ -21,7 +21,7 @@
 %%
 -feature(maybe_expr, enable).
 
--compile(no_ssa_opt_private_append).
+-compile(no_ssa_opt_destructive_update).
 
 -module(alias).
 
