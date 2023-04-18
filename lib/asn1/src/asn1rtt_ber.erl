@@ -127,12 +127,197 @@ ber_encode(Tlv) ->
     asn1rt_nif:encode_ber_tlv(Tlv).
 
 ber_decode_nif(B) ->
-    asn1rt_nif:decode_ber_tlv(B).
+    do_ber_decode_erlang(B).
 
 ber_decode_erlang(B) when is_binary(B) ->
     decode_primitive(B);
 ber_decode_erlang(Tlv) ->
     {Tlv,<<>>}.
+
+do_ber_decode_erlang(Bin) when is_binary(Bin) ->
+    decode_outer(Bin);
+do_ber_decode_erlang(List) ->
+    do_ber_decode_erlang(iolist_to_binary(List)).
+
+decode_outer(<<Class:2,Form:1,Tag0:5,Tail0/binary>>) ->
+    case Tag0 of
+        31 ->
+            case Tail0 of
+                <<0:1, Tag:7, Tail/binary>> ->
+                    ClassTag = Class bsl 16 bor Tag,
+                    decode_outer(Tail, Form, ClassTag);
+                _ ->
+                    {Tag, Tail} = decode_long_tag(Tail0, 0),
+                    ClassTag = Class bsl 16 bor Tag,
+                    decode_outer(Tail, Form, ClassTag)
+            end;
+        _ ->
+            ClassTag = Class bsl 16 bor Tag0,
+            decode_outer(Tail0, Form, ClassTag)
+    end;
+decode_outer(Invalid) ->
+    ber_decode_error({invalid_value, Invalid}).
+
+decode_outer(<<0:1, Length:7, Data:Length/binary, Tail/binary>>, Form, ClassTag) ->
+    %% Short definite length.
+    {case Form of
+         0 ->
+             {ClassTag, Data};
+         1 ->
+             {ClassTag, decode_inner(Data)}
+     end, Tail};
+decode_outer(<<1:1, NumOctets:7, Tail0/binary>>, Form, ClassTag) when NumOctets =/= 0 ->
+    %% Long definite length.
+    case Tail0 of
+        <<Length:NumOctets/unit:8, Tail1/binary>> ->
+            case Tail1 of
+                <<Data:Length/binary, Tail/binary>> ->
+                    {case Form of
+                         0 ->
+                             {ClassTag, Data};
+                         1 ->
+                             {ClassTag, decode_inner(Data)}
+                     end, Tail};
+                _ ->
+                    ber_decode_error({invalid_value, Tail1})
+            end;
+        _ ->
+            ber_decode_error({invalid_length, Tail0})
+    end;
+decode_outer(<<1:1, 0:7, Tail0/binary>> = Bin, Form, ClassTag) ->
+    %% Indefinite length.
+    case Form of
+        0 ->
+            %% Indefinite length must not be used with primitive types.
+            ber_decode_error({invalid_length, Bin});
+        1 ->
+            {TLVs, Tail} = decode_indefinite(Tail0, []),
+            {{ClassTag, TLVs}, Tail}
+    end;
+decode_outer(Invalid, _Form, _ClassTag) ->
+    ber_decode_error({invalid_value, Invalid}).
+
+decode_inner(<<Class:2,Form:1,Tag0:5,Tail0/binary>>) ->
+    case Tag0 of
+        31 ->
+            case Tail0 of
+                <<0:1, Tag:7, Tail/binary>> ->
+                    ClassTag = Class bsl 16 bor Tag,
+                    decode_inner_1(Tail, Form, ClassTag);
+                _ ->
+                    {Tag, Tail} = decode_long_tag(Tail0, 0),
+                    ClassTag = Class bsl 16 bor Tag,
+                    decode_inner_1(Tail, Form, ClassTag)
+            end;
+        _ ->
+            ClassTag = Class bsl 16 bor Tag0,
+            decode_inner_1(Tail0, Form, ClassTag)
+    end;
+decode_inner(<<>>) ->
+    [];
+decode_inner(Invalid) ->
+    ber_decode_error({invalid_value, Invalid}).
+
+decode_inner_1(<<0:1, Length:7, Data:Length/binary, Tail/binary>>, Form, ClassTag) ->
+    %% Short definite length.
+    [case Form of
+         0 ->
+             {ClassTag, Data};
+         1 ->
+             {ClassTag, decode_inner(Data)}
+     end | decode_inner(Tail)];
+decode_inner_1(<<1:1, NumOctets:7, Tail0/binary>>, Form, ClassTag) when NumOctets =/= 0 ->
+    %% Long definite length.
+    case Tail0 of
+        <<Length:NumOctets/unit:8, Tail1/binary>> ->
+            case Tail1 of
+                <<Data:Length/binary, Tail/binary>> ->
+                    [case Form of
+                         0 ->
+                             {ClassTag, Data};
+                         1 ->
+                             {ClassTag, decode_inner(Data)}
+                     end | decode_inner(Tail)];
+                _ ->
+                    ber_decode_error({invalid_value, Tail1})
+            end;
+        _ ->
+            ber_decode_error({invalid_length, Tail0})
+    end;
+decode_inner_1(<<1:1, 0:7, Tail0/binary>> = Bin, Form, ClassTag) ->
+    %% Indefinite length.
+    case Form of
+        0 ->
+            %% Indefinite length must not be used with primitive types.
+            ber_decode_error({invalid_length, Bin});
+        1 ->
+            {TLVs, Tail} = decode_indefinite(Tail0, []),
+            [{ClassTag, TLVs} | decode_inner(Tail)]
+    end;
+decode_inner_1(Invalid, _Form, _ClassTag) ->
+    ber_decode_error({invalid_value, Invalid}).
+
+decode_indefinite(<<0,0,Tail/binary>>, Acc) ->
+    {lists:reverse(Acc), Tail};
+decode_indefinite(<<Class:2,Form:1,Tag0:5,Tail0/binary>>, Acc) ->
+    case Tag0 of
+        31 ->
+            case Tail0 of
+                <<0:1, Tag:7, Tail/binary>> ->
+                    decode_indefinite_1(Tail, Class, Form, Tag, Acc);
+                _ ->
+                    {Tag, Tail} = decode_long_tag(Tail0, 0),
+                    decode_indefinite_1(Tail, Class, Form, Tag, Acc)
+            end;
+        _ ->
+            decode_indefinite_1(Tail0, Class, Form, Tag0, Acc)
+    end;
+decode_indefinite(Invalid, _) ->
+    ber_decode_error({invalid_length, Invalid}).
+
+decode_indefinite_1(<<0:1, Length:7, Data:Length/binary, Tail/binary>>,
+                    Class, Form, Tag, Acc0) ->
+    ClassTag = Class bsl 16 bor Tag,
+    Acc = [case Form of
+               0 ->
+                   {ClassTag, Data};
+               1 ->
+                   {ClassTag, decode_inner(Data)}
+           end | Acc0],
+    decode_indefinite(Tail, Acc);
+decode_indefinite_1(<<1:1, NumOctets:7, Length:NumOctets/unit:8, Data:Length/binary, Tail/binary>>,
+                    Class, Form, Tag, Acc0) when NumOctets =/= 0 ->
+    ClassTag = Class bsl 16 bor Tag,
+    Acc = [case Form of
+               0 ->
+                   {ClassTag, Data};
+               1 ->
+                   {ClassTag, decode_inner(Data)}
+           end | Acc0],
+    decode_indefinite(Tail, Acc);
+decode_indefinite_1(<<1:1, 0:7, Tail0/binary>>, Class, 1, Tag, Acc0) ->
+    ClassTag = Class bsl 16 bor Tag,
+    {Values, Tail} = decode_indefinite(Tail0, []),
+    Acc = [{ClassTag, Values} | Acc0],
+    decode_indefinite(Tail, Acc);
+decode_indefinite_1(Invalid, _, _, _, _) ->
+    ber_decode_error({invalid_length, Invalid}).
+
+decode_long_tag(<<1:1, PartialTag:7, Tail/binary>>, Acc0) ->
+    Acc = Acc0 bsl 7 bor PartialTag,
+    decode_long_tag(Tail, Acc);
+decode_long_tag(<<0:1, PartialTag:7, Tail/binary>>, Acc) ->
+    case Acc bsl 7 bor PartialTag of
+        Tag when Tag bsr 16 =:= 0 ->
+            {Tag, Tail};
+        Tag ->
+            ber_decode_error({invalid_tag, Tag})
+    end;
+decode_long_tag(Invalid, _) ->
+    ber_decode_error({invalid_tag, Invalid}).
+
+ber_decode_error(Reason) ->
+    exit({error,{asn1,Reason}}).
 
 decode_primitive(Bin) ->
     {Form,TagNo,V,Rest} = decode_tag_and_length(Bin),
@@ -530,11 +715,11 @@ skip_ExtensionAdditions([{Tag,_}|Rest]=TLV, Tags) ->
 %% decode_tag(OctetListBuffer) -> {{Form, (Class bsl 16)+ TagNo}, RestOfBuffer, RemovedBytes}
 %%===============================================================================
 
-decode_tag_and_length(<<Class:2, Form:1, TagNo:5, 0:1, Length:7, V:Length/binary, RestBuffer/binary>>) when TagNo < 31 ->
+decode_tag_and_length(<<Class:2, Form:1, TagNo:5, 0:1, Length:7, V:Length/binary, RestBuffer/binary>>) when TagNo =/= 31 ->
     {Form, (Class bsl 16) bor TagNo, V, RestBuffer};
-decode_tag_and_length(<<Class:2, 1:1, TagNo:5, 1:1, 0:7, T/binary>>) when TagNo < 31 ->
+decode_tag_and_length(<<Class:2, 1:1, TagNo:5, 1:1, 0:7, T/binary>>) when TagNo =/= 31 ->
     {2, (Class bsl 16) + TagNo, T, <<>>};
-decode_tag_and_length(<<Class:2, Form:1, TagNo:5, 1:1, LL:7, Length:LL/unit:8,V:Length/binary, T/binary>>) when TagNo < 31 ->
+decode_tag_and_length(<<Class:2, Form:1, TagNo:5, 1:1, LL:7, Length:LL/unit:8,V:Length/binary, T/binary>>) when TagNo =/= 31 ->
     {Form, (Class bsl 16) bor TagNo, V, T};
 decode_tag_and_length(<<Class:2, Form:1, 31:5, 0:1, TagNo:7, 0:1, Length:7, V:Length/binary, RestBuffer/binary>>) ->
     {Form, (Class bsl 16) bor TagNo, V, RestBuffer};
