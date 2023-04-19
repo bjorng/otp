@@ -23,7 +23,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--define(times, 5000).
+-define(times, 50_000).
 
 go() ->
     Module = 'H323-MESSAGES',
@@ -35,18 +35,27 @@ go() ->
     Bytes = Module:encode(Type, Value),
     Value = Module:decode(Type, Bytes),
 
-    {ValWr,done} = timer:tc(fun() -> encode(?times, Module, Type, Value) end),
+    {ValWr,done} = timer_tc_spawn(fun() -> encode(?times, Module, Type, Value) end),
     io:format("ASN.1 encoding: ~p micro~n", [ValWr / ?times]),
 
     done = decode(2, Module, Type, Bytes),
 
-    {ValRead,done} = timer:tc(fun() -> decode(?times, Module, Type, Bytes) end),
+    {ValRead,done} = timer_tc_spawn(fun() -> decode(?times, Module, Type, Bytes) end),
     io:format("ASN.1 decoding: ~p micro~n", [ValRead /?times]),
 
     Comment = "encode: "++integer_to_list(round(ValWr/?times)) ++
 	" micro, decode: "++integer_to_list(round(ValRead /?times)) ++
 	" micro. [" ++ atom_to_list(Module:encoding_rule()) ++ "]",
     {comment,Comment}.
+
+timer_tc_spawn(Fun) when is_function(Fun) ->
+    {Pid,Ref} = spawn_monitor(fun() ->
+                                      exit(timer:tc(Fun))
+                              end),
+    receive
+        {'DOWN',Ref,process,Pid,Result} ->
+            Result
+    end.
 
 encode(0, _Module,_Type,_Value) ->
     done;
