@@ -247,7 +247,8 @@ prologue_passes(Opts) ->
           ?PASS(ssa_opt_record),
           ?PASS(ssa_opt_update_tuple),
           ?PASS(ssa_opt_cse),                   % Helps the first type pass.
-          ?PASS(ssa_opt_live)],                 % ...
+          ?PASS(ssa_opt_live),                  % ...
+          ?PASS(ssa_opt_wip)],
     passes_1(Ps, Opts).
 
 module_passes(Opts) ->
@@ -960,6 +961,80 @@ update_tuple_merge(Src, SetOps, Updates0, Seen0) ->
             update_tuple_merge(Ancestor, SetOps, Updates, Seen);
         #{} ->
             [Src | Updates0]
+    end.
+
+%%%
+%%% WIP.
+%%%
+
+ssa_opt_wip({#opt_st{ssa=Linear0}=St, FuncDb}) ->
+    Blocks0 = maps:from_list(Linear0),
+    Blocks = wip(Blocks0),
+    Linear = beam_ssa:linearize(Blocks),
+    {St#opt_st{ssa=Linear}, FuncDb}.
+
+wip(Blocks) ->
+    RPO = beam_ssa:rpo(Blocks),
+    wip(RPO, Blocks).
+
+wip([L|Ls], Blocks0) ->
+    Blk0 = map_get(L, Blocks0),
+    case Blk0 of
+        #b_blk{is=[_|_]=Is,last=#b_br{bool=#b_var{}=Bool,succ=Succ,fail=Fail}} ->
+            case last(Is) of
+                #b_set{op={bif,'=:='},args=[#b_var{}=A,#b_var{}=B],dst=Bool} ->
+                    SuccLs0 = ordsets:from_list(beam_ssa:rpo([Succ], Blocks0)),
+                    SuccLs = ordsets:del_element(?EXCEPTION_BLOCK, SuccLs0),
+                    FailLs = ordsets:from_list(beam_ssa:rpo([Fail], Blocks0)),
+                    case ordsets:is_disjoint(SuccLs, FailLs) of
+                        true ->
+                            RPO = beam_ssa:rpo([0], Blocks0),
+                            {Dom,_} = beam_ssa:dominators(RPO, Blocks0),
+                            Def = def_blocks(RPO, Blocks0),
+                            case {is_dom_by(SuccLs, A, Def, Dom),
+                                  is_dom_by(SuccLs, B, Def, Dom)} of
+                                {true,true} ->
+                                    Rename = #{A => B},
+                                    Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
+                                    wip(Ls, Blocks);
+                                {true,false} ->
+                                    Rename = #{B => A},
+                                    Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
+                                    wip(Ls, Blocks);
+                                {false,true} ->
+                                    Rename = #{A => B},
+                                    Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
+                                    wip(Ls, Blocks);
+                                {false,false} ->
+                                    wip(Ls, Blocks0)
+                            end;
+                        false ->
+                            wip(Ls, Blocks0)
+                    end;
+                #b_set{} ->
+                    wip(Ls, Blocks0)
+            end;
+        #b_blk{} ->
+            wip(Ls, Blocks0)
+    end;
+wip([], Blocks) -> Blocks.
+
+def_blocks(Labels, Blocks) ->
+    def_blocks(Labels, Blocks, []).
+
+def_blocks([L|Ls], Blocks, Acc0) ->
+    #b_blk{is=Is} = map_get(L, Blocks),
+    Acc = [{Dst,L} || #b_set{dst=Dst} <- Is] ++ Acc0,
+    def_blocks(Ls, Blocks, Acc);
+def_blocks([], _Blocks, Acc) ->
+    maps:from_list(Acc).
+
+is_dom_by(L, V, Def, Dom) ->
+    case Def of
+        #{V := DefL} ->
+            member(L, map_get(DefL, Dom));
+        #{} ->
+            true
     end.
 
 %%%
