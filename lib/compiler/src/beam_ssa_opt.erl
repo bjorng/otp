@@ -973,11 +973,13 @@ ssa_opt_wip({#opt_st{ssa=Linear0}=St, FuncDb}) ->
     Linear = beam_ssa:linearize(Blocks),
     {St#opt_st{ssa=Linear}, FuncDb}.
 
+-record(wip_info, {rpo}).
+
 wip(Blocks) ->
     RPO = beam_ssa:rpo(Blocks),
-    wip(RPO, Blocks).
+    wip(RPO, Blocks, #wip_info{rpo=RPO}).
 
-wip([L|Ls], Blocks0) ->
+wip([L|Ls], Blocks0, Info0) ->
     Blk0 = map_get(L, Blocks0),
     case Blk0 of
         #b_blk{is=[_|_]=Is,last=#b_br{bool=#b_var{}=Bool,succ=Succ,fail=Fail}} ->
@@ -988,36 +990,41 @@ wip([L|Ls], Blocks0) ->
                     FailLs = ordsets:from_list(beam_ssa:rpo([Fail], Blocks0)),
                     case ordsets:is_disjoint(SuccLs, FailLs) of
                         true ->
-                            RPO = beam_ssa:rpo([0], Blocks0),
+                            #wip_info{rpo=RPO} = Info0,
                             {Dom,_} = beam_ssa:dominators(RPO, Blocks0),
                             Def = def_blocks(RPO, Blocks0),
                             case {is_dom_by(SuccLs, A, Def, Dom),
                                   is_dom_by(SuccLs, B, Def, Dom)} of
                                 {true,true} ->
-                                    Rename = #{A => B},
+                                    Rename = case is_map_key(A, Def) of
+                                                 true ->
+                                                     #{A => B};
+                                                 false ->
+                                                     #{B => A}
+                                             end,
                                     Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
-                                    wip(Ls, Blocks);
+                                    wip(Ls, Blocks, Info0);
                                 {true,false} ->
                                     Rename = #{B => A},
                                     Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
-                                    wip(Ls, Blocks);
+                                    wip(Ls, Blocks, Info0);
                                 {false,true} ->
                                     Rename = #{A => B},
                                     Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
-                                    wip(Ls, Blocks);
+                                    wip(Ls, Blocks, Info0);
                                 {false,false} ->
-                                    wip(Ls, Blocks0)
+                                    wip(Ls, Blocks0, Info0)
                             end;
                         false ->
-                            wip(Ls, Blocks0)
+                            wip(Ls, Blocks0, Info0)
                     end;
                 #b_set{} ->
-                    wip(Ls, Blocks0)
+                    wip(Ls, Blocks0, Info0)
             end;
         #b_blk{} ->
-            wip(Ls, Blocks0)
+            wip(Ls, Blocks0, Info0)
     end;
-wip([], Blocks) -> Blocks.
+wip([], Blocks, _Info) -> Blocks.
 
 def_blocks(Labels, Blocks) ->
     def_blocks(Labels, Blocks, []).
