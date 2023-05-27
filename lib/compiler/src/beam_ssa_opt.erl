@@ -994,30 +994,12 @@ wip([L|Ls], Blocks0, Info0) ->
                     FailLs = ordsets:from_list(beam_ssa:rpo([Fail], Blocks0)),
                     case ordsets:is_disjoint(SuccLs, FailLs) of
                         true ->
-                            #wip_info{rpo=RPO} = Info0,
-                            {Dom,_} = beam_ssa:dominators(RPO, Blocks0),
-                            Def = def_blocks(RPO, Blocks0),
-                            case {is_dom_by(SuccLs, A, Def, Dom),
-                                  is_dom_by(SuccLs, B, Def, Dom)} of
-                                {true,true} ->
-                                    Rename = case is_map_key(A, Def) of
-                                                 true ->
-                                                     #{A => B};
-                                                 false ->
-                                                     #{B => A}
-                                             end,
+                            case wip_get_rename(SuccLs, A, B, Blocks0, Info0) of
+                                {none,Info} ->
+                                    wip(Ls, Blocks0, Info);
+                                {Rename,Info} ->
                                     Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
-                                    wip(Ls, Blocks, Info0);
-                                {true,false} ->
-                                    Rename = #{B => A},
-                                    Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
-                                    wip(Ls, Blocks, Info0);
-                                {false,true} ->
-                                    Rename = #{A => B},
-                                    Blocks = beam_ssa:rename_vars(Rename, SuccLs, Blocks0),
-                                    wip(Ls, Blocks, Info0);
-                                {false,false} ->
-                                    wip(Ls, Blocks0, Info0)
+                                    wip(Ls, Blocks, Info)
                             end;
                         false ->
                             wip(Ls, Blocks0, Info0)
@@ -1029,6 +1011,25 @@ wip([L|Ls], Blocks0, Info0) ->
             wip(Ls, Blocks0, Info0)
     end;
 wip([], Blocks, _Info) -> Blocks.
+
+wip_get_rename(SuccLs, A, B, Blocks, #wip_info{rpo=RPO}=Info0) ->
+    {Dom,_} = beam_ssa:dominators(RPO, Blocks),
+    Def = def_blocks(RPO, Blocks),
+    case {is_dom_by(SuccLs, A, Def, Dom),
+          is_dom_by(SuccLs, B, Def, Dom)} of
+        {true,true} ->
+            Rename = case is_map_key(A, Def) of
+                         true -> #{A => B};
+                         false -> #{B => A}
+                     end,
+            {Rename,Info0};
+        {true,false} ->
+            {#{B => A},Info0};
+        {false,true} ->
+            {#{A => B},Info0};
+        {false,false} ->
+            {none,Info0}
+    end.
 
 def_blocks(Labels, Blocks) ->
     def_blocks(Labels, Blocks, []).
