@@ -276,6 +276,9 @@ update_successors(#b_br{bool=Bool,succ=Succ,fail=Fail}, Bs0, Map0) ->
                 #b_literal{} ->
                     Bs
             end;
+        {arg,_} ->
+            Map = update_successor(Succ, Bs0#{Bool := #b_literal{val=true}}, Map0),
+            update_successor(Fail, Bs0#{Bool := #b_literal{val=false}}, Map);
         any ->
             Map = update_successor(Succ, Bs0#{Bool := #b_literal{val=true}}, Map0),
             update_successor(Fail, Bs0#{Bool := #b_literal{val=false}}, Map)
