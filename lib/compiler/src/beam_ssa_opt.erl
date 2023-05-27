@@ -996,7 +996,7 @@ wip([L|Ls], Blocks0, Info0) ->
                     FailLs = ordsets:from_list(beam_ssa:rpo([Fail], Blocks0)),
                     case ordsets:is_disjoint(SuccLs, FailLs) of
                         true ->
-                            case wip_get_rename(SuccLs, A, B, Blocks0, Info0) of
+                            case wip_get_rename(Succ, A, B, Blocks0, Info0) of
                                 {none,Info} ->
                                     wip(Ls, Blocks0, Info);
                                 {Rename,Info} ->
@@ -1066,7 +1066,14 @@ def_blocks([], _Blocks, Acc) ->
 is_dom_by(L, V, Def, Dom) ->
     case Def of
         #{V := DefL} ->
-            member(L, map_get(DefL, Dom));
+            Res = member(DefL, map_get(L, Dom)),
+            %% io:format("~p\n", [L]),
+            %% io:format("~p\n", [V]),
+            %% io:format("~p\n", [Def]),
+            %% io:format("~p\n", [Dom]),
+            %% io:format("~p\n", [Res]),
+            %% io:nl(),
+            Res;
         #{} ->
             true
     end.
