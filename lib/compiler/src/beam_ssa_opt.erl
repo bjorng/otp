@@ -1014,14 +1014,27 @@ wip([L|Ls], Blocks0, Info0) ->
     end;
 wip([], Blocks, _Info) -> Blocks.
 
-wip_get_rename(SuccLs, A, B, Blocks, Info0) ->
+wip_get_rename(SuccLs, A, B, Blocks, #wip_info{args=Args}=Info) ->
+    case member(A, Args) of
+        true ->
+            {#{B => A},Info};
+        false ->
+            case member(B, Args) of
+                true ->
+                    {#{A => B},Info};
+                false ->
+                    wip_get_rename_1(SuccLs, A, B, Blocks, Info)
+            end
+    end.
+
+wip_get_rename_1(SuccLs, A, B, Blocks, Info0) ->
     Info = case Info0 of
                #wip_info{dom=Dom0,def=Def0} when is_map(Dom0), is_map(Def0) ->
                    Info0;
                #wip_info{rpo=RPO} ->
                    {Dom0,_} = beam_ssa:dominators(RPO, Blocks),
                    Def0 = def_blocks(RPO, Blocks),
-                   #wip_info{dom=Dom0,def=Def0}
+                   Info0#wip_info{dom=Dom0,def=Def0}
            end,
     #wip_info{dom=Dom,def=Def} = Info,
     case {is_dom_by(SuccLs, A, Def, Dom),
