@@ -967,17 +967,21 @@ update_tuple_merge(Src, SetOps, Updates0, Seen0) ->
 %%% WIP.
 %%%
 
-ssa_opt_wip({#opt_st{ssa=Linear0}=St, FuncDb}) ->
+ssa_opt_wip({#opt_st{ssa=Linear0,args=Args}=St, FuncDb}) ->
     Blocks0 = maps:from_list(Linear0),
-    Blocks = wip(Blocks0),
+    Blocks = wip(Args, Blocks0),
     Linear = beam_ssa:linearize(Blocks),
     {St#opt_st{ssa=Linear}, FuncDb}.
 
--record(wip_info, {rpo}).
+-record(wip_info,
+        {rpo,
+         args :: [beam_ssa:b_var()]
+        }).
 
-wip(Blocks) ->
+wip(Args, Blocks) ->
     RPO = beam_ssa:rpo(Blocks),
-    wip(RPO, Blocks, #wip_info{rpo=RPO}).
+    Info = #wip_info{rpo=RPO,args=Args},
+    wip(RPO, Blocks, Info).
 
 wip([L|Ls], Blocks0, Info0) ->
     Blk0 = map_get(L, Blocks0),
