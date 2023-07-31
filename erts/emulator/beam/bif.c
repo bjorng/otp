@@ -5251,6 +5251,47 @@ BIF_RETTYPE system_flag_2(BIF_ALIST_2)
     } else if (ERTS_IS_ATOM_STR("system_logger", BIF_ARG_1)) {
         Eterm res = erts_set_system_logger(BIF_ARG_2);
         if (is_value(res)) BIF_RET(res);
+    } else if (ERTS_IS_ATOM_STR("coverage_mode", BIF_ARG_1)) {
+#ifdef BEAMASM
+        Eterm old_mode;
+
+        switch (erts_coverage_mode) {
+        case ERTS_COV_FUNCTION_COVERAGE:
+            old_mode = am_function;
+            break;
+        case ERTS_COV_LINE_COVERAGE:
+            old_mode = am_line_coverage;
+            break;
+        case ERTS_COV_LINE_COUNTERS:
+            old_mode = am_line_counters;
+            break;
+        case ERTS_COV_NONE:
+            old_mode = am_none;
+            break;
+        default:
+            ASSERT(0);
+            old_mode = am_none;
+            break;
+        }
+
+        switch (BIF_ARG_2) {
+        case am_none:
+            erts_coverage_mode = ERTS_COV_NONE;
+            break;
+        case am_line_coverage:
+            erts_coverage_mode = ERTS_COV_LINE_COVERAGE;
+            break;
+        case am_line_counters:
+            erts_coverage_mode = ERTS_COV_LINE_COUNTERS;
+            break;
+        case am_function:
+            erts_coverage_mode = ERTS_COV_FUNCTION_COVERAGE;
+            break;
+        default:
+            goto error;
+        }
+        BIF_RET(old_mode);
+#endif
     } else {
         BIF_P->fvalue = am_badopt;
         BIF_ERROR(BIF_P, BADARG | EXF_HAS_EXT_INFO);

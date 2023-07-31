@@ -397,6 +397,8 @@ atom ldflags
 atom Le='=<'
 atom lf
 atom line
+atom line_coverage
+atom line_counters
 atom line_delimiter
 atom line_length
 atom linked_in_driver

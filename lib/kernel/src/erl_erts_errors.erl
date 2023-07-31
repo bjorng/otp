@@ -424,6 +424,45 @@ format_erlang_error(garbage_collect, [Pid,_], Cause) ->
      end];
 format_erlang_error(get_cookie, [Node], _) ->
     [must_be_atom(Node)];
+format_erlang_error(get_coverage_mode, [Module], _) ->
+    coverage(
+      fun() ->
+              [if
+                   not is_atom(Module) ->
+                       not_atom;
+                   true ->
+                       case erlang:module_loaded(Module) of
+                           false -> module_not_loaded;
+                           true -> coverage_disabled
+                       end
+               end]
+      end);
+format_erlang_error(get_function_coverage, [Module], _) ->
+    coverage(
+      fun() ->
+              [if
+                   not is_atom(Module) ->
+                       not_atom;
+                   true ->
+                       case erlang:module_loaded(Module) of
+                           false -> module_not_loaded;
+                           true -> coverage_disabled
+                       end
+               end]
+      end);
+format_erlang_error(get_line_coverage, [Module], _) ->
+    coverage(
+      fun() ->
+              [if
+                   not is_atom(Module) ->
+                       not_atom;
+                   true ->
+                       case erlang:module_loaded(Module) of
+                           false -> module_not_loaded;
+                           true -> line_coverage_disabled
+                       end
+               end]
+      end);
 format_erlang_error(group_leader, [Pid1,Pid2], _) ->
     [must_be_pid(Pid1),must_be_pid(Pid2)];
 format_erlang_error(halt, [_], _) ->
@@ -803,6 +842,19 @@ format_erlang_error(register, [Name,PidOrPort], Cause) ->
                     Errors
             end
     end;
+format_erlang_error(reset_coverage, [Module], _) ->
+    coverage(
+      fun () ->
+              [if
+                   not is_atom(Module) ->
+                       not_atom;
+                   true ->
+                       case erlang:module_loaded(Module) of
+                           false -> module_not_loaded;
+                           true -> coverage_disabled
+                       end
+               end]
+      end);
 format_erlang_error(resume_process, [Pid], _) ->
     [must_be_local_pid(Pid, <<"process is not suspended or is not alive">>)];
 format_erlang_error(round, [_], _) ->
@@ -1454,6 +1506,14 @@ maybe_posix_message(Cause, HasDevice) ->
                 io_lib:format("~ts (~tp)",[PosixStr, Cause]))}]
     end.
 
+coverage(Fun) ->
+    case erlang:system_info(coverage_support) of
+        true ->
+            Fun();
+        false ->
+            [<<"this runtime system does not support coverage">>]
+    end.
+
 format_error_map([""|Es], ArgNum, Map) ->
     format_error_map(Es, ArgNum + 1, Map);
 format_error_map([{general, E}|Es], ArgNum, Map) ->
@@ -1553,5 +1613,11 @@ expand_error(range) ->
     <<"out of range">>;
 expand_error(self_not_allowed) ->
     <<"the pid refers to the current process">>;
+expand_error(module_not_loaded) ->
+    <<"the atom does not refer to a loaded module">>;
+expand_error(coverage_disabled) ->
+    <<"not loaded with coverage enabled">>;
+expand_error(line_coverage_disabled) ->
+    <<"not loaded with line coverage enabled">>;
 expand_error(E) when is_binary(E) ->
     E.

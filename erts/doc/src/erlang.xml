@@ -577,6 +577,12 @@
         for a registered name at another node.</p>
       </desc>
     </datatype>
+    <datatype>
+      <name name="coverage_mode" prefix="true"/>
+      <desc>
+        <p>Coverage mode.</p>
+      </desc>
+    </datatype>
   </datatypes>
 
   <funcs>
@@ -2882,6 +2888,51 @@ uncompiled code with the same arity are mapped to the same list by
     </func>
 
     <func>
+      <name name="get_coverage_mode" arity="1" since="OTP @OTP-18856@"/>
+      <fsummary>Get the coverage mode for a module.</fsummary>
+      <desc>
+        <p>Get coverage mode for the given module.</p>
+        <p>Failures:</p>
+        <taglist>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> is not an atom.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> does not refer to a loaded module.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If the runtime system does not support coverage.
+          </item>
+        </taglist>
+      </desc>
+    </func>
+
+    <func>
+      <name name="get_function_coverage" arity="1" since="OTP @OTP-18856@"/>
+      <fsummary>Get function coverage for a module.</fsummary>
+      <desc>
+        <p>For each function in the module, a boolean indicating
+        whether it has been executed at least once is returned.</p>
+        <p>Failures:</p>
+        <taglist>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> is not an atom.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> does not refer to a loaded module.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> was not loaded with
+          coverage enabled.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If the runtime system does not support coverage.
+          </item>
+        </taglist>
+      </desc>
+    </func>
+
+    <func>
       <name name="get_keys" arity="0" since="OTP 18.0"/>
       <fsummary>Return a list of all keys from the process dictionary.
       </fsummary>
@@ -2915,6 +2966,42 @@ uncompiled code with the same arity are mapped to the same list by
 <input>put(lamb, {1, 2}),</input>
 <input>get_keys({1, 2}).</input>
 [mary,had,a,little,lamb]</pre>
+      </desc>
+    </func>
+
+    <func>
+      <name name="get_line_coverage" arity="1" since="OTP @OTP-18856@"/>
+      <fsummary>Get line coverage for a module.</fsummary>
+      <desc>
+        <p>Returns line coverage for the given module according to
+        its coverage mode:</p>
+        <taglist>
+          <tag><c>line_coverage</c></tag>
+          <item>For each executable line in the module, a boolean
+          indicating whether that line has been executed at least once
+          is returned.
+          </item>
+          <tag><c>line_coverage</c></tag>
+          <item>For each executable line in the module, an integer
+          giving the number of times that line was executed is returned.
+          </item>
+        </taglist>
+        <p>Failures:</p>
+        <taglist>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> is not an atom.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> does not refer to a loaded module.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> was not loaded with
+          either <c>line_coverage</c> or <c>line_counters</c> enabled.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If the runtime system does not support coverage.
+          </item>
+        </taglist>
       </desc>
     </func>
 
@@ -7432,6 +7519,30 @@ true</pre>
     </func>
 
     <func>
+      <name name="reset_coverage" arity="1" since="OTP @OTP-18856@"/>
+      <fsummary>Reset coverage for a module.</fsummary>
+      <desc>
+        <p>Reset function and line coverage for the given module.</p>
+        <p>Failures:</p>
+        <taglist>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> is not an atom.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> does not refer to a loaded module.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Module</anno></c> was not loaded with
+          coverage enabled.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If the runtime system does not support coverage.
+          </item>
+        </taglist>
+      </desc>
+    </func>
+
+    <func>
       <name name="resume_process" arity="1" since=""/>
       <fsummary>Resume a suspended process.</fsummary>
       <desc>
@@ -9460,6 +9571,55 @@ ok
 
     <func>
       <name name="system_flag" arity="2" clause_i="2"
+            anchor="system_flag_coverage_mode" since="OTP @OTP-18856@"/>
+      <fsummary>Set system flag <c>coverage</c>.</fsummary>
+      <type name="coverage_mode"/>
+      <desc>
+        <p>Sets the coverage mode for modules that are subsequently
+        loaded, similar to option <seecom
+        marker="erl#+JPcover">+JPcover</seecom> for <c>erl</c>: </p>
+        <taglist>
+          <tag><c>function</c></tag>
+          <item><p>All modules that are loaded will be instrumented to
+          keep track of which functions are executed. Information
+          about which functions that have been executed can be
+          retrieved by calling <seemfa
+          marker="erlang#get_function_coverage/1"><c>get_function_coverage/1</c></seemfa>.
+          </p></item>
+          <tag><c>line_coverage</c></tag>
+          <item><p>When modules that have been compiled with the
+          <seeerl marker="compiler:compile#line_coverage"><c>line_coverage</c></seeerl>
+          option are loaded, they will be instrumented to keep track of
+          which lines have been executed. Information about which lines
+          have been executed can be retrieved by calling
+          <seemfa marker="erlang#get_line_coverage/1"><c>ger_line_coverage/1</c></seemfa>.</p>
+          </item>
+          <tag><c>line_counters</c></tag>
+          <item><p>When modules that have been compiled with the
+          <seeerl marker="compiler:compile#line_coverage"><c>line_coverage</c></seeerl>
+          option are loaded, they will be instrumented to count the number
+          of times each line has been executed. Information about how many
+          time each line has been executed can be retrieved by calling
+          <seemfa marker="erlang#get_line_coverage/1"><c>get_line_coverage/1</c></seemfa>.</p>
+          </item>
+          <tag><c>none</c></tag>
+          <item><p>Disables coverage.</p></item>
+        </taglist>
+        <p>Returns the previous coverage mode.</p>
+        <p>Failures:</p>
+        <taglist>
+          <tag><c>badarg</c></tag>
+          <item>If <c><anno>Mode</anno></c> is not a valid coverage mode.
+          </item>
+          <tag><c>badarg</c></tag>
+          <item>If the runtime system does not support coverage.
+          </item>
+        </taglist>
+      </desc>
+    </func>
+
+    <func>
+      <name name="system_flag" arity="2" clause_i="3"
 	    anchor="system_flag_cpu_topology" since=""/>
       <fsummary>Set system flag <c>cpu_topology</c>.</fsummary>
       <type name="cpu_topology"/>
@@ -9507,7 +9667,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="3"
+      <name name="system_flag" arity="2" clause_i="4"
 	    anchor="system_flag_dirty_cpu_schedulers_online" since="OTP 17.0"/>
       <fsummary>Set system_flag_dirty_cpu_schedulers_online.</fsummary>
       <desc>
@@ -9536,7 +9696,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="4" since="OTP 20.2.3"/>
+      <name name="system_flag" arity="2" clause_i="5" since="OTP 20.2.3"/>
       <fsummary>Set system flag for erts_alloc.</fsummary>
       <desc>
         <p>Sets system flags for
@@ -9553,7 +9713,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="5" since=""/>
+      <name name="system_flag" arity="2" clause_i="6" since=""/>
       <fsummary>Set system flag fullsweep_after.</fsummary>
       <desc>
         <p>Sets system flag <c>fullsweep_after</c>.
@@ -9572,7 +9732,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="6"
+      <name name="system_flag" arity="2" clause_i="7"
 	    anchor="system_flag_microstate_accounting" since="OTP 19.0"/>
       <fsummary>Set system flag microstate_accounting.</fsummary>
       <desc>
@@ -9586,7 +9746,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="7" since=""/>
+      <name name="system_flag" arity="2" clause_i="8" since=""/>
       <fsummary>Set system flag min_heap_size.</fsummary>
       <desc>
         <p>Sets the default minimum heap size for processes. The size
@@ -9601,7 +9761,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="8" since="OTP R13B04"/>
+      <name name="system_flag" arity="2" clause_i="9" since="OTP R13B04"/>
       <fsummary>Set system flag min_bin_vheap_size.</fsummary>
       <desc>
         <p>Sets the default minimum binary virtual heap size for
@@ -9618,7 +9778,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="9"
+      <name name="system_flag" arity="2" clause_i="10"
 	    anchor="system_flag_max_heap_size" since="OTP 19.0"/>
       <fsummary>Set system flag max_heap_size.</fsummary>
       <type name="max_heap_size"/>
@@ -9641,7 +9801,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="10"
+      <name name="system_flag" arity="2" clause_i="11"
 	    anchor="system_flag_multi_scheduling" since=""/>
       <fsummary>Set system flag multi_scheduling.</fsummary>
       <desc>
@@ -9697,7 +9857,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="11"
+      <name name="system_flag" arity="2" clause_i="12"
             anchor="system_flag_outstanding_system_requests_limit"
             since="OTP 24.2"/>
       <fsummary>Set limit on outstanding requests for system processes.</fsummary>
@@ -9741,7 +9901,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="12"
+      <name name="system_flag" arity="2" clause_i="13"
 	    anchor="system_flag_scheduler_bind_type" since=""/>
       <fsummary>Set system flag scheduler_bind_type.</fsummary>
       <type name="scheduler_bind_type"/>
@@ -9868,7 +10028,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="13"
+      <name name="system_flag" arity="2" clause_i="14"
 	    anchor="system_flag_scheduler_wall_time" since="OTP R15B01"/>
       <fsummary>Set system flag scheduler_wall_time.</fsummary>
       <desc>
@@ -9907,7 +10067,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="14"
+      <name name="system_flag" arity="2" clause_i="15"
 	    anchor="system_flag_schedulers_online" since=""/>
       <fsummary>Set system flag schedulers_online.</fsummary>
       <desc>
@@ -9936,7 +10096,7 @@ ok
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="15" since="OTP 21.3"/>
+      <name name="system_flag" arity="2" clause_i="16" since="OTP 21.3"/>
       <fsummary>Set system logger process.</fsummary>
       <desc>
         <p>Sets the process that will receive the logging
@@ -9968,7 +10128,7 @@ Metadata = #{ pid => pid(),
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="16" since=""/>
+      <name name="system_flag" arity="2" clause_i="17" since=""/>
       <fsummary>Set system flag trace_control_word.</fsummary>
       <desc>
         <p>Sets the value of the node trace control word to
@@ -9982,7 +10142,7 @@ Metadata = #{ pid => pid(),
     </func>
 
     <func>
-      <name name="system_flag" arity="2" clause_i="17"
+      <name name="system_flag" arity="2" clause_i="18"
 	    anchor="system_flag_time_offset" since="OTP 18.0"/>
       <fsummary>Finalize the time offset.</fsummary>
       <desc>
@@ -10120,6 +10280,8 @@ Metadata = #{ pid => pid(),
               <seeerl marker="#system_info_c_compiler_used"><c>c_compiler_used</c></seeerl>,
               <seeerl marker="#system_info_check_io"><c>check_io</c></seeerl>,
               <seeerl marker="#system_info_compat_rel"><c>compat_rel</c></seeerl>,
+              <seeerl marker="#system_info_coverage_mode"><c>coverage_mode</c></seeerl>,
+              <seeerl marker="#system_info_coverage_support"><c>coverage_support</c></seeerl>,
               <seeerl marker="#system_info_debug_compiled"><c>debug_compiled</c></seeerl>,
               <seeerl marker="#system_info_driver_version"><c>driver_version</c></seeerl>,
               <seeerl marker="#system_info_dynamic_trace"><c>dynamic_trace</c></seeerl>,
@@ -10293,6 +10455,34 @@ Metadata = #{ pid => pid(),
               <anno>Alloc</anno>})</c></seeerl>.</p>
           </item>
         </taglist>
+      </desc>
+    </func>
+
+    <func>
+      <name name="system_info" arity="1" clause_i="82"
+            anchor="system_info_coverage_mode" since="OTP @OTP-18856@"/>
+      <fsummary>Returns the current coverage mode.</fsummary>
+      <type name="coverage_mode"/>
+      <desc>
+        <p>Returns the current coverage mode as set by option
+        <seecom marker="erl#+JPcover">+JPcover</seecom> or
+        <seeerl marker="#system_flag_coverage_mode">erlang:system_flag(coverage_mode, Mode)</seeerl>.</p>
+        <p>Failure:</p>
+        <taglist>
+          <tag><c>badarg</c></tag>
+          <item>If the runtime system does not support coverage.
+          </item>
+        </taglist>
+      </desc>
+    </func>
+
+    <func>
+      <name name="system_info" arity="1" clause_i="83"
+            anchor="system_info_coverage_support" since="OTP @OTP-18856@"/>
+      <fsummary>Query whether the system supports coverage.</fsummary>
+      <desc>
+        <p>Returns <c>true</c> if the system supports coverage and <c>false</c>
+        otherwise.</p>
       </desc>
     </func>
 

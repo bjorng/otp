@@ -707,6 +707,9 @@ error_info(_Config) ->
     ExternalPid = rpc:call(ExternalNode, erlang, whereis, [code_server]),
     ExternalPort = hd(rpc:call(ExternalNode, erlang, ports, [])),
 
+    %% An atom referring that does not refer to a loaded module.
+    NotLoaded = not__a__loaded__module__I__hope,
+
     L = [{abs, [abc]},
          {adler32, [{bad,data}]},
          {adler32, [old, new]},
@@ -906,7 +909,20 @@ error_info(_Config) ->
          {gather_gc_info_result, 1},            %Internal BIF.
 
          {get_cookie, [{not_node}]},
+
+         {get_coverage_mode, [42]},
+         {get_coverage_mode, [NotLoaded]},
+
+         {get_function_coverage, [42]},
+         {get_function_coverage, [NotLoaded]},
+         {get_function_coverage, [?MODULE]},
+
          {get_keys, [value], [no_fail]},
+
+         {get_line_coverage, [42]},
+         {get_line_coverage, [NotLoaded]},
+         {get_line_coverage, [?MODULE]},
+
          {get_module_info, 1},
          {get_module_info, 2},
 
@@ -1144,6 +1160,10 @@ error_info(_Config) ->
          {register, [my_registered_name, DeadProcess]},
          {register, [my_registered_name, ExternalPid]},
          {register, [my_registered_name, ExternalPort]},
+
+         {reset_coverage, [42]},
+         {reset_coverage, [NotLoaded]},
+         {reset_coverage, [?MODULE]},
 
          {resume_process, [abc]},
          {resume_process, [self()]},

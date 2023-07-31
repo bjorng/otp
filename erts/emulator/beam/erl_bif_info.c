@@ -3507,6 +3507,27 @@ BIF_RETTYPE system_info_1(BIF_ALIST_1)
         sys_memset(hp + 1, 0xff, BIG_ARITY_MAX*sizeof(Eterm));
         BIF_RET(make_big(hp));
     }
+#ifdef BEAMASM
+    else if (ERTS_IS_ATOM_STR("coverage_mode", BIF_ARG_1)) {
+        switch (erts_coverage_mode) {
+        case ERTS_COV_FUNCTION_COVERAGE:
+            BIF_RET(am_function);
+        case ERTS_COV_LINE_COVERAGE:
+            BIF_RET(am_line_coverage);
+        case ERTS_COV_LINE_COUNTERS:
+            BIF_RET(am_line_counters);
+        case ERTS_COV_NONE:
+            BIF_RET(am_none);
+        }
+    }
+#endif
+    else if (ERTS_IS_ATOM_STR("coverage_support", BIF_ARG_1)) {
+#ifdef BEAMASM
+	BIF_RET(am_true);
+#else
+	BIF_RET(am_false);
+#endif
+    }
 
     BIF_ERROR(BIF_P, BADARG);
 }

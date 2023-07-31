@@ -191,6 +191,9 @@
 %% Type for the destination of sends.
 -export_type([send_destination/0]).
 
+-type coverage_mode() :: 'none' | 'function' | 'line_coverage' | 'line_counters'.
+-export_type([coverage_mode/0]).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Native code BIF stubs and their types
 %% (BIF's actually implemented in this module goes last in the file)
@@ -214,6 +217,8 @@
 -export([cancel_timer/1, cancel_timer/2, ceil/1,
 	 check_old_code/1, check_process_code/2,
 	 check_process_code/3, crc32/1]).
+-export([get_coverage_mode/1, get_function_coverage/1, get_line_coverage/1,
+         reset_coverage/1]).
 -export([crc32/2, crc32_combine/3, date/0, decode_packet/3]).
 -export([delete_element/2]).
 -export([delete_module/1, demonitor/1, demonitor/2, display/1]).
@@ -803,6 +808,31 @@ ceil(_) ->
 -spec check_old_code(Module) -> boolean() when
       Module :: module().
 check_old_code(_Module) ->
+    erlang:nif_error(undefined).
+
+-spec erlang:reset_coverage(module()) -> ok.
+reset_coverage(_Module) ->
+    erlang:nif_error(undefined).
+
+-spec erlang:get_coverage_mode(module()) -> Mode when
+      Mode :: coverage_mode().
+get_coverage_mode(_Module) ->
+    erlang:nif_error(undefined).
+
+-spec erlang:get_function_coverage(module()) -> Result when
+      Result :: [{{Function, Arity}, Covered}],
+      Covered :: boolean(),
+      Function :: atom(),
+      Arity :: arity().
+get_function_coverage(_Module) ->
+    erlang:nif_error(undefined).
+
+-spec erlang:get_line_coverage(module()) -> Result when
+      Result ::[{Line, Covered | Counter}],
+      Line :: non_neg_integer(),
+      Covered :: boolean(),
+      Counter :: non_neg_integer().
+get_line_coverage(_Module) ->
     erlang:nif_error(undefined).
 
 %% check_process_code/2
@@ -2908,6 +2938,9 @@ subtract(_,_) ->
 -spec erlang:system_flag(backtrace_depth, Depth) -> OldDepth when
       Depth :: non_neg_integer(),
       OldDepth :: non_neg_integer();
+                        (coverage_mode, Mode) -> OldMode when
+      Mode :: coverage_mode(),
+      OldMode :: coverage_mode();
                         (cpu_topology, CpuTopology) -> OldCpuTopology when
       CpuTopology :: cpu_topology(),
       OldCpuTopology :: cpu_topology();
@@ -3179,6 +3212,8 @@ tuple_to_list(_Tuple) ->
          (wordsize | {wordsize, internal} | {wordsize, external}) -> 4 | 8;
          (async_dist) -> boolean();
          (overview) -> boolean();
+         (coverage_mode) -> coverage_mode();
+         (coverage_support) -> boolean();
          %% Deliberately left undocumented
          (sequential_tracer) -> {sequential_tracer, pid() | port() | {module(),term()} | false}.
 system_info(_Item) ->
