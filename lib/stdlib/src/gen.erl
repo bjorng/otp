@@ -492,7 +492,7 @@ flush_responses(ReqIdCol) ->
 
 timeout_value(infinity) ->
     infinity;
-timeout_value(Timeout) when 0 =< Timeout, Timeout =< ?MAX_INT_TIMEOUT ->
+timeout_value(Timeout) when is_integer(Timeout), 0 =< Timeout, Timeout =< ?MAX_INT_TIMEOUT ->
     Timeout;
 timeout_value({abs, Timeout}) when is_integer(Timeout) ->
     case Timeout - erlang:monotonic_time(millisecond) of

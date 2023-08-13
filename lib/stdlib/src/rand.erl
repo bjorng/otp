@@ -562,6 +562,7 @@ bytes(N) ->
     _ = seed_put(State),
     Bytes.
 
+-define(in_range(N, Min, Max), is_integer(N), Min =< N, N =< Max).
 
 %% bytes_s/2: given a number N and a state,
 %% returns a random binary with N bytes and a new state
@@ -569,7 +570,7 @@ bytes(N) ->
 -spec bytes_s(N :: non_neg_integer(), State :: state()) ->
                      {Bytes :: binary(), NewState :: state()}.
 bytes_s(N, {#{bits:=Bits, next:=Next} = AlgHandler, R})
-  when is_integer(N), 0 =< N ->
+  when is_integer(N), 0 =< N, ?in_range(Bits, 0, 64) ->
     WeakLowBits = maps:get(weak_low_bits, AlgHandler, 0),
     bytes_r(N, AlgHandler, Next, R, Bits, WeakLowBits);
 bytes_s(N, {#{max:=Mask, next:=Next} = AlgHandler, R})
@@ -584,7 +585,8 @@ bytes_s(N, {#{max:=Mask, next:=Next} = AlgHandler, R})
 %% Bits:        Number of bits in the generated word
 %% WeakLowBits: Number of low bits in the generated word
 %%              to waste due to poor quality
-bytes_r(N, AlgHandler, Next, R, Bits, WeakLowBits) ->
+bytes_r(N, AlgHandler, Next, R, Bits, WeakLowBits)
+  when ?in_range(WeakLowBits, 0, 7) ->
     %% We use whole bytes from each generator word,
     %% GoodBytes: that number of bytes
     GoodBytes = (Bits - WeakLowBits) bsr 3,
@@ -592,6 +594,7 @@ bytes_r(N, AlgHandler, Next, R, Bits, WeakLowBits) ->
     %% Shift: how many bits of each generator word to waste
     %% by shifting right - we use the bits from the big end
     Shift = Bits - GoodBits,
+    true = 0 =< Shift,
     bytes_r(N, AlgHandler, Next, R, <<>>, GoodBytes, GoodBits, Shift).
 %%
 bytes_r(N0, AlgHandler, Next, R0, Bytes0, GoodBytes, GoodBits, Shift)
