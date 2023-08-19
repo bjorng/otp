@@ -443,8 +443,9 @@ erts_bs_get_integer_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuff
     return res;
 }
 
+#if !defined(BEAMASM)
 Eterm
-erts_bs_get_binary_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuffer* mb)
+erts_bs_get_binary_2(Process *p, Uint num_bits, ErlBinMatchBuffer* mb)
 {
     Eterm result;
 
@@ -466,6 +467,7 @@ erts_bs_get_binary_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuffe
 
     return result;
 }
+#endif
 
 Eterm
 erts_bs_get_float_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuffer* mb)
