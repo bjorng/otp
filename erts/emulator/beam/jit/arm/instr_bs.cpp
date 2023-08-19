@@ -954,6 +954,85 @@ void BeamModuleAssembler::emit_i_bs_get_binary2(const ArgRegister &Ctx,
     }
 }
 
+void BeamGlobalAssembler::emit_bs_get_bin_and_tail_shared() {
+    Label fail = a.newLabel();
+
+    a.ldr(ARG5, TMP_MEM1q);
+
+    lea(ARG6, emit_boxed_val(ARG6, offsetof(ErlBinMatchState, mb)));
+
+    ERTS_CT_ASSERT_FIELD_PAIR(ErlBinMatchBuffer, orig, base);
+    a.ldp(ARG2, ARG3, arm::Mem(ARG6, offsetof(ErlBinMatchBuffer, orig)));
+
+    ERTS_CT_ASSERT_FIELD_PAIR(ErlBinMatchBuffer, offset, size);
+    a.ldp(ARG4, TMP1, arm::Mem(ARG6, offsetof(ErlBinMatchBuffer, offset)));
+
+    lea(ARG1, arm::Mem(c_p, offsetof(Process, htop)));
+
+    a.add(TMP2, ARG4, ARG5);
+    a.cmp(TMP2, TMP1);
+    a.b_hi(fail);
+
+    a.str(TMP2, arm::Mem(ARG6, offsetof(ErlBinMatchBuffer, offset)));
+    a.str(ARG6, TMP_MEM1q);
+
+    emit_enter_runtime_frame();
+    emit_enter_runtime<Update::eHeapOnlyAlloc>();
+
+    runtime_call<5>(erts_extract_sub_binary);
+
+    a.ldr(ARG6, TMP_MEM1q);
+    a.str(ARG1, TMP_MEM2q);
+    lea(ARG1, arm::Mem(c_p, offsetof(Process, htop)));
+
+    ERTS_CT_ASSERT_FIELD_PAIR(ErlBinMatchBuffer, offset, size);
+    a.ldp(ARG4, TMP1, arm::Mem(ARG6, offsetof(ErlBinMatchBuffer, offset)));
+
+    ERTS_CT_ASSERT_FIELD_PAIR(ErlBinMatchBuffer, orig, base);
+    a.ldp(ARG2, ARG3, arm::Mem(ARG6, offsetof(ErlBinMatchBuffer, orig)));
+
+    a.sub(ARG5, TMP1, ARG4);
+
+    runtime_call<5>(erts_extract_sub_binary);
+
+    emit_leave_runtime<Update::eHeapOnlyAlloc>();
+    emit_leave_runtime_frame();
+
+    a.ldr(ARG2, TMP_MEM2q);
+    a.ret(a64::x30);
+
+    a.bind(fail);
+    mov_imm(ARG1, THE_NON_VALUE);
+    a.ret(a64::x30);
+}
+
+void BeamModuleAssembler::emit_i_bs_get_bin_and_tail(const ArgRegister &Ctx,
+                                                     const ArgLabel &Fail,
+                                                     const ArgWord &Live,
+                                                     const ArgRegister &Size,
+                                                     const ArgWord &Unit,
+                                                     const ArgRegister &Dst1,
+                                                     const ArgRegister &Dst2) {
+    Label fail;
+    int unit;
+
+    fail = resolve_beam_label(Fail, dispUnknown);
+    unit = Unit.get();
+
+    if (emit_bs_get_field_size(Size, unit, fail, ARG5) >= 0) {
+        mov_arg(ARG6, Ctx);
+        a.str(ARG5, TMP_MEM1q);
+        emit_gc_test_preserve(ArgWord(2 * EXTRACT_SUB_BIN_HEAP_NEED),
+                              Live,
+                              Ctx,
+                              ARG6);
+        fragment_call(ga->get_bs_get_bin_and_tail_shared());
+        emit_branch_if_not_value(ARG1, fail);
+        mov_arg(Dst1, ARG2);
+        mov_arg(Dst2, ARG1);
+    }
+}
+
 void BeamModuleAssembler::emit_i_bs_get_float2(const ArgRegister &Ctx,
                                                const ArgLabel &Fail,
                                                const ArgWord &Live,
