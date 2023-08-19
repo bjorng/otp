@@ -40,6 +40,7 @@ my @beam_global_funcs = qw(
     bs_add_body_shared
     bs_bit_size_shared
     bs_create_bin_error_shared
+    bs_get_bin_and_tail_shared
     bs_get_tail_shared
     bs_get_utf8_shared
     bs_get_utf8_short_shared
