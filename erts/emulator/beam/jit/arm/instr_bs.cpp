@@ -831,7 +831,6 @@ void BeamGlobalAssembler::emit_bs_get_tail_shared() {
 
     emit_leave_runtime<Update::eHeapOnlyAlloc>();
     emit_leave_runtime_frame();
-
     a.ret(a64::x30);
 }
 
@@ -909,36 +908,47 @@ void BeamModuleAssembler::emit_i_bs_get_binary2(const ArgRegister &Ctx,
                                                 const ArgLabel &Fail,
                                                 const ArgWord &Live,
                                                 const ArgSource &Size,
-                                                const ArgWord &Flags,
+                                                const ArgWord &Unit,
                                                 const ArgRegister &Dst) {
     Label fail;
     int unit;
 
     fail = resolve_beam_label(Fail, dispUnknown);
-    unit = Flags.get() >> 3;
+    unit = Unit.get();
 
-    if (emit_bs_get_field_size(Size, unit, fail, ARG2) >= 0) {
-        a.str(ARG2, TMP_MEM1q);
+    if (emit_bs_get_field_size(Size, unit, fail, ARG5) >= 0) {
+        auto ctx = load_source(Ctx, ARG4);
 
-        mov_arg(ARG4, Ctx);
-
+        a.str(ARG5, TMP_MEM1q);
         emit_gc_test_preserve(ArgWord(EXTRACT_SUB_BIN_HEAP_NEED),
                               Live,
                               Ctx,
-                              ARG4);
+                              ctx.reg);
+        a.ldr(ARG5, TMP_MEM1q);
 
-        lea(ARG4, emit_boxed_val(ARG4, offsetof(ErlBinMatchState, mb)));
+        lea(TMP3, emit_boxed_val(ctx.reg, offsetof(ErlBinMatchState, mb)));
 
-        emit_enter_runtime<Update::eHeapOnlyAlloc>(Live.get());
+        ERTS_CT_ASSERT_FIELD_PAIR(ErlBinMatchBuffer, orig, base);
+        a.ldp(ARG2, ARG3, arm::Mem(TMP3, offsetof(ErlBinMatchBuffer, orig)));
 
-        a.mov(ARG1, c_p);
-        a.ldr(ARG2, TMP_MEM1q);
-        mov_imm(ARG3, Flags.get());
-        runtime_call<4>(erts_bs_get_binary_2);
+        ERTS_CT_ASSERT_FIELD_PAIR(ErlBinMatchBuffer, offset, size);
+        a.ldp(ARG4, TMP1, arm::Mem(TMP3, offsetof(ErlBinMatchBuffer, offset)));
 
-        emit_leave_runtime<Update::eHeapOnlyAlloc>(Live.get());
+        lea(ARG1, arm::Mem(c_p, offsetof(Process, htop)));
 
-        emit_branch_if_not_value(ARG1, fail);
+        a.add(TMP2, ARG4, ARG5);
+        a.cmp(TMP2, TMP1);
+        a.b_hi(fail);
+
+        a.str(TMP2, arm::Mem(TMP3, offsetof(ErlBinMatchBuffer, offset)));
+
+        emit_enter_runtime_frame();
+        emit_enter_runtime<Update::eHeapOnlyAlloc>();
+
+        runtime_call<5>(erts_extract_sub_binary);
+
+        emit_leave_runtime<Update::eHeapOnlyAlloc>();
+        emit_leave_runtime_frame();
 
         mov_arg(Dst, ARG1);
     }

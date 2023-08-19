@@ -895,13 +895,13 @@ void BeamModuleAssembler::emit_i_bs_get_binary2(const ArgRegister &Ctx,
                                                 const ArgLabel &Fail,
                                                 const ArgWord &Live,
                                                 const ArgSource &Size,
-                                                const ArgWord &Flags,
+                                                const ArgWord &Unit,
                                                 const ArgRegister &Dst) {
     Label fail;
     int unit;
 
     fail = resolve_beam_label(Fail);
-    unit = Flags.get() >> 3;
+    unit = Unit.get();
 
     /* Clobbers RET + ARG3 */
     if (emit_bs_get_field_size(Size, unit, fail, ARG2) >= 0) {
@@ -918,9 +918,8 @@ void BeamModuleAssembler::emit_i_bs_get_binary2(const ArgRegister &Ctx,
 
         a.mov(ARG1, c_p);
         a.mov(ARG2, TMP_MEM1q);
-        mov_imm(ARG3, Flags.get());
-        a.lea(ARG4, emit_boxed_val(ARG4, offsetof(ErlBinMatchState, mb)));
-        runtime_call<4>(erts_bs_get_binary_2);
+        a.lea(ARG3, emit_boxed_val(ARG4, offsetof(ErlBinMatchState, mb)));
+        runtime_call<3>(erts_bs_get_binary_2);
 
         emit_leave_runtime<Update::eHeapOnlyAlloc>();
 

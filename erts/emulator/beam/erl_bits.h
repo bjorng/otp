@@ -151,7 +151,8 @@ Eterm erts_bs_get_float_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatch
 
 /* These will create heap binaries when appropriate, so they require free space
  * up to EXTRACT_SUB_BIN_HEAP_NEED. */
-Eterm erts_bs_get_binary_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuffer* mb);
+
+Eterm erts_bs_get_binary_2(Process *p, Uint num_bits, ErlBinMatchBuffer* mb);
 Eterm erts_bs_get_binary_all_2(Process *p, ErlBinMatchBuffer* mb);
 
 /*
