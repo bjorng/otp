@@ -224,20 +224,12 @@ decode_inner(<<>>) ->
 decode_inner(Invalid) ->
     ber_decode_error({invalid_value, Invalid}).
 
-decode_inner_1(<<0:1, Length:7, Data:Length/binary, Tail/binary>>, Form, ClassTag) ->
-    %% Short definite length.
-    [case Form of
-         0 ->
-             {ClassTag, Data};
-         1 ->
-             {ClassTag, decode_inner(Data)}
-     end | decode_inner(Tail)];
-decode_inner_1(<<1:1, NumOctets:7, Tail0/binary>>, Form, ClassTag) when NumOctets =/= 0 ->
-    %% Long definite length.
-    case Tail0 of
-        <<Length:NumOctets/unit:8, Tail1/binary>> ->
-            case Tail1 of
-                <<Data:Length/binary, Tail/binary>> ->
+decode_inner_1(<<S:1, Length0:7, Tail0/binary>>, Form, ClassTag) ->
+    case S of
+        0 ->
+            case Tail0 of
+                <<Data:Length0/binary, Tail/binary>> ->
+                    %% Short definite length.
                     [case Form of
                          0 ->
                              {ClassTag, Data};
@@ -245,20 +237,36 @@ decode_inner_1(<<1:1, NumOctets:7, Tail0/binary>>, Form, ClassTag) when NumOctet
                              {ClassTag, decode_inner(Data)}
                      end | decode_inner(Tail)];
                 _ ->
-                    ber_decode_error({invalid_value, Tail1})
+                    ber_decode_error({invalid_value, Tail0})
             end;
-        _ ->
-            ber_decode_error({invalid_length, Tail0})
-    end;
-decode_inner_1(<<1:1, 0:7, Tail0/binary>> = Bin, Form, ClassTag) ->
-    %% Indefinite length.
-    case Form of
-        0 ->
-            %% Indefinite length must not be used with primitive types.
-            ber_decode_error({invalid_length, Bin});
+        1 when Length0 =:= 0 ->
+            %% Indefinite length.
+            case Form of
+                0 ->
+                    %% Indefinite length must not be used with primitive types.
+                    ber_decode_error({invalid_length, Tail0});
+                1 ->
+                    {TLVs, Tail} = decode_indefinite(Tail0, []),
+                    [{ClassTag, TLVs} | decode_inner(Tail)]
+            end;
         1 ->
-            {TLVs, Tail} = decode_indefinite(Tail0, []),
-            [{ClassTag, TLVs} | decode_inner(Tail)]
+            %% Long definite length.
+            case Tail0 of
+                <<Length:Length0/unit:8, Tail1/binary>> ->
+                    case Tail1 of
+                        <<Data:Length/binary, Tail/binary>> ->
+                            [case Form of
+                                 0 ->
+                                     {ClassTag, Data};
+                                 1 ->
+                                     {ClassTag, decode_inner(Data)}
+                             end | decode_inner(Tail)];
+                        _ ->
+                            ber_decode_error({invalid_value, Length, Tail1})
+                    end;
+                _ ->
+                    ber_decode_error({invalid_length, Tail0})
+            end
     end;
 decode_inner_1(Invalid, _Form, _ClassTag) ->
     ber_decode_error({invalid_value, Invalid}).
