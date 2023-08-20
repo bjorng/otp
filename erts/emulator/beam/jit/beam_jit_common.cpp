@@ -1105,6 +1105,26 @@ Eterm beam_jit_int128_to_big(Process *p, Uint sign, Uint low, Uint high) {
     return make_big(hp);
 }
 
+void beam_jit_bs_put_binary_all(Process *c_p, Eterm arg) {
+    byte *bptr;
+    Uint bitoffs;
+    Uint bitsize;
+    Uint num_bits;
+    ERL_BITS_DEFINE_STATEP(c_p);
+
+    ASSERT(is_binary(arg));
+
+    ERTS_GET_BINARY_BYTES(arg, bptr, bitoffs, bitsize);
+    num_bits = 8 * binary_size(arg) + bitsize;
+    copy_binary_to_buffer(erts_current_bin,
+                          erts_bin_offset,
+                          bptr,
+                          bitoffs,
+                          num_bits);
+    erts_bin_offset += num_bits;
+    BUMP_REDS(c_p, num_bits / ERL_BITS_PER_REDUCTION);
+}
+
 ErtsMessage *beam_jit_decode_dist(Process *c_p, ErtsMessage *msgp) {
     if (!erts_proc_sig_decode_dist(c_p, ERTS_PROC_LOCK_MAIN, msgp, 0)) {
         /*
