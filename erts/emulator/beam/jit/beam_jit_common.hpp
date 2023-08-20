@@ -627,6 +627,7 @@ void beam_jit_bs_construct_fail_info(Process *c_p,
                                      Eterm arg3,
                                      Eterm arg1);
 Sint beam_jit_bs_bit_size(Eterm term);
+void beam_jit_bs_put_binary_all(Process *c_p, Eterm arg);
 
 void beam_jit_take_receive_lock(Process *c_p);
 void beam_jit_wait_locked(Process *c_p, ErtsCodePtr cp);
