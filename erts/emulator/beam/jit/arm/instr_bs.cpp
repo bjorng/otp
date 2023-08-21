@@ -484,24 +484,51 @@ void BeamModuleAssembler::emit_i_bs_skip_bits2(const ArgRegister &Ctx,
                                                const ArgWord &Unit) {
     Label fail = resolve_beam_label(Fail, dispUnknown);
 
-    bool can_fail = true;
-
-    if (always_small(Size)) {
-        auto [min, max] = getClampedRange(Size);
-        can_fail = !(0 <= min && (max >> (SMALL_BITS - ERL_UNIT_BITS)) == 0);
-    }
-
-    if (!can_fail && Unit.get() == 1) {
-        comment("simplified skipping because the types are known");
-
+    if (Support::isPowerOf2(Unit.get())) {
+        int trailing_bits = Support::ctz<Eterm>(Unit.get());
+        arm::Shift shift;
+        bool type_can_fail = true;
         auto [ctx, size] = load_sources(Ctx, TMP1, Size, TMP2);
+        a64::Gp current_size_reg = size.reg;
+
+        if (always_small(Size)) {
+            auto [min, max] = getClampedRange(Size);
+            type_can_fail =
+                    !(0 <= min && (max >> (SMALL_BITS - ERL_UNIT_BITS)) == 0);
+        }
+
+        if (trailing_bits < _TAG_IMMED1_SIZE) {
+            shift = arm::lsr(_TAG_IMMED1_SIZE - trailing_bits);
+        } else if (trailing_bits > _TAG_IMMED1_SIZE) {
+            shift = arm::lsl(trailing_bits - _TAG_IMMED1_SIZE);
+        }
 
         emit_untag_ptr(TMP5, ctx.reg);
         ERTS_CT_ASSERT_FIELD_PAIR(ErlSubBits, start, end);
         a.ldp(TMP3, TMP4, arm::Mem(TMP5, offsetof(ErlSubBits, start)));
 
-        a.add(TMP3, TMP3, size.reg, arm::lsr(_TAG_IMMED1_SIZE));
-        a.cmp(TMP3, TMP4);
+        if (type_can_fail || trailing_bits > 0) {
+            a.eor(ARG1, size.reg, imm(_TAG_IMMED1_SMALL));
+            current_size_reg = ARG1;
+        }
+        if (type_can_fail) {
+            ASSERT(current_size_reg == ARG1);
+            a.tst(ARG1, imm(0xFFF0000000000000UL | _TAG_IMMED1_MASK));
+        } else {
+            comment("skipped type test for known safe size");
+        }
+
+        if (trailing_bits == 0) {
+            a.add(TMP3, TMP3, size.reg, shift);
+        } else {
+            a.add(TMP3, TMP3, ARG1, shift);
+        }
+
+        if (type_can_fail) {
+            a.ccmp(TMP3, TMP4, imm(NZCV::kCF), arm::CondCode::kEQ);
+        } else {
+            a.cmp(TMP3, TMP4);
+        }
         a.b_hi(resolve_beam_label(Fail, disp1MB));
 
         a.str(TMP3, arm::Mem(TMP5, offsetof(ErlSubBits, start)));
