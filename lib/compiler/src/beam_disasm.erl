@@ -1304,6 +1304,15 @@ resolve_inst({bs_match,[{Fail,Ctx,{z,1},{u,_},Args}]},_,_,_) ->
     {bs_match,Fail,Ctx,{commands,Commands}};
 
 %%
+%% OTP 27.
+%%
+
+resolve_inst({in_place,Args},Imports,_,_) ->
+    [F,Live,Bif,A1,A2,Reg] = resolve_args(Args),
+    {extfunc,_Mod,BifName,_Arity} = lookup(Bif+1,Imports),
+    {in_place,BifName,F,Live,[A1,A2],Reg};
+
+%%
 %% Catches instructions that are not yet handled.
 %%
 resolve_inst(X,_,_,_) -> ?exit({resolve_inst,X}).

@@ -91,6 +91,8 @@ replace_labels_1([{bif,Name,{f,Lbl},As,R}|Is], Acc, D, Fb) when Lbl =/= 0 ->
     replace_labels_1(Is, [{bif,Name,{f,label(Lbl, D, Fb)},As,R}|Acc], D, Fb);
 replace_labels_1([{gc_bif,Name,{f,Lbl},Live,As,R}|Is], Acc, D, Fb) when Lbl =/= 0 ->
     replace_labels_1(Is, [{gc_bif,Name,{f,label(Lbl, D, Fb)},Live,As,R}|Acc], D, Fb);
+replace_labels_1([{in_place,Name,{f,Lbl},Live,As,R}|Is], Acc, D, Fb) when Lbl =/= 0 ->
+    replace_labels_1(Is, [{in_place,Name,{f,label(Lbl, D, Fb)},Live,As,R}|Acc], D, Fb);
 replace_labels_1([{call,Ar,{f,Lbl}}|Is], Acc, D, Fb) ->
     replace_labels_1(Is, [{call,Ar,{f,label(Lbl, D, Fb)}}|Acc], D, Fb);
 replace_labels_1([{call_fun2,{f,Lbl},Ar,Func}|Is], Acc, D, Fb) ->

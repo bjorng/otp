@@ -1368,6 +1368,15 @@ i_bnot j I s d
 i_bsr j I s s d
 i_bsl j I s s d
 
+in_place Fail Live Bif=u$bif:erlang:stimes/2 S1 S2 Dst =>
+    gc_bif2 Fail Live Bif S1 S2 Dst
+
+in_place Fail Live u$bif:erlang:splus/2 S1 S2 Dst =>
+    i_plus Fail Live S1 S2 Dst
+
+in_place Fail Live u$bif:erlang:sminus/2 S1 S2 Dst =>
+    i_minus Fail Live S1 S2 Dst
+
 #
 # Handle the length/1 guard BIF specially to make it trappable.
 #

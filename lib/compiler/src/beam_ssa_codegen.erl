@@ -40,7 +40,8 @@
              regs=#{} :: #{beam_ssa:b_var() => ssa_register()},
              ultimate_fail=1 :: beam_label(),
              catches=gb_sets:empty() :: gb_sets:set(ssa_label()),
-             fc_label=1 :: beam_label()
+             fc_label=1 :: beam_label(),
+             no_inplace_ops=false :: boolean()
             }).
 
 -spec module(beam_ssa:b_module(), [compile:option()]) ->
@@ -48,7 +49,8 @@
 
 module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
     NoBsMatch = member(no_bs_match, Opts),
-    {Asm,St} = functions(Fs, NoBsMatch, {atom,Mod}),
+    NoInPlaceOps = member(no_inplace_operators, Opts),
+    {Asm,St} = functions(Fs, NoBsMatch, NoInPlaceOps, {atom,Mod}),
     {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
@@ -109,9 +111,9 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
 
 -type ssa_register() :: xreg() | yreg() | freg() | zreg().
 
-functions(Forms, NoBsMatch, AtomMod) ->
+functions(Forms, NoBsMatch, NoInPlaceOps, AtomMod) ->
     mapfoldl(fun (F, St) -> function(F, NoBsMatch, AtomMod, St) end,
-             #cg{lcount=1}, Forms).
+             #cg{lcount=1,no_inplace_ops=NoInPlaceOps}, Forms).
 
 function(#b_function{anno=Anno,bs=Blocks}, NoBsMatch, AtomMod, St0) ->
     #{func_info:={_,Name,Arity}} = Anno,
@@ -1091,7 +1093,8 @@ cg_block([#cg_set{anno=Anno,op={bif,Name},dst=Dst0,args=Args0}=I,
         true ->
             Live = get_live(I),
             Kill = kill_yregs(Anno, St),
-            {Kill++Line++[{gc_bif,Name,Fail,Live,Args,Dst}],St};
+            GcBif = in_place({gc_bif,Name,Fail,Live,Args,Dst}, I, St),
+            {Kill++Line++[GcBif],St};
         false ->
             {Line++[{bif,Name,Fail,Args,Dst}],St}
     end;
@@ -1137,7 +1140,8 @@ cg_block([#cg_set{anno=Anno,op={bif,Name},dst=Dst0,args=Args0}=I|T],
             Line = call_line(body, {extfunc,erlang,Name,length(Args)}, Anno),
             Live = get_live(I),
             Kill = kill_yregs(Anno, St),
-            Is = Kill++Line++[{gc_bif,Name,{f,0},Live,Args,Dst}|Is0],
+            GcBif = in_place({gc_bif,Name,{f,0},Live,Args,Dst}, I, St),
+            Is = Kill++Line++[GcBif|Is0],
             {Is,St};
         false ->
             Bif = case {Name,Args} of
@@ -2374,6 +2378,58 @@ typed_args_1([Arg | Args], Anno, St, Index) ->
            [beam_arg(Arg, St) | typed_args_1(Args, Anno, St, Index + 1)]
    end;
 typed_args_1([], _Anno, _St, _Index) ->
+    [].
+
+in_place({gc_bif,_Name,_Fail,_Live,_Args,_Dst}=Bif, _I, #cg{no_inplace_ops=true}) ->
+    Bif;
+in_place({gc_bif,Name,_Fail,_Live,_Args,_Dst}=Bif, I, #cg{}=St) ->
+    Uniq = uniq_args(I, St),
+    case Name of
+        '+' ->
+            in_place_commutative(Bif, Uniq);
+        '*' ->
+            in_place_commutative(Bif, Uniq);
+        '-' ->
+            in_place_non_commutative(Bif, Uniq);
+        _ ->
+            Bif
+    end.
+
+in_place_commutative({gc_bif,Name,Fail,Live,[Arg1,Arg2],Dst}=Bif, Uniq) ->
+    case uniq_same_reg(Arg1, Dst, Uniq) of
+        true ->
+            {in_place,Name,Fail,Live,[Arg1,Arg2],Dst};
+        false ->
+            case uniq_same_reg(Arg2, Dst, Uniq) of
+                true ->
+                    {in_place,Name,Fail,Live,[Arg2,Arg1],Dst};
+                false ->
+                    Bif
+            end
+    end;
+in_place_commutative(Bif, _) ->
+    Bif.
+
+in_place_non_commutative({gc_bif,Name,Fail,Live,[Arg1,Arg2],Dst}=Bif, Uniq) ->
+    case uniq_same_reg(Arg1, Dst, Uniq) of
+        true ->
+            {in_place,Name,Fail,Live,[Arg1,Arg2],Dst};
+        false ->
+            Bif
+    end;
+in_place_non_commutative(Bif, _) ->
+    Bif.
+
+uniq_same_reg({tr,Reg,_}, Reg, Uniq) ->
+    member(Reg, Uniq);
+uniq_same_reg(Reg, Reg, Uniq) ->
+    member(Reg, Uniq);
+uniq_same_reg(_, _, _) ->
+    false.
+
+uniq_args(#cg_set{anno=#{unique := Uniq},args=Args}, St) ->
+    [beam_arg(A, St) || A <- Args, member(A, Uniq)];
+uniq_args(_, _) ->
     [].
 
 beam_args(As, St) ->

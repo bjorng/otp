@@ -689,3 +689,13 @@ BEAM_FORMAT_NUMBER=0
 ##       * {get_tail,Live,Unit,Dst}
 ##       * {'=:=',Live,Size,Value}.
 182: bs_match/3
+
+# OTP 27
+
+## @spec in_place Lbl Live Bif Dst Arg2 Dst
+## @doc Call the bif Bif with the arguments Dst and Arg2,
+##      and store the result in Dst.
+##      On failure jump to Lbl.
+##      Do a garbage collection if necessary to allocate space on the heap
+##      for the result (saving Live number of X registers).
+183: in_place/6

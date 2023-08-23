@@ -266,7 +266,9 @@ expand_opt(r24, Os) ->
     expand_opt(no_type_opt, [no_badrecord, no_bs_create_bin, no_ssa_opt_ranges |
                              expand_opt(r25, Os)]);
 expand_opt(r25, Os) ->
-    [no_ssa_opt_update_tuple, no_bs_match, no_min_max_bifs | Os];
+    [no_ssa_opt_update_tuple, no_bs_match, no_min_max_bifs | expand_opt(r26, Os)];
+expand_opt(r26, Os) ->
+    [no_inplace_operators | Os];
 expand_opt({debug_info_key,_}=O, Os) ->
     [encrypt_debug_info,O|Os];
 expand_opt(no_type_opt=O, Os) ->

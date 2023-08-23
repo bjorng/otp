@@ -157,6 +157,7 @@ collect({allocate_heap,Ns,Nh,R}) -> {set,[],[],{alloc,R,{nozero,Ns,Nh,[]}}};
 collect({test_heap,N,R})     -> {set,[],[],{alloc,R,{nozero,nostack,N,[]}}};
 collect({bif,N,{f,0},As,D})  -> {set,[D],As,{bif,N,{f,0}}};
 collect({gc_bif,N,{f,0},R,As,D}) ->   {set,[D],As,{alloc,R,{gc_bif,N,{f,0}}}};
+collect({in_place,N,{f,0},R,As,D}) -> {set,[D],As,{alloc,R,{in_place,N,{f,0}}}};
 collect({move,S,D})          -> {set,[D],[S],move};
 collect({put_list,S1,S2,D})  -> {set,[D],[S1,S2],put_list};
 collect({put_tuple2,D,{list,Els}}) -> {set,[D],Els,put_tuple2};

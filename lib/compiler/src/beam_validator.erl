@@ -743,6 +743,8 @@ vi({gc_bif,Op,{f,Fail},Live,Ss0,Dst0}, Vst0) ->
     Vst = prune_x_regs(Live, Vst1),
 
     validate_bif(gc_bif, Op, Fail, Ss, Dst, Vst0, Vst);
+vi({in_place,Op,{f,Fail},Live,Args,Dst}, Vst) ->
+    vi({gc_bif,Op,{f,Fail},Live,Args,Dst}, Vst);
 
 %%
 %% Message instructions

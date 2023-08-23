@@ -1678,7 +1678,8 @@ bc_options(Config) ->
                        no_ssa_opt_float,
                        no_line_info,
                        no_type_opt,
-                       no_bs_match]},
+                       no_bs_match,
+                       no_inplace_operators]},
          {172, small, [r24]},
 
          {172, funs, [no_ssa_opt_record,
@@ -1701,8 +1702,14 @@ bc_options(Config) ->
 
          {178, small, [r25]},
          {178, big, [r25]},
+         {178, big, [r26]},
+         {178, funs, [r26]},
          {178, funs, []},
-         {178, big, []}
+         {178, big, []},
+
+         {182, small, [r26]},
+
+         {183, small, []}
         ],
 
     Test = fun({Expected,Mod,Options}) ->
