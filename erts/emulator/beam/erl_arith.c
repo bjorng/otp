@@ -312,7 +312,6 @@ BIF_RETTYPE bnot_1(BIF_ALIST_1)
 Eterm
 erts_mixed_plus(Process* p, Eterm arg1, Eterm arg2)
 {
-    Eterm tmp_big1[2], tmp_big2[2];
     Eterm res;
     Eterm hdr;
     FloatDef f1, f2;
@@ -351,8 +350,16 @@ erts_mixed_plus(Process* p, Eterm arg1, Eterm arg2)
 		    if (arg1 == SMALL_ZERO) {
 			return arg2;
 		    }
-		    arg1 = small_to_big(signed_val(arg1), tmp_big1);
-		    goto do_big;
+                    sz = big_size(arg2) + 1;
+		    need_heap = BIG_NEED_SIZE(sz);
+                    hp = HeapFragOnlyAlloc(p, need_heap);
+                    res = big_add_signed(arg2, signed_val(arg1), hp);
+                    maybe_shrink(p, hp, res, need_heap);
+                    if (is_nil(res)) {
+                        p->freason = SYSTEM_LIMIT;
+                        return THE_NON_VALUE;
+                    }
+                    return res;
 		case (_TAG_HEADER_FLOAT >> _TAG_PRIMARY_SIZE):
 		    f1.fd = signed_val(arg1);
 		    GET_DOUBLE(arg2, f2);
@@ -376,8 +383,16 @@ erts_mixed_plus(Process* p, Eterm arg1, Eterm arg2)
 		    if (arg2 == SMALL_ZERO) {
 			return arg1;
 		    }
-		    arg2 = small_to_big(signed_val(arg2), tmp_big2);
-		    goto do_big;
+                    sz = big_size(arg1) + 1;
+                    need_heap = BIG_NEED_SIZE(sz);
+                    hp = HeapFragOnlyAlloc(p, need_heap);
+                    res = big_add_signed(arg1, signed_val(arg2), hp);
+                    maybe_shrink(p, hp, res, need_heap);
+                    if (is_nil(res)) {
+                        p->freason = SYSTEM_LIMIT;
+                        return THE_NON_VALUE;
+                    }
+		    return res;
 		default:
 		    goto badarith;
 		}
@@ -386,7 +401,6 @@ erts_mixed_plus(Process* p, Eterm arg1, Eterm arg2)
 		switch ((hdr & _TAG_HEADER_MASK) >> _TAG_PRIMARY_SIZE) {
 		case (_TAG_HEADER_POS_BIG >> _TAG_PRIMARY_SIZE):
 		case (_TAG_HEADER_NEG_BIG >> _TAG_PRIMARY_SIZE):
-		do_big:
 		    sz1 = big_size(arg1);
 		    sz2 = big_size(arg2);
 		    sz = MAX(sz1, sz2)+1;
@@ -398,7 +412,7 @@ erts_mixed_plus(Process* p, Eterm arg1, Eterm arg2)
 			p->freason = SYSTEM_LIMIT;
 			return THE_NON_VALUE;
 		    }
-		    return res;
+                    return res;
 		case (_TAG_HEADER_FLOAT >> _TAG_PRIMARY_SIZE):
 		    if (big_to_double(arg1, &f1.fd) < 0) {
 			goto badarith;
@@ -521,7 +535,6 @@ erts_unary_minus(Process* p, Eterm arg)
 Eterm
 erts_mixed_minus(Process* p, Eterm arg1, Eterm arg2)
 {
-    Eterm tmp_big1[2], tmp_big2[2];
     Eterm hdr;
     Eterm res;
     FloatDef f1, f2;
@@ -557,8 +570,16 @@ erts_mixed_minus(Process* p, Eterm arg1, Eterm arg2)
 		switch ((hdr & _TAG_HEADER_MASK) >> _TAG_PRIMARY_SIZE) {
 		case (_TAG_HEADER_POS_BIG >> _TAG_PRIMARY_SIZE):
 		case (_TAG_HEADER_NEG_BIG >> _TAG_PRIMARY_SIZE):
-		    arg1 = small_to_big(signed_val(arg1), tmp_big1);
-		    goto do_big;
+                    sz = big_size(arg2) + 1;
+                    need_heap = BIG_NEED_SIZE(sz);
+                    hp = HeapFragOnlyAlloc(p, need_heap);
+                    res = big_sub_signed(signed_val(arg1), arg2, hp);
+                    maybe_shrink(p, hp, res, need_heap);
+                    if (is_nil(res)) {
+                        p->freason = SYSTEM_LIMIT;
+                        return THE_NON_VALUE;
+                    }
+                    return res;
 		case (_TAG_HEADER_FLOAT >> _TAG_PRIMARY_SIZE):
 		    f1.fd = signed_val(arg1);
 		    GET_DOUBLE(arg2, f2);
@@ -582,9 +603,24 @@ erts_mixed_minus(Process* p, Eterm arg1, Eterm arg2)
 		    if (arg2 == SMALL_ZERO) {
 			return arg1;
 		    }
-		    arg2 = small_to_big(signed_val(arg2), tmp_big2);
-
-		do_big:
+                    sz = big_size(arg1) + 1;
+                    need_heap = BIG_NEED_SIZE(sz);
+                    hp = HeapFragOnlyAlloc(p, need_heap);
+                    res = big_add_signed(arg1, -signed_val(arg2), hp);
+                    maybe_shrink(p, hp, res, need_heap);
+                    if (is_nil(res)) {
+                        p->freason = SYSTEM_LIMIT;
+                        return THE_NON_VALUE;
+                    }
+                    return res;
+		default:
+		    goto badarith;
+		}
+	    case TAG_PRIMARY_BOXED:
+		hdr = *boxed_val(arg2);
+		switch ((hdr & _TAG_HEADER_MASK) >> _TAG_PRIMARY_SIZE) {
+		case (_TAG_HEADER_POS_BIG >> _TAG_PRIMARY_SIZE):
+		case (_TAG_HEADER_NEG_BIG >> _TAG_PRIMARY_SIZE):
 		    sz1 = big_size(arg1);
 		    sz2 = big_size(arg2);
 		    sz = MAX(sz1, sz2)+1;
@@ -597,15 +633,6 @@ erts_mixed_minus(Process* p, Eterm arg1, Eterm arg2)
 			return THE_NON_VALUE;
 		    }
 		    return res;
-		default:
-		    goto badarith;
-		}
-	    case TAG_PRIMARY_BOXED:
-		hdr = *boxed_val(arg2);
-		switch ((hdr & _TAG_HEADER_MASK) >> _TAG_PRIMARY_SIZE) {
-		case (_TAG_HEADER_POS_BIG >> _TAG_PRIMARY_SIZE):
-		case (_TAG_HEADER_NEG_BIG >> _TAG_PRIMARY_SIZE):
-		    goto do_big;
 		case (_TAG_HEADER_FLOAT >> _TAG_PRIMARY_SIZE):
 		    if (big_to_double(arg1, &f1.fd) < 0) {
 			goto badarith;
@@ -663,7 +690,6 @@ erts_mixed_minus(Process* p, Eterm arg1, Eterm arg2)
 Eterm
 erts_mixed_times(Process* p, Eterm arg1, Eterm arg2)
 {
-    Eterm tmp_big1[2], tmp_big2[2];
     Eterm hdr;
     Eterm res;
     FloatDef f1, f2;
@@ -734,9 +760,23 @@ erts_mixed_times(Process* p, Eterm arg1, Eterm arg2)
 			return(SMALL_ZERO);
 		    if (arg1 == SMALL_ONE)
 			return(arg2);
-		    arg1 = small_to_big(signed_val(arg1), tmp_big1);
-		    sz = 2 + big_size(arg2);
-		    goto do_big;
+                    sz = big_size(arg2) + 1;
+                    need_heap = BIG_NEED_SIZE(sz);
+#ifdef DEBUG
+                    need_heap++;
+#endif
+                    hp = HeapFragOnlyAlloc(p, need_heap);
+#ifdef DEBUG
+                    hp[need_heap-1] = ERTS_HOLE_MARKER;
+#endif
+                    res = big_mul_small(arg2, arg1, hp);
+                    ASSERT(hp[need_heap-1] == ERTS_HOLE_MARKER);
+                    maybe_shrink(p, hp, res, need_heap);
+                    if (is_nil(res)) {
+                        p->freason = SYSTEM_LIMIT;
+                        return THE_NON_VALUE;
+                    }
+                    return res;
 		case (_TAG_HEADER_FLOAT >> _TAG_PRIMARY_SIZE):
 		    f1.fd = signed_val(arg1);
 		    GET_DOUBLE(arg2, f2);
@@ -761,9 +801,24 @@ erts_mixed_times(Process* p, Eterm arg1, Eterm arg2)
 			return(SMALL_ZERO);
 		    if (arg2 == SMALL_ONE)
 			return(arg1);
-		    arg2 = small_to_big(signed_val(arg2), tmp_big2);
-		    sz = 2 + big_size(arg1);
-		    goto do_big;
+                    sz = big_size(arg1) + 1;
+                    need_heap = BIG_NEED_SIZE(sz);
+#ifdef DEBUG
+                    need_heap++;
+#endif
+                    hp = HeapFragOnlyAlloc(p, need_heap);
+
+#ifdef DEBUG
+                    hp[need_heap-1] = ERTS_HOLE_MARKER;
+#endif
+                    res = big_mul_small(arg1, arg2, hp);
+                    ASSERT(hp[need_heap-1] == ERTS_HOLE_MARKER);
+                    maybe_shrink(p, hp, res, need_heap);
+                    if (is_nil(res)) {
+                        p->freason = SYSTEM_LIMIT;
+                        return THE_NON_VALUE;
+                    }
+                    return res;
 		default:
 		    goto badarith;
 		}
@@ -775,26 +830,16 @@ erts_mixed_times(Process* p, Eterm arg1, Eterm arg2)
 		    sz1 = big_size(arg1);
 		    sz2 = big_size(arg2);
 		    sz = sz1 + sz2;
-
-		do_big:
 		    need_heap = BIG_NEED_SIZE(sz);
 #ifdef DEBUG
                     need_heap++;
 #endif
                     hp = HeapFragOnlyAlloc(p, need_heap);
-
 #ifdef DEBUG
                     hp[need_heap-1] = ERTS_HOLE_MARKER;
 #endif
 		    res = big_times(arg1, arg2, hp);
                     ASSERT(hp[need_heap-1] == ERTS_HOLE_MARKER);
-
-		    /*
-		     * Note that the result must be big in this case, since
-		     * at least one operand was big to begin with, and
-		     * the absolute value of the other is > 1.
-		     */
-
                     maybe_shrink(p, hp, res, need_heap);
 		    if (is_nil(res)) {
 			p->freason = SYSTEM_LIMIT;
