@@ -2900,12 +2900,80 @@ Eterm big_plus_small(Eterm x, Uint y, Eterm *r)
 				 BIG_V(r)), (short) BIG_SIGN(xp));
 }
 
-Eterm big_times_small(Eterm x, Uint y, Eterm *r)
+Eterm big_add_signed(Eterm x, Sint y0, Eterm *r)
 {
     Eterm* xp = big_val(x);
+    ErtsDigit y;
+    short xsgn;
+    short ysgn;
 
-    return big_norm(r, D_mul(BIG_V(xp),BIG_SIZE(xp), (ErtsDigit) y, 
-			     BIG_V(r)), (short) BIG_SIGN(xp));
+    xsgn = BIG_SIGN(xp);
+    if (y0 >= 0) {
+        ysgn = 0;
+        y = (ErtsDigit)y0;
+    } else {
+        ysgn = 1;
+        y = (ErtsDigit)-y0;
+    }
+
+    if (xsgn == ysgn) {
+        ASSERT(I_comp(BIG_V(xp), BIG_SIZE(xp), &y, 1) >= 0);
+        return big_norm(r, D_add(BIG_V(xp), BIG_SIZE(xp),
+                                 y, BIG_V(r)),
+                        xsgn);
+    } else {
+        ASSERT(I_comp(BIG_V(xp), BIG_SIZE(xp), &y, 1) >= 0);
+        return big_norm(r, D_sub(BIG_V(xp), BIG_SIZE(xp),
+                                 y, BIG_V(r)),
+                        xsgn);
+    }
+}
+
+/* Calculate SignedSmall - Big */
+Eterm big_sub_signed(Sint x0, Eterm y, Eterm *r)
+{
+    Eterm* yp = big_val(y);
+    ErtsDigit x;
+    short xsgn;
+    short ysgn;
+
+    if (x0 >= 0) {
+        xsgn = 0;
+        x = (ErtsDigit)x0;
+    } else {
+        xsgn = 1;
+        x = (ErtsDigit)-x0;
+    }
+    ysgn = !BIG_SIGN(yp);
+
+    if (xsgn == ysgn) {
+        ASSERT(I_comp(BIG_V(yp), BIG_SIZE(yp), &x, 1) >= 0);
+        return big_norm(r, D_add(BIG_V(yp), BIG_SIZE(yp),
+                                 x, BIG_V(r)),
+                        xsgn);
+    } else {
+        ASSERT(I_comp(BIG_V(yp), BIG_SIZE(yp), &x, 1) >= 0);
+        return big_norm(r, D_sub(BIG_V(yp), BIG_SIZE(yp),
+                                 x, BIG_V(r)),
+                        ysgn);
+    }
+}
+
+Eterm big_mul_small(Eterm x, Eterm y, Eterm *r)
+{
+    Eterm* xp = big_val(x);
+    Sint val;
+    short sgn = BIG_SIGN(xp);
+
+    val = signed_val(y);
+    if (val < 0) {
+        val = -val;
+        sgn = !sgn;
+    }
+
+    return big_norm(r, D_mul(BIG_V(xp), BIG_SIZE(xp),
+                             (ErtsDigit) val, BIG_V(r)),
+                    sgn);
 }
 
 /*

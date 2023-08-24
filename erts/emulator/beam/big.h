@@ -144,7 +144,9 @@ Eterm big_div(Eterm, Eterm, Eterm*);
 Eterm big_rem(Eterm, Eterm, Eterm*);
 
 Eterm big_plus_small(Eterm, Uint, Eterm*);
-Eterm big_times_small(Eterm, Uint, Eterm*);
+Eterm big_add_signed(Eterm x, Sint y, Eterm *r);
+Eterm big_sub_signed(Sint x0, Eterm y, Eterm *r);
+Eterm big_mul_small(Eterm, Eterm, Eterm*);
 
 Eterm big_band(Eterm, Eterm, Eterm*);
 Eterm big_bor(Eterm, Eterm, Eterm*);
