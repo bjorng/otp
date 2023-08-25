@@ -1337,6 +1337,7 @@ Eterm erts_band(Process* p, Eterm arg1, Eterm arg2)
 {
     Eterm tmp_big1[2], tmp_big2[2];
     Eterm* hp;
+    dsize_t sz1, sz2, sz;
     int need;
 
     switch (NUMBER_CODE(arg1, arg2)) {
@@ -1352,9 +1353,25 @@ Eterm erts_band(Process* p, Eterm arg1, Eterm arg2)
 	p->freason = BADARITH;
 	return THE_NON_VALUE;
     }
-    need = BIG_NEED_SIZE(MAX(big_size(arg1), big_size(arg2)) + 1);
+    sz1 = big_size(arg1);
+    sz2 = big_size(arg2);
+    if (big_sign(arg1) == 0 && sz1 < sz2) {
+        sz = sz1 + 1;
+    } else if (big_sign(arg2) == 0 && sz2 < sz1) {
+        sz = sz2 + 1;
+    } else {
+        sz = MAX(sz1, sz2) + 1;
+    }
+    need = BIG_NEED_SIZE(sz);
+#ifdef DEBUG
+    need++;
+#endif
     hp = HeapFragOnlyAlloc(p, need);
+#ifdef DEBUG
+    hp[need-1] = ERTS_HOLE_MARKER;
+#endif
     arg1 = big_band(arg1, arg2, hp);
+    ASSERT(hp[need-1] == ERTS_HOLE_MARKER);
     ASSERT(is_not_nil(arg1));
     maybe_shrink(p, hp, arg1, need);
     return arg1;
