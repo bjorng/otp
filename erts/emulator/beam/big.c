@@ -61,16 +61,6 @@
 	c = (___xr < ___yr);					\
     }  while(0)
 
-#define DSUBb(a,b,r,d) do {						\
-	ErtsDigit ___cr = (r);						\
-	ErtsDigit ___xr = (a);						\
-	ErtsDigit ___yr = (b)+___cr;					\
-	___cr = (___yr < ___cr);					\
-	___yr = ___xr - ___yr;						\
-	___cr += (___yr > ___xr);					\
-	d = ___yr;							\
-	r = ___cr;							\
-    } while(0)
 
 #define DSUB(a,b,r,d) do {			\
 	ErtsDigit ___xr = (a);			\
@@ -130,6 +120,12 @@
         s = DLOW(_t);                                           \
         c = DHIGH(_t);                                          \
     }  while(0)
+
+#define DSUBb(a,b,r,d) do {                                     \
+        ErtsDoubleDigit _t = (ErtsDoubleDigit)(a)-(b)-(r);	\
+        d = DLOW(_t);                                           \
+        r = -DHIGH(_t);                                         \
+    } while(0)
 
 #else
 
@@ -429,6 +425,17 @@
         c = ___cr;                              \
     } while(0)
 
+#define DSUBb(a,b,r,d) do {                     \
+        ErtsDigit ___cr = (r);                  \
+        ErtsDigit ___xr = (a);                  \
+        ErtsDigit ___yr = (b)+___cr;            \
+        ___cr = (___yr < ___cr);                \
+        ___yr = ___xr - ___yr;                  \
+        ___cr += (___yr > ___xr);               \
+        d = ___yr;                              \
+        r = ___cr;                              \
+    } while(0)
+
 #endif
 
 /* Forward declaration of lookup tables (See below in this file) used in list to
@@ -546,11 +553,9 @@ static dsize_t I_sub(ErtsDigit* x, dsize_t xl, ErtsDigit* y, dsize_t yl, ErtsDig
 
     xl -= yl;
     do {
-	yr = *y++ + c;
-	xr = *x++;
-	c = (yr < c);
-	yr = xr - yr;
-	c += (yr > xr);
+        xr = *x++;
+        yr = *y++;
+        DSUBb(xr, yr, c, yr);
 	*r++ = yr;
     } while(--yl);
 
