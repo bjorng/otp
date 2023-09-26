@@ -1022,6 +1022,10 @@ class BeamModuleAssembler : public BeamAssembler,
         }
     }
 
+    Uint64 decode_br(byte *ptr);
+    void optimize_stubs(const void *executable_ptr,
+                        void *writable_ptr);
+
 public:
     BeamModuleAssembler(BeamGlobalAssembler *ga,
                         Eterm mod,

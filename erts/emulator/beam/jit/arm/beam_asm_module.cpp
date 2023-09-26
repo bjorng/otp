@@ -431,6 +431,54 @@ void BeamModuleAssembler::emit_int_code_end() {
     flush_pending_stubs(dispMax);
 }
 
+Uint64 BeamModuleAssembler::decode_br(byte *ptr) {
+    Uint64 offset = 0;
+    Uint64 imm16;
+    Uint32 *ip = (Uint32 *) ptr;
+
+    ASSERT(SUPER_TMP.id() == 0x0e);
+
+    for (;;) {
+        Uint32 instr = *ip++;
+
+        if ((instr & 0xff80001f) == 0xd280000e) {
+            /* movz SUPER_TMP, imm16 */
+            imm16 = (instr >> 5) & 0xffff;
+            offset = imm16;
+        } else if ((instr & 0xff80001f) == 0xf280000e) {
+            /* movk SUPER_TMP, imm16 lsl shift */
+            Uint64 shift = 16 * ((instr >> 21) & 3);
+            imm16 = (instr >> 5) & 0xffff;
+            offset |= imm16 << shift;
+        } else if (instr == 0xd61f01c0) {
+            /* br SUPER_TMP */
+            return offset;
+        } else {
+            return 0;
+        }
+    }
+}
+
+void BeamModuleAssembler::optimize_stubs(const void *executable_ptr,
+                                         void *writable_ptr) {
+    auto code_buf = (byte *) writable_ptr;
+    Uint64 pc_base = (Uint64) executable_ptr;
+    for (auto pair : _dispatchTable) {
+        auto labelOffset = code.labelOffsetFromBase(pair.second);
+        Uint64 target = decode_br(code_buf + labelOffset);
+        if (target != 0) {
+            Uint64 pc = pc_base + labelOffset;
+            Sint64 displacement = target - pc;
+            if (displacement >> 27 == displacement >> 63) {
+                Uint32 imm = (displacement >> 2) & ((1 << 26) - 1);
+                Uint32 instr = 0x14000000 | imm;
+                /* Replace with a `b` instruction */
+                *(Uint32 *) (code_buf + labelOffset) = instr;
+            }
+        }
+    }
+}
+
 void BeamModuleAssembler::emit_line(const ArgWord &Loc) {
     /* There is no need to align the line instruction. In the loaded code, the
      * type of the pointer will be void* and that pointer will only be used in

@@ -215,6 +215,8 @@ void BeamModuleAssembler::codegen(JitAllocator *allocator,
 
     BeamAssembler::codegen(allocator, executable_ptr, writable_ptr);
 
+    optimize_stubs(*executable_ptr, *writable_ptr);
+
     {
         auto offset = code.labelOffsetFromBase(code_header);
 

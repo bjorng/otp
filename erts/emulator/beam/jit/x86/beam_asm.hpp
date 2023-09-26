@@ -1128,6 +1128,10 @@ class BeamModuleAssembler : public BeamAssembler,
      * fragments as if they were local. */
     std::unordered_map<void (*)(), Label> _dispatchTable;
 
+    void optimize_stubs(const void *executable_ptr,
+                        void *writable_ptr) {
+    }
+
 public:
     BeamModuleAssembler(BeamGlobalAssembler *ga,
                         Eterm mod,
