@@ -218,12 +218,9 @@ f() ->
       <item>Evaluate the following lines only if <c>Macro</c> is not
        defined.</item>
       <tag><c>-else.</c></tag>
-      <item>Only allowed after an <c>ifdef</c> or <c>ifndef</c>
-       directive. If that condition is false, the lines following
-      <c>else</c> are evaluated instead.</item>
-      <tag><c>-endif.</c></tag>
-      <item>Specifies the end of an <c>ifdef</c>, an <c>ifndef</c>
-       directive, or the end of an <c>if</c> or <c>elif</c> directive.</item>
+      <item>Only allowed after the <c>ifdef</c>, <c>ifndef</c>, <c>if</c>,
+      and <c>elif</c> directives. The lines following <c>else</c> are
+      evaluated if the preceding directive evaluated to false.</item>
       <tag><c>-if(Condition).</c></tag>
       <item>Evaluates the following lines only if <c>Condition</c>
        evaluates to true.</item>
@@ -232,10 +229,13 @@ f() ->
        If the preceding <c>if</c> or <c>elif</c> directives do not
        evaluate to true, and the <c>Condition</c> evaluates to true,
        the lines following the <c>elif</c> are evaluated instead.</item>
+      <tag><c>-endif.</c></tag>
+      <item>Specifies the end of a series of control flow directives.</item>
     </taglist>
     <note>
       <p>The macro directives cannot be used inside functions.</p>
     </note>
+
     <p><em>Example:</em></p>
     <code type="none">
 -module(m).
