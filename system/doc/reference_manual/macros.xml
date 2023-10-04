@@ -206,11 +206,16 @@ f() ->
   </section>
 
   <section>
+    <title>Removing a macro definition</title>
+    <p>A definition of macro can be removed as follows:</p>
+    <code type="none">
+-undef(Macro).</code>
+  </section>
+
+  <section>
     <title>Flow Control in Macros</title>
     <p>The following macro directives are supplied:</p>
     <taglist>
-      <tag><c>-undef(Macro).</c></tag>
-      <item>Causes the macro to behave as if it had never been defined.</item>
       <tag><c>-ifdef(Macro).</c></tag>
       <item>Evaluate the following lines only if <c>Macro</c> is
        defined.</item>
