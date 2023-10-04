@@ -236,6 +236,8 @@ f() ->
       <p>The macro directives cannot be used inside functions.</p>
     </note>
 
+    <p>The <c>Condition</c> in <c>if</c> and <c>elif</c> must be ...</p>
+
     <p><em>Example:</em></p>
     <code type="none">
 -module(m).
