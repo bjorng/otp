@@ -241,7 +241,23 @@ f() ->
       <p>The macro directives cannot be used inside functions.</p>
     </note>
 
-    <p>The <c>Condition</c> in <c>if</c> and <c>elif</c> must be ...</p>
+    <p>Syntactically, the <c>Condition</c> in <c>if</c> and <c>elif</c>
+    must be a guard expression. Other constructs (such as a <c>case</c> expression)
+    results in a compilation error.</p>
+
+    <p>Semantically, the rules for <c>Condition</c> is different in two regards
+    compared to guard expression in other places:</p>
+
+    <list>
+      <item><p>There is a function <c>defined(Name)</c> that tests whether the
+      <c>Name</c> argument is the name of a previously defined macro, returning
+      <c>true</c> if it is, and <c>false</c> otherwise.</p></item>
+
+      <item><p>A call with name and arity no corresponding to an existing guard
+      BIF does not result in a compilation error. Instead, if such function call
+      is executed, an exception is raised, causing the expression to fail and the
+      lines following <c>if</c> or <c>elif</c> to be skipped.</p></item>
+    </list>
 
     <p><em>Example:</em></p>
     <code type="none">
