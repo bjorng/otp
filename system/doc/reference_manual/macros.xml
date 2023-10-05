@@ -231,7 +231,7 @@ f() ->
        evaluates to true.</item>
       <tag><c>-elif(Condition).</c></tag>
       <item>Only allowed after an <c>if</c> or another <c>elif</c> directive.
-       If the preceding <c>if</c> or <c>elif</c> directives do not
+       If the preceding <c>if</c> or <c>elif</c> directive does not
        evaluate to true, and the <c>Condition</c> evaluates to true,
        the lines following the <c>elif</c> are evaluated instead.</item>
       <tag><c>-endif.</c></tag>
@@ -243,7 +243,7 @@ f() ->
 
     <p>Syntactically, the <c>Condition</c> in <c>if</c> and <c>elif</c>
     must be a guard expression. Other constructs (such as a <c>case</c> expression)
-    results in a compilation error.</p>
+    result in a compilation error.</p>
 
     <p>Semantically, the rules for <c>Condition</c> is different in two regards
     compared to guard expression in other places:</p>
@@ -287,19 +287,27 @@ or
     <code type="none">
 -module(m)
 ...
--ifdef(OTP_RELEASE).
-  %% OTP 21 or higher
-  -if(?OTP_RELEASE >= 22).
-    %% Code that will work in OTP 22 or higher
-  -elif(?OTP_RELEASE >= 21).
-    %% Code that will work in OTP 21 or higher
-  -endif.
+-if(?OTP_RELEASE >= 25).
+%% Code that will work in OTP 25 or higher
+-elif(?OTP_RELEASE >= 26).
+%% Code that will work in OTP 26 or higher
 -else.
-  %% OTP 20 or lower.
+%% Code that will work in OTP 24 or lower.
 -endif.
 ...</code>
     <p>The code uses the <c>OTP_RELEASE</c> macro to conditionally
     select code depending on release.</p>
+
+    <p><em>Example:</em></p>
+    <code type="none">
+-module(m)
+...
+-if(?OTP_RELEASE >= 26 andalso defined(debug)).
+%% Debugging code that requires OTP 26 or later.
+-else.
+%% Non-debug code that works in any release.
+-endif.
+...</code>
   </section>
 
   <section>
