@@ -295,7 +295,7 @@ or
 %% Code that will work in OTP 24 or lower.
 -endif.
 ...</code>
-    <p>The code uses the <c>OTP_RELEASE</c> macro to conditionally
+    <p>This code uses the <c>OTP_RELEASE</c> macro to conditionally
     select code depending on release.</p>
 
     <p><em>Example:</em></p>
