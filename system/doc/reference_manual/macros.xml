@@ -213,8 +213,8 @@ f() ->
   </section>
 
   <section>
-    <title>Flow Control in Macros</title>
-    <p>The following macro directives are supplied:</p>
+    <title>Conditional Compilation</title>
+    <p>The following macro directives support conditional compilation:</p>
     <taglist>
       <tag><c>-ifdef(Macro).</c></tag>
       <item>Evaluate the following lines only if <c>Macro</c> is
@@ -238,14 +238,14 @@ f() ->
       <item>Specifies the end of a series of control flow directives.</item>
     </taglist>
     <note>
-      <p>The macro directives cannot be used inside functions.</p>
+      <p>Macro directives cannot be used inside functions.</p>
     </note>
 
     <p>Syntactically, the <c>Condition</c> in <c>if</c> and <c>elif</c>
     must be a guard expression. Other constructs (such as a <c>case</c> expression)
     result in a compilation error.</p>
 
-    <p>Semantically, the rules for <c>Condition</c> is different in two regards
+    <p>Semantically, the rules for <c>Condition</c> are different
     compared to guard expression in other places:</p>
 
     <list>
@@ -253,7 +253,7 @@ f() ->
       <c>Name</c> argument is the name of a previously defined macro, returning
       <c>true</c> if it is, and <c>false</c> otherwise.</p></item>
 
-      <item><p>A call with name and arity no corresponding to an existing guard
+      <item><p>A call with name and arity not corresponding to an existing guard
       BIF does not result in a compilation error. Instead, if such function call
       is executed, an exception is raised, causing the expression to fail and the
       lines following <c>if</c> or <c>elif</c> to be skipped.</p></item>
