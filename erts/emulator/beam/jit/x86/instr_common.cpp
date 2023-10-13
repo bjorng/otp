@@ -1635,12 +1635,16 @@ void BeamModuleAssembler::emit_is_eq(const ArgLabel &Fail,
     a.cmp(ARG1, ARG2);
     a.short_().je(next);
 
-    /* We can skip deep comparisons when both args are immediates. */
-    a.mov(RETd, ARG1d);
-    a.and_(RETd, ARG2d);
-    a.and_(RETb, imm(_TAG_PRIMARY_MASK));
-    a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
-    a.je(fail);
+    if (A.isLiteral() || B.isLiteral()) {
+        comment("skipped test for small because one operand is never small");
+    } else {
+        /* We can skip deep comparisons when both args are immediates. */
+        a.mov(RETd, ARG1d);
+        a.and_(RETd, ARG2d);
+        a.and_(RETb, imm(_TAG_PRIMARY_MASK));
+        a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
+        a.je(fail);
+    }
 
     safe_fragment_call(ga->get_arith_eq_shared());
     a.jne(fail);
@@ -1658,12 +1662,16 @@ void BeamModuleAssembler::emit_is_ne(const ArgLabel &Fail,
     a.cmp(ARG1, ARG2);
     a.je(fail);
 
-    /* We can skip deep comparisons when both args are immediates. */
-    a.mov(RETd, ARG1d);
-    a.and_(RETd, ARG2d);
-    a.and_(RETb, imm(_TAG_PRIMARY_MASK));
-    a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
-    a.short_().je(next);
+    if (A.isLiteral() || B.isLiteral()) {
+        comment("skipped test for small because one operand is never small");
+    } else {
+        /* We can skip deep comparisons when both args are immediates. */
+        a.mov(RETd, ARG1d);
+        a.and_(RETd, ARG2d);
+        a.and_(RETb, imm(_TAG_PRIMARY_MASK));
+        a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
+        a.short_().je(next);
+    }
 
     safe_fragment_call(ga->get_arith_eq_shared());
     a.je(fail);
@@ -1766,6 +1774,7 @@ void BeamModuleAssembler::emit_is_lt(const ArgLabel &Fail,
     Label generic = a.newLabel(), do_jge = a.newLabel(), next = a.newLabel();
     bool both_small = always_small(LHS) && always_small(RHS);
     bool need_generic = !both_small;
+    bool never_small = LHS.isLiteral() || RHS.isLiteral();
 
     mov_arg(ARG2, RHS); /* May clobber ARG1 */
     mov_arg(ARG1, LHS);
@@ -1793,6 +1802,10 @@ void BeamModuleAssembler::emit_is_lt(const ArgLabel &Fail,
         comment("simplified test because it always succeeds when LHS is a "
                 "bignum");
         emit_is_not_boxed(next, ARG1, dShort);
+    } else if (never_small) {
+        comment("skipped test for small because one operand is never small");
+        a.cmp(ARG1, ARG2);
+        a.short_().je(do_jge);
     } else if (always_one_of<BeamTypeId::Integer, BeamTypeId::AlwaysBoxed>(
                        LHS) &&
                always_one_of<BeamTypeId::Integer, BeamTypeId::AlwaysBoxed>(
@@ -1832,9 +1845,11 @@ void BeamModuleAssembler::emit_is_lt(const ArgLabel &Fail,
     }
 
     /* Both arguments are smalls. */
-    a.cmp(ARG1, ARG2);
-    if (need_generic) {
-        a.short_().jmp(do_jge);
+    if (!never_small) {
+        a.cmp(ARG1, ARG2);
+        if (need_generic) {
+            a.short_().jmp(do_jge);
+        }
     }
 
     a.bind(generic);
@@ -1872,6 +1887,7 @@ void BeamModuleAssembler::emit_is_ge(const ArgLabel &Fail,
     Label generic = a.newLabel(), small = a.newLabel(), do_jl = a.newLabel(),
           next = a.newLabel();
     bool need_generic = !both_small;
+    bool never_small = LHS.isLiteral() || RHS.isLiteral();
 
     mov_arg(ARG2, RHS); /* May clobber ARG1 */
     mov_arg(ARG1, LHS);
@@ -1929,6 +1945,10 @@ void BeamModuleAssembler::emit_is_ge(const ArgLabel &Fail,
         a.cmp(RETb, imm(_TAG_HEADER_NEG_BIG));
         /* Fail if bignum is positive. */
         a.short_().jmp(do_jl);
+    } else if (never_small) {
+        comment("skipped test for small because one operand is never small");
+        a.cmp(ARG1, ARG2);
+        a.short_().je(next);
     } else if (always_one_of<BeamTypeId::Integer, BeamTypeId::AlwaysBoxed>(
                        LHS) &&
                always_one_of<BeamTypeId::Integer, BeamTypeId::AlwaysBoxed>(
@@ -1956,7 +1976,7 @@ void BeamModuleAssembler::emit_is_ge(const ArgLabel &Fail,
         } else {
             /* Avoid the expensive generic comparison for equal terms. */
             a.cmp(ARG1, ARG2);
-            a.short_().je(do_jl);
+            a.short_().je(next);
 
             a.mov(RETd, ARG1d);
             a.and_(RETd, ARG2d);
@@ -1969,9 +1989,11 @@ void BeamModuleAssembler::emit_is_ge(const ArgLabel &Fail,
 
     /* Both arguments are smalls. */
     a.bind(small);
-    a.cmp(ARG1, ARG2);
-    if (need_generic) {
-        a.short_().jmp(do_jl);
+    if (!never_small) {
+        a.cmp(ARG1, ARG2);
+        if (need_generic) {
+            a.short_().jmp(do_jl);
+        }
     }
 
     a.bind(generic);
