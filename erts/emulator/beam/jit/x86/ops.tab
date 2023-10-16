@@ -794,6 +794,10 @@ i_call_fun2_last aF t S t
 make_fun3 OldIndex=u Dst=d NumFree=u Env=* =>
     make_fun3(OldIndex, Dst, NumFree, Env)
 
+# Simplify a swap following the loading of a fun literal.
+i_move S=c D1 | swap D2 D3 | equal(D1, D2) => i_move D3 D1 | i_move S D3
+i_move S=c D1 | swap D3 D2 | equal(D1, D2) => i_move D3 D1 | i_move S D3
+
 %cold
 
 i_make_fun3 F S t t *
