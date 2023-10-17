@@ -295,7 +295,7 @@ pgen_partial_types1(Erules,[{FuncName,[TopType|RestTypes]}|Rest]) ->
     CurrMod = get(currmod),
     TypeDef = asn1_db:dbget(CurrMod,TopType),
     traverse_type_structure(Erules,TypeDef,RestTypes,FuncName,
-			    TypeDef#typedef.name),
+			    [TypeDef#typedef.name]),
     pgen_partial_types1(Erules,Rest);
 pgen_partial_types1(_,[]) ->
     ok;
