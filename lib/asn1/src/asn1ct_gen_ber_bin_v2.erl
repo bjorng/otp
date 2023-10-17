@@ -30,7 +30,7 @@
 -export([gen_encode_prim/4]).
 -export([gen_dec_prim/3]).
 -export([gen_objectset_code/2, gen_obj_code/3]).
--export([encode_tag_val/3]).
+-export([encode_tag_val/3,tag_to_integer/1]).
 -export([gen_inc_decode/2,gen_decode_selected/3]).
 -export([extaddgroup2sequence/1]).
 -export([dialyzer_suppressions/1]).
@@ -72,16 +72,33 @@ dialyzer_suppressions(_) ->
 	false -> ok;
 	true -> suppress({ber,encode_bit_string,4})
     end,
-    suppress({ber,decode_selective,2}),
+
+    %% The `no_match` option for dialyzer will suppress clauses whose
+    %% patterns will never match. Here we must ensure that dialyzer
+    %% sees calls to all helper functions to avoid warnings for
+    %% functions that will never be called.
+    %%
+    %% We provide argument lists that avoid dialyzer warnings,
+    %% but stills allows the compiler to do some optimizations.
+
+    Args1 = ["element(5, Arg)", "[skip,{skip_optional,<<0>>},{chosen,<<0>>}]"],
+    suppress({ber,decode_selective,2}, Args1),
+
+    Args2 = ["[{undecoded,0},{alt_parts,0}]", "element(6, Arg)"],
+    suppress({ber,decode_primitive_incomplete,2}, Args2),
+
     emit(["    ok.",nl]).
 
-suppress({M,F,A}=MFA) ->
+suppress({_,_,A}=MFA) ->
+    Args = [lists:concat(["element(",I,", Arg)"]) || I <- lists:seq(1, A)],
+    suppress(MFA, Args).
+
+suppress({M,F,_}=MFA, Args) ->
     case asn1ct_func:is_used(MFA) of
 	false ->
 	    ok;
 	true ->
-	    Args = [lists:concat(["element(",I,", Arg)"]) || I <- lists:seq(1, A)],
-	    emit(["    ",{call,M,F,Args},com,nl])
+	    emit(["    _ = ",{call,M,F,Args},com,nl])
     end.
 
 %%===============================================================================
@@ -382,14 +399,9 @@ gen_decode_selected_type(_Erules,TypeDef) ->
 	    asn1ct_name:new(len),
 	    gen_dec_prim(Def, BytesVar, Tag);
 	{constructed,bif} ->
-	    TopType = case TypeDef#typedef.name of
-			  A when is_atom(A) -> [A];
-			  N -> N
-		      end,
-	    DecFunName = lists:concat(["'",dec,"_",
-				       asn1ct_gen:list2name(TopType),"'"]),
-	    emit([DecFunName,"(",BytesVar,
-		  ", ",{asis,Tag},")"]);
+	    TopType = TypeDef#typedef.name,
+            DecFunName = dec_func(asn1ct_gen:list2name(TopType)),
+            emit([DecFunName,"(",BytesVar,", ",{asis,Tag},")"]);
 	TheType ->
 	    DecFunName = mkfuncname(TheType,dec),
 	    emit([DecFunName,"(",BytesVar,
@@ -1526,6 +1538,10 @@ get_object_field(Name,ObjectFields) ->
 	{value,Field} -> Field;
 	false -> false
     end.
+
+tag_to_integer(#tag{class=Class,number=N})
+  when is_integer(N), 0 =< N, N =< 1 bsl 16 ->
+    decode_class(Class) bsl 10 bor N.
 
 %%encode_tag(TagClass(?UNI, APP etc), Form (?PRIM etx), TagInteger) ->  
 %%     8bit Int | binary 

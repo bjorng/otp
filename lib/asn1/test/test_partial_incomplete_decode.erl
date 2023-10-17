@@ -25,45 +25,121 @@
 -include_lib("common_test/include/ct.hrl").
 
 test(Config) ->
+    test_PartialDecSeq(),
+    test_PartialDecSeq2(),
+    test_PartialDecSeq3(),
+    test_MyHTTPMsg(),
+    test_megaco(Config),
+    ok.
+
+test_PartialDecSeq() ->
+    M = 'PartialDecSeq',
+
     FMsg = msg('F'),
-    Bytes1 = roundtrip('PartialDecSeq', 'F', FMsg),
-    {ok,IncFMsg} = 'PartialDecSeq':decode_F_fb_incomplete(Bytes1),
+    Bytes1 = roundtrip(M, 'F', FMsg),
+    {ok,IncFMsg} = M:decode_F_fb_incomplete(Bytes1),
     decode_parts('F', IncFMsg),
-    {ok,IncF2Msg} = 'PartialDecSeq':decode_F_fb_exclusive2(Bytes1),
+    {ok,IncF2Msg} = M:decode_F_fb_exclusive2(Bytes1),
     decode_parts('F2', IncF2Msg),
-    
+
     DMsg = msg('D'),
-    Bytes2 = roundtrip('PartialDecSeq', 'D', DMsg),
-    {ok,IncDMsg} = 'PartialDecSeq':decode_D_incomplete(Bytes2),
+    Bytes2 = roundtrip(M, 'D', DMsg),
+    {ok,IncDMsg} = M:decode_D_incomplete(Bytes2),
     decode_parts('D', IncDMsg),
 
     F3Msg = msg('F3'),
-    BytesF3 = roundtrip('PartialDecSeq', 'F', F3Msg),
-    {ok,IncF3Msg} = 'PartialDecSeq':decode_F_fb_exclusive3(BytesF3),
+    BytesF3 = roundtrip(M, 'F', F3Msg),
+    {ok,IncF3Msg} = M:decode_F_fb_exclusive3(BytesF3),
     decode_parts('F3', IncF3Msg),
 
+    EMsg = msg('E'),
+    Bytes4 = roundtrip(M, 'E', EMsg),
+    {ok,IncEMsg} = M:decode_E_b_incomplete(Bytes4),
+    decode_parts('E', IncEMsg),
+
+    ok.
+
+test_PartialDecSeq2() ->
+    M = 'PartialDecSeq2',
+
     AMsg = msg('A'),
-    Bytes3 = roundtrip('PartialDecSeq2', 'A', AMsg),
-    {ok,IncFMsg3} = 'PartialDecSeq2':decode_A_c_b_incomplete(Bytes3),
-    decode_parts('A', IncFMsg3),
-    
-    MyHTTPMsg = msg('GetRequest'),
-    Bytes4 = roundtrip('PartialDecMyHTTP', 'GetRequest', MyHTTPMsg),
-    {ok,IncFMsg4} = 'PartialDecMyHTTP':decode_GetRequest_incomplete(Bytes4),
-    decode_parts('GetRequest', IncFMsg4),
-    
+    Bytes1 = roundtrip(M, 'A', AMsg),
+    {ok,IncAMsg} = M:decode_A_c_b_incomplete(Bytes1),
+    decode_parts('A', IncAMsg),
+
+    SMsg = {'S',true,false},
+    BextMsg = {c,SMsg},
+    Bytes2 = roundtrip(M, 'Bext', BextMsg),
+
+    {ok,IncBextMsg1} = M:decode_Bext_c_incomplete(Bytes2),
+    {c,{'Bext_c',Undec1}} = IncBextMsg1,
+    {ok,SMsg} = M:decode_part('Bext_c', Undec1),
+
+    {ok,IncBextMsg2} = M:decode_Bext_c_b_incomplete(Bytes2),
+    {c,{'S',true,{'S_b',Undec2}}} = IncBextMsg2,
+    {ok,false} = M:decode_part('S_b', Undec2),
+
+    test_PartialDeqSeq2_SeqChoice(),
+
+    ok.
+
+test_PartialDeqSeq2_SeqChoice() ->
+    M = 'PartialDecSeq2',
+    T = 'SeqChoice',
+
+    SeqChoiceMsg1 = {'SeqChoice',{b,true},<<"abc">>},
+    Bytes1 = roundtrip(M, T, SeqChoiceMsg1),
+
+    {ok,EncMsg1_1} = M:decode_SeqChoice_c_b_d_incomplete(Bytes1),
+    {'SeqChoice',{b,{'SeqChoice_c_b',UndecBool}},
+     {'SeqChoice_d',UndecOS}} = EncMsg1_1,
+    {ok,true} = M:decode_part('SeqChoice_c_b', UndecBool),
+    {ok,<<"abc">>} = M:decode_part('SeqChoice_d', UndecOS),
+
+    {ok,EncMsg1_2} = M:decode_SeqChoice_c_bis_incomplete(Bytes1),
+    {'SeqChoice',{b,{'SeqChoice_c_b',UndecBool}},<<"abc">>} = EncMsg1_2,
+    {ok,true} = M:decode_part('SeqChoice_c_b', UndecBool),
+
+    SeqChoiceMsg2 = {'SeqChoice',{i,42},<<"cde">>},
+    Bytes2 = roundtrip(M, T, SeqChoiceMsg2),
+    {ok,EncMsg2_1} = M:decode_SeqChoice_c_bis_incomplete(Bytes2),
+    {'SeqChoice',{i,{'SeqChoice_c_i',UndecInt}},<<"cde">>} = EncMsg2_1,
+    {ok,42} = M:decode_part('SeqChoice_c_i', UndecInt),
+
+    SeqChoiceMsg3 = {'SeqChoice',{s,"xyz"},<<"fgh">>},
+    Bytes3 = roundtrip(M, T, SeqChoiceMsg3),
+    {ok,EncMsg3_1} = M:decode_SeqChoice_c_bis_incomplete(Bytes3),
+    {'SeqChoice',{s,{'SeqChoice_c_s',UndecStr}},<<"fgh">>} = EncMsg3_1,
+    {ok,"xyz"} = M:decode_part('SeqChoice_c_s', UndecStr),
+
+    ok.
+
+test_PartialDecSeq3() ->
+    M = 'PartialDecSeq3',
+
     MsgS1_1 = msg('S1_1'),
-    Bytes5 = roundtrip('PartialDecSeq3', 'S1', MsgS1_1),
-    {ok,IncFMsg5} = 'PartialDecSeq3':decode_S1_incomplete(Bytes5),
-    decode_parts('S1_1', IncFMsg5),
+    Bytes1 = roundtrip(M, 'S1', MsgS1_1),
+    {ok,IncFMsg1} = M:decode_S1_incomplete(Bytes1),
+    decode_parts('S1_1', IncFMsg1),
 
     MsgS1_2 = msg('S1_2'),
-    Bytes6 = roundtrip('PartialDecSeq3', 'S1', MsgS1_2),
-    {ok,IncFMsg6} = 'PartialDecSeq3':decode_S1_incomplete(Bytes6),
-    decode_parts('S1_2', IncFMsg6),
+    Bytes2 = roundtrip(M, 'S1', MsgS1_2),
+    {ok,IncFMsg2} = M:decode_S1_incomplete(Bytes2),
+    decode_parts('S1_2', IncFMsg2),
 
-    %% test of MEDIA-GATEWAY-CONTROL
-    test_megaco(Config),
+    MsgS3 = msg('S3'),
+    Bytes3 = roundtrip(M, 'S3', MsgS3),
+    {ok,IncSMsg} = M:decode_S3_second(Bytes3),
+    decode_parts('S3', IncSMsg),
+
+    ok.
+
+test_MyHTTPMsg() ->
+    MyHTTPMsg = msg('GetRequest'),
+    Bytes1 = roundtrip('PartialDecMyHTTP', 'GetRequest', MyHTTPMsg),
+    {ok,IncFMsg4} = 'PartialDecMyHTTP':decode_GetRequest_incomplete(Bytes1),
+    decode_parts('GetRequest', IncFMsg4),
+
     ok.
 
 test_megaco(Config) ->
@@ -130,13 +206,13 @@ decode_parts('GetRequest',PartDecMsg) ->
 decode_parts('S1_1',PartDecMsg) ->
     {'S1',14,{'S2',false,12,{NameS2c,BinS2c}},
 	   {_,{NameS1c_a,ListBinS1c_a}},{NameS1d,BinS1d}} = PartDecMsg,
-    {ok,[{'S3',10,"PrintableString","OCTETSTRING",
+    {ok,[{'S3',10,"PrintableString",<<"OCTETSTRING">>,
 		[one,two,three,four]}|_Rest1]} = 
 	'PartialDecSeq3':decode_part(NameS2c,BinS2c),
-    {ok,[{'S3',10,"PrintableString","OCTETSTRING",
+    {ok,[{'S3',10,"PrintableString",<<"OCTETSTRING">>,
 		[one,two,three,four]}|_Rest2]} = 
 	'PartialDecSeq3':decode_part(NameS1c_a,ListBinS1c_a),
-    {ok,{'S3',10,"PrintableString","OCTETSTRING",
+    {ok,{'S3',10,"PrintableString",<<"OCTETSTRING">>,
 	       [one,two,three,four]}} =
 	'PartialDecSeq3':decode_part(NameS1c_a,hd(ListBinS1c_a)),
     {ok,[{'Name',"Hans","HCA","Andersen"}|_Rest3]} =
@@ -148,12 +224,26 @@ decode_parts('S1_2',PartDecMsg) ->
 	      {'S4',{'Name',"Hans","HCA","Andersen"},"MSc"}}}=S1c_b,
     {ok,[{'Name',"Hans","HCA","Andersen"}|_Rest3]} =
 	'PartialDecSeq3':decode_part(NameS1d,BinS1d),
+    ok;
+decode_parts('S3', PartDecMsg) ->
+    {'S3',10,{'S3_second',Undecoded},<<"OCTETSTRING">>,[one,two,three,four]} = PartDecMsg,
+    {ok,"PrintableString"} = 'PartialDecSeq3':decode_part('S3_second', Undecoded),
+    ok;
+decode_parts('E', PartDecMsg) ->
+    {'E',35,{'E_b',Parts},false,_} = PartDecMsg,
+    DMany = msg('D_many'),
+    {ok,DMany} = 'PartialDecSeq':decode_part('E_b', Parts),
     ok.
-    
 
-    
+msg('E') ->
+    {'E',35,msg('D_many'),false,{da,[{'A',16,{'D',17,true}}]}};
+
+msg('D_many') ->
+    [{'D',3,true},{'D',4,false},{'D',5,true},{'D',6,true},{'D',7,false},{'D',8,true},{'D',9,true},
+     {'D',10,false},{'D',11,true},{'D',12,true},{'D',13,false},{'D',14,true}];
+
 msg('F') ->
-    {fb,{'E',35,[{'D',3,true},{'D',4,false},{'D',5,true},{'D',6,true},{'D',7,false},{'D',8,true},{'D',9,true},{'D',10,false},{'D',11,true},{'D',12,true},{'D',13,false},{'D',14,true}],false,{da,[{'A',16,{'D',17,true}}]}}};
+    {fb,msg('E')};
 
 msg('F3') ->
     {fb,{'E',10,[{'D',11,true},{'D',12,false}],false,{dc,{'E_d_dc',13,true,{'E_d_dc_dcc',14,15}}}}};
@@ -181,7 +271,7 @@ msg('C1_a') ->
 msg('C1_b') ->
     {b,{'C1_b',11,true,msg('S4')}};
 msg('S3') ->
-    {'S3',10,"PrintableString","OCTETSTRING",[one,two,three,four]};
+    {'S3',10,"PrintableString",<<"OCTETSTRING">>,[one,two,three,four]};
 msg('S4') ->
     {'S4',msg('Name'),"MSc"};
 msg('SO1') ->
