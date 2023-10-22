@@ -1478,6 +1478,72 @@ void BeamModuleAssembler::emit_i_test_arity(const ArgLabel &Fail,
     a.b_ne(resolve_beam_label(Fail, disp1MB));
 }
 
+/*
+ * ARG1 = LHS
+ * ARG2 = RHS
+ *
+ * Result is returned in the flags.
+ */
+void BeamGlobalAssembler::emit_eq_exact_shared() {
+    Label loop = a.newLabel();
+    Label done = a.newLabel();
+    Label generic = a.newLabel();
+
+    a.orr(TMP1, ARG1, ARG2);
+    emit_is_boxed(generic, TMP1);
+
+    emit_untag_ptr(TMP1, ARG1);
+    a.ldr(TMP3, arm::Mem(TMP1));
+
+    a.cmp(TMP3, imm(HEADER_FLONUM));
+
+    auto mask = _HEADER_SUBTAG_MASK - _BIG_SIGN_BIT;
+    ERTS_CT_ASSERT(TAG_PRIMARY_HEADER == 0);
+    a.and_(TMP4, TMP3, imm(mask));
+
+    a.ccmp(TMP4, imm(_TAG_HEADER_POS_BIG), imm(NZCV::kZF), imm(arm::CondCode::kNE));
+    a.b_ne(generic);
+
+    emit_untag_ptr(TMP2, ARG2);
+    a.lsr(ARG3, TMP3, imm(_HEADER_ARITY_OFFS));
+    a.sub(ARG3, ARG3, imm(1));
+
+    a.bind(loop); {
+        a.ldp(TMP3, TMP4, arm::Mem(TMP1).post(16));
+        a.ldp(TMP5, TMP6, arm::Mem(TMP2).post(16));
+        a.cmp(TMP3, TMP5);
+        a.ccmp(TMP4, TMP6, imm(NZCV::kNone), imm(arm::CondCode::kEQ));
+        a.b_ne(done);
+
+        a.subs(ARG3, ARG3, imm(2));
+        a.b_pl(loop);
+    }
+
+    a.cmn(ARG3, imm(2));
+    a.b_eq(done);
+
+    a.ldr(TMP3, arm::Mem(TMP1));
+    a.ldr(TMP5, arm::Mem(TMP2));
+    a.cmp(TMP3, TMP5);
+
+    a.bind(done);
+    a.ret(a64::x30);
+
+    a.bind(generic);
+    {
+        emit_enter_runtime_frame();
+        emit_enter_runtime();
+
+        runtime_call<2>(eq);
+
+        emit_leave_runtime();
+        emit_leave_runtime_frame();
+
+        a.cmp(ARG1.w(), imm(1));
+        a.ret(a64::x30);
+    }
+}
+
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
                                            const ArgSource &X,
                                            const ArgSource &Y) {
@@ -1561,12 +1627,8 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
      * deeper comparison. */
     mov_var(ARG1, x);
     mov_var(ARG2, y);
-
-    emit_enter_runtime();
-    runtime_call<2>(eq);
-    emit_leave_runtime();
-
-    a.cbz(ARG1, resolve_beam_label(Fail, disp1MB));
+    fragment_call(ga->get_eq_exact_shared());
+    a.b_ne(resolve_beam_label(Fail, disp1MB));
 
     a.bind(next);
 }
@@ -1633,14 +1695,8 @@ void BeamModuleAssembler::emit_is_ne_exact(const ArgLabel &Fail,
      * deeper comparison. */
     mov_var(ARG1, x);
     mov_var(ARG2, y);
-
-    emit_enter_runtime();
-
-    runtime_call<2>(eq);
-
-    emit_leave_runtime();
-
-    a.cbnz(ARG1, resolve_beam_label(Fail, disp1MB));
+    fragment_call(ga->get_eq_exact_shared());
+    a.b_eq(resolve_beam_label(Fail, disp1MB));
 
     a.bind(next);
 }

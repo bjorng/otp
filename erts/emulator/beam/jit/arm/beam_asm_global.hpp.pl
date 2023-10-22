@@ -58,6 +58,7 @@ my @beam_global_funcs = qw(
     dispatch_return
     dispatch_save_calls_export
     dispatch_save_calls_fun
+    eq_exact_shared
     export_trampoline
     fconv_shared
     get_sint64_shared
