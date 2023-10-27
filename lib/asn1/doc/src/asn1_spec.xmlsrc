@@ -222,33 +222,28 @@ unix> erlc -bber +asn1config GUI.asn1
 erlang> asn1ct:compile('GUI', [ber,asn1config]).</pre>
       <p>The module can be used as follows:</p>
       <pre>
-1> <input>rr('GUI').</input>
+1> <input>asn1ct:compile('GUI', [ber,asn1config,no_ok_wrapper]).</input>
+ok
+2> <input>rr('GUI').</input>
 ['Action','Button','Status']
-2> <input>ButtonMsg = #'Button'{number=123,on=true}.</input>
+3> <input>ButtonMsg = #'Button'{number=123,on=true}.</input>
 #'Button'{number = 123,on = true}
-3> <input>{ok,ButtonBytes} = 'GUI':encode('Button', ButtonMsg).</input>
-{ok,&lt;&lt;48,6,128,1,123,129,1,255&gt;&gt;}
-4> <input>{ok,ExclusiveMsgButton} = 'GUI':decode_Button_exclusive(ButtonBytes).</input>
-{ok,#'Button'{number = {'Button_number',&lt;&lt;128,1,123&gt;&gt;},
-              on = true}}
-5> <input>{UndecKey,UndecBytes} = ExclusiveMsgButton#'Button'.number.</input>
+4> <input>ButtonBytes = 'GUI':encode('Button', ButtonMsg).</input>
+&lt;&lt;48,6,128,1,123,129,1,255&gt;&gt;
+5> <input>ExclusiveMsgButton = 'GUI':decode_Button_exclusive(ButtonBytes).</input>
+#'Button'{number = {'Button_number',&lt;&lt;128,1,123&gt;&gt;},
+          on = true}
+6> <input>{UndecKey,UndecBytes} = ExclusiveMsgButton#'Button'.number.</input>
 {'Button_number',&lt;&lt;128,1,123&gt;&gt;}
-6> <input>'GUI':decode_part(UndecKey, UndecBytes).</input>
-{ok,123}
-7> <input>WindowMsg =
+7> <input>'GUI':decode_part(UndecKey, UndecBytes).</input>
+123
+8> <input>WindowMsg =
 {status,{'Status',35,
    [{'Button',3,true},
     {'Button',4,false},
     {'Button',5,true},
     {'Button',6,true},
-    {'Button',7,false},
-    {'Button',8,true},
-    {'Button',9,true},
-    {'Button',10,false},
-    {'Button',11,true},
-    {'Button',12,true},
-    {'Button',13,false},
-    {'Button',14,true}],
+    {'Button',7,false}],
    false,
    {possibleActions,[{'Action',16,{'Button',17,true}}]}}}.</input>
 {status,#'Status'{state = 35,
@@ -256,77 +251,49 @@ erlang> asn1ct:compile('GUI', [ber,asn1config]).</pre>
                       #'Button'{number = 4,on = false},
                       #'Button'{number = 5,on = true},
                       #'Button'{number = 6,on = true},
-                      #'Button'{number = 7,on = false},
-                      #'Button'{number = 8,on = true},
-                      #'Button'{number = 9,on = true},
-                      #'Button'{number = 10,on = false},
-                      #'Button'{number = 11,on = true},
-                      #'Button'{number = 12,on = true},
-                      #'Button'{number = 13,on = false},
-                      #'Button'{number = 14,on = true}],
+                      #'Button'{number = 7,on = false}],
         enabled = false,
         actions = {possibleActions,[#'Action'{number = 16,
                                               handle = #'Button'{number = 17,on = true}}]}}}
-8> <input>{ok,WindowBytes} = 'GUI':encode('Window', WindowMsg).</input>
-{ok,&lt;&lt;161,121,128,1,35,161,96,48,6,128,1,3,129,1,255,48,
-      6,128,1,4,129,1,0,48,6,128,1,...&gt;&gt;}
-9> <input>{ok,{status,#'Status'{buttonList={UndecWindowKey,UndecWindowParts}}}} =
+9> <input>WindowBytes = 'GUI':encode('Window', WindowMsg).</input>
+&lt;&lt;161,65,128,1,35,161,40,48,6,128,1,3,129,1,255,48,6,128,
+  1,4,129,1,0,48,6,128,1,5,129,...&gt;&gt;
+10> <input>{status,#'Status'{buttonList={UndecWindowKey,UndecWindowParts}}} =
 'GUI':decode_Window_exclusive(WindowBytes).</input>
-{ok,{status,#'Status'{state = 35,
-            buttonList = {'Status_buttonList',[&lt;&lt;48,6,128,1,3,129,1,
-                                                 255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,4,129,1,0&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,5,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,6,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,7,129,1,0&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,8,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,9,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,10,129,1,0&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,11,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,12,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,13,129,1,0&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,14,129,1,255&gt;&gt;]},
-            enabled = false,
-            actions = {'Status_actions',&lt;&lt;163,15,160,13,48,11,128,
-                                          1,16,161,6,128,1,17,129,
-                                          1,255&gt;&gt;}}}}
-10> <input>'GUI':decode_part(UndecWindowKey, UndecWindowParts).</input>
-{ok,[#'Button'{number = 3,on = true},
-     #'Button'{number = 4,on = false},
-     #'Button'{number = 5,on = true},
-     #'Button'{number = 6,on = true},
-     #'Button'{number = 7,on = false},
-     #'Button'{number = 8,on = true},
-     #'Button'{number = 9,on = true},
-     #'Button'{number = 10,on = false},
-     #'Button'{number = 11,on = true},
-     #'Button'{number = 12,on = true},
-     #'Button'{number = 13,on = false},
-     #'Button'{number = 14,on = true}]}
-11> <input>'GUI':decode_part(UndecWindowKey, hd(UndecWindowParts)).</input>
-{ok,#'Button'{number = 3,on = true}}
-12> <input>{ok,{status,#'Status'{actions={ChoiceKey,ChoiceUndec}}}} = v(9).</input>
-{ok,{status,#'Status'{state = 35,
-            buttonList = {'Status_buttonList',[&lt;&lt;48,6,128,1,3,129,1,
-                                                 255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,4,129,1,0&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,5,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,6,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,7,129,1,0&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,8,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,9,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,10,129,1,0&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,11,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,12,129,1,255&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,13,129,1,0&gt;&gt;,
-                                               &lt;&lt;48,6,128,1,14,129,1,255&gt;&gt;]},
-            enabled = false,
-            actions = {'Status_actions',&lt;&lt;163,15,160,13,48,11,128,
-                                          1,16,161,6,128,1,17,129,
-                                          1,255&gt;&gt;}}}}
-13> <input>'GUI':decode_part(ChoiceKey, ChoiceUndec).</input>
-{ok,{possibleActions,[#'Action'{number = 16,
-                                handle = #'Button'{number = 17,on = true}}]}}</pre>
+{status,#'Status'{state = 35,
+                  buttonList = {'Status_buttonList',[&lt;&lt;48,6,128,1,3,129,1,
+                                                       255&gt;&gt;,
+                                                     &lt;&lt;48,6,128,1,4,129,1,0&gt;&gt;,
+                                                     &lt;&lt;48,6,128,1,5,129,1,255&gt;&gt;,
+                                                     &lt;&lt;48,6,128,1,6,129,1,255&gt;&gt;,
+                                                     &lt;&lt;48,6,128,1,7,129,1,0&gt;>]},
+                  enabled = false,
+                  actions = {'Status_actions',&lt;&lt;163,15,160,13,48,11,128,
+                                                1,16,161,6,128,1,17,129,
+                                                1,255>>}}}
+11> <input>'GUI':decode_part(UndecWindowKey, UndecWindowParts).</input>
+[#'Button'{number = 3,on = true},
+ #'Button'{number = 4,on = false},
+ #'Button'{number = 5,on = true},
+ #'Button'{number = 6,on = true},
+ #'Button'{number = 7,on = false}]
+12> <input>'GUI':decode_part(UndecWindowKey, hd(UndecWindowParts)).</input>
+#'Button'{number = 3,on = true}
+13> <input>{status,#'Status'{actions={ChoiceKey,ChoiceUndec}}} = v(10).</input>
+{status,#'Status'{state = 35,
+                  buttonList = {'Status_buttonList',[&lt;&lt;48,6,128,1,3,129,1,
+                                                       255&gt;&gt;,
+                                                     &lt;&lt;48,6,128,1,4,129,1,0&gt;&gt;,
+                                                     &lt;&lt;48,6,128,1,5,129,1,255&gt;&gt;,
+                                                     &lt;&lt;48,6,128,1,6,129,1,255&gt;&gt;,
+                                                     &lt;&lt;48,6,128,1,7,129,1,0&gt;&gt;]},
+                  enabled = false,
+                  actions = {'Status_actions',&lt;&lt;163,15,160,13,48,11,128,
+                                                1,16,161,6,128,1,17,129,
+                                                1,255&gt;&gt;}}}
+14> <input>'GUI':decode_part(ChoiceKey, ChoiceUndec).</input>
+{possibleActions,[#'Action'{number = 16,
+                            handle = #'Button'{number = 17,on = true}}]}</pre>
     </section>
   </section>
 
