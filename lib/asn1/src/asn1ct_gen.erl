@@ -779,7 +779,7 @@ pgen_dispatcher(Gen, Types) ->
 	    emit(["try ",Call," of",nl,
 		  "  Bytes ->",nl,
 		  "    {ok,Bytes}",nl,
-		  try_catch()])
+		  try_catch(),".",nl])
     end,
     emit([nl,nl]),
 
@@ -794,7 +794,7 @@ pgen_dispatcher(Gen, Types) ->
                     emit(["try ",JerCall," of",nl,
                           "  Bytes ->",nl,
                           "    {ok,Bytes}",nl,
-                          try_catch()])
+                          try_catch(),".",nl])
             end,
             emit([nl,nl]);
         false ->
@@ -854,7 +854,7 @@ pgen_dispatcher(Gen, Types) ->
 
     case NoOkWrapper of
 	false ->
-	    emit([nl,try_catch(),nl,nl]);
+	    emit([nl,try_catch(),".",nl,nl]);
 	true ->
 	    emit([".",nl,nl])
     end,
@@ -874,7 +874,7 @@ pgen_dispatcher(Gen, Types) ->
             result_line(false, ["Result"]),
             case NoOkWrapper of
                 false ->
-                    emit([nl,try_catch(),nl,nl]);
+                    emit([nl,try_catch(),".",nl,nl]);
                 true ->
                     emit([".",nl,nl])
             end;        
@@ -884,7 +884,7 @@ pgen_dispatcher(Gen, Types) ->
     
 
     %% REST of MODULE
-    gen_decode_partial_incomplete(Gen),
+    gen_decode_partial_incomplete(Gen, NoOkWrapper),
     gen_partial_inc_dispatcher(Gen),
 
     case Gen of
@@ -916,7 +916,7 @@ try_catch() ->
      "        Reason ->",nl,
      "         {error,{asn1,{Reason,Stk}}}",nl,
      "      end",nl,
-     "end."].
+     "end"].
 
 gen_info_functions(Gen) ->
     Erule = case Gen of
@@ -938,7 +938,7 @@ gen_info_functions(Gen) ->
 	  "legacy_erlang_types() -> ",
 	  {asis,asn1ct:use_legacy_types()},".",nl,nl]).
 
-gen_decode_partial_incomplete(#gen{erule=ber}) ->
+gen_decode_partial_incomplete(#gen{erule=ber}, NoOkWrapper) ->
     case {asn1ct:read_config_data(partial_incomplete_decode),
 	  asn1ct:get_gen_state_field(inc_type_pattern)} of
 	{undefined,_} ->
@@ -946,37 +946,44 @@ gen_decode_partial_incomplete(#gen{erule=ber}) ->
 	{_,undefined} ->
 	    ok;
 	_ ->
-	    EmitCaseClauses =
-		fun() ->
-			emit(["   {'EXIT',{error,Reason}} ->",nl,
-			      "      {error,Reason};",nl,
-			      "    {'EXIT',Reason} ->",nl,
-			      "      {error,{asn1,Reason}};",nl,
-			      "    Result ->",nl,
-			      "      {ok,Result}",nl,
-			      "  end"])
-		end,
-	    emit(["decode_partial_incomplete(Type,Data0,",
-		  "Pattern) ->",nl]),
-	    emit(["  {Data,_RestBin} =",nl,
-		  "    ",{call,ber,decode_primitive_incomplete,
-			  ["Pattern","Data0"]},com,nl,
-		  "  case catch decode_partial_inc_disp(Type,",
-		  "Data) of",nl]),
-	    EmitCaseClauses(),
-	    emit([".",nl,nl]),
-	    emit(["decode_part(Type, Data0) "
-		  "when is_binary(Data0) ->",nl]),
-	    emit(["  case catch decode_inc_disp(Type,element(1, ",
-		  {call,ber,ber_decode_nif,["Data0"]},")) of",nl]),
-	    EmitCaseClauses(),
-	    emit([";",nl]),
-	    emit(["decode_part(Type, Data0) ->",nl]),
-	    emit(["  case catch decode_inc_disp(Type, Data0) of",nl]),
-	    EmitCaseClauses(),
-	    emit([".",nl,nl])
+            emit(["decode_partial_incomplete(Type, Data0, Pattern) ->",nl,
+                  "  {Data,_RestBin} =",nl,
+                  "    ",{call,ber,decode_primitive_incomplete,
+                          ["Pattern","Data0"]},com,nl]),
+            case NoOkWrapper of
+                true ->
+                    emit(["  decode_partial_inc_disp(Type, Data)",nl]);
+                false ->
+                    emit(["  try {ok,decode_partial_inc_disp(Type, Data)}",nl,
+                         try_catch()])
+            end,
+            emit([".",nl,nl]),
+
+            emit(["decode_part(Type, Data0) when is_binary(Data0) ->",nl]),
+            case NoOkWrapper of
+                true ->
+                    emit(["  decode_inc_disp(Type, element(1, ",
+                          {call,ber,ber_decode_nif,["Data0"]},
+                          "))",nl]);
+                false ->
+                    emit(["  try {ok,decode_inc_disp(Type, element(1, ",
+                          {call,ber,ber_decode_nif,["Data0"]},
+                          "))}",nl,
+                          try_catch()])
+            end,
+            emit([";",nl]),
+
+            emit(["decode_part(Type, Data0) ->",nl]),
+            case NoOkWrapper of
+                true ->
+                    emit(["  decode_inc_disp(Type, Data0)"]);
+                false ->
+                    emit(["  try {ok,decode_inc_disp(Type, Data0)}",nl,
+                          try_catch()])
+            end,
+            emit([".",nl,nl])
     end;
-gen_decode_partial_incomplete(#gen{}) ->
+gen_decode_partial_incomplete(#gen{}, _) ->
     ok.
 
 gen_partial_inc_dispatcher(#gen{erule=ber}) ->
