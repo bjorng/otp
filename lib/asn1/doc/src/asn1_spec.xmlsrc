@@ -30,19 +30,18 @@
     <file>asn1_spec.xml</file>
   </header>
   <marker id="SpecializedDecodes"></marker>
-  <p>When performance is of highest priority and you are interested in
-    a limited part of the ASN.1 encoded message before deciding what
-    to do with the rest of it, an option is to decode only this small
-    part. The situation can be a server that has to decide the
-    addressee of a message. The addressee can be interested in
-    the entire message, but the server can be a bottleneck that you want
-    to spare any unnecessary load.</p>
-  <p> Instead of making two <em>complete decodes</em> (the normal case of
+  <p>When performance is of highest priority and one is interested in
+  a limited part of the ASN.1 encoded message before deciding what to
+  do with the rest of it, an option is to decode only a part of the
+  message. This situation can be a server that has to decide the
+  addressee of a message. The addressee can be interested in the
+  entire message, but the server can be a bottleneck that you want to
+  spare any unnecessary load.</p>
+  <p>Instead of making two <em>complete decodes</em> (the normal case of
     decode), one in the server and one in the addressee, it is only
-    necessary to make one <em>specialized decode</em>(in the server)
-    and another complete decode(in the addressee). This section
-    describes the following two specialized decodes, which support
-    to solve this and similar problems:</p>
+    necessary to make one <em>specialized decode</em> (in the server)
+    and another complete decode (in the addressee). This section
+    describes the following specialized decode functionality:</p>
     <list type="bulleted">
       <item><em>Exclusive decode</em></item>
       <item><em>Selected decode</em></item>
@@ -52,16 +51,11 @@
 
   <section>
     <title>Exclusive Decode</title>
-    <p>The basic idea with exclusive
-      decode is to specify which parts of the message you want to
-      exclude from being decoded. These parts remain encoded and are
-      returned in the value structure as binaries. They can be decoded
-      in turn by passing them to a certain <c>decode_part/2</c>
-      function. The performance gain is high for large messages.
-      You can do an exclusive decode and later one or more
-      decodes of the parts, or a second complete decode instead of two or
-      more complete decodes.
-      </p>
+    <p>The basic idea with exclusive decode is to specify which parts
+    of the message you want to exclude from being decoded. These parts
+    remain encoded and are returned in the value structure as
+    binaries. The undecoded parts can be decoded later by calling the
+    <c>decode_part/2</c> function.</p>
 
     <section>
       <title>Procedure</title>
@@ -214,13 +208,8 @@ Name = atom()</pre>
         <icaption>Bytes of a Window:status Message</icaption>
       </image>
       <p></p>
-      <p>Compiling <c>GUI.asn1</c> including the configuration file is done
-        as follows:</p>
-      <pre>
-unix> erlc -bber +asn1config GUI.asn1
-
-erlang> asn1ct:compile('GUI', [ber,asn1config]).</pre>
-      <p>The module can be used as follows:</p>
+      <p>Here follows an example of how the module. Note that option <c>no_ok_wrapper</c>
+      is used to make the make example more concise.</p>
       <pre>
 1> <input>asn1ct:compile('GUI', [ber,asn1config,no_ok_wrapper]).</input>
 ok
@@ -299,13 +288,11 @@ ok
 
   <section>
     <title>Selective Decode</title>
-    <p>This specialized decode decodes a subtype of a
-      constructed value and is the fastest method to extract a
-      subvalue. This decode is typically used when you want to
-      inspect, for example, a version number, to be able to decide what
-      to do with the entire value. The result is returned as
-      <c>{ok,Value}</c> or <c>{error,Reason}</c>.
-      </p>
+    <p>Selective decode decodes a single subtype of a constructed
+    value. This is the fastest method to extract a subvalue. Selective
+    decode is typically used when one want to inspect, for example, a
+    version number to be able to decide what to do with the entire
+    value.</p>
 
     <section>
       <title>Procedure</title>
@@ -334,13 +321,11 @@ ok
     <section>
       <title>User Interface</title>
       <p>The only new user interface function is the one provided by the
-        user in the configuration file. The function is started by
-        the <c>ModuleName:FunctionName</c> notation.
-        </p>
+        user in the configuration file.</p>
       <p>For example, if the configuration file includes the specification
         <c>{selective_decode,{'ModuleName',[{selected_decode_Window,TypeList}]}}</c>
         do the selective decode by
-        <c>{ok,Result}='ModuleName':selected_decode_Window(EncodedBinary).</c></p>
+        <c>{ok,Result} = 'ModuleName':selected_decode_Window(EncodedBinary).</c></p>
     </section>
 
     <section>
@@ -349,42 +334,42 @@ ok
       <p>One or more selective decode functions can be described in a
         configuration file. Use the following notation:</p>
       <pre>
-Selective_Decode_Instruction = {selective_decode,{Module_Name,Decode_Instructions}}.
+SelectiveDecodeInstruction = {selective_decode,{ModuleName,DecodeInstructions}}.
 
-Module_Name = atom()
+ModuleName = atom()
 
-Decode_Instructions = [Decode_Instruction]+
+DecodeInstructions = [DecodeInstruction]+
 
-Decode_Instruction = {Selective_Decode_Function_Name,Type_List}
+DecodeInstruction = {SelectiveDecodeFunctionName,TypeList}
 
-Selective_Decode_Function_Name = atom()
+SelectiveDecodeFunctionName = atom()
 
-Type_List = [Top_Type|Element_List]
+TypeList = [TopType|ElementList]
 
-Element_List = Name|List_Selector
+ElementList = Name|ListSelector
 
 Name = atom()
 
-List_Selector = [integer()]</pre>
+ListSelector = [integer()]</pre>
       <p>The instruction must be a valid Erlang term ended by a dot.
         </p>
       <list type="bulleted">
-        <item><c>Module_Name</c> is the same as the name of the ASN.1
+        <item><c>ModuleName</c> is the same as the name of the ASN.1
         specification, but without the extension.</item>
-      <item><c>Decode_Instruction</c> is a tuple with your chosen
+      <item><c>DecodeInstruction</c> is a tuple with your chosen
         function name and the components from the top type that leads
         to the single type you want to decode. Ensure to choose a name
         of your function that is not the same as any of the generated
         functions.</item>
-      <item> The first element of <c>Type_List</c> is the top type of the
-        encoded message. In <c>Element_List</c>, it is followed by
+      <item> The first element of <c>TypeList</c> is the top type of the
+        encoded message. In <c>ElementList</c>, it is followed by
         each of the component names that leads to selected type.</item>
-      <item>Each name in <c>Element_List</c> must be a constructed type
+      <item>Each name in <c>ElementList</c> must be a constructed type
         except the last name, which can be any type.</item>
-      <item><c>List_Selector</c> makes it possible to choose one of the
+      <item><c>ListSelector</c> makes it possible to choose one of the
         encoded components in a a <c>SEQUENCE OF</c> or a <c>SET OF</c>.
         It is also possible to go further in that component and pick a
-        subtype of that to decode. So, in the <c>Type_List</c>:
+        subtype of that to decode. So, in the <c>TypeList</c>:
         <c>['Window',status,buttonList,[1],number]</c>, component
         <c>buttonList</c> must be of type <c>SEQUENCE OF</c> or
         <c>SET OF</c>.</item>
@@ -398,7 +383,7 @@ List_Selector = [integer()]</pre>
     </section>
 
     <section>
-      <title>Another Example</title>
+      <title>Example</title>
       <p>In this example, the same ASN.1 specification as in Section
         <seeguide marker="#Asn1spec">Writing an Exclusive Decode Instruction</seeguide>
          is used. The following is a valid selective decode instruction:</p>
@@ -429,15 +414,14 @@ List_Selector = [integer()]</pre>
         value 4711 is to be picked by <c>selected_decode_Action</c>. In an
         Erlang terminal it looks as follows:</p>
       <pre>
-ValAction = {'Action',17,{'Button',4711,false}}.
+1> <input>asn1ct:compile('GUI', [ber,asn1config,no_ok_wrapper]).</input>
+ok
+2> <input>ValAction = {'Action',17,{'Button',4711,false}}.</input>
 {'Action',17,{'Button',4711,false}}
-7> {ok,Bytes}='GUI':encode('Action',ValAction).
-...
-8> BinBytes = list_to_binary(Bytes).
+3> <input>Bytes = 'GUI':encode('Action',ValAction).</input>
 &lt;&lt;48,18,2,1,17,160,13,172,11,171,9,48,7,128,2,18,103,129,1,0&gt;&gt;
-9> 'GUI':selected_decode_Action(BinBytes).
-{ok,4711}
-10></pre>
+4> <input>'GUI':selected_decode_Action(Bytes).</input>
+4711</pre>
       <p>The third instruction,
         <c>['Window',status,actions,possibleActions,[1],handle,number]</c>,
         works as follows:</p>
@@ -473,7 +457,7 @@ ValAction = {'Action',17,{'Button',4711,false}}.
         <c>selected_decode_Window1</c> decodes the intended subvalue
         of value <c>Val</c>:</p>
       <pre>
-1> Val = {'Window',{status,{'Status',12,
+1> <input>Val = {status,{'Status',12,
                     [{'Button',13,true},
                      {'Button',14,false},
                      {'Button',15,true},
@@ -481,355 +465,14 @@ ValAction = {'Action',17,{'Button',4711,false}}.
                     true,
                     {possibleActions,[{'Action',17,{'Button',18,false}},
                                       {'Action',19,{'Button',20,true}},
-                                      {'Action',21,{'Button',22,false}}]}}}}
-2> {ok,Bytes}='GUI':encode('Window',Val).
-...
-3> Bin = list_to_binary(Bytes).
-&lt;&lt;161,101,128,1,12,161,32,48,6,128,1,13,129,1,255,48,6,128,1,14,129,1,0,48,6,128,1,15,129,...&gt;&gt;
-4> 'GUI':selected_decode_Window1(Bin).
-{ok,13}
-5> 'GUI':selected_decode_Window2(Bin).
-{ok,18}</pre>
-      <p>Notice that the value fed into the selective decode
-        functions must be a binary.
-        </p>
-    </section>
-  </section>
-
-  <section>
-    <title>Performance</title>
-    <p>To give an indication on the possible performance gain using
-      the specialized decodes, some measures have been performed. The
-      relative figures in the outcome between selective, exclusive, and
-      complete decode (the normal case) depend on the structure of
-      the type, the size of the message, and on what level the
-      selective and exclusive decodes are specified.
-      </p>
-
-    <section>
-      <title>ASN.1 Specifications, Messages, and Configuration</title>
-      <p>The specifications <seeguide marker="#Asn1spec">GUI</seeguide> and
-        <url href="http://www.itu.int/ITU-T/asn1/database/itu-t/h/h248/2002/MEDIA-GATEWAY-CONTROL.html">MEDIA-GATEWAY-CONTROL</url>
-        were used in the test.
-        </p>
-      <p>For the <c>GUI</c> specification the configuration was as follows:</p>
-      <pre>
-{selective_decode,
-  {'GUI',
-    [{selected_decode_Window1,
-         ['Window',
-          status,buttonList,
-          [1],
-          number]},
-     {selected_decode_Window2,
-         ['Window',
-          status,
-          actions,
-          possibleActions,
-          [1],
-          handle,number]}]}}.
-     {exclusive_decode,
-         {'GUI',
-            [{decode_Window_status_exclusive,
-                ['Window',
-                 [{status,
-                     [{buttonList,parts},
-                      {actions,undecoded}]}]]}]}}.</pre>
-      <p>The <c>MEDIA-GATEWAY-CONTROL</c> configuration was as follows:</p>
-      <pre>
-{exclusive_decode,
-  {'MEDIA-GATEWAY-CONTROL',
-    [{decode_MegacoMessage_exclusive,
-        ['MegacoMessage',
-         [{authHeader,undecoded},
-          {mess,
-             [{mId,undecoded},
-              {messageBody,undecoded}]}]]}]}}.
-{selective_decode,
-  {'MEDIA-GATEWAY-CONTROL',
-    [{decode_MegacoMessage_selective,
-         ['MegacoMessage',mess,version]}]}}.</pre>
-      <p>The corresponding values were as follows:</p>
-      <pre>
-{'Window',{status,{'Status',12,
-              [{'Button',13,true},
-               {'Button',14,false},
-               {'Button',15,true},
-               {'Button',16,false},
-               {'Button',13,true},
-               {'Button',14,false},
-               {'Button',15,true},
-               {'Button',16,false},
-               {'Button',13,true},
-               {'Button',14,false},
-               {'Button',15,true},
-               {'Button',16,false}],
-              true,
-              {possibleActions,
-                 [{'Action',17,{'Button',18,false}},
-                  {'Action',19,{'Button',20,true}},
-                  {'Action',21,{'Button',22,false}},
-                  {'Action',17,{'Button',18,false}},
-                  {'Action',19,{'Button',20,true}},
-                  {'Action',21,{'Button',22,false}},
-                  {'Action',17,{'Button',18,false}},
-                  {'Action',19,{'Button',20,true}},
-                  {'Action',21,{'Button',22,false}},
-                  {'Action',17,{'Button',18,false}},
-                  {'Action',19,{'Button',20,true}},
-                  {'Action',21,{'Button',22,false}},
-                  {'Action',17,{'Button',18,false}},
-                  {'Action',19,{'Button',20,true}},
-                  {'Action',21,{'Button',22,false}},
-                  {'Action',17,{'Button',18,false}},
-                  {'Action',19,{'Button',20,true}},
-                  {'Action',21,{'Button',22,false}}]}}}}
-
-
-{'MegacoMessage',asn1_NOVALUE,
-  {'Message',1,
-    {ip4Address,
-      {'IP4Address',[125,125,125,111],55555}},
-  {transactions,
-    [{transactionReply,
-      {'TransactionReply',50007,asn1_NOVALUE,
-       {actionReplies,
-        [{'ActionReply',0,asn1_NOVALUE,asn1_NOVALUE,
-          [{auditValueReply,{auditResult,{'AuditResult',
-            {'TerminationID',[],[255,255,255]},
-             [{mediaDescriptor,
-               {'MediaDescriptor',asn1_NOVALUE,
-                {multiStream,
-                 [{'StreamDescriptor',1,
-                   {'StreamParms',
-                    {'LocalControlDescriptor',
-                     sendRecv,
-                     asn1_NOVALUE,
-                     asn1_NOVALUE,
-                     [{'PropertyParm',
-                       [0,11,0,7],
-                       [[52,48]],
-                       asn1_NOVALUE}]},
-                    {'LocalRemoteDescriptor',
-                     [[{'PropertyParm',
-                        [0,0,176,1],
-                        [[48]],
-                        asn1_NOVALUE},
-                       {'PropertyParm',
-                         [0,0,176,8],
-                         [[73,78,32,73,80,52,32,49,50,53,46,49,
-                           50,53,46,49,50,53,46,49,49,49]],
-                         asn1_NOVALUE},
-                       {'PropertyParm',
-                         [0,0,176,15],
-                         [[97,117,100,105,111,32,49,49,49,49,32,
-                           82,84,80,47,65,86,80,32,32,52]],
-                         asn1_NOVALUE},
-                       {'PropertyParm',
-                         [0,0,176,12],
-                         [[112,116,105,109,101,58,51,48]],
-                         asn1_NOVALUE}]]},
-                    {'LocalRemoteDescriptor',
-                     [[{'PropertyParm',
-                         [0,0,176,1],
-                         [[48]],
-                         asn1_NOVALUE},
-                       {'PropertyParm',
-                         [0,0,176,8],
-                         [[73,78,32,73,80,52,32,49,50,52,46,49,50,
-                           52,46,49,50,52,46,50,50,50]],
-                         asn1_NOVALUE},
-                       {'PropertyParm',
-                         [0,0,176,15],
-                         [[97,117,100,105,111,32,50,50,50,50,32,82,
-                           84,80,47,65,86,80,32,32,52]],
-                         asn1_NOVALUE},
-                       {'PropertyParm',
-                         [0,0,176,12],
-                         [[112,116,105,109,101,58,51,48]],
-                         asn1_NOVALUE}]]}}}]}}},
-              {packagesDescriptor,
-               [{'PackagesItem',[0,11],1},
-                {'PackagesItem',[0,11],1}]},
-              {statisticsDescriptor,
-               [{'StatisticsParameter',[0,12,0,4],[[49,50,48,48]]},
-                {'StatisticsParameter',[0,11,0,2],[[54,50,51,48,48]]},
-                {'StatisticsParameter',[0,12,0,5],[[55,48,48]]},
-                {'StatisticsParameter',[0,11,0,3],[[52,53,49,48,48]]},
-                {'StatisticsParameter',[0,12,0,6],[[48,46,50]]},
-                {'StatisticsParameter',[0,12,0,7],[[50,48]]},
-                {'StatisticsParameter',[0,12,0,8],[[52,48]]}]}]}}}]}]}}}]}}}</pre>
-      <p>The size of the encoded values was 458 bytes for <c>GUI</c> and 464
-        bytes for <c>MEDIA-GATEWAY-CONTROL</c>.
-        </p>
-    </section>
-
-    <section>
-      <title>Results</title>
-      <p>The ASN.1 specifications in the test were compiled with options
-        <c>ber_bin, optimize, driver</c> and <c>asn1config</c>. Omitting
-        option <c>driver</c> gives
-        higher values for <c>decode</c> and <c>decode_part</c>. These tests have
-	not been rerun using NIFs, but are expected to perform about 5% better
-	than the linked-in driver.
-        </p>
-      <p>The test program runs 10000 decodes on the value, resulting
-        in an output with the elapsed time in microseconds for the
-        total number of decodes.
-        </p>
-      <table>
-        <row>
-          <cell align="left" valign="top"><em>Function</em></cell>
-          <cell align="left" valign="top"><em>Time</em> (microseconds)</cell>
-          <cell align="left" valign="top"><em>Decode Type</em></cell>
-          <cell align="left" valign="top"><em>ASN.1 Specification</em></cell>
-          <cell align="left" valign="top"><em>% of Time versus Complete Decode</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>decode_MegacoMessage_selective/1</c></cell>
-          <cell align="left" valign="middle"><c>374045</c></cell>
-          <cell align="left" valign="middle"><c>Selective</c></cell>
-          <cell align="left" valign="middle"><c>MEDIA-GATEWAY-CONTROL</c></cell>
-          <cell align="left" valign="middle"><em>8.3</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>decode_MegacoMessage_exclusive/1</c></cell>
-          <cell align="left" valign="middle"><c>621107</c></cell>
-          <cell align="left" valign="middle"><c>Exclusive</c></cell>
-          <cell align="left" valign="middle"><c>MEDIA-GATEWAY-CONTROL</c></cell>
-          <cell align="left" valign="middle"><em>13.8</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>decode/2</c></cell>
-          <cell align="left" valign="middle"><c>4507457</c></cell>
-          <cell align="left" valign="middle"><c>Complete</c></cell>
-          <cell align="left" valign="middle"><c>MEDIA-GATEWAY-CONTROL</c></cell>
-          <cell align="left" valign="middle"><em>100</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>selected_decode_Window1/1</c></cell>
-          <cell align="left" valign="middle"><c>449585</c></cell>
-          <cell align="left" valign="middle"><c>Selective</c></cell>
-          <cell align="left" valign="middle"><c>GUI</c></cell>
-          <cell align="left" valign="middle"><em>7.6</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>selected_decode_Window2/1</c></cell>
-          <cell align="left" valign="middle"><c>890666</c></cell>
-          <cell align="left" valign="middle"><c>Selective</c></cell>
-          <cell align="left" valign="middle"><c>GUI</c></cell>
-          <cell align="left" valign="middle"><em>15.1</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>decode_Window_status_exclusive/1</c></cell>
-          <cell align="left" valign="middle"><c>1251878</c></cell>
-          <cell align="left" valign="middle"><c>Exclusive</c></cell>
-          <cell align="left" valign="middle"><c>GUI</c></cell>
-          <cell align="left" valign="middle"><em>21.3</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>decode/2</c></cell>
-          <cell align="left" valign="middle"><c>5889197</c></cell>
-          <cell align="left" valign="middle"><c>Complete</c></cell>
-          <cell align="left" valign="middle"><c>GUI</c></cell>
-          <cell align="left" valign="middle"><em>100</em></cell>
-        </row>
-        <tcaption>Results of Complete, Exclusive, and Selective Decode</tcaption>
-      </table>
-      <p>It is also of interest to know the relation is between
-        a complete decode, an exclusive decode followed by
-        <c>decode_part</c> of the excluded parts, and a selective decode
-        followed by a complete decode. Some situations can be compared to
-        this simulation, for example, inspect a subvalue and later inspect
-        the entire value. The following table shows figures from this
-        test. The number of loops and the time unit are the same as in the
-        previous test.
-        </p>
-      <table>
-        <row>
-          <cell align="left" valign="top"><em>Actions</em></cell>
-          <cell align="left" valign="top"><em>Function</em>&nbsp;&nbsp;&nbsp;&nbsp;</cell>
-          <cell align="left" valign="top"><em>Time</em> (microseconds)</cell>
-          <cell align="left" valign="top"><em>ASN.1 Specification</em></cell>
-          <cell align="left" valign="top"><em>% of Time vs. Complete Decode</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>Complete</c></cell>
-          <cell align="left" valign="middle"><c>decode/2</c></cell>
-          <cell align="left" valign="middle"><c>4507457</c></cell>
-          <cell align="left" valign="middle"><c>MEDIA-GATEWAY-CONTROL</c></cell>
-          <cell align="left" valign="middle"><em>100</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>Selective and Complete</c></cell>
-          <cell align="left" valign="middle"><c>decode_&shy;MegacoMessage_&shy;selective/1</c></cell>
-          <cell align="left" valign="middle"><c>4881502</c></cell>
-          <cell align="left" valign="middle"><c>MEDIA-GATEWAY-CONTROL</c></cell>
-          <cell align="left" valign="middle"><em>108.3</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>Exclusive and decode_part</c></cell>
-          <cell align="left" valign="middle"><c>decode_&shy;MegacoMessage_&shy;exclusive/1</c></cell>
-          <cell align="left" valign="middle"><c>5481034</c></cell>
-          <cell align="left" valign="middle"><c>MEDIA-GATEWAY-CONTROL</c></cell>
-          <cell align="left" valign="middle"><em>112.3</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>Complete</c></cell>
-          <cell align="left" valign="middle"><c>decode/2</c></cell>
-          <cell align="left" valign="middle"><c>5889197</c></cell>
-          <cell align="left" valign="middle"><c>GUI</c></cell>
-          <cell align="left" valign="middle"><em>100</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>Selective and Complete</c></cell>
-          <cell align="left" valign="middle"><c>selected_&shy;decode_&shy;Window1/1</c></cell>
-          <cell align="left" valign="middle"><c>6337636</c></cell>
-          <cell align="left" valign="middle"><c>GUI</c></cell>
-          <cell align="left" valign="middle"><em>107.6</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>Selective and Complete</c></cell>
-          <cell align="left" valign="middle"><c>selected_&shy;decode_&shy;Window2/1</c></cell>
-          <cell align="left" valign="middle"><c>6795319</c></cell>
-          <cell align="left" valign="middle"><c>GUI</c></cell>
-          <cell align="left" valign="middle"><em>115.4</em></cell>
-        </row>
-        <row>
-          <cell align="left" valign="middle"><c>Exclusive and decode_part</c></cell>
-          <cell align="left" valign="middle"><c>decode_&shy;Window_&shy;status_&shy;exclusive/1</c></cell>
-          <cell align="left" valign="middle"><c>6249200</c></cell>
-          <cell align="left" valign="middle"><c>GUI</c></cell>
-          <cell align="left" valign="middle"><em>106.1</em></cell>
-        </row>
-        <tcaption>Results of Complete, Exclusive + decode_part, and Selective + complete decodes</tcaption>
-      </table>
-      <p>Other ASN.1 types and values can differ much from these
-        figures. It is therefore important that you, in every case where
-        you intend to use either of these decodes, perform some tests
-        that show if you will benefit your purpose.
-        </p>
-    </section>
-
-    <section>
-      <title>Final Remarks</title>
-      <list type="bulleted">
-      <item>The gain of using selective and exclusive decode instead of a
-        complete decode is greater the bigger the value and the
-        less deep in the structure you have to decode.</item>
-      <item>Use selective decode instead of exclusive decode if you are
-        interested in only a single subvalue.</item>
-      <item>Exclusive decode followed by
-        <c>decode_part</c> decodes is attractive if the parts are sent
-        to different servers for decoding, or if you in some cases are not
-        interested in all parts.</item>
-      <item>The fastest selective decode is when the decoded type is a
-        primitive type and not so deep in the structure of the top
-        type. <c>selected_decode_Window2</c> decodes a high constructed
-        value, which explains why this operation is relatively slow.</item>
-      <item>It can vary from case to case which combination of
-        selective/complete decode or exclusive/part decode is the fastest.</item>
-      </list>
+                                      {'Action',21,{'Button',22,false}}]}}}.</input>
+2> <input>Bin = 'GUI':encode('Window',Val).</input>
+&lt;&lt;161,89,128,1,12,161,32,48,6,128,1,13,129,1,255,48,6,128,
+  1,14,129,1,0,48,6,128,1,15,129,...&gt;&gt;
+4> <input>'GUI':selected_decode_Window1(Bin).</input>
+13
+5> <input>'GUI':selected_decode_Window2(Bin).</input>
+18</pre>
     </section>
   </section>
 </chapter>
