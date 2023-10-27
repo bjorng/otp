@@ -479,24 +479,20 @@ pgen_partial_incomplete_decode1(#gen{erule=ber}) ->
     gen_part_decode_funcs(GeneratedFs,0);
 pgen_partial_incomplete_decode1(#gen{}) -> ok.
 
-emit_partial_incomplete_decode({FuncName,TopType,Pattern}) ->
+emit_partial_incomplete_decode({FuncName,TopType,Pattern})
+  when is_atom(TopType) ->
     TypePattern = asn1ct:get_gen_state_field(inc_type_pattern),
-    TPattern =
-	case lists:keysearch(FuncName,1,TypePattern) of
-	    {value,{_,TP}} -> TP;
-	    _ -> exit({error,{asn1_internal_error,exclusive_decode}})
-	end,
+    {_,TPattern} = lists:keyfind(FuncName, 1, TypePattern),
     TopTypeName =
-	case asn1ct:maybe_saved_sindex(TopType,TPattern) of
-	    I when is_integer(I),I>0 ->
-		lists:concat([TopType,"_",I]);
-	    _ ->
-		atom_to_list(TopType)
-	end,
+        case asn1ct:maybe_saved_sindex(TopType, TPattern) of
+            I when is_integer(I), I > 0 ->
+                list_to_atom(lists:concat([TopType,"_",I]));
+            _ ->
+                TopType
+        end,
     emit([{asis,FuncName},"(Bytes) ->",nl,
-	  "  decode_partial_incomplete('",TopTypeName,"',Bytes,",{asis,Pattern},").",nl]);
-emit_partial_incomplete_decode(D) ->
-    throw({error,{asn1,{"bad data in asn1config file",D}}}).
+          "  decode_partial_incomplete(",{asis,TopTypeName},", Bytes, ",
+          {asis,Pattern},").",nl]).
 
 gen_part_decode_funcs([Data={Name,_,_,Type}|GeneratedFs],N) ->
     InnerType = 

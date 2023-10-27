@@ -370,19 +370,25 @@ gen_inc_decode(Erules,Type) when is_record(Type,typedef) ->
 gen_decode_selected(Erules,Type,FuncName) ->
     emit([FuncName,"(Bin) ->",nl]),
     Patterns = asn1ct:read_config_data(partial_decode),
-    Pattern = 
-	case lists:keysearch(FuncName,1,Patterns) of
-	    {value,{_,P}} -> P;
-	    false -> exit({error,{internal,no_pattern_saved}})
-	end,
+    {_,Pattern} = lists:keyfind(FuncName, 1, Patterns),
     emit(["  case ",{call,ber,decode_selective,
 		     [{asis,Pattern},"Bin"]}," of",nl,
 	  "    {ok,Bin2} when is_binary(Bin2) ->",nl,
 	  "      {Tlv,_} = ", {call,ber,ber_decode_nif,["Bin2"]},com,nl]),
-    emit("{ok,"),
-    gen_decode_selected_type(Erules,Type),
-    emit(["};",nl,"    Err -> exit({error,{selective_decode,Err}})",nl,
-	  "  end.",nl]).
+    NoOkWrapper = proplists:get_bool(no_ok_wrapper, Erules#gen.options),
+    case NoOkWrapper of
+        true -> ok;
+        false -> emit("{ok,")
+    end,
+    gen_decode_selected_type(Erules, Type),
+    case NoOkWrapper of
+        true ->
+            ok;
+        false ->
+            emit(["};",nl,
+                  "    Err -> exit({error,{selective_decode,Err}})"])
+    end,
+    emit(["  end.",nl]).
 
 gen_decode_selected_type(_Erules,TypeDef) ->
     Def = TypeDef#typedef.typespec,
