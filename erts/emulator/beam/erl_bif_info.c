@@ -3394,6 +3394,10 @@ BIF_RETTYPE system_info_1(BIF_ALIST_1)
         hp[0] = make_pos_bignum_header(BIG_ARITY_MAX);
         sys_memset(hp + 1, 0xff, BIG_ARITY_MAX*sizeof(Eterm));
         BIF_RET(make_big(hp));
+    } else if (ERTS_IS_ATOM_STR("line_coverage", BIF_ARG_1)) {
+        BIF_RET(erts_line_coverage ? am_true : am_false);
+    } else if (ERTS_IS_ATOM_STR("function_coverage", BIF_ARG_1)) {
+        BIF_RET(erts_function_coverage ? am_true : am_false);
     }
 
     BIF_ERROR(BIF_P, BADARG);
