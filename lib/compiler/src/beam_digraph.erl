@@ -32,6 +32,7 @@
          has_vertex/2,
          is_path/3,
          in_degree/2, in_edges/2, in_neighbours/2,
+         no_vertices/1,
          out_degree/2, out_edges/2, out_neighbours/2,
          vertex/2, vertices/1,
          reverse_postorder/2,
@@ -169,6 +170,10 @@ out_edges(#dg{out_es=OutEsMap}, V) ->
 -spec out_neighbours(graph(), vertex()) -> [vertex()].
 out_neighbours(#dg{out_es=OutEsMap}, V) ->
     [To || {_,To,_} <- map_get(V, OutEsMap)].
+
+-spec no_vertices(graph()) -> non_neg_integer().
+no_vertices(#dg{vs=Vs}) ->
+    map_size(Vs).
 
 -spec vertex(graph(), vertex()) -> label().
 vertex(#dg{vs=Vs}, V) ->
