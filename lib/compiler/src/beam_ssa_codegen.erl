@@ -988,8 +988,8 @@ cg_linear([{L,#cg_blk{is=Is0,last=Last}}|Bs], St0) ->
     {Is2,St} = cg_linear(Bs, St2),
     #cg{line_coverage_enabled=LineCoverageEnabled} = St,
     LineHint = case LineCoverageEnabled of
-        false -> [];
-        true -> [line_hint_from_cg_blk(Is0, Last)]
+                   false -> [];
+                   true -> line_hint_from_cg_blk(Is0, Last)
     end,
     {def_block_label(L, St)++LineHint++Is1++Is2,St};
 cg_linear([], St) -> {[],St}.
@@ -2538,10 +2538,22 @@ line(#{}) ->
     {line,[]}.
 
 line_hint_from_cg_blk(CgSets, Last) ->
-    {line_hint, location_from_cg_blk(CgSets, Last)}.
+    case location_from_cg_blk(CgSets, Last) of
+        [] ->
+            [];
+        [_|_]=LineHint ->
+            [{line_hint,LineHint}]
+    end.
 
-location_from_cg_blk([#cg_set{anno=#{location:={File,Line}}}|_Tail], _Last) ->
-    [{location,File,Line}];
+location_from_cg_blk([#cg_set{anno=#{location:={File,Line}},op=Op}|_Tail], _Last) ->
+    case Op of
+        bs_checked_get ->
+            [];
+        bs_checked_skip ->
+            [];
+        _ ->
+            [{location,File,Line}]
+    end;
 location_from_cg_blk([_|Tail], Last) ->
     location_from_cg_blk(Tail, Last);
 location_from_cg_blk([], Last) ->
