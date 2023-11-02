@@ -1395,11 +1395,16 @@ get_downs_r(Mons) ->
 get_data_for_remote_loading({Module,File}) ->
     [{Module,Code}] = ets:lookup(?BINARY_TABLE, Module),
     %%! The InitialTable list will be long if the module is big - what to do??
-    Mapping = counters_mapping_table(Module),
-    InitialClauses = ets:lookup(?COVER_CLAUSE_TABLE,Module),
+    case has_native_coverage() of
+        true ->
+            #remote_data{module=Module,file=File,code=Code};
+        false ->
+            Mapping = counters_mapping_table(Module),
+            InitialClauses = ets:lookup(?COVER_CLAUSE_TABLE,Module),
 
-    #remote_data{module=Module,file=File,code=Code,
-                 mapping=Mapping,clauses=InitialClauses}.
+            #remote_data{module=Module,file=File,code=Code,
+                         mapping=Mapping,clauses=InitialClauses}
+    end.
 
 %% Unload modules on remote nodes
 remote_unload(Nodes,UnloadedModules) ->
@@ -1778,7 +1783,14 @@ do_compile_beam2(Module,Beam,UserOptions,Forms0,MainFile,LocalOnly) ->
     %% Compile and load the result.
     %% It's necessary to check the result of loading since it may
     %% fail, for example if Module resides in a sticky directory.
-    Options = SourceInfo ++ UserOptions,
+    Options0 = SourceInfo ++ UserOptions,
+    Options = case has_native_coverage() of
+                  true ->
+                      [line_coverage|Options0];
+                  false ->
+                      Options0
+              end,
+
     {ok, Module, Binary} = compile:forms(Forms, Options),
 
     case code:load_binary(Module, ?TAG, Binary) of
@@ -2390,9 +2402,15 @@ patch_code(Mod, Forms, false) ->
     AbstrKey = {tuple,A,[{atom,A,?MODULE},{atom,A,Mod}]},
     patch_code1(Forms, {distributed,AbstrKey});
 patch_code(Mod, Forms, true) ->
-    Cref = create_counters(Mod),
-    AbstrCref = cid_to_abstract(Cref),
-    patch_code1(Forms, {local_only,AbstrCref}).
+    case has_native_coverage() of
+        true ->
+            erlang:reset_coverage(Mod),
+            patch_code1(Forms, native_coverage);
+        false ->
+            Cref = create_counters(Mod),
+            AbstrCref = cid_to_abstract(Cref),
+            patch_code1(Forms, {local_only,AbstrCref})
+    end.
 
 %% Go through the abstract code and replace 'BUMP' forms
 %% with the actual code to increment the counters.
@@ -2410,6 +2428,8 @@ patch_code1({'BUMP',_Anno,Index}, {local_only,AbstrCref}) ->
     A = element(2, AbstrCref),
     {call,A,{remote,A,{atom,A,counters},{atom,A,add}},
      [AbstrCref,{integer,A,Index},{integer,A,1}]};
+patch_code1({'BUMP',Anno,_Index}, native_coverage) ->
+    {atom,Anno,'ok'};
 patch_code1({clauses,Cs}, Key) ->
     {clauses,[patch_code1(El, Key) || El <- Cs]};
 patch_code1({attribute, _, _, _} = Attribute, _Key) ->
@@ -2441,28 +2461,32 @@ cid_to_abstract(Cref0) ->
 %% the main node. Also zero the counters.
 send_counters(Mod, CollectorPid) ->
     Process = fun(Chunk) -> send_chunk(CollectorPid, Chunk) end,
-    move_counters(Mod, Process).
+    Move = standard_move(Mod),
+    move_counters(Mod, Move, Process).
 
 %% Called on the main node. Collect the counters and consolidate
 %% them into the collection table. Also zero the counters.
 move_counters(Mod) ->
-    move_counters(Mod, fun insert_in_collection_table/1).
+    Process = fun insert_in_collection_table/1,
+    Move = case has_native_coverage() of
+               true ->
+                   native_move(Mod);
+               false ->
+                   standard_move(Mod)
+           end,
+    move_counters(Mod, Move, Process).
 
-move_counters(Mod, Process) ->
+move_counters(Mod, Move, Process) ->
     Pattern = {#bump{module=Mod,_='_'},'_'},
     Matches = ets:match_object(?COVER_MAPPING_TABLE, Pattern, ?CHUNK_SIZE),
-    Cref = get_counters_ref(Mod),
-    move_counters1(Matches, Cref, Process).
+    move_counters1(Matches, Move, Process).
 
-move_counters1({Mappings,Continuation}, Cref, Process) ->
-    Move = fun({Key,Index}) ->
-                   Count = counters:get(Cref, Index),
-                   ok = counters:sub(Cref, Index, Count),
-                   {Key,Count}
-           end,
-    Process(lists:map(Move, Mappings)),
-    move_counters1(ets:match_object(Continuation), Cref, Process);
-move_counters1('$end_of_table', _Cref, _Process) ->
+move_counters1({Mappings,Continuation}, Move, Process) ->
+    Moved = [Move(Item) || Item <- Mappings],
+    %% io:format("~p\n", [Moved]),
+    Process(Moved),
+    move_counters1(ets:match_object(Continuation), Move, Process);
+move_counters1('$end_of_table', _Move, _Process) ->
     ok.
 
 counters_mapping_table(Mod) ->
@@ -2484,6 +2508,28 @@ clear_counters(Mod) ->
     Pattern = {#bump{module=Mod,_='_'},'_'},
     _ = ets:match_delete(?COVER_MAPPING_TABLE, Pattern),
     ok.
+
+standard_move(Mod) ->
+    Cref = get_counters_ref(Mod),
+    fun({Key,Index}) ->
+            Count = counters:get(Cref, Index),
+            ok = counters:sub(Cref, Index, Count),
+            {Key,Count}
+    end.
+
+native_move(Mod) ->
+    Coverage0 = erlang:get_line_coverage(Mod),
+    Coverage = maps:from_list(lists:sort(Coverage0)),
+    fun({#bump{line=Line}=Key,_Index}) ->
+                   case Coverage of
+                       #{Line := false} ->
+                           {Key,0};
+                       #{Line := true} ->
+                           {Key,1};
+                       #{} ->
+                           {Key,0}
+                   end
+           end.
 
 %% Reset counters (set counters to 0).
 reset_counters(Mod) ->
@@ -3204,3 +3250,6 @@ html_encoding(latin1) ->
     "iso-8859-1";
 html_encoding(utf8) ->
     "utf-8".
+
+has_native_coverage() ->
+    erlang:system_info(line_coverage).
