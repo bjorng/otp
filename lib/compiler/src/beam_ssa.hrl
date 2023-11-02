@@ -53,8 +53,7 @@
 %% Values.
 -record(b_var, {name :: beam_ssa:var_name()}).
 
--record(b_literal, {anno=#{} :: beam_ssa:anno(),
-                    val :: beam_ssa:literal_value()}).
+-record(b_literal, {val :: beam_ssa:literal_value()}).
 
 -record(b_remote, {mod   :: beam_ssa:value(),
                    name  :: beam_ssa:value(),

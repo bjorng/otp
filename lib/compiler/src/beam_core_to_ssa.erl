@@ -131,10 +131,10 @@
 -record(cg_unreachable, {}).
 -record(cg_succeeded, {set :: beam_ssa:b_set()}).
 
-get_anno(#iclause{anno=Anno}) -> Anno;
-get_anno(#cg_alt{anno=Anno}) -> Anno;
-get_anno(#cg_guard{anno=Anno}) -> Anno;
-get_anno(#cg_select{anno=Anno}) -> Anno.
+get_anno(#iclause{anno=Anno}) when is_list(Anno) -> Anno;
+get_anno(#cg_alt{anno=Anno}) when is_list(Anno) -> Anno;
+get_anno(#cg_guard{anno=Anno}) when is_list(Anno) -> Anno;
+get_anno(#cg_select{anno=Anno}) when is_list(Anno) -> Anno.
 
 -type warning() :: {'failed' | 'nomatch', term()}.
 
@@ -282,8 +282,8 @@ expr(#c_var{name={Name0,Arity}}, Sub, St) ->
     {#b_local{name=#b_literal{val=Name},arity=Arity},[],St};
 expr(#c_var{name=V}, Sub, St) ->
     {#b_var{name=get_vsub(V, Sub)},[],St};
-expr(#c_literal{val=V,anno=Anno}, _Sub, St) ->
-    {#b_literal{val=V,anno=line_anno_for_coverage(Anno, St)},[],St};
+expr(#c_literal{val=V}, _Sub, St) ->
+    {#b_literal{val=V},[],St};
 expr(#c_cons{hd=Ch,tl=Ct}, Sub, St0) ->
     %% Do cons in two steps, first the expressions left to right, then
     %% any remaining literals right to left.
@@ -361,7 +361,7 @@ expr(#c_call{anno=A,module=M0,name=F0,args=Cargs}, Sub, St0) ->
             {#cg_call{anno=A,op=Remote,args=Args},Ap,St};
         is_record ->
             {Args,Ap,St} = atomic_list(Cargs, Sub, St0),
-            {#cg_internal{anno=internal_anno(A),op=is_record,args=Args},Ap,St};
+            {#cg_internal{anno=A,op=is_record,args=Args},Ap,St};
         error ->
             %% Invalid call (e.g. M:42/3). Issue a warning, and let
             %% the generated code call apply/3.
@@ -1078,10 +1078,9 @@ is_guard_bif(_, _, _) -> false.
 %% kmatch([Var], [Clause], Sub, Le, State) -> {Kexpr,State}.
 
 kmatch(Us, Ccs, Sub, Anno, St0) ->
-    Le = line_anno_for_coverage(Anno, St0),
     {Cs,St1} = match_pre(Ccs, Sub, St0),        %Convert clauses
     Def = fail,
-    match(Us, Cs, Def, Le, St1).                    %Do the match.
+    match(Us, Cs, Def, Anno, St1).              %Do the match.
 
 %% match_pre([Cclause], Sub, State) -> {[Clause],State}.
 %%  Must be careful not to generate new substitutions here now!
@@ -1176,7 +1175,7 @@ match_var([U|Us], Cs0, Def, Le, St) ->
 %%  constructor/constant as first argument.  Group the constructors
 %%  according to type, the order is really irrelevant but tries to be
 %%  smart.
-match_con([U|_Us]=L, Cs, Def, Le, St0) ->
+match_con([U|_Us]=L, Cs, Def, Le, St0) when is_list(Le) ->
     %% Extract clauses for different constructors (types).
     Ttcs0 = select_types(Cs, [], [], [], [], [], [], [], [], []),
     Ttcs1 = [{T, Types} || {T, [_ | _] = Types} <- Ttcs0],
@@ -1616,7 +1615,7 @@ match_clause([U|Us], [#iclause{anno=Anno}|_]=Cs0, Def, St0) ->
     {Match,Vs,St1} = get_match(get_con(Cs0), St0),
     Cs1 = new_clauses(Cs0, U),
     Cs2 = squeeze_clauses(Cs1, []),
-    {B,St2} = match(Vs ++ Us, Cs2, Def, #{}, St1),
+    {B,St2} = match(Vs ++ Us, Cs2, Def, [], St1),
     {#cg_val_clause{anno=Anno,val=Match,body=B},St2}.
 
 get_con([C|_]) -> arg_arg(clause_arg(C)).       %Get the constructor
@@ -1807,7 +1806,7 @@ build_guard(Cs) -> #cg_guard{clauses=Cs}.
 
 %% build_select(Var, [ConClause]) -> SelectExpr.
 
-build_select(V, [#cg_type_clause{}|_]=Tcs, Le) ->
+build_select(V, [#cg_type_clause{}|_]=Tcs, Le) when is_list(Le) ->
     #cg_select{anno=Le,var=V,types=Tcs}.
 
 %% build_alt(First, Then) -> AltExpr.
@@ -2454,19 +2453,21 @@ select_cg(Type, Scs, Var, Tf, Vf, Le, St0) ->
     {Vls,Sis,St2} = select_labels(OptVls, St1, [], []),
     select_val_cg(Type, Var, Vls, Tf, Vf, Sis, Le, St2).
 
-select_val_cg({bif,is_atom}, {bool,Dst}, Vls, _Tf, _Vf, Sis, Le, St) ->
+select_val_cg({bif,is_atom}, {bool,Dst}, Vls, _Tf, _Vf, Sis, Anno, St) ->
     %% Generate a br instruction for a known boolean value from
     %% the `wait_timeout` instruction.
     #b_var{} = Dst,                             %Assertion.
     [{#b_literal{val=false},Fail},{#b_literal{val=true},Succ}] = sort(Vls),
-    Br = #b_br{bool=Dst,succ=Succ,fail=Fail,anno=Le},
+    LineAnno = line_anno(Anno),
+    Br = #b_br{bool=Dst,succ=Succ,fail=Fail,anno=LineAnno},
     {[Br|Sis],St};
-select_val_cg({bif,is_atom}, {{succeeded,_}=SuccOp,Dst}, Vls, _Tf, _Vf, Sis, Le, St0) ->
+select_val_cg({bif,is_atom}, {{succeeded,_}=SuccOp,Dst}, Vls,
+              _Tf, _Vf, Sis, Anno, St0) ->
     [{#b_literal{val=false},Fail},{#b_literal{val=true},Succ}] = sort(Vls),
     #b_var{} = Dst,                             %Assertion.
     %% Generate a `{succeeded,guard}` instruction and two-way branch
     %% following the `peek_message` instruction.
-    {Cond,St} = make_cond(SuccOp, [Dst], Fail, Succ, Le, St0),
+    {Cond,St} = make_cond(SuccOp, [Dst], Fail, Succ, Anno, St0),
     {Cond ++ Sis,St};
 select_val_cg(cg_tuple, Tuple, Vls, Tf, Vf, Sis, Le, St0) ->
     {Is0,St1} = make_cond_branch({bif,is_tuple}, [Tuple], Tf, Le, St0),
@@ -2474,7 +2475,7 @@ select_val_cg(cg_tuple, Tuple, Vls, Tf, Vf, Sis, Le, St0) ->
     GetArity = #b_set{op={bif,tuple_size},dst=Arity,args=[Tuple]},
     {Is,St} = select_val_cg({bif,is_integer}, Arity, Vls, Vf, Vf, Sis, Le, St2),
     {Is0 ++ [GetArity|Is],St};
-select_val_cg(Type, R, Vls, Tf, Vf, Sis, Le, St0) ->
+select_val_cg(Type, R, Vls, Tf, Vf, Sis, Anno, St0) ->
     {TypeIs,St1} =
         if
             Tf =:= Vf ->
@@ -2484,14 +2485,15 @@ select_val_cg(Type, R, Vls, Tf, Vf, Sis, Le, St0) ->
             true ->
                 %% Different labels for type failure and value
                 %% failure; we need a type test.
-                make_cond_branch(Type, [R], Tf, Le, St0)
+                make_cond_branch(Type, [R], Tf, Anno, St0)
         end,
     case Vls of
         [{Val,Succ}] ->
-            {Is,St} = make_cond({bif,'=:='}, [R,Val], Vf, Succ, Le, St1),
+            {Is,St} = make_cond({bif,'=:='}, [R,Val], Vf, Succ, Anno, St1),
             {TypeIs++Is++Sis,St};
         [_|_] ->
-            {TypeIs++[#b_switch{arg=R,fail=Vf,list=Vls,anno=Le}|Sis],St1}
+            LineAnno = line_anno(Anno),
+            {TypeIs++[#b_switch{arg=R,fail=Vf,list=Vls,anno=LineAnno}|Sis],St1}
     end.
 
 combine([{Is,Vs1},{Is,Vs2}|Vis]) -> combine([{Is,Vs1 ++ Vs2}|Vis]);
@@ -2513,8 +2515,7 @@ select_literal(S, Src, Tf, Vf, St) ->
                 {Val,ValIs,St1} = select_val(ValClause, Src, Vf, St0),
                 Args = [Src,Val],
                 #cg_val_clause{anno=Anno} = ValClause,
-                Le = line_anno_for_coverage(Anno, St1),
-                {Is,St2} = make_cond_branch({bif,'=:='}, Args, Fail, Le, St1),
+                {Is,St2} = make_cond_branch({bif,'=:='}, Args, Fail, Anno, St1),
                 {Is++ValIs,St2}
         end,
     match_fmf(F, Tf, St, S).
@@ -2523,8 +2524,7 @@ select_cons(#cg_val_clause{val=#cg_cons{hd=Hd,tl=Tl},body=B,anno=Anno},
             Src, Tf, Vf, St0) ->
     {Bis,St1} = match_cg(B, Vf, St0),
     Args = [Src],
-    Le = line_anno_for_coverage(Anno, St1),
-    {Is,St} = make_cond_branch(is_nonempty_list, Args, Tf, Le, St1),
+    {Is,St} = make_cond_branch(is_nonempty_list, Args, Tf, Anno, St1),
     GetHd = #b_set{op=get_hd,dst=Hd,args=Args},
     GetTl = #b_set{op=get_tl,dst=Tl,args=Args},
     {Is ++ [GetHd,GetTl|Bis],St}.
@@ -2596,7 +2596,9 @@ select_bin_seg(#cg_val_clause{val=#cg_bin_int{}=Seg,body=B},
 
 select_bin_end(#cg_val_clause{val=#cg_bin_end{},body=B}, #b_var{}=Ctx, Tf, St0) ->
     {Bis,St1} = match_cg(B, Tf, St0),
-    {TestIs,St} = make_cond_branch(bs_test_tail, [Ctx,#b_literal{val=0}], Tf, #{}, St1),
+    EmptyAnno = [],
+    {TestIs,St} = make_cond_branch(bs_test_tail, [Ctx,#b_literal{val=0}],
+                                   Tf, EmptyAnno, St1),
     {TestIs ++ Bis,St}.
 
 select_extract_bin(#cg_bin_seg{type=Type,size=Size0,unit=Unit0,
@@ -2658,27 +2660,27 @@ select_extract_int(#cg_bin_int{val=Val,size=#b_literal{val=Sz},
     {[Set|TestIs],St}.
 
 select_val(#cg_val_clause{val=#cg_tuple{es=Es},body=B,anno=Anno}, V, Vf, St0) ->
-    Le = line_anno_for_coverage(Anno, St0),
-    Eis = select_extract_tuple(Es, 0, V, Le),
+    Eis = select_extract_tuple(Es, 0, V, Anno),
     {Bis,St1} = match_cg(B, Vf, St0),
     {#b_literal{val=length(Es)},Eis ++ Bis,St1};
 select_val(#cg_val_clause{val=#b_literal{}=Val,body=B}, _V, Vf, St0) ->
     {Bis,St1} = match_cg(B, Vf, St0),
     {Val,Bis,St1}.
 
-select_extract_tuple([E|Es], Index, Tuple, Le) ->
+select_extract_tuple([E|Es], Index, Tuple, Anno) ->
     case E of
         #b_var{} ->
             Args = [Tuple,#b_literal{val=Index}],
-            Get = #b_set{op=get_tuple_element,dst=E,args=Args,anno=Le},
-            [Get|select_extract_tuple(Es, Index+1, Tuple, Le)];
+            LineAnno = line_anno(Anno),
+            Get = #b_set{op=get_tuple_element,dst=E,args=Args,anno=LineAnno},
+            [Get|select_extract_tuple(Es, Index+1, Tuple, Anno)];
         #b_literal{val=unused} ->
             %% Not extracting tuple elements that are not used is an
             %% optimization for compile time and memory use during
             %% compilation, which is probably worthwhile because it is
             %% common to extract only a few elements from a huge
             %% record.
-            select_extract_tuple(Es, Index + 1, Tuple, Le)
+            select_extract_tuple(Es, Index + 1, Tuple, Anno)
     end;
 select_extract_tuple([], _, _, _) -> [].
 
@@ -3032,17 +3034,19 @@ extract_vars([], _, _) -> [].
 %%% SSA utilities.
 %%%
 
-make_cond(Cond, Args, Fail, Succ, Le, St0) ->
+make_cond(Cond, Args, Fail, Succ, Anno, St0) ->
+    LineAnno = line_anno(Anno),
     {Bool,St} = new_ssa_var(St0),
-    Bif = #b_set{op=Cond,dst=Bool,args=Args,anno=Le},
-    Br = #b_br{bool=Bool,succ=Succ,fail=Fail,anno=Le},
+    Bif = #b_set{op=Cond,dst=Bool,args=Args,anno=LineAnno},
+    Br = #b_br{bool=Bool,succ=Succ,fail=Fail,anno=LineAnno},
     {[Bif,Br],St}.
 
-make_cond_branch(Cond, Args, Fail, Le, St0) ->
+make_cond_branch(Cond, Args, Fail, Anno, St0) ->
+    LineAnno = line_anno(Anno),
     {Succ,St} = new_label(St0),
     Bool = #b_var{name=Succ},
-    Bif = #b_set{op=Cond,dst=Bool,args=Args,anno=Le},
-    Br = #b_br{bool=Bool,succ=Succ,fail=Fail,anno=Le},
+    Bif = #b_set{op=Cond,dst=Bool,args=Args,anno=LineAnno},
+    Br = #b_br{bool=Bool,succ=Succ,fail=Fail,anno=LineAnno},
     {[Bif,Br,{label,Succ}],St}.
 
 make_uncond_branch(Fail) ->
@@ -3067,7 +3071,7 @@ make_uncond_branch(Fail) ->
 %%
 
 make_succeeded(Var, {Where,Fail}, St) when Where =:= body; Where =:= guard ->
-    make_cond_branch({succeeded,Where}, [Var], Fail, #{}, St).
+    make_cond_branch({succeeded,Where}, [Var], Fail, [], St).
 
 ssa_args(As, St) ->
     [ssa_arg(A, St) || A <- As].
