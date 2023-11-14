@@ -30,6 +30,7 @@ test(Config) ->
     test_PartialDecSeq3(),
     test_MyHTTPMsg(),
     test_megaco(Config),
+    test_OCSP(),
     ok.
 
 test_PartialDecSeq() ->
@@ -162,6 +163,10 @@ exclusive_decode(Bin,F) ->
     {ok,_} = Mod:decode_part(MsgMidKey,MsgMid),
     {ok,_} = Mod:decode_part(MsgMBodyKey,MsgMBody),
     ok.
+
+test_OCSP() ->
+    M = 'OCSP-2013-88',
+    M.
 
 decode_parts('F',PartDecMsg) ->
     {fb,{'E',35,{NameE_b,ListBinE_b},false,{NameE_d,BinE_d}}} = PartDecMsg,
