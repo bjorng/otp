@@ -1,0 +1,15 @@
+%% -*- erlang -*-
+{exclusive_decode,
+ {'OCSP-2013-88',
+  [
+   %% {decode_TBSCert_exclusive,
+   %%  ['Certificate',[{tbsCertificate,undecoded}]]},
+   %% {decode_TBSCertList_exclusive2,
+   %%  ['CertificateList',[{tbsCertList,undecoded}]]},
+   {decode_BasicOCSPResponse_exclusive1,
+    ['BasicOCSPResponse',[{signature,undecoded}]]}
+   %% ,{decode_BasicOCSPResponse_exclusive2, % FIXME1
+   %%  ['BasicOCSPResponse',[{certs,undecoded}]]}
+   %% ,{decode_BasicOCSPResponse_exclusive2, % FIXME2
+   %%  ['BasicOCSPResponse',[{certs,parts}]]}
+  ]}}.
