@@ -5,11 +5,11 @@
    %% {decode_TBSCert_exclusive,
    %%  ['Certificate',[{tbsCertificate,undecoded}]]},
    %% {decode_TBSCertList_exclusive2,
-   %%  ['CertificateList',[{tbsCertList,undecoded}]]},
-   {decode_BasicOCSPResponse_exclusive1,
-    ['BasicOCSPResponse',[{signature,undecoded}]]}
-   ,{decode_BasicOCSPResponse_exclusive2, % FIXME1
+   %%  ['CertificateList',[{tbsCertList,undecoded}]]}
+   {decode_BasicOCSPResponse_signature_undec,
+    ['BasicOCSPResponse',[{signature,undecoded}]]},
+   {decode_BasicOCSPResponse_certs_undec,
     ['BasicOCSPResponse',[{certs,undecoded}]]}
-   %% ,{decode_BasicOCSPResponse_exclusive2, % FIXME2
+   %% {decode_BasicOCSPResponse_certs_part,
    %%  ['BasicOCSPResponse',[{certs,parts}]]}
   ]}}.

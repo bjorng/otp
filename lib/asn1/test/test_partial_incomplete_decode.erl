@@ -165,7 +165,7 @@ exclusive_decode(Bin,F) ->
     ok.
 
 test_OCSP() ->
-    M = 'OCSP-2013-88',
+    Mod = 'OCSP-2013-88',
 
     ResponseData = {'ResponseData',
                     0,                          %Version
@@ -177,13 +177,17 @@ test_OCSP() ->
     Type = 'BasicOCSPResponse',
     Msg = {Type,
            ResponseData,
-           {'AlgorithmIdentifier',M:'id-pkix-ocsp-basic'(),<<>>},
+           {'AlgorithmIdentifier',Mod:'id-pkix-ocsp-basic'(),<<>>},
            <<"signature">>,
            []},
-    {ok,Enc} = M:encode(Type, Msg),
-    io:format("~p\n", [Enc]),
+    {ok,Enc} = Mod:encode(Type, Msg),
+    {ok,Dec} = Mod:decode_BasicOCSPResponse_signature_undec(Enc),
+    {Type,_,_,{SignTag,SignUndec},_} = Dec,
+    {ok,<<"signature">>} = Mod:decode_part(SignTag, SignUndec),
 
-    M.
+    io:format("~p\n", [Dec]),
+
+    ok.
 
 decode_parts('F',PartDecMsg) ->
     {fb,{'E',35,{NameE_b,ListBinE_b},false,{NameE_d,BinE_d}}} = PartDecMsg,
