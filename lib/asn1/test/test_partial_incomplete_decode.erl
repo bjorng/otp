@@ -181,11 +181,16 @@ test_OCSP() ->
            <<"signature">>,
            []},
     {ok,Enc} = Mod:encode(Type, Msg),
-    {ok,Dec} = Mod:decode_BasicOCSPResponse_signature_undec(Enc),
-    {Type,_,_,{SignTag,SignUndec},_} = Dec,
+
+    io:format("~p\n", [Enc]),
+
+    {ok,Dec1} = Mod:decode_BasicOCSPResponse_signature_undec(Enc),
+    {Type,_,_,{SignTag,SignUndec},_} = Dec1,
     {ok,<<"signature">>} = Mod:decode_part(SignTag, SignUndec),
 
-    io:format("~p\n", [Dec]),
+    {ok,Dec2} = Mod:decode_BasicOCSPResponse_certs_undec(Enc),
+
+    io:format("~p\n", [Dec2]),
 
     ok.
 
