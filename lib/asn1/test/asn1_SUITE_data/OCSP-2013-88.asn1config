@@ -8,8 +8,8 @@
    %%  ['CertificateList',[{tbsCertList,undecoded}]]},
    {decode_BasicOCSPResponse_exclusive1,
     ['BasicOCSPResponse',[{signature,undecoded}]]}
-   %% ,{decode_BasicOCSPResponse_exclusive2, % FIXME1
-   %%  ['BasicOCSPResponse',[{certs,undecoded}]]}
+   ,{decode_BasicOCSPResponse_exclusive2, % FIXME1
+    ['BasicOCSPResponse',[{certs,undecoded}]]}
    %% ,{decode_BasicOCSPResponse_exclusive2, % FIXME2
    %%  ['BasicOCSPResponse',[{certs,parts}]]}
   ]}}.

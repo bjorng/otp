@@ -113,10 +113,7 @@ exclusive_decode_1(_Mod, Term) ->
 exclusive_decode_2(ModName, TopType, Directives) ->
     case asn1_db:dbget(ModName, TopType) of
 	#typedef{typespec=TS} ->
-	    Acc = case get_tag_command(TS, ?MANDATORY, mandatory) of
-                      none -> [];
-                      TagCommand -> [TagCommand]
-                  end,
+	    Acc = get_tag_command(TS, ?MANDATORY, mandatory),
 	    exclusive_decode_command(get_components(TS#type.def),
                                      Directives, Acc);
 	undefined ->
@@ -152,22 +149,22 @@ exclusive_decode_command([#'ComponentType'{name=Name,typespec=TS,
                          Commands0, Acc) ->
     case maps:take(Name, Commands0) of
         {Command,Commands} when is_atom(Command) ->
-            TagCommand = get_tag_command(TS, Command, Prop),
-            exclusive_decode_command(Comps, Commands, [TagCommand|Acc]);
+            TagCommands = get_tag_command(TS, Command, Prop),
+            exclusive_decode_command(Comps, Commands, TagCommands++Acc);
         {InnerCommands0,Commands} when is_map(Commands0) ->
             InnerCommands = exclusive_decode_command(TS#type.def,
                                                      InnerCommands0, []),
             case get_tag_command(TS, ?MANDATORY, Prop) of
-                ?MANDATORY ->
+                [?MANDATORY] ->
                     exclusive_decode_command(Comps, Commands,
                                              [{?MANDATORY,InnerCommands}|Acc]);
-                {Opt,EncTag} ->
+                [{Opt,EncTag}] ->
                     exclusive_decode_command(Comps, Commands,
                                              [{Opt,EncTag,InnerCommands}|Acc])
             end;
         error ->
-            TagCommand = get_tag_command(TS, ?MANDATORY, Prop),
-            exclusive_decode_command(Comps, Commands0, [TagCommand|Acc])
+            TagCommands = get_tag_command(TS, ?MANDATORY, Prop),
+            exclusive_decode_command(Comps, Commands0, TagCommands ++ Acc)
     end;
 exclusive_decode_command({'CHOICE',[_|_]=Cs}, Commands, Acc) ->
     exclusive_decode_choice_cs(Cs, Commands, Acc);
@@ -190,35 +187,37 @@ exclusive_decode_choice_cs([#'ComponentType'{name=Name,typespec=TS}|Cs],
         {Inner,Commands} ->
             case Inner of
                 ?UNDECODED ->
-                    TagCommand = get_tag_command(TS, ?ALTERNATIVE_UNDECODED, mandatory),
-                    exclusive_decode_choice_cs(Cs, Commands, [TagCommand|Acc]);
+                    TagCommands = get_tag_command(TS, ?ALTERNATIVE_UNDECODED, mandatory),
+                    exclusive_decode_choice_cs(Cs, Commands, TagCommands ++ Acc);
                 ?PARTS ->
-                    TagCommand = get_tag_command(TS, ?ALTERNATIVE_PARTS, mandatory),
-                    exclusive_decode_choice_cs(Cs, Commands, [TagCommand|Acc]);
+                    TagCommands = get_tag_command(TS, ?ALTERNATIVE_PARTS, mandatory),
+                    exclusive_decode_choice_cs(Cs, Commands, TagCommands ++ Acc);
                 _ when is_map(Inner) ->
-                    {Command,Tag} = get_tag_command(TS, ?ALTERNATIVE, mandatory),
+                    [{Command,Tag}] = get_tag_command(TS, ?ALTERNATIVE, mandatory),
                     CompAcc = exclusive_decode_command(get_components(TS#type.def), Inner, []),
                     exclusive_decode_choice_cs(Cs, Commands, [{Command,Tag,CompAcc}|Acc])
             end;
         error ->
-            TagCommand = get_tag_command(TS, ?ALTERNATIVE, mandatory),
-            exclusive_decode_choice_cs(Cs, Commands0, [TagCommand|Acc])
+            TagCommands = get_tag_command(TS, ?ALTERNATIVE, mandatory),
+            exclusive_decode_choice_cs(Cs, Commands0, TagCommands ++ Acc)
     end.
 
 get_tag_command(#type{tag=[]}, _, _) ->
-    none;
+    [];
 get_tag_command(#type{tag=[Tag]}, ?MANDATORY, Prop) ->
-    case Prop of
-        mandatory ->
-            ?MANDATORY;
-        {'DEFAULT',_} ->
-            {?DEFAULT,?ASN1CT_GEN_BER:tag_to_integer(Tag)};
-        _ ->
-            {?OPTIONAL,?ASN1CT_GEN_BER:tag_to_integer(Tag)}
-    end;
+    [case Prop of
+         mandatory ->
+             ?MANDATORY;
+         {'DEFAULT',_} ->
+             {?DEFAULT,?ASN1CT_GEN_BER:tag_to_integer(Tag)};
+         _ ->
+             {?OPTIONAL,?ASN1CT_GEN_BER:tag_to_integer(Tag)}
+     end];
 get_tag_command(#type{tag=[Tag]}, Command, Prop) ->
-    {anonymous_dec_command(Command, Prop),
-     ?ASN1CT_GEN_BER:tag_to_integer(Tag)}.
+    [{anonymous_dec_command(Command, Prop),
+      ?ASN1CT_GEN_BER:tag_to_integer(Tag)}];
+get_tag_command(#type{tag=[_|_]=Tags}=Type, Command, Prop) ->
+    lists:reverse([get_tag_command(Type#type{tag=[Tag]}, Command, Prop) || Tag <- Tags]).
 
 anonymous_dec_command(?UNDECODED, 'OPTIONAL') ->
     ?OPTIONAL_UNDECODED;
