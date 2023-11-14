@@ -166,6 +166,23 @@ exclusive_decode(Bin,F) ->
 
 test_OCSP() ->
     M = 'OCSP-2013-88',
+
+    ResponseData = {'ResponseData',
+                    0,                          %Version
+                    {byKey,<<"key hash">>},
+                    "factory",
+                    [],
+                    asn1_NOVALUE},
+
+    Type = 'BasicOCSPResponse',
+    Msg = {Type,
+           ResponseData,
+           {'AlgorithmIdentifier',M:'id-pkix-ocsp-basic'(),<<>>},
+           <<"signature">>,
+           []},
+    {ok,Enc} = M:encode(Type, Msg),
+    io:format("~p\n", [Enc]),
+
     M.
 
 decode_parts('F',PartDecMsg) ->
