@@ -297,7 +297,7 @@ void BeamModuleAssembler::emit_i_minus(const ArgSource &LHS,
                                        const ArgLabel &Fail,
                                        const ArgRegister &Dst) {
     bool is_rhs_literal = false;
-    Sint rhs_untagged;
+    Sint rhs_untagged = 0;
     bool small_result = is_diff_small_if_args_are_small(LHS, RHS);
 
     if (RHS.isSmall()) {
