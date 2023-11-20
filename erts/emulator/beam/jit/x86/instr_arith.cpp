@@ -1541,8 +1541,6 @@ void BeamModuleAssembler::emit_i_bsr(const ArgSource &LHS,
     bool need_generic = true;
     bool need_register_load = true;
 
-    mov_arg(ARG2, LHS);
-
     if (RHS.isSmall()) {
         Sint shift = RHS.as<ArgSmall>().getSigned();
 
@@ -1551,11 +1549,12 @@ void BeamModuleAssembler::emit_i_bsr(const ArgSource &LHS,
                 comment("skipped test for small left operand because it is "
                         "always small");
                 need_generic = false;
+                mov_arg(RET, LHS);
             } else {
+                mov_arg(ARG2, LHS);
                 emit_is_small(generic, LHS, ARG2);
+                a.mov(RET, ARG2);
             }
-
-            a.mov(RET, ARG2);
 
             /* We don't need to clear the mask after shifting because
              * _TAG_IMMED1_SMALL will set all the bits anyway. */
@@ -1570,8 +1569,10 @@ void BeamModuleAssembler::emit_i_bsr(const ArgSource &LHS,
         } else {
             /* Constant shift is negative; fall back to the generic
              * path. */
+            mov_arg(ARG2, LHS);
         }
     } else if (hasCpuFeature(CpuFeatures::X86::kBMI2)) {
+        mov_arg(ARG2, LHS);
         mov_arg(RET, RHS);
         need_register_load = false;
 
