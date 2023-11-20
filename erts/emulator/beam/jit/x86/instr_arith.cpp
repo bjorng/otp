@@ -74,7 +74,7 @@ void BeamModuleAssembler::emit_are_both_small(Label fail,
             a.test(B.r8(), imm(TAG_PRIMARY_LIST));
         } else if (A != RET && B != RET) {
             a.mov(RETd, A.r32());
-            a.and_(RETd, B.r32());
+            a.and_(RETb, B.r8());
             a.test(RETb, imm(TAG_PRIMARY_LIST));
         } else {
             a.mov(ARG1d, A.r32());
