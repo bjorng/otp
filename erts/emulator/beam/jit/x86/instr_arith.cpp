@@ -1089,7 +1089,7 @@ void BeamModuleAssembler::emit_i_mul_add(const ArgLabel &Fail,
         }
 
         if (is_increment_zero) {
-            a.or_(RET, imm(_TAG_IMMED1_SMALL));
+            a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         } else {
             mov_arg(ARG2, Src4);
             a.add(RET, ARG2);
@@ -1151,7 +1151,7 @@ void BeamModuleAssembler::emit_i_mul_add(const ArgLabel &Fail,
         }
 
         if (is_increment_zero) {
-            a.or_(RET, imm(_TAG_IMMED1_SMALL));
+            a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         } else {
             a.add(RET, ARG4);
             if (is_sum_small) {
@@ -1390,7 +1390,7 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
             /* TAG ^ TAG = 0, so we need to tag it again. */
             mov_arg(ARG2, RHS);
             a.xor_(RET, ARG2);
-            a.or_(RET, imm(_TAG_IMMED1_SMALL));
+            a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         }
         mov_arg(Dst, RET);
         return;
@@ -1405,7 +1405,7 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
 
     /* TAG ^ TAG = 0, so we need to tag it again. */
     a.xor_(RET, ARG2);
-    a.or_(RET, imm(_TAG_IMMED1_SMALL));
+    a.or_(RETb, imm(_TAG_IMMED1_SMALL));
     a.short_().jmp(next);
 
     a.bind(generic);
@@ -1562,7 +1562,7 @@ void BeamModuleAssembler::emit_i_bsr(const ArgSource &LHS,
             ERTS_CT_ASSERT(_TAG_IMMED1_MASK == _TAG_IMMED1_SMALL);
             shift = std::min<Sint>(shift, 63);
             a.sar(RET, imm(shift));
-            a.or_(RET, imm(_TAG_IMMED1_SMALL));
+            a.or_(RETb, imm(_TAG_IMMED1_SMALL));
 
             if (need_generic) {
                 a.short_().jmp(next);
@@ -1586,7 +1586,7 @@ void BeamModuleAssembler::emit_i_bsr(const ArgSource &LHS,
         a.cmova(ARG1, RET);
 
         a.sarx(RET, ARG2, ARG1);
-        a.or_(RET, imm(_TAG_IMMED1_SMALL));
+        a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         a.short_().jmp(next);
     }
 
@@ -1641,7 +1641,7 @@ void BeamModuleAssembler::emit_i_bsl(const ArgSource &LHS,
         comment("skipped tests because operands and result are always small");
         mov_arg(RET, LHS);
         ERTS_CT_ASSERT(_TAG_IMMED1_MASK == _TAG_IMMED1_SMALL);
-        a.xor_(RET, imm(_TAG_IMMED1_MASK));
+        a.xor_(RETb, imm(_TAG_IMMED1_MASK));
         if (RHS.isSmall()) {
             a.shl(RET, imm(RHS.as<ArgSmall>().getSigned()));
         } else {
@@ -1649,7 +1649,7 @@ void BeamModuleAssembler::emit_i_bsl(const ArgSource &LHS,
             a.shr(x86::rcx, imm(_TAG_IMMED1_SIZE));
             a.shl(RET, x86::cl);
         }
-        a.or_(RET, imm(_TAG_IMMED1_SMALL));
+        a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         mov_arg(Dst, RET);
         return;
     }
