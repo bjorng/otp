@@ -216,9 +216,9 @@ get_tag_command(#type{tag=[Tag]}, ?MANDATORY, Prop) ->
 get_tag_command(#type{tag=[Tag]}, Command, Prop) ->
     [{anonymous_dec_command(Command, Prop),
       ?ASN1CT_GEN_BER:tag_to_integer(Tag)}];
-get_tag_command(#type{tag=[Tag|Tags]}=Type, Command, Prop) ->
-    [hd(get_tag_command(Type#type{tag=[Tag]},Command,Prop)) |
-     get_tag_command(Type#type{tag=Tags},Command,Prop)].
+get_tag_command(#type{tag=[_|_]=Tags}=Type, Command, Prop) ->
+    lists:reverse([hd(get_tag_command(Type#type{tag=[Tag]}, Command, Prop)) ||
+                      Tag <- Tags]).
 
 anonymous_dec_command(?UNDECODED, 'OPTIONAL') ->
     ?OPTIONAL_UNDECODED;
