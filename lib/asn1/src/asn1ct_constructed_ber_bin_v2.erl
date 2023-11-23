@@ -1196,7 +1196,6 @@ gen_dec_line(Erules,TopType,Cname,CTags,Type,OptOrMand,DecObjInf)  ->
 			_ ->
                             case asn1ct:get_gen_state_field(namelist) of
                                 [{Cname,undecoded}|_] ->
-                                    io:format("~p\n", [FirstTag]),
                                     emit(["[",{curr,v},"|Temp",{curr,tlv},"] ",
                                           "when is_binary(",{curr,v},") ->",nl]);
                                 _ ->
