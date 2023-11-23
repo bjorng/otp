@@ -1,0 +1,14 @@
+Blurf DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+Seq ::= SEQUENCE {
+      a INTEGER,
+      b Seq2 OPTIONAL,
+      c BOOLEAN
+}
+
+Seq2 ::= SEQUENCE {
+     x OCTET STRING
+}
+
+END

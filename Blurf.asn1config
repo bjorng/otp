@@ -1,0 +1,7 @@
+%% -*- erlang -*-
+{exclusive_decode,
+ {'Blurf',
+  [
+   {blurf,
+    ['Seq',[{b,undecoded}]]}
+  ]}}.
