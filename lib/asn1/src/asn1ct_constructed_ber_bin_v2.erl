@@ -1194,10 +1194,17 @@ gen_dec_line(Erules,TopType,Cname,CTags,Type,OptOrMand,DecObjInf)  ->
 			    Pdec;
 
 			_ ->
-			    emit(["[{",{asis,FirstTag},
-				  ",",{curr,v},"}|Temp",
-				  {curr,tlv},
-				  "] ->",nl]),
+                            case asn1ct:get_gen_state_field(namelist) of
+                                [{Cname,undecoded}|_] ->
+                                    io:format("~p\n", [FirstTag]),
+                                    emit(["[",{curr,v},"|Temp",{curr,tlv},"] ",
+                                          "when is_binary(",{curr,v},") ->",nl]);
+                                _ ->
+                                    emit(["[{",{asis,FirstTag},
+                                          ",",{curr,v},"}|Temp",
+                                          {curr,tlv},
+                                          "] ->",nl])
+                            end,
 			    emit([indent(4),"{"]),
 			    Pdec= 
 				gen_dec_call(InnerType,Erules,TopType,Cname,
