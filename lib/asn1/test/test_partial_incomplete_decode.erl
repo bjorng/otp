@@ -123,6 +123,10 @@ test_PartialDecSeq3() ->
     {ok,IncFMsg1} = M:decode_S1_incomplete(Bytes1),
     decode_parts('S1_1', IncFMsg1),
 
+    {ok,IncBMsg1} = M:decode_S1_b_incomplete(Bytes1),
+    io:format("~p\n", [IncBMsg1]),
+    MsgS1_1 = decode_parts('S1_b', IncBMsg1),
+
     MsgS1_2 = msg('S1_2'),
     Bytes2 = roundtrip(M, 'S1', MsgS1_2),
     {ok,IncFMsg2} = M:decode_S1_incomplete(Bytes2),
@@ -256,6 +260,12 @@ decode_parts('S1_2',PartDecMsg) ->
     {ok,[{'Name',"Hans","HCA","Andersen"}|_Rest3]} =
 	'PartialDecSeq3':decode_part(NameS1d,BinS1d),
     ok;
+decode_parts('S1_b', PartDecMsg) ->
+    {'S1',14,{PartName,PartBin},Choice,Names} = PartDecMsg,
+    io:format("~p\n", [PartBin]),
+    {ok,S2} = 'PartialDecSeq3':decode_part(PartName, PartBin),
+    io:format("~p\n", [S2]),
+    {'S1',14,S2,Choice,Names};
 decode_parts('S3', PartDecMsg) ->
     {'S3',10,{'S3_second',Undecoded},<<"OCTETSTRING">>,[one,two,three,four]} = PartDecMsg,
     {ok,"PrintableString"} = 'PartialDecSeq3':decode_part('S3_second', Undecoded),
