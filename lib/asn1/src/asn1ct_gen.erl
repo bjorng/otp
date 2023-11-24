@@ -510,10 +510,6 @@ gen_part_decode_funcs([Data={Name,_,_,Type}|GeneratedFs],N) ->
                    _ ->
                        list2name(Name)
                end,
-    %% io:format("Name: ~p\n", [Name]),
-    %% io:format("Id: ~p\n", [DispatchId]),
-    %% io:format("Type: ~p\n", [TypeName]),
-    %% io:nl(),
     if
 	N > 0 -> emit([";",nl]);
 	true -> ok
