@@ -124,7 +124,6 @@ test_PartialDecSeq3() ->
     decode_parts('S1_1', IncFMsg1),
 
     {ok,IncBMsg1} = M:decode_S1_b_incomplete(Bytes1),
-    io:format("~p\n", [IncBMsg1]),
     MsgS1_1 = decode_parts('S1_b', IncBMsg1),
 
     MsgS1_2 = msg('S1_2'),
@@ -186,15 +185,13 @@ test_OCSP() ->
            []},
     {ok,Enc} = Mod:encode(Type, Msg),
 
-    io:format("~p\n", [Enc]),
-
     {ok,Dec1} = Mod:decode_BasicOCSPResponse_signature_undec(Enc),
     {Type,_,_,{SignTag,SignUndec},_} = Dec1,
     {ok,<<"signature">>} = Mod:decode_part(SignTag, SignUndec),
 
     {ok,Dec2} = Mod:decode_BasicOCSPResponse_certs_undec(Enc),
-
-    io:format("~p\n", [Dec2]),
+    {Type,_,_,_,{CertTag,CertUndec}} = Dec2,
+    {ok,[]} = Mod:decode_part(CertTag, CertUndec),
 
     ok.
 
@@ -262,9 +259,7 @@ decode_parts('S1_2',PartDecMsg) ->
     ok;
 decode_parts('S1_b', PartDecMsg) ->
     {'S1',14,{PartName,PartBin},Choice,Names} = PartDecMsg,
-    io:format("~p\n", [PartBin]),
     {ok,S2} = 'PartialDecSeq3':decode_part(PartName, PartBin),
-    io:format("~p\n", [S2]),
     {'S1',14,S2,Choice,Names};
 decode_parts('S3', PartDecMsg) ->
     {'S3',10,{'S3_second',Undecoded},<<"OCTETSTRING">>,[one,two,three,four]} = PartDecMsg,
