@@ -142,10 +142,12 @@ test_OCSP() ->
            []},
     {ok,Enc} = Mod:encode(Type, Msg),
 
+    %% test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, Msg),
     {ok,Dec1} = Mod:decode_BasicOCSPResponse_signature_undec(Enc),
     {Type,_,_,{SignTag,SignUndec},_} = Dec1,
     {ok,<<"signature">>} = Mod:decode_part(SignTag, SignUndec),
 
+    %% test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, Msg),
     {ok,Dec2} = Mod:decode_BasicOCSPResponse_certs_undec(Enc),
     {Type,_,_,_,{CertTag,CertUndec}} = Dec2,
     {ok,[]} = Mod:decode_part(CertTag, CertUndec),
