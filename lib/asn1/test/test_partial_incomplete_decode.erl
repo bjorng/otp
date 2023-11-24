@@ -85,18 +85,13 @@ test_PartialDecSeq3() ->
 
     MsgS1_1 = msg('S1_1'),
     test_exclusive(fun M:decode_S1_incomplete/1, 'S1', MsgS1_1),
-
     test_exclusive(fun M:decode_S1_b_incomplete/1, 'S1', MsgS1_1),
 
     MsgS1_2 = msg('S1_2'),
-    Bytes2 = roundtrip(M, 'S1', MsgS1_2),
-    {ok,IncFMsg2} = M:decode_S1_incomplete(Bytes2),
-    decode_parts('S1_2', IncFMsg2),
+    test_exclusive(fun M:decode_S1_incomplete/1, 'S1', MsgS1_2),
 
     MsgS3 = msg('S3'),
-    Bytes3 = roundtrip(M, 'S3', MsgS3),
-    {ok,IncSMsg} = M:decode_S3_second(Bytes3),
-    decode_parts('S3', IncSMsg),
+    test_exclusive(fun M:decode_S3_second/1, 'S3', MsgS3),
 
     ok.
 
