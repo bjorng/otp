@@ -503,12 +503,22 @@ gen_part_decode_funcs([Data={Name,_,_,Type}|GeneratedFs],N) ->
 		get_inner(Type#type.def)
 	end,
     WhatKind = type(InnerType),
-    TypeName=list2name(Name),
+    DispatchId = list_to_atom(list2name(Name)),
+    TypeName = case Name of
+                   [parts|TypeName0] ->
+                       list2name(TypeName0);
+                   _ ->
+                       list2name(Name)
+               end,
+    %% io:format("Name: ~p\n", [Name]),
+    %% io:format("Id: ~p\n", [DispatchId]),
+    %% io:format("Type: ~p\n", [TypeName]),
+    %% io:nl(),
     if
 	N > 0 -> emit([";",nl]);
 	true -> ok
     end,
-    emit(["decode_inc_disp('",TypeName,"',Data) ->",nl]),
+    emit(["decode_inc_disp(",{asis,DispatchId},",Data) ->",nl]),
     gen_part_decode_funcs(WhatKind,TypeName,Data),
     gen_part_decode_funcs(GeneratedFs,N+1);
 gen_part_decode_funcs([_H|T],N) ->

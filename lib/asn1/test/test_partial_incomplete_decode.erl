@@ -266,9 +266,9 @@ decode_parts('S3', PartDecMsg) ->
     {ok,"PrintableString"} = 'PartialDecSeq3':decode_part('S3_second', Undecoded),
     ok;
 decode_parts('E', PartDecMsg) ->
-    {'E',35,{'E_b',Parts},false,_} = PartDecMsg,
+    {'E',35,{PartName,Parts},false,_} = PartDecMsg,
     DMany = msg('D_many'),
-    {ok,DMany} = 'PartialDecSeq':decode_part('E_b', Parts),
+    {ok,DMany} = 'PartialDecSeq':decode_part(PartName, Parts),
     ok.
 
 msg('E') ->

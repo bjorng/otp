@@ -1367,10 +1367,9 @@ gen_dec_call1(WhatKind, _, TopType, Cname, Type, BytesVar, Tag) ->
 		    %% This is to prepare SEQUENCE OF value in
 		    %% partial incomplete decode for a later
 		    %% part-decode, i.e. skip %% the tag.
-		    asn1ct:add_generated_refed_func({[Cname|TopType],
-						     parts,
-						     [],Type}),
-		    emit(["{'",asn1ct_gen:list2name([Cname|TopType]),"',"]),
+                    Id = [parts,Cname|TopType],
+		    asn1ct:add_generated_refed_func({Id,parts,[],Type}),
+		    emit(["{'",asn1ct_gen:list2name(Id),"',"]),
 		    asn1ct_func:need({ber,match_tags,2}),
 		    EmitDecFunCall("match_tags"),
 		    emit("}");

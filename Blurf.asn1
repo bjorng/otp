@@ -4,7 +4,7 @@ BEGIN
 Seq ::= SEQUENCE {
       a INTEGER,
       b Seq2 OPTIONAL,
-      c BOOLEAN
+      c SEQUENCE OF INTEGER OPTIONAL
 }
 
 Seq2 ::= SEQUENCE {

@@ -3,5 +3,11 @@
  {'Blurf',
   [
    {blurf,
-    ['Seq',[{b,undecoded}]]}
+    ['Seq',[{b,undecoded}]]},
+   {blurf_c_undec,
+    ['Seq',[{c,undecoded}]]},
+   {blurf_c_parts,
+    ['Seq',[{c,parts}]]},
+   {blurf_bc,
+    ['Seq',[{b,undecoded},{c,undecoded}]]}
   ]}}.
