@@ -154,34 +154,10 @@ test_OCSP() ->
 
     ok.
 
-decode_parts('F',PartDecMsg) ->
-    {fb,{'E',35,{NameE_b,ListBinE_b},false,{NameE_d,BinE_d}}} = PartDecMsg,
-    {ok,[{'D',3,true}|_]} = 'PartialDecSeq':decode_part(NameE_b,ListBinE_b),
-    {ok,{'D',3,true}} = 'PartialDecSeq':decode_part(NameE_b,
-							  hd(ListBinE_b)),
-    {ok,{da,[{'A',16,{'D',17,true}}]}} =
-	'PartialDecSeq':decode_part(NameE_d,BinE_d),
-    ok;
-decode_parts('F2',PartDecMsg) ->
-    {fb,{'E',35,{E_bkey,E_b},false,{da,{E_d_akey,E_d_a}}}} = PartDecMsg,
-    {ok,[{'D',3,true},{'D',4,false},{'D',5,true},{'D',6,true},{'D',7,false},{'D',8,true},{'D',9,true},{'D',10,false},{'D',11,true},{'D',12,true},{'D',13,false},{'D',14,true}]} = 'PartialDecSeq':decode_part(E_bkey,E_b),
-    {ok,[{'A',16,{'D',17,true}}]} = 'PartialDecSeq':decode_part(E_d_akey,E_d_a);
-
 decode_parts('F3',PartDecMsg) ->
     {fb,{'E',10,{E_bkey,E_b},false,{dc,{'E_d_dc',13,true,{E_d_dc_dcckey,E_d_dc_dcc}}}}} = PartDecMsg,
     {ok,[{'D',11,true},{'D',12,false}]} = 'PartialDecSeq':decode_part(E_bkey,E_b),
     {ok,{'E_d_dc_dcc',14,15}} = 'PartialDecSeq':decode_part(E_d_dc_dcckey,E_d_dc_dcc);
-
-
-decode_parts('D',PartDecMsg) ->
-    {'D',{NameD_a,BinD_a},true} = PartDecMsg,
-    {ok,123} = 'PartialDecSeq':decode_part(NameD_a,BinD_a),
-    ok;
-decode_parts('A',PartDecMsg) ->
-    {'A',12,{c,{'S',true,false}},{b,{NameA_c_b,BinA_c_b}}} = PartDecMsg,
-    {ok,{'A_c_b',false,false}} =
-	'PartialDecSeq2':decode_part(NameA_c_b,BinA_c_b),
-    ok;
 decode_parts('GetRequest',PartDecMsg) ->
     {'GetRequest',true,false,
 	   {'AcceptTypes',[html,'plain-text',gif,jpeg],
@@ -193,41 +169,6 @@ decode_parts('GetRequest',PartDecMsg) ->
     {ok,"hell"} =
 	'PartialDecMyHTTP':decode_part(NameAcceptTypes_others,
 				       hd(ListBinAcceptTypes_others)),
-    ok;
-decode_parts('S1_1',PartDecMsg) ->
-    {'S1',14,{'S2',false,12,{NameS2c,BinS2c}},
-	   {_,{NameS1c_a,ListBinS1c_a}},{NameS1d,BinS1d}} = PartDecMsg,
-    {ok,[{'S3',10,"PrintableString",<<"OCTETSTRING">>,
-		[one,two,three,four]}|_Rest1]} = 
-	'PartialDecSeq3':decode_part(NameS2c,BinS2c),
-    {ok,[{'S3',10,"PrintableString",<<"OCTETSTRING">>,
-		[one,two,three,four]}|_Rest2]} = 
-	'PartialDecSeq3':decode_part(NameS1c_a,ListBinS1c_a),
-    {ok,{'S3',10,"PrintableString",<<"OCTETSTRING">>,
-	       [one,two,three,four]}} =
-	'PartialDecSeq3':decode_part(NameS1c_a,hd(ListBinS1c_a)),
-    {ok,[{'Name',"Hans","HCA","Andersen"}|_Rest3]} =
-	'PartialDecSeq3':decode_part(NameS1d,BinS1d),
-    ok;
-decode_parts('S1_2',PartDecMsg) ->
-    {'S1',14,{'S2',false,12,_S2c},S1c_b,{NameS1d,BinS1d}} = PartDecMsg,
-    {b,{'C1_b',11,true,
-	      {'S4',{'Name',"Hans","HCA","Andersen"},"MSc"}}}=S1c_b,
-    {ok,[{'Name',"Hans","HCA","Andersen"}|_Rest3]} =
-	'PartialDecSeq3':decode_part(NameS1d,BinS1d),
-    ok;
-decode_parts('S1_b', PartDecMsg) ->
-    {'S1',14,{PartName,PartBin},Choice,Names} = PartDecMsg,
-    {ok,S2} = 'PartialDecSeq3':decode_part(PartName, PartBin),
-    {'S1',14,S2,Choice,Names};
-decode_parts('S3', PartDecMsg) ->
-    {'S3',10,{'S3_second',Undecoded},<<"OCTETSTRING">>,[one,two,three,four]} = PartDecMsg,
-    {ok,"PrintableString"} = 'PartialDecSeq3':decode_part('S3_second', Undecoded),
-    ok;
-decode_parts('E', PartDecMsg) ->
-    {'E',35,{PartName,Parts},false,_} = PartDecMsg,
-    DMany = msg('D_many'),
-    {ok,DMany} = 'PartialDecSeq':decode_part(PartName, Parts),
     ok.
 
 msg('E') ->
