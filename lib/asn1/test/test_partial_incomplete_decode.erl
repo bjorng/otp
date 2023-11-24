@@ -41,9 +41,6 @@ test_PartialDecSeq() ->
 
     DMsg = msg('D'),
     test_exclusive(fun M:decode_D_incomplete/1, 'D', DMsg),
-    %% Bytes2 = roundtrip(M, 'D', DMsg),
-    %% {ok,IncDMsg} = M:decode_D_incomplete(Bytes2),
-    %% decode_parts('D', IncDMsg),
 
     F3Msg = msg('F3'),
     %% test_exclusive(fun M:decode_F_fb_exclusive3/1, 'F', F3Msg),
@@ -53,69 +50,20 @@ test_PartialDecSeq() ->
 
     EMsg = msg('E'),
     test_exclusive(fun M:decode_E_b_incomplete/1, 'E', EMsg),
-    Bytes4 = roundtrip(M, 'E', EMsg),
-    {ok,IncEMsg} = M:decode_E_b_incomplete(Bytes4),
-    decode_parts('E', IncEMsg),
 
     ok.
-
-test_exclusive(DecodeFun, Type, Msg) ->
-    {module,Mod} = erlang:fun_info(DecodeFun, module),
-    Encoded = roundtrip(Mod, Type, Msg),
-    case DecodeFun(Encoded) of
-        {ok,Msg} ->
-            error({should_be_different,Msg});
-        {ok,Decoded} ->
-            case dec_parts(Decoded, Mod) of
-                Msg ->
-                    ok;
-                OtherMsg ->
-                    io:format("Expected:\n~p\n\nGot:\n~p\n",
-                              [Msg,OtherMsg]),
-                    error(full_and_partial_decode_differ)
-            end
-    end.
-
-dec_parts({Name,Bin}, Mod) when is_atom(Name), is_binary(Bin) ->
-    {ok,Dec} = Mod:decode_part(Name, Bin),
-    Dec;
-dec_parts({Name,[_|_]=Parts}, Mod) when is_atom(Name) ->
-    case lists:all(fun erlang:is_binary/1, Parts) of
-        true ->
-            [begin
-                 {ok,Dec} = Mod:decode_part(Name, Bin),
-                 Dec
-             end || Bin <- Parts];
-        false ->
-            {Name,[dec_parts(E, Mod) || E <- Parts]}
-    end;
-dec_parts(Tuple0, Mod) when is_tuple(Tuple0) ->
-    Tuple = [dec_parts(E, Mod) || E <- tuple_to_list(Tuple0)],
-    list_to_tuple(Tuple);
-dec_parts(List, Mod) when is_list(List) ->
-    [dec_parts(E, Mod) || E <- List];
-dec_parts(Other, _Mod) ->
-    Other.
 
 test_PartialDecSeq2() ->
     M = 'PartialDecSeq2',
 
     AMsg = msg('A'),
-    Bytes1 = roundtrip(M, 'A', AMsg),
-    {ok,IncAMsg} = M:decode_A_c_b_incomplete(Bytes1),
-    decode_parts('A', IncAMsg),
+    test_exclusive(fun M:decode_A_c_b_incomplete/1, 'A', AMsg),
 
     SMsg = {'S',true,false},
     BextMsg = {c,SMsg},
-    Bytes2 = roundtrip(M, 'Bext', BextMsg),
 
-    {ok,IncBextMsg1} = M:decode_Bext_c_incomplete(Bytes2),
-    {c,{'Bext_c',Undec1}} = IncBextMsg1,
-    {ok,SMsg} = M:decode_part('Bext_c', Undec1),
-
-    {ok,IncBextMsg2} = M:decode_Bext_c_b_incomplete(Bytes2),
-    {c,{'S',true,{'S_b',Undec2}}} = IncBextMsg2,
-    {ok,false} = M:decode_part('S_b', Undec2),
+    test_exclusive(fun M:decode_Bext_c_incomplete/1, 'Bext', BextMsg),
+    test_exclusive(fun M:decode_Bext_c_b_incomplete/1, 'Bext', BextMsg),
 
     test_PartialDeqSeq2_SeqChoice(),
 
@@ -351,3 +299,49 @@ msg('Name') ->
 
 roundtrip(M, T, V) ->
     asn1_test_lib:roundtrip_enc(M, T, V).
+
+test_exclusive(DecodeFun, Type, Msg) ->
+    {module,Mod} = erlang:fun_info(DecodeFun, module),
+    Encoded = roundtrip(Mod, Type, Msg),
+    case DecodeFun(Encoded) of
+        {ok,Msg} ->
+            error({should_be_different,Msg});
+        {ok,Decoded} ->
+            case dec_parts(Decoded, Mod) of
+                Msg ->
+                    ok;
+                OtherMsg ->
+                    io:format("""
+                              Partial decoding:
+                              ~p
+
+                              Expected:
+                              ~p
+
+                              Got:
+                              ~p
+                              """, [Decoded,Msg,OtherMsg]),
+                    error(full_and_partial_decode_differ)
+            end
+    end.
+
+dec_parts({Name,Bin}, Mod) when is_atom(Name), is_binary(Bin) ->
+    {ok,Dec} = Mod:decode_part(Name, Bin),
+    Dec;
+dec_parts({Name,[_|_]=Parts}, Mod) when is_atom(Name) ->
+    case lists:all(fun erlang:is_binary/1, Parts) of
+        true ->
+            [begin
+                 {ok,Dec} = Mod:decode_part(Name, Bin),
+                 Dec
+             end || Bin <- Parts];
+        false ->
+            {Name,[dec_parts(E, Mod) || E <- Parts]}
+    end;
+dec_parts(Tuple0, Mod) when is_tuple(Tuple0) ->
+    Tuple = [dec_parts(E, Mod) || E <- tuple_to_list(Tuple0)],
+    list_to_tuple(Tuple);
+dec_parts(List, Mod) when is_list(List) ->
+    [dec_parts(E, Mod) || E <- List];
+dec_parts(Other, _Mod) ->
+    Other.
