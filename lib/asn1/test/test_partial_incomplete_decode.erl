@@ -43,10 +43,7 @@ test_PartialDecSeq() ->
     test_exclusive(fun M:decode_D_incomplete/1, 'D', DMsg),
 
     F3Msg = msg('F3'),
-    %% test_exclusive(fun M:decode_F_fb_exclusive3/1, 'F', F3Msg),
-    BytesF3 = roundtrip(M, 'F', F3Msg),
-    {ok,IncF3Msg} = M:decode_F_fb_exclusive3(BytesF3),
-    decode_parts('F3', IncF3Msg),
+    test_exclusive(fun M:decode_F_fb_exclusive3/1, 'F', F3Msg),
 
     EMsg = msg('E'),
     test_exclusive(fun M:decode_E_b_incomplete/1, 'E', EMsg),
@@ -225,7 +222,7 @@ test_exclusive(DecodeFun, Type, Msg) ->
         {ok,Msg} ->
             error({should_be_different,Msg});
         {ok,Decoded} ->
-            case dec_parts(Decoded, Mod) of
+            case dec_parts(Decoded, Msg, Mod) of
                 Msg ->
                     ok;
                 OtherMsg ->
@@ -243,23 +240,26 @@ test_exclusive(DecodeFun, Type, Msg) ->
             end
     end.
 
-dec_parts({Name,Bin}, Mod) when is_atom(Name), is_binary(Bin) ->
-    {ok,Dec} = Mod:decode_part(Name, Bin),
+dec_parts(Same, Same, _Mod) ->
+    Same;
+dec_parts({Name,Parts}, Expected, Mod) when is_atom(Name), is_list(Parts), is_list(Expected) ->
+    [begin
+         {ok,Dec} = Mod:decode_part(Name, Bin),
+         Dec
+     end || Bin <- Parts];
+dec_parts({Name,Undec}, _Expected, Mod) when is_atom(Name), is_binary(Undec) ->
+    {ok,Dec} = Mod:decode_part(Name, Undec),
     Dec;
-dec_parts({Name,[_|_]=Parts}, Mod) when is_atom(Name) ->
-    case lists:all(fun erlang:is_binary/1, Parts) of
-        true ->
-            [begin
-                 {ok,Dec} = Mod:decode_part(Name, Bin),
-                 Dec
-             end || Bin <- Parts];
-        false ->
-            {Name,[dec_parts(E, Mod) || E <- Parts]}
-    end;
-dec_parts(Tuple0, Mod) when is_tuple(Tuple0) ->
-    Tuple = [dec_parts(E, Mod) || E <- tuple_to_list(Tuple0)],
+dec_parts({Name,{Tag,_}=Undec}, _Expected, Mod) when is_atom(Name), is_integer(Tag) ->
+    {ok,Dec} = Mod:decode_part(Name, Undec),
+    Dec;
+dec_parts(Tuple0, Expected, Mod) when is_tuple(Tuple0), is_tuple(Expected) ->
+    Tuple = dec_parts_list(tuple_to_list(Tuple0), tuple_to_list(Expected), Mod),
     list_to_tuple(Tuple);
-dec_parts(List, Mod) when is_list(List) ->
-    [dec_parts(E, Mod) || E <- List];
-dec_parts(Other, _Mod) ->
-    Other.
+dec_parts(List, Expected, Mod) when is_list(List), is_list(Expected) ->
+    dec_parts_list(List, Expected, Mod).
+
+dec_parts_list([H1|T1], [H2|T2], Mod) ->
+    [dec_parts(H1, H2, Mod) | dec_parts_list(T1, T2, Mod)];
+dec_parts_list([], [], _Mod) ->
+    [].
