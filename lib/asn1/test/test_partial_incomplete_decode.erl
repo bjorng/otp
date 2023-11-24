@@ -25,12 +25,13 @@
 -include_lib("common_test/include/ct.hrl").
 
 test(Config) ->
+    DataDir = proplists:get_value(data_dir, Config),
     test_PartialDecSeq(),
     test_PartialDecSeq2(),
     test_PartialDecSeq3(),
     test_MyHTTPMsg(),
-    test_megaco(Config),
-    test_OCSP(),
+    test_megaco(DataDir),
+    test_OCSP(DataDir),
     ok.
 
 test_PartialDecSeq() ->
@@ -100,8 +101,7 @@ test_MyHTTPMsg() ->
 
     ok.
 
-test_megaco(Config) ->
-    DataDir = proplists:get_value(data_dir, Config),
+test_megaco(DataDir) ->
     Files = filelib:wildcard(filename:join([DataDir,megacomessages,"*.val"])),
     Mod = 'MEDIA-GATEWAY-CONTROL',
     lists:foreach(fun(File) ->
@@ -121,7 +121,7 @@ exclusive_decode(Bin,F) ->
     {ok,_} = Mod:decode_part(MsgMBodyKey,MsgMBody),
     ok.
 
-test_OCSP() ->
+test_OCSP(DataDir) ->
     Mod = 'OCSP-2013-88',
 
     ResponseData = {'ResponseData',
@@ -134,20 +134,21 @@ test_OCSP() ->
     Type = 'BasicOCSPResponse',
     Msg = {Type,
            ResponseData,
-           {'AlgorithmIdentifier',Mod:'id-pkix-ocsp-basic'(),<<>>},
+           {'AlgorithmIdentifier',Mod:'id-pkix-ocsp-basic'(),asn1_NOVALUE},
            <<"signature">>,
            []},
-    {ok,Enc} = Mod:encode(Type, Msg),
 
-    %% test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, Msg),
-    {ok,Dec1} = Mod:decode_BasicOCSPResponse_signature_undec(Enc),
-    {Type,_,_,{SignTag,SignUndec},_} = Dec1,
-    {ok,<<"signature">>} = Mod:decode_part(SignTag, SignUndec),
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, Msg),
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, Msg),
+    %%test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, Msg),
 
-    %% test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, Msg),
-    {ok,Dec2} = Mod:decode_BasicOCSPResponse_certs_undec(Enc),
-    {Type,_,_,_,{CertTag,CertUndec}} = Dec2,
-    {ok,[]} = Mod:decode_part(CertTag, CertUndec),
+    DataFileName = filename:join(DataDir, "BasicOCSPResponse.ber"),
+    {ok,CannedData} = file:read_file(DataFileName),
+    {ok,HugeMsg} = Mod:decode('BasicOCSPResponse', CannedData),
+
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, HugeMsg),
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, HugeMsg),
+    %% test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, HugeMsg),
 
     ok.
 
@@ -217,6 +218,7 @@ roundtrip(M, T, V) ->
 
 test_exclusive(DecodeFun, Type, Msg) ->
     {module,Mod} = erlang:fun_info(DecodeFun, module),
+    io:format("~p\n", [Msg]),
     Encoded = roundtrip(Mod, Type, Msg),
     case DecodeFun(Encoded) of
         {ok,Msg} ->
