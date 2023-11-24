@@ -65,38 +65,18 @@ test_PartialDecSeq2() ->
     test_exclusive(fun M:decode_Bext_c_incomplete/1, 'Bext', BextMsg),
     test_exclusive(fun M:decode_Bext_c_b_incomplete/1, 'Bext', BextMsg),
 
-    test_PartialDeqSeq2_SeqChoice(),
-
-    ok.
-
-test_PartialDeqSeq2_SeqChoice() ->
-    M = 'PartialDecSeq2',
     T = 'SeqChoice',
 
     SeqChoiceMsg1 = {'SeqChoice',{b,true},<<"abc">>},
-    Bytes1 = roundtrip(M, T, SeqChoiceMsg1),
+    test_exclusive(fun M:decode_SeqChoice_c_b_d_incomplete/1, T, SeqChoiceMsg1),
 
-    {ok,EncMsg1_1} = M:decode_SeqChoice_c_b_d_incomplete(Bytes1),
-    {'SeqChoice',{b,{'SeqChoice_c_b',UndecBool}},
-     {'SeqChoice_d',UndecOS}} = EncMsg1_1,
-    {ok,true} = M:decode_part('SeqChoice_c_b', UndecBool),
-    {ok,<<"abc">>} = M:decode_part('SeqChoice_d', UndecOS),
-
-    {ok,EncMsg1_2} = M:decode_SeqChoice_c_bis_incomplete(Bytes1),
-    {'SeqChoice',{b,{'SeqChoice_c_b',UndecBool}},<<"abc">>} = EncMsg1_2,
-    {ok,true} = M:decode_part('SeqChoice_c_b', UndecBool),
+    test_exclusive(fun M:decode_SeqChoice_c_bis_incomplete/1, T, SeqChoiceMsg1),
 
     SeqChoiceMsg2 = {'SeqChoice',{i,42},<<"cde">>},
-    Bytes2 = roundtrip(M, T, SeqChoiceMsg2),
-    {ok,EncMsg2_1} = M:decode_SeqChoice_c_bis_incomplete(Bytes2),
-    {'SeqChoice',{i,{'SeqChoice_c_i',UndecInt}},<<"cde">>} = EncMsg2_1,
-    {ok,42} = M:decode_part('SeqChoice_c_i', UndecInt),
+    test_exclusive(fun M:decode_SeqChoice_c_bis_incomplete/1, T, SeqChoiceMsg2),
 
     SeqChoiceMsg3 = {'SeqChoice',{s,"xyz"},<<"fgh">>},
-    Bytes3 = roundtrip(M, T, SeqChoiceMsg3),
-    {ok,EncMsg3_1} = M:decode_SeqChoice_c_bis_incomplete(Bytes3),
-    {'SeqChoice',{s,{'SeqChoice_c_s',UndecStr}},<<"fgh">>} = EncMsg3_1,
-    {ok,"xyz"} = M:decode_part('SeqChoice_c_s', UndecStr),
+    test_exclusive(fun M:decode_SeqChoice_c_bis_incomplete/1, T, SeqChoiceMsg3),
 
     ok.
 
