@@ -1,0 +1,7 @@
+%% -*- erlang -*-
+{exclusive_decode,
+ {'OCSP',
+  [
+   {decode_certs_part,
+    ['BasicOCSPResponse',[{certs,parts}]]}
+  ]}}.
