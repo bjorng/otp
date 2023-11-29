@@ -213,6 +213,9 @@ get_tag_command(#type{tag=[Tag]}, ?MANDATORY, Prop) ->
          _ ->
              {?OPTIONAL,?ASN1CT_GEN_BER:tag_to_integer(Tag)}
      end];
+get_tag_command(#type{tag=[_|_]=Tags}, ?PARTS, Prop) ->
+    [{anonymous_dec_command(?PARTS, Prop),
+      [?ASN1CT_GEN_BER:tag_to_integer(Tag) || Tag <- Tags]}];
 get_tag_command(#type{tag=[Tag]}, Command, Prop) ->
     [{anonymous_dec_command(Command, Prop),
       ?ASN1CT_GEN_BER:tag_to_integer(Tag)}];

@@ -237,10 +237,16 @@ decode_primitive_incomplete([{alt_parts,TagNo}|RestAlts], Bin) ->
     end;
 decode_primitive_incomplete([{undecoded,_TagNo}|_RestTag], Bin) ->
     decode_incomplete_bin(Bin);
-decode_primitive_incomplete([{parts,TagNo}|_RestTag],Bin) ->
+decode_primitive_incomplete([{parts,[TagNo|MoreTags]}|_RestTag], Bin) ->
     case decode_tag_and_length(Bin) of
 	{_Form,TagNo,V,Rest} ->
-	    {{TagNo,decode_parts_incomplete(V)},Rest};
+            case MoreTags of
+                [] ->
+                    {{TagNo,decode_parts_incomplete(V)},Rest};
+                [TagNo2] ->
+                    {_,TagNo2,V2,<<>>} = decode_tag_and_length(V),
+                    {{TagNo,{TagNo2,decode_parts_incomplete(V2)}},Rest}
+            end;
 	Err ->
 	    {error,{asn1,"tag failure",TagNo,Err}}
     end;

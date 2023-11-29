@@ -140,7 +140,7 @@ test_OCSP(DataDir) ->
 
     test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, Msg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, Msg),
-    %%test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, Msg),
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, Msg),
 
     DataFileName = filename:join(DataDir, "BasicOCSPResponse.ber"),
     {ok,CannedData} = file:read_file(DataFileName),
@@ -148,7 +148,7 @@ test_OCSP(DataDir) ->
 
     test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, HugeMsg),
-    %% test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, HugeMsg),
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, HugeMsg),
 
     ok.
 
