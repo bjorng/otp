@@ -2,6 +2,10 @@
 {exclusive_decode,
  {'OCSP-2013-88',
   [
+   {decode_version_undec,
+    ['BasicOCSPResponse',[{tbsResponseData,[{version,undecoded}]}]]},
+   {decode_responderID_undec,
+    ['BasicOCSPResponse',[{tbsResponseData,[{responderID,undecoded}]}]]},
    {decode_BasicOCSPResponse_signature_undec,
     ['BasicOCSPResponse',[{signature,undecoded}]]},
    {decode_BasicOCSPResponse_certs_undec,

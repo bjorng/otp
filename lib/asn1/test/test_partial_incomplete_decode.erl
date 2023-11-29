@@ -132,20 +132,36 @@ test_OCSP(DataDir) ->
                     asn1_NOVALUE},
 
     Type = 'BasicOCSPResponse',
-    Msg = {Type,
-           ResponseData,
-           {'AlgorithmIdentifier',Mod:'id-pkix-ocsp-basic'(),asn1_NOVALUE},
-           <<"signature">>,
-           []},
 
-    test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, Msg),
-    test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, Msg),
-    test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, Msg),
+    BasicMsg = {Type,
+                ResponseData,
+                {'AlgorithmIdentifier',Mod:'id-pkix-ocsp-basic'(),asn1_NOVALUE},
+                <<"signature">>,
+                []},
+
+    %% test_exclusive(fun Mod:decode_version_undec/1, Type, BasicMsg),
+    test_exclusive(fun Mod:decode_responderID_undec/1, Type, BasicMsg),
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, BasicMsg),
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, BasicMsg),
+    test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, BasicMsg),
+
+    %% Test undecoded/parts for an absent element.
+    MsgWithoutCerts =
+        {Type,
+         ResponseData,
+         {'AlgorithmIdentifier',Mod:'id-pkix-ocsp-basic'(),asn1_NOVALUE},
+         <<"signature">>,
+         asn1_NOVALUE},
+    {ok,Enc} = Mod:encode(Type, MsgWithoutCerts),
+    {ok,MsgWithoutCerts} = Mod:decode_BasicOCSPResponse_certs_undec(Enc),
+    {ok,MsgWithoutCerts} = Mod:decode_BasicOCSPResponse_certs_parts(Enc),
 
     DataFileName = filename:join(DataDir, "BasicOCSPResponse.ber"),
     {ok,CannedData} = file:read_file(DataFileName),
     {ok,HugeMsg} = Mod:decode('BasicOCSPResponse', CannedData),
 
+    %% test_exclusive(fun Mod:decode_version_undec/1, Type, HugeMsg),
+    test_exclusive(fun Mod:decode_responderID_undec/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_parts/1, Type, HugeMsg),

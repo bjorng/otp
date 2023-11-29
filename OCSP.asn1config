@@ -2,6 +2,10 @@
 {exclusive_decode,
  {'OCSP',
   [
+   {decode_version_undec,
+    ['BasicOCSPResponse',[{version,undecoded}]]},
+   {decode_certs_undec,
+    ['BasicOCSPResponse',[{certs,undecoded}]]},
    {decode_certs_part,
     ['BasicOCSPResponse',[{certs,parts}]]}
   ]}}.

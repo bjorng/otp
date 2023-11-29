@@ -15,6 +15,10 @@ Cert ::= SEQUENCE {
 }
 
 BasicOCSPResponse ::= SEQUENCE {
-  certs            [0] EXPLICIT SEQUENCE OF Cert OPTIONAL }
+  version          [0] EXPLICIT Version DEFAULT v1,
+  certs            [1] EXPLICIT SEQUENCE OF Cert OPTIONAL
+}
+
+Version ::= INTEGER { v1(0) }
 
 END
