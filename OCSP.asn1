@@ -10,6 +10,25 @@ DEFINITIONS EXPLICIT TAGS ::=
 
 BEGIN
 
+ResponseData ::= SEQUENCE {
+--   version             [0] EXPLICIT Version DEFAULT v1,
+--  strange                INTEGER,
+   responderID             ResponderID,
+--   whatever                INTEGER,
+   producedAt              GeneralizedTime
+}
+
+ResponderID ::= CHOICE {
+   byName              [1] Name,
+   byKey               [2] KeyHash }
+
+KeyHash ::= OCTET STRING
+Name ::= CHOICE {
+      rdnSequence  RDNSequence
+}
+
+RDNSequence ::= SEQUENCE OF INTEGER
+
 Cert ::= SEQUENCE {
    id BIT STRING
 }

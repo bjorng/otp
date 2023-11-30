@@ -163,8 +163,17 @@ exclusive_decode_command([#'ComponentType'{name=Name,typespec=TS,
                                              [{Opt,EncTag,InnerCommands}|Acc])
             end;
         error ->
-            TagCommands = get_tag_command(TS, ?MANDATORY, Prop),
-            exclusive_decode_command(Comps, Commands0, TagCommands ++ Acc)
+            case get_tag_command(TS, ?MANDATORY, Prop) of
+                [] ->
+                    case TS of
+                        #type{def=#'Externaltypereference'{}} ->
+                            exclusive_decode_command(Comps, Commands0, [mandatory|Acc]);
+                        _ ->
+                            exclusive_decode_command(Comps, Commands0, Acc)
+                    end;
+                [_|_]=TagCommands ->
+                    exclusive_decode_command(Comps, Commands0, TagCommands ++ Acc)
+            end
     end;
 exclusive_decode_command({'CHOICE',[_|_]=Cs}, Commands, Acc) ->
     exclusive_decode_choice_cs(Cs, Commands, Acc);

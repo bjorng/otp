@@ -141,9 +141,9 @@ test_OCSP(DataDir) ->
 
     %% test_exclusive(fun Mod:decode_version_undec/1, Type, BasicMsg),
     test_exclusive(fun Mod:decode_responderID_undec/1, Type, BasicMsg),
-    %% test_exclusive(fun Mod:decode_producedAt_undec/1, Type, BasicMsg),
-    %% test_exclusive(fun Mod:decode_responses_undec/1, Type, BasicMsg),
-    %% test_exclusive(fun Mod:decode_responses_parts/1, Type, BasicMsg),
+    test_exclusive(fun Mod:decode_producedAt_undec/1, Type, BasicMsg),
+    test_exclusive(fun Mod:decode_responses_undec/1, Type, BasicMsg),
+    test_exclusive(fun Mod:decode_responses_parts/1, Type, BasicMsg),
     test_exclusive(fun Mod:decode_tbsResponseData_undec/1, Type, BasicMsg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, BasicMsg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, BasicMsg),
@@ -166,9 +166,9 @@ test_OCSP(DataDir) ->
 
     %% test_exclusive(fun Mod:decode_version_undec/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_responderID_undec/1, Type, HugeMsg),
-    %% test_exclusive(fun Mod:decode_producedAt_undec/1, Type, HugeMsg),
-    %% test_exclusive(fun Mod:decode_responses_undec/1, Type, HugeMsg),
-    %% test_exclusive(fun Mod:decode_responses_parts/1, Type, HugeMsg),
+    test_exclusive(fun Mod:decode_producedAt_undec/1, Type, HugeMsg),
+    test_exclusive(fun Mod:decode_responses_undec/1, Type, HugeMsg),
+    test_exclusive(fun Mod:decode_responses_parts/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_tbsResponseData_undec/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_signature_undec/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_BasicOCSPResponse_certs_undec/1, Type, HugeMsg),
@@ -242,7 +242,6 @@ roundtrip(M, T, V) ->
 
 test_exclusive(DecodeFun, Type, Msg) ->
     {module,Mod} = erlang:fun_info(DecodeFun, module),
-    io:format("~p\n", [Msg]),
     Encoded = roundtrip(Mod, Type, Msg),
     case DecodeFun(Encoded) of
         {ok,Msg} ->
