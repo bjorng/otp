@@ -192,10 +192,10 @@ decode_primitive_incomplete([{opt,TagNo,Directives}], Bin) ->
 	    asn1_NOVALUE
     end;
 %% An optional that shall be undecoded
-decode_primitive_incomplete([{opt_undecoded,Tag}], Bin) ->
+decode_primitive_incomplete([{opt_undecoded,[Tag|_]}], Bin) ->
     case decode_tag_and_length(Bin) of
 	{_,Tag,_,_} ->
-	    decode_incomplete_bin(Bin);
+            decode_incomplete_bin(Bin);
 	_ ->
 	    asn1_NOVALUE
     end;

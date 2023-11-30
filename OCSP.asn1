@@ -1,4 +1,4 @@
--- OCSP definition from RFC6960, 1998 Syntax
+-- ocsp definition from RFC6960, 1998 Syntax
 
 OCSP {
    iso(1) identified-organization(3) dod(6) internet(1)
@@ -11,11 +11,11 @@ DEFINITIONS EXPLICIT TAGS ::=
 BEGIN
 
 ResponseData ::= SEQUENCE {
---   version             [0] EXPLICIT Version DEFAULT v1,
---  strange                INTEGER,
-   responderID             ResponderID,
---   whatever                INTEGER,
-   producedAt              GeneralizedTime
+   version             [0] EXPLICIT Version DEFAULT v1,
+--   strange                 INTEGER,
+   responderID            ResponderID
+--   whatever              INTEGER,
+--   producedAt              GeneralizedTime
 }
 
 ResponderID ::= CHOICE {

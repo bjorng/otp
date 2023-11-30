@@ -125,7 +125,7 @@ test_OCSP(DataDir) ->
     Mod = 'OCSP-2013-88',
 
     ResponseData = {'ResponseData',
-                    0,                          %Version
+                    v1,                          %Version
                     {byKey,<<"key hash">>},
                     "factory",
                     [],
@@ -139,7 +139,7 @@ test_OCSP(DataDir) ->
                 <<"signature">>,
                 []},
 
-    %% test_exclusive(fun Mod:decode_version_undec/1, Type, BasicMsg),
+    test_exclusive(fun Mod:decode_version_undec/1, Type, BasicMsg),
     test_exclusive(fun Mod:decode_responderID_undec/1, Type, BasicMsg),
     test_exclusive(fun Mod:decode_producedAt_undec/1, Type, BasicMsg),
     test_exclusive(fun Mod:decode_responses_undec/1, Type, BasicMsg),
@@ -163,6 +163,7 @@ test_OCSP(DataDir) ->
     DataFileName = filename:join(DataDir, "BasicOCSPResponse.ber"),
     {ok,CannedData} = file:read_file(DataFileName),
     {ok,HugeMsg} = Mod:decode('BasicOCSPResponse', CannedData),
+    io:format("~p\n", [HugeMsg]),
 
     %% test_exclusive(fun Mod:decode_version_undec/1, Type, HugeMsg),
     test_exclusive(fun Mod:decode_responderID_undec/1, Type, HugeMsg),

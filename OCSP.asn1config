@@ -2,8 +2,10 @@
 {exclusive_decode,
  {'OCSP',
   [
-   {decode_producedAt_undec,
-    ['ResponseData',[{producedAt,undecoded}]]}
+   {decode_version_undec,
+    ['ResponseData',[{version,undecoded}]]}
+   %% {decode_producedAt_undec,
+   %%  ['ResponseData',[{producedAt,undecoded}]]}
    %% {decode_version_undec,
    %%  ['BasicOCSPResponse',[{version,undecoded}]]},
    %% {decode_certs_undec,
