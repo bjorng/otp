@@ -6,6 +6,8 @@
     ['BasicOCSPResponse',[{tbsResponseData,[{version,undecoded}]}]]},
    {decode_responderID_undec,
     ['BasicOCSPResponse',[{tbsResponseData,[{responderID,undecoded}]}]]},
+   {decode_producedAt_undec,
+    ['BasicOCSPResponse',[{tbsResponseData,[{producedAt,undecoded}]}]]},
    {decode_responses_undec,
     ['BasicOCSPResponse',[{tbsResponseData,[{responses,undecoded}]}]]},
    {decode_responses_parts,
