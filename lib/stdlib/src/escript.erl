@@ -124,15 +124,6 @@ prepare([H | T], S) ->
 	    prepare(T, S);
 	{emu_args, Args} when is_list(Args) ->
 	    prepare(T, S#sections{emu_args = "%%!" ++ Args ++ "\n"});
-	{Type, File} when is_list(File) ->
-	    case file:read_file(File) of
-		{ok, Bin} ->
-		    prepare(T, S#sections{type = Type, body = Bin});
-		{error, Reason} ->
-		    throw({Reason, H})
-	    end;
-	{Type, Bin} when is_binary(Bin) ->
-	    prepare(T, S#sections{type = Type, body = Bin});
 	{archive = Type, ZipFiles, ZipOptions}
 	  when is_list(ZipFiles), is_list(ZipOptions) ->
 	    File = "dummy.zip",
@@ -142,6 +133,22 @@ prepare([H | T], S) ->
 		{error, Reason} ->
 		    throw({Reason, H})
 	    end;
+	{beam_archive, Beams} when is_list(Beams) ->
+            case beam_archive(Beams) of
+                {ok, BeamArchive} ->
+                    prepare(T, S#sections{type = archive, body = BeamArchive});
+                {error, Reason} ->
+		    throw({Reason, H})
+            end;
+	{Type, File} when is_list(File) ->
+	    case file:read_file(File) of
+		{ok, Bin} ->
+		    prepare(T, S#sections{type = Type, body = Bin});
+		{error, Reason} ->
+		    throw({Reason, H})
+	    end;
+	{Type, Bin} when is_binary(Bin) ->
+	    prepare(T, S#sections{type = Type, body = Bin});
 	_ ->
 	    throw({badarg, H})
     end;
@@ -154,6 +161,28 @@ prepare([], #sections{type = Type}) ->
     throw({illegal_type, Type});
 prepare(BadOptions, _) ->
     throw({badarg, BadOptions}).
+
+beam_archive(Beams0) ->
+    case prepare_beams(Beams0) of
+        {error, _} = Error ->
+            Error;
+        Beams ->
+            Packed = zlib:compress(Beams),
+            {ok, <<".ar\n",(byte_size(Packed)):32,Packed/binary>>}
+    end.
+
+prepare_beams([<<"FOR1",_/binary>> = Beam | Beams]) ->
+    [Beam | prepare_beams(Beams)];
+prepare_beams([Beam0 | Beams]) ->
+    try zlib:gunzip(Beam0) of
+        Beam ->
+            [Beam | prepare_beams(Beams)]
+    catch
+        error:Error ->
+            {error, {bad_beam, Error}}
+    end;
+prepare_beams([]) ->
+    [].
 
 -type section_name() :: shebang | comment | emu_args | body .
 -type extract_option() :: compile_source | {section, [section_name()]}.
@@ -335,9 +364,9 @@ parse_and_run(File, Args, Options) ->
         is_binary(FormsOrBin) ->
             case Source of
                 archive ->
-                    case set_primary_archive(File, FormsOrBin) of
+                    case handle_archive(File, FormsOrBin) of
                         ok when CheckOnly ->
-			    case code:load_file(Module) of
+			    case code:ensure_loaded(Module) of
 				{module, _} ->
 				    case erlang:function_exported(Module, main, 1) of
 					true ->
@@ -381,12 +410,17 @@ parse_and_run(File, Args, Options) ->
             end
     end.
 
-set_primary_archive(File, FormsOrBin) ->
+handle_archive(_File, <<".ar\n",Size:32,Packed:Size/binary>>) ->
+    Beams = separate_beams(zlib:uncompress(Packed)),
+    {ok,Prepared} = code:prepare_loading(Beams),
+    ok = code:finish_loading(Prepared),
+    ok;
+handle_archive(File, Archive) ->
     {ok, FileInfo} = file:read_file_info(File),
     ArchiveFile = filename:absname(File),
 
-    case erl_prim_loader:set_primary_archive(ArchiveFile, FormsOrBin, FileInfo,
-                         fun escript:parse_file/1) of
+    case erl_prim_loader:set_primary_archive(ArchiveFile, Archive, FileInfo,
+                                             fun escript:parse_file/1) of
         {ok, Ebins} ->
             %% Prepend the code path with the ebins found in the archive
             Ebins2 = [filename:join([ArchiveFile, E]) || E <- Ebins],
@@ -394,6 +428,23 @@ set_primary_archive(File, FormsOrBin) ->
         {error, _Reason} = Error ->
             Error
     end.
+
+separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
+    <<Beam:(Size+8)/binary-unit:8,Bin/binary>> = Bin0,
+    Mod = get_module_name(Beam),
+    File = atom_to_list(Mod) ++ ".erl",
+    [{Mod,File,Beam}|separate_beams(Bin)];
+separate_beams(<<>>) -> [].
+
+get_module_name(<<"FOR1",Size:32,"BEAM",Chunks:(Size-4)/binary>>) ->
+    get_module_name_1(Chunks).
+
+get_module_name_1(<<"AtU8",_:32,_:32,L:8,Mod:L/binary,_/binary>>) ->
+    binary_to_atom(Mod);
+get_module_name_1(<<_Tag:4/binary,Size0:4/unit:8,T0/binary>>) ->
+    Size = 4 * ((Size0 + 3) div 4),
+    <<_:Size/binary,T/binary>> = T0,
+    get_module_name_1(T).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse script
@@ -530,6 +581,7 @@ classify_line(Line) ->
     case Line of
         "#!" ++ _ -> shebang;
         "PK" ++ _ -> archive;
+        ".ar" ++ _ -> archive;
         "FOR1" ++ _ -> beam;
         "%%!" ++ _ -> emu_args;
         "%" ++ _ -> comment;
