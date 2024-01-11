@@ -35,6 +35,7 @@ for more details on how to use escripts.
 
 -define(SHEBANG,  "/usr/bin/env escript").
 -define(COMMENT,  "This is an -*- erlang -*- file").
+-define(BUNDLE_HEADER, ".EB\n").
 
 %%-----------------------------------------------------------------------
 
@@ -232,6 +233,22 @@ prepare([H | T], S) ->
 	    prepare(T, S);
 	{emu_args, Args} when is_list(Args) ->
 	    prepare(T, S#sections{emu_args = "%%!" ++ Args ++ "\n"});
+	{archive = Type, ZipFiles, ZipOptions}
+	  when is_list(ZipFiles), is_list(ZipOptions) ->
+	    File = "dummy.zip",
+	    case zip:create(File, ZipFiles, ZipOptions ++ [memory]) of
+		{ok, {File, ZipBin}} ->
+                    prepare([{Type, ZipBin} | T], S);
+		{error, Reason} ->
+		    throw({Reason, H})
+	    end;
+	{archive, Bin} when is_binary(Bin) ->
+            case beam_bundle(Bin) of
+                {ok, BeamArchive} ->
+                    prepare(T, S#sections{type = archive, body = BeamArchive});
+                {error, Reason} ->
+		    throw({Reason, H})
+            end;
 	{Type, File} when is_list(File) ->
 	    case file:read_file(File) of
 		{ok, Bin} ->
@@ -241,15 +258,6 @@ prepare([H | T], S) ->
 	    end;
 	{Type, Bin} when is_binary(Bin) ->
 	    prepare(T, S#sections{type = Type, body = Bin});
-	{archive = Type, ZipFiles, ZipOptions}
-	  when is_list(ZipFiles), is_list(ZipOptions) ->
-	    File = "dummy.zip",
-	    case zip:create(File, ZipFiles, ZipOptions ++ [memory]) of
-		{ok, {File, ZipBin}} ->
-		    prepare(T, S#sections{type = Type, body = ZipBin});
-		{error, Reason} ->
-		    throw({Reason, H})
-	    end;
 	_ ->
 	    throw({badarg, H})
     end;
@@ -262,6 +270,41 @@ prepare([], #sections{type = Type}) ->
     throw({illegal_type, Type});
 prepare(BadOptions, _) ->
     throw({badarg, BadOptions}).
+
+beam_bundle(ZipArchive) ->
+    {Beams, OtherFiles} = beam_bundle_split(ZipArchive),
+    Options = [memory],
+    File = "dummy.zip",
+    {ok, {File, OtherArchive}} = zip:create(File, OtherFiles, Options),
+    Packed = zlib:compress(Beams),
+    PackedSize = byte_size(Packed),
+    OtherArchiveSize = byte_size(OtherArchive),
+    Bundle = <<?BUNDLE_HEADER,PackedSize:32,Packed/binary,
+               OtherArchiveSize:32,OtherArchive/binary>>,
+    {ok, Bundle}.
+
+beam_bundle_split(Archive) ->
+    {ok, {Beams, OtherFiles}} =
+        zip:foldl(fun do_bundle_split/4, {[], []}, {"", Archive}),
+    {Beams, OtherFiles}.
+
+do_bundle_split(Name, _, Get, {BeamAcc, FileAcc}) ->
+    case filename:extension(Name) of
+        ".beam" ->
+            {[prepare_beam(Get()) | BeamAcc], FileAcc};
+        _ ->
+            {BeamAcc, [{Name, Get()} | FileAcc]}
+    end.
+
+prepare_beam(<<"FOR1",_/binary>> = Beam) ->
+    Beam;
+prepare_beam(Beam0) ->
+    try
+        zlib:gunzip(Beam0)
+    catch
+        error:Error ->
+            error({bad_beam, Error})
+    end.
 
 -type section_name() :: shebang | comment | emu_args | body .
 -type extract_option() :: compile_source | {section, [section_name()]}.
@@ -380,6 +423,16 @@ normalize_section(emu_args, "%%!" ++ Chars) ->
     Chopped = string:trim(Chars, trailing, "$\n"),
     Stripped = string:trim(Chopped, both),
     {emu_args, Stripped};
+normalize_section(archive, Bin) ->
+    case Bin of
+        <<?BUNDLE_HEADER,BeamSize:32,_:BeamSize/binary,
+          ArchiveSize:32,Archive:ArchiveSize/binary>> ->
+            %% TODO: Also include BEAM files.
+            %% TODO: Add option for escript:extract/2 to exclude BEAM files.
+            {archive, Archive};
+        _ ->
+            {archive, Bin}
+    end;
 normalize_section(Name, Chars) ->
     {Name, Chars}.
 
@@ -476,9 +529,9 @@ parse_and_run(File, Args, Options) ->
         is_binary(FormsOrBin) ->
             case Source of
                 archive ->
-                    case set_primary_archive(File, FormsOrBin) of
+                    case handle_archive(File, FormsOrBin) of
                         ok when CheckOnly ->
-			    case code:load_file(Module) of
+			    case code:ensure_loaded(Module) of
 				{module, _} ->
 				    case erlang:function_exported(Module, main, 1) of
 					true ->
@@ -522,19 +575,45 @@ parse_and_run(File, Args, Options) ->
             end
     end.
 
-set_primary_archive(File, FormsOrBin) ->
-    {ok, FileInfo} = file:read_file_info(File),
-    ArchiveFile = filename:absname(File),
+handle_archive(File, <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,
+                       OtherSize:32,OtherFiles:OtherSize/binary>>) ->
+    Beams = separate_beams(zlib:uncompress(Beams0)),
+    {ok, {_, AppFiles}} = extract_archive(File, OtherFiles),
+    persistent_term:put(?MODULE, AppFiles),
+    {ok,Prepared} = code:prepare_loading(Beams),
+    ok = code:finish_loading(Prepared),
+    ok;
+handle_archive(File, Archive) ->
+    {ok, {Beams, AppFiles}} = extract_archive(File, Archive),
+    persistent_term:put(?MODULE, AppFiles),
+    {ok, Prepared} = code:prepare_loading(Beams),
+    ok = code:finish_loading(Prepared),
+    ok.
 
-    case erl_prim_loader:set_primary_archive(ArchiveFile, FormsOrBin, FileInfo,
-                         fun escript:parse_file/1) of
-        {ok, Ebins} ->
-            %% Prepend the code path with the ebins found in the archive
-            Ebins2 = [filename:join([ArchiveFile, E]) || E <- Ebins],
-            code:add_pathsa(Ebins2, cache); % Returns ok
-        {error, _Reason} = Error ->
-            Error
+separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
+    <<Beam:(Size+8)/binary-unit:8,Bin/binary>> = Bin0,
+    Info = beam_lib:info(Beam),
+    {module, Mod} = lists:keyfind(module, 1, Info),
+    File = atom_to_list(Mod) ++ ".erl",
+    [{Mod,File,Beam}|separate_beams(Bin)];
+separate_beams(<<>>) -> [].
+
+extract_archive(File, Archive) ->
+    zip:foldl(fun do_extract_archive/4, {[], []}, {File, Archive}).
+
+do_extract_archive(Name, _, Get, {BeamAcc, AppFileAcc}) ->
+    case filename:extension(Name) of
+        ".beam" ->
+            BeamFile = filename:basename(Name),
+            Mod = list_to_atom(filename:rootname(BeamFile)),
+            {[{Mod, BeamFile, Get()} | BeamAcc], AppFileAcc};
+        ".app" ->
+            App = list_to_atom(filename:rootname(filename:basename(Name))),
+            {BeamAcc, [{App, Get()} | AppFileAcc]};
+        _ ->
+            {BeamAcc, AppFileAcc}
     end.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse script
@@ -672,6 +751,7 @@ classify_line(Line) ->
     case Line of
         "#!" ++ _ -> shebang;
         "PK" ++ _ -> archive;
+        ".EB" ++ _ -> archive;
         "FOR1" ++ _ -> beam;
         "%%!" ++ _ -> emu_args;
         "%" ++ _ -> comment;

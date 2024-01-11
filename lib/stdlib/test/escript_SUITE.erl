@@ -45,6 +45,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("kernel/include/file.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 suite() ->
     [{ct_hooks,[ts_install_cth]},
@@ -824,9 +825,9 @@ verify_sections(Config, File, FileInfo, Sections) ->
 
     Normalized = normalize_sections(Sections),
     {ok, Extracted} = escript:extract(File, []),
-    io:format("Normalized; ~p\n", [Normalized]),
-    io:format("Extracted ; ~p\n", [Extracted]),
-    Normalized = Extracted, % Assert
+    io:format("Normalized: ~p\n", [Normalized]),
+    io:format("Extracted:  ~p\n", [Extracted]),
+    ?assertEqual(Normalized, Extracted),
     ok.
 
 normalize_sections(Sections) ->
@@ -1015,7 +1016,7 @@ run_with_opts(Config, Dir, Opts, Cmd0, Expected) ->
 do_run(Config, CmdName, Dir, Cmd0, Expected0) ->
     StdErrFile = tempnam(Config, CmdName),
     Cmd = Cmd0 ++ " 2> " ++ filename:nativename(StdErrFile),
-    io:format("Run: ~p\n", [Cmd]),
+    io:format("Run: ~ts\n", [Cmd]),
     Expected = iolist_to_binary(expected_output(Expected0, Dir)),
 
     Env = [{"PATH",Dir++":"++os:getenv("PATH")},
@@ -1032,8 +1033,8 @@ do_run(Config, CmdName, Dir, Cmd0, Expected0) ->
 		true ->
 		    ok;
 		false ->
-		    io:format("Expected: ~p\n", [Expected]),
-		    io:format("Actual:   ~p\n", [Actual]),
+		    io:format("Expected: ~ts\n", [Expected]),
+		    io:format("Actual:   ~ts\n", [Actual]),
 		    ct:fail(failed)
 	    end
     end.
