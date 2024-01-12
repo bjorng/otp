@@ -416,18 +416,26 @@ handle_archive(_File, <<".ar\n",Size:32,Packed:Size/binary>>) ->
     ok = code:finish_loading(Prepared),
     ok;
 handle_archive(File, Archive) ->
-    {ok, FileInfo} = file:read_file_info(File),
-    ArchiveFile = filename:absname(File),
+    %% {ok, FileInfo} = file:read_file_info(File),
+    %% ArchiveFile = filename:absname(File),
 
-    case erl_prim_loader:set_primary_archive(ArchiveFile, Archive, FileInfo,
-                                             fun escript:parse_file/1) of
-        {ok, Ebins} ->
-            %% Prepend the code path with the ebins found in the archive
-            Ebins2 = [filename:join([ArchiveFile, E]) || E <- Ebins],
-            code:add_pathsa(Ebins2, cache); % Returns ok
-        {error, _Reason} = Error ->
-            Error
-    end.
+    {ok, {Beams, AppFiles}} = extract_archive(File, Archive),
+    io:format("~p\n", [length(Beams)]),
+    io:format("~P\n", [Beams,20]),
+    io:format("~p\n", [AppFiles]),
+    {ok, Prepared} = code:prepare_loading(Beams),
+    ok = code:finish_loading(Prepared),
+    ok.
+
+    %% case erl_prim_loader:set_primary_archive(ArchiveFile, Archive, FileInfo,
+    %%                                          fun escript:parse_file/1) of
+    %%     {ok, Ebins} ->
+    %%         %% Prepend the code path with the ebins found in the archive
+    %%         Ebins2 = [filename:join([ArchiveFile, E]) || E <- Ebins],
+    %%         code:add_pathsa(Ebins2, cache); % Returns ok
+    %%     {error, _Reason} = Error ->
+    %%         Error
+    %% end.
 
 separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
     <<Beam:(Size+8)/binary-unit:8,Bin/binary>> = Bin0,
@@ -445,6 +453,23 @@ get_module_name_1(<<_Tag:4/binary,Size0:4/unit:8,T0/binary>>) ->
     Size = 4 * ((Size0 + 3) div 4),
     <<_:Size/binary,T/binary>> = T0,
     get_module_name_1(T).
+
+extract_archive(File, Archive) ->
+    zip:foldl(fun do_extract_archive/4, {[], []}, {File, Archive}).
+
+do_extract_archive(Name, _, Get, {BeamAcc, AppFileAcc}) ->
+    case filename:extension(Name) of
+        ".beam" ->
+            BeamFile = filename:basename(Name),
+            Mod = list_to_atom(filename:rootname(BeamFile)),
+            {[{Mod, BeamFile, Get()} | BeamAcc], AppFileAcc};
+        ".app" ->
+            AppFile = filename:basename(Name),
+            {BeamAcc, [{AppFile, Get()} | AppFileAcc]};
+        _ ->
+            {BeamAcc, AppFileAcc}
+    end.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse script
