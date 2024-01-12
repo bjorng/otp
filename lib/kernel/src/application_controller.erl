@@ -1479,7 +1479,12 @@ make_appl(Name) when is_atom(Name) ->
     FName = atom_to_list(Name) ++ ".app",
     case code:where_is_file(FName) of
 	non_existing ->
-	    {error, {file:format_error(enoent), FName}};
+            case blurf(Name) of
+                {ok, [Application]} ->
+                    {ok, make_appl_i(Application)};
+                error ->
+                    {error, {file:format_error(enoent), FName}}
+            end;
 	FullName ->
 	    case prim_consult(FullName) of
 		{ok, [Application]} ->
@@ -1492,6 +1497,26 @@ make_appl(Name) when is_atom(Name) ->
     end;
 make_appl(Application) ->
     {ok, make_appl_i(Application)}.
+
+blurf(Name) ->
+    blurf_1(persistent_term:get(escript, []), Name).
+
+blurf_1([{Name, Bin}|_], Name) ->
+    case file_binary_to_list(Bin) of
+        {ok, String} ->
+            case erl_scan:string(String) of
+                {ok, Tokens, _EndLine} ->
+                    prim_parse(Tokens, []);
+                {error, Reason, _EndLine} ->
+                    {error, Reason}
+            end;
+        error ->
+            error
+    end;
+blurf_1([_|T], Name) ->
+    blurf_1(T, Name);
+blurf_1([], _Name) ->
+    error.
 
 prim_consult(FullName) ->
     case erl_prim_loader:get_file(FullName) of
