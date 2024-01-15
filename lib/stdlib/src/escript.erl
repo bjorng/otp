@@ -29,6 +29,7 @@
 
 -define(SHEBANG,  "/usr/bin/env escript").
 -define(COMMENT,  "This is an -*- erlang -*- file").
+-define(BUNDLE_HEADER, ".EB\n").
 
 %%-----------------------------------------------------------------------
 
@@ -133,8 +134,8 @@ prepare([H | T], S) ->
 		{error, Reason} ->
 		    throw({Reason, H})
 	    end;
-	{beam_archive, Beams} when is_list(Beams) ->
-            case beam_archive(Beams) of
+	{archive, Bin} when is_binary(Bin) ->
+            case beam_bundle(Bin) of
                 {ok, BeamArchive} ->
                     prepare(T, S#sections{type = archive, body = BeamArchive});
                 {error, Reason} ->
@@ -162,14 +163,44 @@ prepare([], #sections{type = Type}) ->
 prepare(BadOptions, _) ->
     throw({badarg, BadOptions}).
 
-beam_archive(Beams0) ->
+beam_bundle(ZipArchive) ->
+    {Beams0, OtherFiles} = beam_bundle_split(ZipArchive),
+    Options = [memory],
+    OtherArchive = zip:create_file("dummy.zip", OtherFiles, Options),
     case prepare_beams(Beams0) of
         {error, _} = Error ->
             Error;
         Beams ->
             Packed = zlib:compress(Beams),
-            {ok, <<".ar\n",(byte_size(Packed)):32,Packed/binary>>}
+            PackedSize = byte_size(Packed),
+            OtherArchiveSize = byte_size(OtherArchive),
+            Bundle = <<?BUNDLE_HEADER,PackedSize:32,Packed/binary,
+                       OtherArchiveSize:32,OtherArchive/binary>>,
+            {ok, Bundle}
     end.
+
+beam_bundle_split(Archive) ->
+    zip:foldl(fun do_bundle_split/4, {[], []}, {"", Archive}).
+
+do_bundle_split(Name, _, Get, {BeamAcc, FileAcc}) ->
+    case filename:extension(Name) of
+        ".beam" ->
+            BeamFile = filename:basename(Name),
+            Mod = list_to_atom(filename:rootname(BeamFile)),
+            {[{Mod, BeamFile, Get()} | BeamAcc], FileAcc};
+        _ ->
+            {BeamAcc, [{Name, Get()} | FileAcc]}
+    end.
+
+%% prepare_beam(<<"FOR1",_/binary>> = Beam) ->
+%%     Beam;
+%% prepare_beams(Beam0) ->
+%%     try
+%%         zlib:gunzip(Beam0)
+%%     catch
+%%         error:Error ->
+%%             {error, {bad_beam, Error}}
+%%     end.
 
 prepare_beams([<<"FOR1",_/binary>> = Beam | Beams]) ->
     [Beam | prepare_beams(Beams)];
@@ -410,8 +441,11 @@ parse_and_run(File, Args, Options) ->
             end
     end.
 
-handle_archive(_File, <<".ar\n",Size:32,Packed:Size/binary>>) ->
-    Beams = separate_beams(zlib:uncompress(Packed)),
+handle_archive(File, <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,
+                       OtherSize:32,OtherFiles:OtherSize/binary>>) ->
+    Beams = separate_beams(zlib:uncompress(Beams0)),
+    {ok, {_, AppFiles}} = extract_archive(File, OtherFiles),
+    persistent_term:put(?MODULE, AppFiles),
     {ok,Prepared} = code:prepare_loading(Beams),
     ok = code:finish_loading(Prepared),
     ok;
@@ -591,7 +625,7 @@ classify_line(Line) ->
     case Line of
         "#!" ++ _ -> shebang;
         "PK" ++ _ -> archive;
-        ".ar" ++ _ -> archive;
+        ".EB" ++ _ -> archive;
         "FOR1" ++ _ -> beam;
         "%%!" ++ _ -> emu_args;
         "%" ++ _ -> comment;
