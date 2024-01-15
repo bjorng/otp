@@ -81,7 +81,6 @@
 create(File, Options) when is_list(Options) ->
     try
 	S = prepare(Options, #sections{}),
-        io:format("~P\n", [S,20]),
 	BinList =
 	    [Section || Section <- [S#sections.shebang,
 				    S#sections.comment,
@@ -165,21 +164,16 @@ prepare(BadOptions, _) ->
     throw({badarg, BadOptions}).
 
 beam_bundle(ZipArchive) ->
-    {Beams0, OtherFiles} = beam_bundle_split(ZipArchive),
+    {Beams, OtherFiles} = beam_bundle_split(ZipArchive),
     Options = [memory],
     File = "dummy.zip",
     {ok, {File, OtherArchive}} = zip:create(File, OtherFiles, Options),
-    case prepare_beams(Beams0) of
-        {error, _} = Error ->
-            Error;
-        Beams ->
-            Packed = zlib:compress(Beams),
-            PackedSize = byte_size(Packed),
-            OtherArchiveSize = byte_size(OtherArchive),
-            Bundle = <<?BUNDLE_HEADER,PackedSize:32,Packed/binary,
-                       OtherArchiveSize:32,OtherArchive/binary>>,
-            {ok, Bundle}
-    end.
+    Packed = zlib:compress(Beams),
+    PackedSize = byte_size(Packed),
+    OtherArchiveSize = byte_size(OtherArchive),
+    Bundle = <<?BUNDLE_HEADER,PackedSize:32,Packed/binary,
+               OtherArchiveSize:32,OtherArchive/binary>>,
+    {ok, Bundle}.
 
 beam_bundle_split(Archive) ->
     {ok, {Beams, OtherFiles}} =
@@ -189,33 +183,20 @@ beam_bundle_split(Archive) ->
 do_bundle_split(Name, _, Get, {BeamAcc, FileAcc}) ->
     case filename:extension(Name) of
         ".beam" ->
-            {[Get() | BeamAcc], FileAcc};
+            {[prepare_beam(Get()) | BeamAcc], FileAcc};
         _ ->
             {BeamAcc, [{Name, Get()} | FileAcc]}
     end.
 
-%% prepare_beam(<<"FOR1",_/binary>> = Beam) ->
-%%     Beam;
-%% prepare_beams(Beam0) ->
-%%     try
-%%         zlib:gunzip(Beam0)
-%%     catch
-%%         error:Error ->
-%%             {error, {bad_beam, Error}}
-%%     end.
-
-prepare_beams([<<"FOR1",_/binary>> = Beam | Beams]) ->
-    [Beam | prepare_beams(Beams)];
-prepare_beams([Beam0 | Beams]) ->
-    try zlib:gunzip(Beam0) of
-        Beam ->
-            [Beam | prepare_beams(Beams)]
+prepare_beam(<<"FOR1",_/binary>> = Beam) ->
+    Beam;
+prepare_beam(Beam0) ->
+    try
+        zlib:gunzip(Beam0)
     catch
         error:Error ->
-            {error, {bad_beam, Error}}
-    end;
-prepare_beams([]) ->
-    [].
+            error({bad_beam, Error})
+    end.
 
 -type section_name() :: shebang | comment | emu_args | body .
 -type extract_option() :: compile_source | {section, [section_name()]}.
