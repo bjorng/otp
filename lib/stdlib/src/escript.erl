@@ -305,6 +305,14 @@ normalize_section(emu_args, "%%!" ++ Chars) ->
     Chopped = string:trim(Chars, trailing, "$\n"),
     Stripped = string:trim(Chopped, both),
     {emu_args, Stripped};
+normalize_section(archive, Bin) ->
+    case Bin of
+        <<?BUNDLE_HEADER,BeamSize:32,_:BeamSize/binary,
+          ArchiveSize:32,Archive:ArchiveSize/binary>> ->
+            {archive, Archive};
+        _ ->
+            {archive, Bin}
+    end;
 normalize_section(Name, Chars) ->
     {Name, Chars}.
 
