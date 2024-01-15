@@ -81,6 +81,7 @@
 create(File, Options) when is_list(Options) ->
     try
 	S = prepare(Options, #sections{}),
+        io:format("~P\n", [S,20]),
 	BinList =
 	    [Section || Section <- [S#sections.shebang,
 				    S#sections.comment,
@@ -130,7 +131,7 @@ prepare([H | T], S) ->
 	    File = "dummy.zip",
 	    case zip:create(File, ZipFiles, ZipOptions ++ [memory]) of
 		{ok, {File, ZipBin}} ->
-		    prepare(T, S#sections{type = Type, body = ZipBin});
+                    prepare([{Type, ZipBin} | T], S);
 		{error, Reason} ->
 		    throw({Reason, H})
 	    end;
@@ -166,7 +167,8 @@ prepare(BadOptions, _) ->
 beam_bundle(ZipArchive) ->
     {Beams0, OtherFiles} = beam_bundle_split(ZipArchive),
     Options = [memory],
-    OtherArchive = zip:create_file("dummy.zip", OtherFiles, Options),
+    File = "dummy.zip",
+    {ok, {File, OtherArchive}} = zip:create(File, OtherFiles, Options),
     case prepare_beams(Beams0) of
         {error, _} = Error ->
             Error;
@@ -180,14 +182,14 @@ beam_bundle(ZipArchive) ->
     end.
 
 beam_bundle_split(Archive) ->
-    zip:foldl(fun do_bundle_split/4, {[], []}, {"", Archive}).
+    {ok, {Beams, OtherFiles}} =
+        zip:foldl(fun do_bundle_split/4, {[], []}, {"", Archive}),
+    {Beams, OtherFiles}.
 
 do_bundle_split(Name, _, Get, {BeamAcc, FileAcc}) ->
     case filename:extension(Name) of
         ".beam" ->
-            BeamFile = filename:basename(Name),
-            Mod = list_to_atom(filename:rootname(BeamFile)),
-            {[{Mod, BeamFile, Get()} | BeamAcc], FileAcc};
+            {[Get() | BeamAcc], FileAcc};
         _ ->
             {BeamAcc, [{Name, Get()} | FileAcc]}
     end.
