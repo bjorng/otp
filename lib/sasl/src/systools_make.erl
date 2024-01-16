@@ -1202,7 +1202,7 @@ add_subdirs([Dir|Dirs]) ->
 %%    and a bootfile to File.boot.
 
 generate_script(Output, Release, Appls, Flags) ->
-    Script = gen_script(Release, Appls, Flags),
+    Script = gen_script(Output, Release, Appls, Flags),
 
     ScriptFile = Output ++ ".script",
     case file:open(ScriptFile, [write,{encoding,utf8}]) of
@@ -1225,20 +1225,29 @@ generate_script(Output, Release, Appls, Flags) ->
 	    {error, ?MODULE, {open,ScriptFile,Reason}}
     end.
 
-gen_script(Release, Appls, Flags) ->
+gen_script(Output, Release, Appls, Flags) ->
     PathFlag = path_flag(Flags),
     Variables = get_variables(Flags),
     Preloaded = preloaded(),
     Mandatory = mandatory_modules(),
+    UseBundle = true,
+    KernelLoad = [{path, create_mandatory_path(Appls, PathFlag, Variables)},
+                  {primLoad, Mandatory}],
+    LoadApplMods = load_appl_mods(Appls, Mandatory ++ Preloaded,
+                                  PathFlag, Variables),
+    case UseBundle of
+        true ->
+            Bundle = create_beam_bundle(Appls),
+            BundleName = Output ++ ".ebb",
+            ok = file:write_file(BundleName, [Bundle])
+    end,
     {script, {Release#release.name,Release#release.vsn},
-     [{preLoaded, Preloaded},
-      {progress, preloaded},
-      {path, create_mandatory_path(Appls, PathFlag, Variables)},
-      {primLoad, Mandatory},
-      {kernel_load_completed},
-      {progress, kernel_load_completed}] ++
-         load_appl_mods(Appls, Mandatory ++ Preloaded,
-                        PathFlag, Variables) ++
+     [{preLoaded, Preloaded}] ++
+         KernelLoad ++
+         [{progress, preloaded},
+          {kernel_load_completed},
+          {progress, kernel_load_completed}] ++
+         LoadApplMods ++
          [{path, create_path(Appls, PathFlag, Variables)}] ++
          create_kernel_procs(Appls) ++
          create_load_appls(Appls) ++
@@ -1273,7 +1282,21 @@ valid_variables(_) ->
 rm_tlsl(P) -> rm_tlsl1(reverse(P)).
 rm_tlsl1([$/|P]) -> rm_tlsl1(P);
 rm_tlsl1(P) -> reverse(P).
-  
+
+create_beam_bundle(Apps) ->
+    Beams = create_beam_bundle_1(Apps, code:objfile_extension()),
+    Packed = zlib:compress(Beams),
+    <<"EBB\n",(byte_size(Packed)):32,Packed/binary,0:32>>.
+
+create_beam_bundle_1([{_,#application{dir=Dir,modules=Mods}}|Apps], Ext) ->
+    [begin
+         {ok,Beam} = file:read_file(filename:join(Dir, Mod) ++ Ext),
+         Beam
+     end || Mod <- Mods] ++
+        create_beam_bundle_1(Apps, Ext);
+create_beam_bundle_1([], _Ext) ->
+    [].
+
 %%______________________________________________________________________
 %% Start all applications.
 %% Do not start applications that are included applications !
