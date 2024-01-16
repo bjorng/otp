@@ -1231,16 +1231,21 @@ gen_script(Output, Release, Appls, Flags) ->
     Preloaded = preloaded(),
     Mandatory = mandatory_modules(),
     UseBundle = true,
-    KernelLoad = [{path, create_mandatory_path(Appls, PathFlag, Variables)},
+    {KernelLoad, LoadApplMods} =
+        case UseBundle of
+            true ->
+                Bundle = create_beam_bundle(Appls),
+                BundleName = Output ++ ".ebb",
+                ok = file:write_file(BundleName, [Bundle]),
+                {[{path, "$ROOT"},
+                  {archiveLoad, BundleName}],
+                 []};
+            false ->
+                {[{path, create_mandatory_path(Appls, PathFlag, Variables)},
                   {primLoad, Mandatory}],
-    LoadApplMods = load_appl_mods(Appls, Mandatory ++ Preloaded,
-                                  PathFlag, Variables),
-    case UseBundle of
-        true ->
-            Bundle = create_beam_bundle(Appls),
-            BundleName = Output ++ ".ebb",
-            ok = file:write_file(BundleName, [Bundle])
-    end,
+                 load_appl_mods(Appls, Mandatory ++ Preloaded,
+                                PathFlag, Variables)}
+        end,
     {script, {Release#release.name,Release#release.vsn},
      [{preLoaded, Preloaded}] ++
          KernelLoad ++
