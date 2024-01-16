@@ -1202,25 +1202,7 @@ add_subdirs([Dir|Dirs]) ->
 %%    and a bootfile to File.boot.
 
 generate_script(Output, Release, Appls, Flags) ->
-    PathFlag = path_flag(Flags),
-    Variables = get_variables(Flags),
-    Preloaded = preloaded(),
-    Mandatory = mandatory_modules(),
-    Script = {script, {Release#release.name,Release#release.vsn},
-	      [{preLoaded, Preloaded},
-	       {progress, preloaded},
-	       {path, create_mandatory_path(Appls, PathFlag, Variables)},
-	       {primLoad, Mandatory},
-	       {kernel_load_completed},
-	       {progress, kernel_load_completed}] ++
-	      load_appl_mods(Appls, Mandatory ++ Preloaded,
-			     PathFlag, Variables) ++
-	      [{path, create_path(Appls, PathFlag, Variables)}] ++
-		  create_kernel_procs(Appls) ++
-		  create_load_appls(Appls) ++
-		  create_start_appls(Appls) ++
-		  script_end(lists:member(no_dot_erlang, Flags))
-	     },
+    Script = gen_script(Release, Appls, Flags),
 
     ScriptFile = Output ++ ".script",
     case file:open(ScriptFile, [write,{encoding,utf8}]) of
@@ -1242,6 +1224,27 @@ generate_script(Output, Release, Appls, Flags) ->
 	{error, Reason} ->
 	    {error, ?MODULE, {open,ScriptFile,Reason}}
     end.
+
+gen_script(Release, Appls, Flags) ->
+    PathFlag = path_flag(Flags),
+    Variables = get_variables(Flags),
+    Preloaded = preloaded(),
+    Mandatory = mandatory_modules(),
+    {script, {Release#release.name,Release#release.vsn},
+     [{preLoaded, Preloaded},
+      {progress, preloaded},
+      {path, create_mandatory_path(Appls, PathFlag, Variables)},
+      {primLoad, Mandatory},
+      {kernel_load_completed},
+      {progress, kernel_load_completed}] ++
+         load_appl_mods(Appls, Mandatory ++ Preloaded,
+                        PathFlag, Variables) ++
+         [{path, create_path(Appls, PathFlag, Variables)}] ++
+         create_kernel_procs(Appls) ++
+         create_load_appls(Appls) ++
+         create_start_appls(Appls) ++
+         script_end(lists:member(no_dot_erlang, Flags))
+    }.
 
 path_flag(Flags) ->
     case {member(local,Flags), member(otp_build, Flags)} of
