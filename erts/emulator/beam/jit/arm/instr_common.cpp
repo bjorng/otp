@@ -3028,3 +3028,18 @@ void BeamModuleAssembler::emit_coverage(void *coverage, Uint index, Uint size) {
         ASSERT(0);
     }
 }
+
+void BeamModuleAssembler::emit_poison_boxed(const ArgWord &Size,
+                                            const ArgRegister &Src) {
+    auto src = load_source(Src, TMP1);
+
+    emit_untag_ptr(TMP1, src.reg);
+
+    mov_imm(TMP2, make_list(0));
+    a.str(TMP2, arm::Mem(TMP1, 0));
+
+    mov_imm(TMP2, 0);
+    for (Uint i = 1; i <= Size.get(); i++) {
+        a.str(TMP2, arm::Mem(TMP1, i * sizeof(Eterm)));
+    }
+}

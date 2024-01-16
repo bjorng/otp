@@ -1413,4 +1413,10 @@ recv_marker_use S
 # OTP 26
 #
 
+update_record a==am_inplace Size Src=d Dst N Updates=* =>
+    update_record a=am_copy Size Src Dst N Updates | poison_boxed Size Src
+
 update_record a I s d I *
+
+poison_boxed/2
+poison_boxed I S

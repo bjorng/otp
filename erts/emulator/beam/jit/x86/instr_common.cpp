@@ -2968,3 +2968,16 @@ void BeamModuleAssembler::emit_coverage(void *coverage, Uint index, Uint size) {
         ASSERT(0);
     }
 }
+
+void BeamModuleAssembler::emit_poison_boxed(const ArgWord &Size,
+                                            const ArgRegister &Src) {
+    mov_arg(ARG2, Src);
+    x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
+
+    a.mov(emit_boxed_val(boxed_ptr, 0), make_list(0));
+
+    mov_imm(ARG1, 0);
+    for (Uint i = 1; i <= Size.get(); i++) {
+        a.mov(emit_boxed_val(boxed_ptr, i * sizeof(Eterm)), ARG1);
+    }
+}
