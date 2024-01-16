@@ -1230,7 +1230,7 @@ gen_script(Output, Release, Appls, Flags) ->
     Variables = get_variables(Flags),
     Preloaded = preloaded(),
     Mandatory = mandatory_modules(),
-    UseBundle = true,
+    UseBundle = lists:member(use_bundle, Flags),
     {KernelLoad, LoadApplMods} =
         case UseBundle of
             true ->
@@ -1238,8 +1238,8 @@ gen_script(Output, Release, Appls, Flags) ->
                 BundleName = Output ++ ".ebb",
                 ok = file:write_file(BundleName, [Bundle]),
                 {[{path, "$ROOT"},
-                  {archiveLoad, BundleName}],
-                 []};
+                  {archiveLoad, filename:basename(BundleName)}],
+                 [{progress, modules_loaded}]};
             false ->
                 {[{path, create_mandatory_path(Appls, PathFlag, Variables)},
                   {primLoad, Mandatory}],
@@ -1247,10 +1247,10 @@ gen_script(Output, Release, Appls, Flags) ->
                                 PathFlag, Variables)}
         end,
     {script, {Release#release.name,Release#release.vsn},
-     [{preLoaded, Preloaded}] ++
+     [{preLoaded, Preloaded},
+      {progress, preloaded}] ++
          KernelLoad ++
-         [{progress, preloaded},
-          {kernel_load_completed},
+         [{kernel_load_completed},
           {progress, kernel_load_completed}] ++
          LoadApplMods ++
          [{path, create_path(Appls, PathFlag, Variables)}] ++
@@ -2256,6 +2256,8 @@ cas([no_dot_erlang | Args], X) ->
     cas(Args, X);
 %% set the name of the script and boot file to create
 cas([{script_name, Name} | Args], X) when is_list(Name) ->
+    cas(Args, X);
+cas([use_bundle | Args], X) ->
     cas(Args, X);
 
 %%% ERROR --------------------------------------------------------------
