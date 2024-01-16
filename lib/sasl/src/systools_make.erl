@@ -1711,6 +1711,7 @@ open_main_tar(TarName) ->
     end.
 
 mk_tar(Tar, RelName, Release, Appls, Flags, Path1) ->
+    add_bundle(Tar, RelName, Flags),
     Variables = get_variables(Flags),
     add_applications(Appls, Tar, Variables, Flags, false),
     add_variable_tars(Variables, Appls, Tar, Flags),
@@ -1723,6 +1724,16 @@ add_additional_files(Tar, Flags) ->
         {extra_files, ToAdd} ->
             [add_to_tar(Tar, From, To) || {From, To} <- ToAdd];
         _ ->
+            ok
+    end.
+
+add_bundle(Tar, RelName, Flags) ->
+    case lists:member(use_bundle, Flags) of
+        true ->
+            From = RelName ++ ".ebb",
+            To = filename:join("lib", RelName ++ ".ebb"),
+            add_to_tar(Tar, From, To);
+        false ->
             ok
     end.
 
@@ -1929,12 +1940,16 @@ add_appl(Name, Vsn, App, Tar, Variables, Flags, Var) ->
 	    add_to_tar(Tar,
 		       filename:join(AppDir, Name ++ ".app"),
 		       filename:join(BinDir, Name ++ ".app")),
-	    add_modules(map(fun(Mod) -> to_list(Mod) end,
-			    App#application.modules),
-			Tar,
-			AppDir,
-			BinDir,
-			code:objfile_extension())
+            case lists:member(use_bundle, Flags) of
+                true ->
+                    ok;
+                false ->
+                    add_modules([to_list(Mod) || Mod <- App#application.modules],
+                                Tar,
+                                AppDir,
+                                BinDir,
+                                code:objfile_extension())
+            end
     end.
 
 %%______________________________________________________________________
@@ -2339,6 +2354,8 @@ cat([no_warn_sasl | Args], X) ->
 cat([no_module_tests | Args], X) ->
     cat(Args, X);
 cat([{extra_files, ExtraFiles} | Args], X) when is_list(ExtraFiles) ->
+    cat(Args, X);
+cat([use_bundle | Args], X) ->
     cat(Args, X);
 
 %%% ERROR --------------------------------------------------------------
