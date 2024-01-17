@@ -1414,7 +1414,9 @@ recv_marker_use S
 #
 
 update_record a==am_inplace Size Src=d Dst N Updates=* =>
-    update_record a=am_copy Size Src Dst N Updates | poison_boxed Size Src
+    move Src x |
+    update_record a=am_copy Size Src Dst N Updates |
+    poison_boxed Size x
 
 update_record a I s d I *
 
