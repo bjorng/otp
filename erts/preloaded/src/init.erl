@@ -1087,6 +1087,7 @@ load_bundle(BundleName, Init) ->
             Beams1 = zlib:uncompress(Beams0),
             Beams2 = separate_beams(Beams1),
             Beams = [Mod || {M,_,_}=Mod <- Beams2, not erlang:module_loaded(M)],
+            erlang:display([M || {M,_,_} <- Beams]),
             Process = prepare_loading_fun(),
             finish_loading(prepare_beams(Beams, Process), Init)
     end.
