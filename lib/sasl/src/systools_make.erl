@@ -47,6 +47,8 @@
 
 -define(ESOCK_MODS, [prim_net,prim_socket,socket_registry]).
 
+-define(BUNDLE_HEADER, "EBB\n").
+
 %%-----------------------------------------------------------------
 %% Create a boot script from a release file.
 %% Options is a list of {path, Path} | silent | local
@@ -1291,7 +1293,12 @@ rm_tlsl1(P) -> reverse(P).
 create_beam_bundle(Apps) ->
     Beams = create_beam_bundle_1(Apps, code:objfile_extension()),
     Packed = zlib:compress(Beams),
-    <<"EBB\n",(byte_size(Packed)):32,Packed/binary,0:32>>.
+    PackedSize = byte_size(Packed),
+    ExtraSize = 0,
+
+    %% ExtraSize is reserved for potential future use of this bundle
+    %% format in escripts.
+    <<?BUNDLE_HEADER, PackedSize:32, Packed/binary, ExtraSize:32>>.
 
 create_beam_bundle_1([{_,#application{dir=Dir,modules=Mods}}|Apps], Ext) ->
     [begin

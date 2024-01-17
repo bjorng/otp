@@ -97,6 +97,7 @@
 
 -define(ON_LOAD_HANDLER, init__boot__on_load_handler).
 
+-define(BUNDLE_HEADER, "EBB\n").
 
 debug(false, _) -> ok;
 debug(_, T)     -> erlang:display(T).
