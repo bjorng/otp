@@ -1019,6 +1019,10 @@ eval_script([{primLoad,Mods}|T], #es{init=Init,prim_load=PrimLoad,debug=Deb}=Es)
 	    ok
     end,
     eval_script(T, Es);
+eval_script([{bundleLoad,Bundle}=Cmd|T], #es{init=Init,debug=Deb}=Es)
+  when is_binary(Bundle) ->
+    debug(Deb, Cmd, fun() -> load_bundle(Bundle, Init) end),
+    eval_script(T, Es);
 eval_script([{kernelProcess,Server,{Mod,Fun,Args}}|T],
 	    #es{init=Init,debug=Deb}=Es) ->
     debug(Deb, {start,Server}, fun() -> start_in_kernel(Server, Mod, Fun, Args, Init) end),
@@ -1071,6 +1075,9 @@ prepare_loading_fun() ->
 
 make_path(Pa, Pz, Path, Vars) ->
     append([Pa,append([fix_path(Path,Vars),Pz])]).
+
+load_bundle(_Bundle, _Init) ->
+    ok.
 
 %% For all Paths starting with $ROOT add rootdir and for those
 %% starting with $xxx/, expand $xxx to the value supplied with -boot_var!

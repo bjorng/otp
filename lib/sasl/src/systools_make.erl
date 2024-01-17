@@ -1240,7 +1240,7 @@ gen_script(Output, Release, Appls, Flags) ->
                 BundleName = Output ++ ".ebb",
                 ok = file:write_file(BundleName, [Bundle]),
                 {[{path, "$ROOT"},
-                  {archiveLoad, filename:basename(BundleName)}],
+                  {bundleLoad, filename:basename(BundleName)}],
                  [{progress, modules_loaded}]};
             false ->
                 {[{path, create_mandatory_path(Appls, PathFlag, Variables)},
