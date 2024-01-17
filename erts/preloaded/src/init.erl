@@ -1076,8 +1076,29 @@ prepare_loading_fun() ->
 make_path(Pa, Pz, Path, Vars) ->
     append([Pa,append([fix_path(Path,Vars),Pz])]).
 
-load_bundle(_Bundle, _Init) ->
-    ok.
+load_bundle(BundleName, _Init) ->
+    {ok,Bundle,_FullName} = erl_prim_loader:get_file(BundleName),
+    case Bundle of
+        <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,0:32>> ->
+            separate_beams(Beams0)
+    end.
+
+separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
+    <<Beam:(Size+8)/binary-unit:8,Bin/binary>> = Bin0,
+    Mod = get_module_name(Beam),
+    File = atom_to_list(Mod) ++ ".erl",
+    [{Mod,File,Beam}|separate_beams(Bin)];
+separate_beams(<<>>) -> [].
+
+get_module_name(<<"FOR1",Size:32,"BEAM",Chunks:(Size-4)/binary>>) ->
+    get_module_name_1(Chunks).
+
+get_module_name_1(<<"AtU8",_:32,_:32,L:8,Mod:L/binary,_/binary>>) ->
+    binary_to_atom(Mod);
+get_module_name_1(<<_Tag:4/binary,Size0:4/unit:8,T0/binary>>) ->
+    Size = 4 * ((Size0 + 3) div 4),
+    <<_:Size/binary,T/binary>> = T0,
+    get_module_name_1(T).
 
 %% For all Paths starting with $ROOT add rootdir and for those
 %% starting with $xxx/, expand $xxx to the value supplied with -boot_var!
