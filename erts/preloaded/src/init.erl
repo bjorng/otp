@@ -1086,7 +1086,7 @@ load_bundle(BundleName, Init) ->
         <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,0:32>> ->
             Beams = separate_beams(Beams0),
             Process = prepare_loading_fun(),
-            finish_loading(load_beams(Beams, Process), Init)
+            finish_loading(prepare_beams(Beams, Process), Init)
     end.
 
 separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
@@ -1106,45 +1106,45 @@ get_module_name_1(<<_Tag:4/binary,Size0:4/unit:8,T0/binary>>) ->
     <<_:Size/binary,T/binary>> = T0,
     get_module_name_1(T).
 
-load_beams(Beams, Process) ->
+prepare_beams(Beams, Process) ->
     Self = self(),
     Ref = make_ref(),
     GmSpawn = fun() ->
-		      load_beams_spawn({Self,Ref}, Beams, Process)
+		      prepare_beams_spawn({Self,Ref}, Beams, Process)
 	      end,
     _ = spawn_link(GmSpawn),
     N = length(Beams),
-    load_beams_recv(N, Ref, [], []).
+    prepare_beams_recv(N, Ref, [], []).
 
-load_beams_recv(0, _Ref, Succ, Fail) ->
+prepare_beams_recv(0, _Ref, Succ, Fail) ->
     {ok,{Succ,Fail}};
-load_beams_recv(N, Ref, Succ, Fail) ->
+prepare_beams_recv(N, Ref, Succ, Fail) ->
     receive
 	{Ref,Mod,{ok,Res}} ->
-	    load_beams_recv(N-1, Ref, [{Mod,Res}|Succ], Fail);
+	    prepare_beams_recv(N-1, Ref, [{Mod,Res}|Succ], Fail);
 	{Ref,Mod,{error,Res}} ->
-	    load_beams_recv(N-1, Ref, Succ, [{Mod,Res}|Fail])
+	    prepare_beams_recv(N-1, Ref, Succ, [{Mod,Res}|Fail])
     end.
 
-load_beams_spawn(ParentRef, Beams, Process) ->
-    load_beams_spawn_1(0, Beams, ParentRef, Process).
+prepare_beams_spawn(ParentRef, Beams, Process) ->
+    prepare_beams_spawn_1(0, Beams, ParentRef, Process).
 
-load_beams_spawn_1(N, Beams, ParentRef, Process) when N >= 32 ->
+prepare_beams_spawn_1(N, Beams, ParentRef, Process) when N >= 32 ->
     receive
 	{'DOWN',_,process,_,_} ->
-	    load_beams_spawn_1(N - 1, Beams, ParentRef, Process)
+	    prepare_beams_spawn_1(N - 1, Beams, ParentRef, Process)
     end;
-load_beams_spawn_1(N, [{Mod,File,Beam}|Beams], {Parent,Ref}=PR, Process) ->
+prepare_beams_spawn_1(N, [{Mod,File,Beam}|Beams], {Parent,Ref}=PR, Process) ->
     Get = fun() ->
-                  Res = load_beams_process(Mod, File, Beam, Process),
+                  Res = prepare_beams_process(Mod, File, Beam, Process),
                   Parent ! {Ref,Mod,Res}
           end,
     _ = spawn_monitor(Get),
-    load_beams_spawn_1(N + 1, Beams, PR, Process);
-load_beams_spawn_1(_, [], _, _) ->
+    prepare_beams_spawn_1(N + 1, Beams, PR, Process);
+prepare_beams_spawn_1(_, [], _, _) ->
     ok.
 
-load_beams_process(Mod, File, Bin, Process) ->
+prepare_beams_process(Mod, File, Bin, Process) ->
     try Process(Mod, File, Bin) of
 	{ok,_}=Res -> Res;
 	{error,_}=Res -> Res;
