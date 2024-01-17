@@ -1077,7 +1077,7 @@ make_path(Pa, Pz, Path, Vars) ->
     append([Pa,append([fix_path(Path,Vars),Pz])]).
 
 %%%
-%%% Load a bundle of BEAM files.
+%%% Load the BEAM files in a bundle in parallel.
 %%%
 
 load_bundle(BundleName, _Init) ->
@@ -1136,13 +1136,23 @@ load_beams_spawn_1(N, Beams, ParentRef, Process) when N >= 32 ->
     end;
 load_beams_spawn_1(N, [{Mod,File,Beam}|Beams], {Parent,Ref}=PR, Process) ->
     Get = fun() ->
-                  Res = Process(Mod, File, Beam),
+                  Res = load_beams_process(Mod, File, Beam, Process),
                   Parent ! {Ref,Mod,Res}
           end,
     _ = spawn_monitor(Get),
     load_beams_spawn_1(N + 1, Beams, PR, Process);
 load_beams_spawn_1(_, [], _, _) ->
     ok.
+
+load_beams_process(Mod, File, Bin, Process) ->
+    try Process(Mod, File, Bin) of
+	{ok,_}=Res -> Res;
+	{error,_}=Res -> Res;
+	Other -> {error,{bad_return,Other}}
+    catch
+	_:Error ->
+	    {error,{crash,Error}}
+    end.
 
 %% For all Paths starting with $ROOT add rootdir and for those
 %% starting with $xxx/, expand $xxx to the value supplied with -boot_var!
