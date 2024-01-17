@@ -1066,6 +1066,7 @@ finish_loading({ok,{Prep0,[]}}, Init) ->
     Prep = [Code || {_,{prepared,Code,_}} <- Prep0],
     ok = erlang:finish_loading(Prep),
     Loaded = [{Mod,Full} || {Mod,{_,_,Full}} <- Prep0],
+    erlang:display({loaded,Loaded}),
     Init ! {self(),loaded,Loaded},
     Beams = [{M,Beam,Full} || {M,{on_load,Beam,Full}} <- Prep0],
     load_rest(Beams, Init);
@@ -1095,7 +1096,7 @@ load_bundle(BundleName, Init) ->
 separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
     <<Beam:(Size+8)/binary-unit:8,Bin/binary>> = Bin0,
     Mod = get_module_name(Beam),
-    File = atom_to_list(Mod) ++ ".erl",
+    File = atom_to_list(Mod) ++ objfile_extension(),
     [{Mod,File,Beam}|separate_beams(Bin)];
 separate_beams(<<>>) -> [].
 
@@ -1258,6 +1259,7 @@ join([H], _) ->
 
 start_in_kernel(Server,Mod,Fun,Args,Init) ->
     Res = apply(Mod,Fun,Args),
+    erlang:display({{Mod,Fun,Args}, Res}),
     Init ! {self(),started,{Server,Res}},
     receive
 	{Init,ok,Pid} ->
