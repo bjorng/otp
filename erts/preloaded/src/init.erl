@@ -1038,18 +1038,7 @@ eval_script(What, #es{}) ->
 load_modules(Mods0, Init) ->
     Mods = [M || M <- Mods0, not erlang:module_loaded(M)],
     F = prepare_loading_fun(),
-    case erl_prim_loader:get_modules(Mods, F) of
-	{ok,{Prep0,[]}} ->
-	    Prep = [Code || {_,{prepared,Code,_}} <- Prep0],
-	    ok = erlang:finish_loading(Prep),
-	    Loaded = [{Mod,Full} || {Mod,{_,_,Full}} <- Prep0],
-	    Init ! {self(),loaded,Loaded},
-	    Beams = [{M,Beam,Full} || {M,{on_load,Beam,Full}} <- Prep0],
-	    load_rest(Beams, Init);
-	{ok,{_,[_|_]=Errors}} ->
-	    Ms = [M || {M,_} <- Errors],
-	    exit({load_failed,Ms})
-    end.
+    finish_loading(erl_prim_loader:get_modules(Mods, F), Init).
 
 load_rest([{Mod,Beam,Full}|T], Init) ->
     do_load_module(Mod, Beam),
@@ -1073,6 +1062,17 @@ prepare_loading_fun() ->
 	    end
     end.
 
+finish_loading({ok,{Prep0,[]}}, Init) ->
+    Prep = [Code || {_,{prepared,Code,_}} <- Prep0],
+    ok = erlang:finish_loading(Prep),
+    Loaded = [{Mod,Full} || {Mod,{_,_,Full}} <- Prep0],
+    Init ! {self(),loaded,Loaded},
+    Beams = [{M,Beam,Full} || {M,{on_load,Beam,Full}} <- Prep0],
+    load_rest(Beams, Init);
+finish_loading({ok,{_,[_|_]=Errors}}, _Init) ->
+    Ms = [M || {M,_} <- Errors],
+    exit({load_failed,Ms}).
+
 make_path(Pa, Pz, Path, Vars) ->
     append([Pa,append([fix_path(Path,Vars),Pz])]).
 
@@ -1080,13 +1080,13 @@ make_path(Pa, Pz, Path, Vars) ->
 %%% Load the BEAM files in a bundle in parallel.
 %%%
 
-load_bundle(BundleName, _Init) ->
+load_bundle(BundleName, Init) ->
     {ok,Bundle,_FullName} = erl_prim_loader:get_file(BundleName),
     case Bundle of
         <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,0:32>> ->
             Beams = separate_beams(Beams0),
             Process = prepare_loading_fun(),
-            load_beams(Beams, Process)
+            finish_loading(load_beams(Beams, Process), Init)
     end.
 
 separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
