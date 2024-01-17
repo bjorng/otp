@@ -1019,9 +1019,9 @@ eval_script([{primLoad,Mods}|T], #es{init=Init,prim_load=PrimLoad,debug=Deb}=Es)
 	    ok
     end,
     eval_script(T, Es);
-eval_script([{bundleLoad,Bundle}=Cmd|T], #es{init=Init,debug=Deb}=Es)
-  when is_binary(Bundle) ->
-    debug(Deb, Cmd, fun() -> load_bundle(Bundle, Init) end),
+eval_script([{bundleLoad,BundleName}=Cmd|T], #es{init=Init,debug=Deb}=Es)
+  when is_list(BundleName) ->
+    debug(Deb, Cmd, fun() -> load_bundle(BundleName, Init) end),
     eval_script(T, Es);
 eval_script([{kernelProcess,Server,{Mod,Fun,Args}}|T],
 	    #es{init=Init,debug=Deb}=Es) ->
