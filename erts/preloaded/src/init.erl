@@ -1084,7 +1084,9 @@ load_bundle(BundleName, Init) ->
     {ok,Bundle,_FullName} = erl_prim_loader:get_file(BundleName),
     case Bundle of
         <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,0:32>> ->
-            Beams = separate_beams(Beams0),
+            Beams1 = zlib:uncompress(Beams0),
+            Beams2 = separate_beams(Beams1),
+            Beams = [Mod || {M,_,_}=Mod <- Beams2, not erlang:module_loaded(M)],
             Process = prepare_loading_fun(),
             finish_loading(prepare_beams(Beams, Process), Init)
     end.
