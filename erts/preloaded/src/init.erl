@@ -1076,11 +1076,16 @@ prepare_loading_fun() ->
 make_path(Pa, Pz, Path, Vars) ->
     append([Pa,append([fix_path(Path,Vars),Pz])]).
 
+%%%
+%%% Load a bundle of BEAM files.
+%%%
+
 load_bundle(BundleName, _Init) ->
     {ok,Bundle,_FullName} = erl_prim_loader:get_file(BundleName),
     case Bundle of
         <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,0:32>> ->
-            separate_beams(Beams0)
+            Beams = separate_beams(Beams0),
+            load_beams(Beams)
     end.
 
 separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
@@ -1099,6 +1104,45 @@ get_module_name_1(<<_Tag:4/binary,Size0:4/unit:8,T0/binary>>) ->
     Size = 4 * ((Size0 + 3) div 4),
     <<_:Size/binary,T/binary>> = T0,
     get_module_name_1(T).
+
+load_beams(Beams) ->
+    Self = self(),
+    Ref = make_ref(),
+    GmSpawn = fun() ->
+		      efile_gm_spawn({Self,Ref}, Beams)
+	      end,
+    _ = spawn_link(GmSpawn),
+    N = length(Beams),
+    efile_gm_recv(N, Ref, [], []).
+
+efile_gm_recv(0, _Ref, Succ, Fail) ->
+    {ok,{Succ,Fail}};
+efile_gm_recv(N, Ref, Succ, Fail) ->
+    receive
+	{Ref,Mod,{ok,Res}} ->
+	    efile_gm_recv(N-1, Ref, [{Mod,Res}|Succ], Fail);
+	{Ref,Mod,{error,Res}} ->
+	    efile_gm_recv(N-1, Ref, Succ, [{Mod,Res}|Fail])
+    end.
+
+efile_gm_spawn(ParentRef, Beams) ->
+    efile_gm_spawn_1(0, Beams, ParentRef).
+
+efile_gm_spawn_1(N, Beams, ParentRef) when N >= 32 ->
+    receive
+	{'DOWN',_,process,_,_} ->
+	    efile_gm_spawn_1(N - 1, Beams, ParentRef)
+    end;
+efile_gm_spawn_1(N, [{Mod,File,Beam}|Beams], ParentRef) ->
+    Get = fun() ->
+                  Prepared = erlang:prepare_loading(Mod, Beam),
+                  false = erlang:has_prepared_code_on_load(Prepared),
+                  {Prepared,File}
+          end,
+    _ = spawn_monitor(Get),
+    efile_gm_spawn_1(N + 1, Beams, ParentRef);
+efile_gm_spawn_1(_, [], _) ->
+    ok.
 
 %% For all Paths starting with $ROOT add rootdir and for those
 %% starting with $xxx/, expand $xxx to the value supplied with -boot_var!
