@@ -1085,7 +1085,8 @@ load_bundle(BundleName, _Init) ->
     case Bundle of
         <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,0:32>> ->
             Beams = separate_beams(Beams0),
-            load_beams(Beams)
+            Process = prepare_loading_fun(),
+            load_beams(Beams, Process)
     end.
 
 separate_beams(<<"FOR1",Size:32,_/binary>> = Bin0) ->
@@ -1105,43 +1106,42 @@ get_module_name_1(<<_Tag:4/binary,Size0:4/unit:8,T0/binary>>) ->
     <<_:Size/binary,T/binary>> = T0,
     get_module_name_1(T).
 
-load_beams(Beams) ->
+load_beams(Beams, Process) ->
     Self = self(),
     Ref = make_ref(),
     GmSpawn = fun() ->
-		      efile_gm_spawn({Self,Ref}, Beams)
+		      load_beams_spawn({Self,Ref}, Beams, Process)
 	      end,
     _ = spawn_link(GmSpawn),
     N = length(Beams),
-    efile_gm_recv(N, Ref, [], []).
+    load_beams_recv(N, Ref, [], []).
 
-efile_gm_recv(0, _Ref, Succ, Fail) ->
+load_beams_recv(0, _Ref, Succ, Fail) ->
     {ok,{Succ,Fail}};
-efile_gm_recv(N, Ref, Succ, Fail) ->
+load_beams_recv(N, Ref, Succ, Fail) ->
     receive
 	{Ref,Mod,{ok,Res}} ->
-	    efile_gm_recv(N-1, Ref, [{Mod,Res}|Succ], Fail);
+	    load_beams_recv(N-1, Ref, [{Mod,Res}|Succ], Fail);
 	{Ref,Mod,{error,Res}} ->
-	    efile_gm_recv(N-1, Ref, Succ, [{Mod,Res}|Fail])
+	    load_beams_recv(N-1, Ref, Succ, [{Mod,Res}|Fail])
     end.
 
-efile_gm_spawn(ParentRef, Beams) ->
-    efile_gm_spawn_1(0, Beams, ParentRef).
+load_beams_spawn(ParentRef, Beams, Process) ->
+    load_beams_spawn_1(0, Beams, ParentRef, Process).
 
-efile_gm_spawn_1(N, Beams, ParentRef) when N >= 32 ->
+load_beams_spawn_1(N, Beams, ParentRef, Process) when N >= 32 ->
     receive
 	{'DOWN',_,process,_,_} ->
-	    efile_gm_spawn_1(N - 1, Beams, ParentRef)
+	    load_beams_spawn_1(N - 1, Beams, ParentRef, Process)
     end;
-efile_gm_spawn_1(N, [{Mod,File,Beam}|Beams], ParentRef) ->
+load_beams_spawn_1(N, [{Mod,File,Beam}|Beams], {Parent,Ref}=PR, Process) ->
     Get = fun() ->
-                  Prepared = erlang:prepare_loading(Mod, Beam),
-                  false = erlang:has_prepared_code_on_load(Prepared),
-                  {Prepared,File}
+                  Res = Process(Mod, File, Beam),
+                  Parent ! {Ref,Mod,Res}
           end,
     _ = spawn_monitor(Get),
-    efile_gm_spawn_1(N + 1, Beams, ParentRef);
-efile_gm_spawn_1(_, [], _) ->
+    load_beams_spawn_1(N + 1, Beams, PR, Process);
+load_beams_spawn_1(_, [], _, _) ->
     ok.
 
 %% For all Paths starting with $ROOT add rootdir and for those
