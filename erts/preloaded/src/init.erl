@@ -1066,7 +1066,6 @@ finish_loading({ok,{Prep0,[]}}, Init) ->
     Prep = [Code || {_,{prepared,Code,_}} <- Prep0],
     ok = erlang:finish_loading(Prep),
     Loaded = [{Mod,Full} || {Mod,{_,_,Full}} <- Prep0],
-    erlang:display({loaded,Loaded}),
     Init ! {self(),loaded,Loaded},
     Beams = [{M,Beam,Full} || {M,{on_load,Beam,Full}} <- Prep0],
     load_rest(Beams, Init);
@@ -1088,7 +1087,6 @@ load_bundle(BundleName, Init) ->
             Beams1 = zlib:uncompress(Beams0),
             Beams2 = separate_beams(Beams1),
             Beams = [Mod || {M,_,_}=Mod <- Beams2, not erlang:module_loaded(M)],
-            erlang:display([M || {M,_,_} <- Beams]),
             Process = prepare_loading_fun(),
             finish_loading(prepare_beams(Beams, Process), Init)
     end.
@@ -1111,14 +1109,26 @@ get_module_name_1(<<_Tag:4/binary,Size0:4/unit:8,T0/binary>>) ->
     get_module_name_1(T).
 
 prepare_beams(Beams, Process) ->
-    Self = self(),
-    Ref = make_ref(),
-    GmSpawn = fun() ->
-		      prepare_beams_spawn({Self,Ref}, Beams, Process)
-	      end,
-    _ = spawn_link(GmSpawn),
-    N = length(Beams),
-    prepare_beams_recv(N, Ref, [], []).
+    Prepare = fun() ->
+                      Self = self(),
+                      Ref = make_ref(),
+                      ParentRef = {Self,Ref},
+                      PS = fun() ->
+                                   prepare_beams_spawn(ParentRef, Beams, Process)
+                           end,
+		      _ = spawn_link(PS),
+                      N = length(Beams),
+                      exit(prepare_beams_recv(N, Ref, [], []))
+              end,
+    {Pid,Ref} = spawn_monitor(Prepare),
+    receive
+        {'DOWN',Ref,process,Pid,Result} ->
+            case Result of
+                {ok,_} -> Result;
+                {error,_} -> Result;
+                _ -> {crash,Result}
+            end
+    end.
 
 prepare_beams_recv(0, _Ref, Succ, Fail) ->
     {ok,{Succ,Fail}};
@@ -1131,21 +1141,23 @@ prepare_beams_recv(N, Ref, Succ, Fail) ->
     end.
 
 prepare_beams_spawn(ParentRef, Beams, Process) ->
-    prepare_beams_spawn_1(0, Beams, ParentRef, Process).
+    Limit = erlang:system_info(schedulers),
+    prepare_beams_spawn_1(0, Beams, ParentRef, Process, Limit).
 
-prepare_beams_spawn_1(N, Beams, ParentRef, Process) when N >= 32 ->
+prepare_beams_spawn_1(N, Beams, ParentRef, Process, Limit) when N >= Limit ->
     receive
 	{'DOWN',_,process,_,_} ->
-	    prepare_beams_spawn_1(N - 1, Beams, ParentRef, Process)
+	    prepare_beams_spawn_1(N - 1, Beams, ParentRef, Process, Limit)
     end;
-prepare_beams_spawn_1(N, [{Mod,File,Beam}|Beams], {Parent,Ref}=PR, Process) ->
+prepare_beams_spawn_1(N, [{Mod,File,Beam}|Beams], PR, Process, Limit) ->
     Get = fun() ->
                   Res = prepare_beams_process(Mod, File, Beam, Process),
+                  {Parent,Ref} = PR,
                   Parent ! {Ref,Mod,Res}
           end,
     _ = spawn_monitor(Get),
-    prepare_beams_spawn_1(N + 1, Beams, PR, Process);
-prepare_beams_spawn_1(_, [], _, _) ->
+    prepare_beams_spawn_1(N + 1, Beams, PR, Process, Limit);
+prepare_beams_spawn_1(_, [], _, _, _) ->
     ok.
 
 prepare_beams_process(Mod, File, Bin, Process) ->
@@ -1259,7 +1271,6 @@ join([H], _) ->
 
 start_in_kernel(Server,Mod,Fun,Args,Init) ->
     Res = apply(Mod,Fun,Args),
-    erlang:display({{Mod,Fun,Args}, Res}),
     Init ! {self(),started,{Server,Res}},
     receive
 	{Init,ok,Pid} ->
