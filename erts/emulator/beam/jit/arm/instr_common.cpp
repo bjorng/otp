@@ -3033,6 +3033,7 @@ void BeamModuleAssembler::emit_poison_boxed(const ArgWord &Size,
                                             const ArgRegister &Src) {
     auto src = load_source(Src, TMP1);
 
+#if 0
     emit_untag_ptr(TMP1, src.reg);
 
     mov_imm(TMP2, make_list(0));
@@ -3042,4 +3043,14 @@ void BeamModuleAssembler::emit_poison_boxed(const ArgWord &Size,
     for (Uint i = 1; i <= Size.get(); i++) {
         a.str(TMP2, arm::Mem(TMP1, i * sizeof(Eterm)));
     }
+#else
+    emit_enter_runtime_frame();
+    emit_enter_runtime();
+
+    mov_var(ARG1, src);
+    runtime_call<1>(erts_poison_term);
+
+    emit_leave_runtime();
+    emit_leave_runtime_frame();
+#endif
 }

@@ -1546,6 +1546,8 @@ Eterm erts_gc_bnot(Process* p, Eterm* reg, Uint live);
 
 Uint erts_current_reductions(Process* current, Process *p);
 
+void erts_poison_term(Eterm term);
+
 int erts_print_system_version(fmtfn_t to, void *arg, Process *c_p);
 
 int erts_hibernate(Process* c_p, Eterm* reg);

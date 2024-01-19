@@ -2971,6 +2971,7 @@ void BeamModuleAssembler::emit_coverage(void *coverage, Uint index, Uint size) {
 
 void BeamModuleAssembler::emit_poison_boxed(const ArgWord &Size,
                                             const ArgRegister &Src) {
+#if 0
     mov_arg(ARG2, Src);
     x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
 
@@ -2980,4 +2981,12 @@ void BeamModuleAssembler::emit_poison_boxed(const ArgWord &Size,
     for (Uint i = 1; i <= Size.get(); i++) {
         a.mov(emit_boxed_val(boxed_ptr, i * sizeof(Eterm)), ARG1);
     }
+#else
+    emit_enter_runtime();
+
+    mov_arg(ARG1, Src);
+    runtime_call<1>(erts_poison_term);
+
+    emit_leave_runtime();
+#endif
 }

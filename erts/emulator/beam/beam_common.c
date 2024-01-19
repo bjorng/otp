@@ -2514,3 +2514,35 @@ erts_current_reductions(Process *c_p, Process *p)
     }
     return REDS_IN(c_p) - reds_left - erts_proc_sched_data(p)->virtual_reds;
 }
+
+void
+erts_poison_term(Eterm term)
+{
+    if (is_tuple(term)) {
+        Uint i;
+        Eterm* ptr = tuple_val(term);
+        Uint size = arityval(*ptr);
+
+        for (i = 1; i <= size; i++) {
+            Eterm el = ptr[i];
+
+            if (is_integer(el)) {
+                switch (i & 3) {
+                case 0: el = am_outstanding_system_requests_limit; break;
+                case 1: el = am_linked_in_driver; break;
+                case 2: el = am_not_loaded_by_this_process; break;
+                case 3: el = am_overlapped_io; break;
+                }
+                ptr[i] = el;
+            } else if (is_atom(el)) {
+                ptr[i] = make_small(i - 9999);
+            } else if (is_list(el) || is_tuple(el)) {
+                ptr[i] = ERTS_GLOBAL_LIT_EMPTY_TUPLE;
+            } else if (is_nil(el)) {
+                ptr[i] = am_run_queue_lengths_all;
+            } else {
+                ptr[i] = am_debug_hash_fixed_number_of_locks;
+            }
+        }
+    }
+}
