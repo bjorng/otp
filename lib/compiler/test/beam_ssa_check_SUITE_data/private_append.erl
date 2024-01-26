@@ -204,13 +204,13 @@ transformable4([], Acc) ->
 %% is captured by the callee, that information could be fed back to
 %% the caller. Until that is done, this test is expected to fail.
 transformable5(L) ->
-%ssa% (_) when post_ssa_opt ->
+%ssa% xfail (_) when post_ssa_opt ->
 %ssa% A = bs_init_writable(_),
 %ssa% _ = call(fun transformable5/2, _, A).
     transformable5(L, <<>>).
 
 transformable5([H|T], Acc) ->
-%ssa% (_, Arg1) when post_ssa_opt ->
+%ssa% xfail (_, Arg1) when post_ssa_opt ->
 %ssa% A = bs_create_bin(private_append, _, Arg1, ...),
 %ssa% _ = call(fun transformable5/2, _, A).
     does_not_escape(Acc),
@@ -432,7 +432,7 @@ transformable16(L) ->
     transformable16(L, {X, Y}).
 
 transformable16([A,B|T], {{Acc0}, Acc1}) ->
-%ssa% (_, Arg1) when post_ssa_opt ->
+%ssa% xfail (_, Arg1) when post_ssa_opt ->
 %ssa% A = get_tuple_element(Arg1, 0),
 %ssa% B = get_tuple_element(A, 0),
 %ssa% C = bs_create_bin(private_append, _, B, ...),
@@ -448,14 +448,14 @@ transformable16([], {{Acc0}, Acc1}) ->
 %% Check that type information is used to figure out that {<<>>, X} is
 %% not aliased.
 transformable18(L, X) when is_integer(X), X < 256 ->
-%ssa% (_, _) when post_ssa_opt ->
+%ssa% xfail (_, _) when post_ssa_opt ->
 %ssa% A = bs_init_writable(_),
 %ssa% B = put_tuple(A, _),
 %ssa% _ = call(fun transformable18b/2, _, B).
     transformable18b(L, {<<>>, X}).
 
 transformable18b([H|T], {Acc,X}) ->
-%ssa% (_, Arg1) when post_ssa_opt ->
+%ssa% xfail (_, Arg1) when post_ssa_opt ->
 %ssa% A = get_tuple_element(Arg1, 0),
 %ssa% B = bs_create_bin(private_append, _, A, ...),
 %ssa% C = put_tuple(B, _),
@@ -467,7 +467,7 @@ transformable18b([], {Acc,_}) ->
 %% Check that the conversion works when the binary isn't embedded in a
 %% tuple literal.
 transformable19(L) ->
-%ssa% (_) when post_ssa_opt ->
+%ssa% xfail (_) when post_ssa_opt ->
 %ssa% A = bs_init_writable(_),
 %ssa% B = put_tuple(A, _),
 %ssa% _ = call(fun transformable19b/2, _, B).
@@ -480,7 +480,7 @@ transformable19(L) ->
     transformable19b(L, {<<>>, X}).
 
 transformable19b([H|T], {Acc,X}) ->
-%ssa% (_, Arg1) when post_ssa_opt ->
+%ssa% xfail (_, Arg1) when post_ssa_opt ->
 %ssa% A = get_tuple_element(Arg1, 0),
 %ssa% B = bs_create_bin(private_append, _, A, ...),
 %ssa% C = put_tuple(B, _),
@@ -492,7 +492,7 @@ transformable19b([], {Acc,_}) ->
 %% Check that the conversion works when the binary isn't embedded in a
 %% list literal.
 transformable20(L) ->
-%ssa% (_) when post_ssa_opt ->
+%ssa% xfail (_) when post_ssa_opt ->
 %ssa% A = bs_init_writable(_),
 %ssa% B = put_list(A, _),
 %ssa% _ = call(fun transformable20b/2, _, B).
@@ -505,7 +505,7 @@ transformable20(L) ->
     transformable20b(L, [<<>>|X]). % XXXX
 
 transformable20b([H|T], [Acc|X]) ->
-%ssa% (_, Arg1) when post_ssa_opt ->
+%ssa% xfail (_, Arg1) when post_ssa_opt ->
 %ssa% A = get_hd(Arg1),
 %ssa% B = bs_create_bin(private_append, _, A, ...),
 %ssa% C = put_list(B, _),
@@ -763,7 +763,7 @@ transformable32(_) ->
 %% Check that we don't crash (Github issue #6999) while attempting to
 %% patch the empty list, but also that Dest is created with private_append.
 transformable33() ->
-%ssa% () when post_ssa_opt ->
+%ssa% xfail () when post_ssa_opt ->
 %ssa% _ = bs_create_bin(private_append, ...).
     [F01] = [transformable33_inner(<<"0">>) || _ <- [1]],
     Dest = <<F01/binary>>,
