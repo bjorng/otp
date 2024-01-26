@@ -1681,8 +1681,8 @@ protected:
         if (abs_offset <= sizeof(Eterm) * MAX_LDR_STR_DISPLACEMENT) {
             a.str(gp, mem);
         } else {
-            add(SUPER_TMP, arm::GpX(mem.baseId()), offset);
-            a.str(gp, arm::Mem(SUPER_TMP));
+            add(SUPER_TMP, a64::GpX(mem.baseId()), offset);
+            a.str(gp, a64::Mem(SUPER_TMP));
         }
     }
 
