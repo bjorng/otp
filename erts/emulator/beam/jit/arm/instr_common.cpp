@@ -997,8 +997,6 @@ void BeamModuleAssembler::emit_update_record_in_place(
         const ArgRegister &Dst,
         const ArgWord &UpdateCount,
         const Span<ArgVal> &updates) {
-    bool all_safe = true;
-    ArgSource maybe_immediate = ArgNil();
     const size_t size_on_heap = TupleSize.get() + 1;
 
     ASSERT(UpdateCount.get() == updates.size());
@@ -1009,43 +1007,13 @@ void BeamModuleAssembler::emit_update_record_in_place(
     auto destination = init_destination(Dst, ARG1);
     auto src = load_source(Src, ARG2);
 
+    a.mov(ARG6, src.reg);
+
     a64::Gp untagged_src = ARG3;
     emit_untag_ptr(untagged_src, src.reg);
 
-    for (size_t i = 0; i < updates.size(); i += 2) {
-        const auto &value = updates[i + 1].as<ArgSource>();
-        if (!(always_immediate(value) || value.isLiteral())) {
-            all_safe = false;
-            if (maybe_immediate.isNil() &&
-                always_one_of<BeamTypeId::MaybeImmediate>(value)) {
-                maybe_immediate = value;
-            } else {
-                maybe_immediate = ArgNil();
-                break;
-            }
-        }
-    }
-
-    if (all_safe) {
-        comment("skipped copy fallback because all new values are safe");
-    } else {
-        Label update = a.newLabel();
-
-        if (!maybe_immediate.isNil()) {
-            auto value = load_source(maybe_immediate, ARG5);
-            emit_is_not_boxed(update, value.reg);
-        }
-
-        a.ldr(ARG4, arm::Mem(c_p, offsetof(Process, high_water)));
-        a.cmp(untagged_src, HTOP);
-        a.ccmp(untagged_src, ARG4, imm(NZCV::kNone), imm(arm::CondCode::kLO));
-        a.b_hs(update);
-
-        emit_copy_words_increment(untagged_src, HTOP, size_on_heap);
-        sub(untagged_src, HTOP, size_on_heap * sizeof(Eterm));
-
-        a.bind(update);
-    }
+    emit_copy_words_increment(untagged_src, HTOP, size_on_heap);
+    sub(untagged_src, HTOP, size_on_heap * sizeof(Eterm));
 
     for (size_t i = 0; i < updates.size(); i += 2) {
         const auto next_index = updates[i].as<ArgWord>().get();
@@ -1071,6 +1039,15 @@ void BeamModuleAssembler::emit_update_record_in_place(
 
     a.add(destination.reg, untagged_src, TAG_PRIMARY_BOXED);
     flush_var(destination);
+
+    emit_enter_runtime_frame();
+    emit_enter_runtime();
+
+    a.mov(ARG1, ARG6);
+    runtime_call<1>(erts_poison_term);
+
+    emit_leave_runtime();
+    emit_leave_runtime_frame();
 }
 
 void BeamModuleAssembler::emit_set_tuple_element(const ArgSource &Element,

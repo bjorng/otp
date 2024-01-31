@@ -990,8 +990,6 @@ void BeamModuleAssembler::emit_update_record_in_place(
         const ArgRegister &Dst,
         const ArgWord &UpdateCount,
         const Span<ArgVal> &updates) {
-    bool all_safe = true;
-    ArgSource maybe_immediate = ArgNil();
     const size_t size_on_heap = TupleSize.get() + 1;
 
     ASSERT(UpdateCount.get() == updates.size());
@@ -999,23 +997,10 @@ void BeamModuleAssembler::emit_update_record_in_place(
 
     ASSERT(size_on_heap > 2);
 
-    for (size_t i = 0; i < updates.size(); i += 2) {
-        const auto &value = updates[i + 1].as<ArgSource>();
-        if (!(always_immediate(value) || value.isLiteral())) {
-            all_safe = false;
-            if (maybe_immediate.isNil() &&
-                always_one_of<BeamTypeId::MaybeImmediate>(value)) {
-                maybe_immediate = value;
-            } else {
-                maybe_immediate = ArgNil();
-                break;
-            }
-        }
-    }
-
     x86::Gp tagged_ptr = RET;
 
     mov_arg(tagged_ptr, Src);
+    a.mov(ARG6, RET);
 
 #if defined(DEBUG) && defined(TAG_LITERAL_PTR)
     /* The compiler guarantees that the tuple is not a literal. */
@@ -1030,41 +1015,16 @@ void BeamModuleAssembler::emit_update_record_in_place(
     }
 #endif
 
-    if (all_safe) {
-        comment("skipped copy fallback because all new values are safe");
-    } else {
-        Label update = a.newLabel();
-
-        if (!maybe_immediate.isNil()) {
-            mov_arg(ARG4, maybe_immediate);
-            preserve_cache([&]() {
-                emit_is_not_boxed(update, ARG4, dShort);
-            });
-        }
-
-        preserve_cache(
-                [&]() {
-                    Label copy = a.newLabel();
-
-                    a.mov(ARG1, x86::Mem(c_p, offsetof(Process, high_water)));
-                    a.cmp(tagged_ptr, HTOP);
-                    a.short_().jae(copy);
-
-                    a.cmp(tagged_ptr, ARG1);
-                    a.short_().jae(update);
-
-                    a.bind(copy);
-                    emit_copy_words(emit_boxed_val(tagged_ptr, 0),
-                                    x86::qword_ptr(HTOP, 0),
-                                    size_on_heap,
-                                    ARG1);
-                    a.lea(RET, x86::qword_ptr(HTOP, TAG_PRIMARY_BOXED));
-                    a.add(HTOP, imm(size_on_heap * sizeof(Eterm)));
-
-                    a.bind(update);
-                },
-                ARG1);
-    }
+    preserve_cache(
+                   [&]() {
+                       emit_copy_words(emit_boxed_val(tagged_ptr, 0),
+                                       x86::qword_ptr(HTOP, 0),
+                                       size_on_heap,
+                                       ARG1);
+                       a.lea(RET, x86::qword_ptr(HTOP, TAG_PRIMARY_BOXED));
+                       a.add(HTOP, imm(size_on_heap * sizeof(Eterm)));
+                   },
+                   ARG1);
 
     for (size_t i = 0; i < updates.size(); i += 2) {
         const auto next_index = updates[i].as<ArgWord>().get();
@@ -1078,6 +1038,13 @@ void BeamModuleAssembler::emit_update_record_in_place(
     }
 
     mov_arg(Dst, RET);
+
+    emit_enter_runtime();
+
+    a.mov(ARG1, ARG6);
+    runtime_call<1>(erts_poison_term);
+
+    emit_leave_runtime();
 }
 
 void BeamModuleAssembler::emit_set_tuple_element(const ArgSource &Element,
