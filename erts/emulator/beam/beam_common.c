@@ -2512,3 +2512,20 @@ erts_current_reductions(Process *c_p, Process *p)
     }
     return REDS_IN(c_p) - reds_left - erts_proc_sched_data(p)->virtual_reds;
 }
+
+void
+erts_poison_term(Eterm term)
+{
+    if (is_tuple(term)) {
+        Uint i;
+        Eterm* ptr = tuple_val(term);
+        Uint size = arityval(*ptr);
+
+        ptr[size] = am_poison__42__poison;
+#if 0
+        for (i = 2; i <= size; i++) {
+            ptr[i] = am_poison__42__poison;
+        }
+#endif
+    }
+}
