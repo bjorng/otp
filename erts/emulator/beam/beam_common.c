@@ -2521,8 +2521,8 @@ erts_poison_term(Eterm term)
         Eterm* ptr = tuple_val(term);
         Uint size = arityval(*ptr);
 
-        ptr[size] = am_poison__42__poison;
-#if 0
+        /* ptr[size] = am_poison__42__poison; */
+#if 1
         for (i = 2; i <= size; i++) {
             ptr[i] = am_poison__42__poison;
         }

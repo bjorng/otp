@@ -23,8 +23,6 @@
 
 #define ERL_WANT_GC_INTERNALS__
 
-#define AM_POISON am_poison__42__poison
-
 #include "sys.h"
 #include "erl_vm.h"
 #include "global.h"
@@ -1670,11 +1668,7 @@ do_minor(Process *p, ErlHeapFragment *live_hf_end,
                 }
 		break;
 	    }
-
 	    default:
-                if (gval == AM_POISON) {
-                    abort();
-                }
 		break;
             }
         }
@@ -1757,9 +1751,6 @@ do_minor(Process *p, ErlHeapFragment *live_hf_end,
 		break;
 	    }
 	    default:
-                if (gval == AM_POISON) {
-                    abort();
-                }
 		n_hp++;
 		break;
 	    }
@@ -1995,9 +1986,6 @@ full_sweep_heaps(Process *p,
 	    }
 
             default:
-                if (gval == AM_POISON) {
-                    abort();
-                }
                 break;
 	    }
 	}
@@ -2319,9 +2307,6 @@ sweep(Eterm *n_hp, Eterm *n_htop,
 	    break;
 	}
 	default:
-            if (gval == AM_POISON) {
-                abort();
-            }
 	    n_hp++;
 	    break;
 	}
@@ -2418,9 +2403,6 @@ sweep_literals_to_old_heap(Eterm* heap_ptr, Eterm* heap_end, Eterm* htop,
 	    break;
 	}
 	default:
-            if (gval == AM_POISON) {
-                abort();
-            }
 	    heap_ptr++;
 	    break;
 	}
@@ -2511,9 +2493,6 @@ erts_copy_one_frag(Eterm** hpp, ErlOffHeap* off_heap,
 	switch (primary_tag(val)) {
 	case TAG_PRIMARY_IMMED1:
 	    *hp++ = val;
-            if (val == AM_POISON) {
-                abort();
-            }
 	    break;
 	case TAG_PRIMARY_LIST:
             if (erts_is_literal(val,list_val(val))) {
@@ -3336,9 +3315,6 @@ offset_heap(Eterm* hp, Uint sz, Sint offs, char* area, Uint area_size)
 	      break;
 	  }
 	  default:
-              if (val == AM_POISON) {
-                  abort();
-              }
 	      hp++;
 	      continue;
 	}
@@ -3379,9 +3355,6 @@ offset_stack(Eterm *stack, Uint sz,
                 i++;
                 break;
             default:
-                if (val == AM_POISON) {
-                    abort();
-                }
                 i++;
                 break;
             }
@@ -3404,9 +3377,6 @@ offset_heap_ptr(Eterm* hp, Uint sz, Sint offs, char* area, Uint area_sz)
 	    hp++;
 	    break;
 	default:
-            if (val == AM_POISON) {
-                abort();
-            }
 	    hp++;
 	    break;
 	}
@@ -3449,11 +3419,6 @@ offset_message(ErtsMessage *mp, Sint offs, char* area, Uint area_size)
             case TAG_PRIMARY_BOXED:
                 if (ErtsInArea(ptr_val(mesg), area, area_size)) {
                     ERL_MESSAGE_TERM(mp) = offset_ptr(mesg, offs);
-                }
-                break;
-            default:
-                if (mesg == AM_POISON) {
-                    abort();
                 }
                 break;
             }
