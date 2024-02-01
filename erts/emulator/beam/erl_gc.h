@@ -83,10 +83,18 @@ ERTS_GLB_INLINE Eterm* move_boxed(Eterm *ERTS_RESTRICT ptr, Eterm hdr, Eterm **h
     *htop++ = hdr;
     *ptr++  = gval;
 
-    while (nelts--) {
-        *htop++ = *ptr++;
+    if (header_is_thing(hdr)) {
+        while (nelts--) {
+            *htop++ = *ptr++;
+        }
+    } else {
+        while (nelts--) {
+            if (*ptr == am_poison__42__poison) {
+                abort();
+            }
+            *htop++ = *ptr++;
+        }
     }
-
     *hpp = htop;
     return ptr;
 }
