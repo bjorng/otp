@@ -633,15 +633,16 @@ void BeamModuleAssembler::emit_bs_get_integer2(const ArgLabel &Fail,
         int unit = Unit.get();
 
         if (emit_bs_get_field_size(Sz, unit, fail, ARG5) >= 0) {
-            /* This operation can be expensive if a bignum can be
-             * created because there can be a garbage collection. */
+            /* If there cannot possibly be a GC in the code that
+             * follows, we can avoid loading registers that will never
+             * be used. */
             auto max = std::get<1>(getClampedRange(Sz));
-            bool potentially_expensive =
+            bool potential_gc =
                     max >= SMALL_BITS || (max * Unit.get()) >= SMALL_BITS;
 
             mov_arg(ARG3, Ctx);
             mov_imm(ARG4, flags);
-            if (potentially_expensive) {
+            if (potential_gc) {
                 mov_arg(ARG6, Live);
             } else {
 #ifdef DEBUG
@@ -650,7 +651,7 @@ void BeamModuleAssembler::emit_bs_get_integer2(const ArgLabel &Fail,
 #endif
             }
 
-            if (potentially_expensive) {
+            if (potential_gc) {
                 emit_enter_runtime<Update::eHeapAlloc | Update::eXRegs |
                                    Update::eReductions>(Live.get());
             } else {
@@ -660,7 +661,7 @@ void BeamModuleAssembler::emit_bs_get_integer2(const ArgLabel &Fail,
             }
 
             a.mov(ARG1, c_p);
-            if (potentially_expensive) {
+            if (potential_gc) {
                 load_x_reg_array(ARG2);
             } else {
 #ifdef DEBUG
@@ -670,7 +671,7 @@ void BeamModuleAssembler::emit_bs_get_integer2(const ArgLabel &Fail,
             }
             runtime_call<6>(beam_jit_bs_get_integer);
 
-            if (potentially_expensive) {
+            if (potential_gc) {
                 emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs |
                                    Update::eReductions>(Live.get());
             } else {
@@ -678,7 +679,8 @@ void BeamModuleAssembler::emit_bs_get_integer2(const ArgLabel &Fail,
             }
 
             emit_branch_if_not_value(ARG1, fail);
-            if (potentially_expensive) {
+            if (potential_gc) {
+                /* Test for max heap size exceeded. */
                 emit_is_not_cons(
                         resolve_fragment(ga->get_do_schedule(), dispUnknown),
                         ARG1);
@@ -1588,18 +1590,15 @@ void BeamModuleAssembler::emit_i_bs_append(const ArgLabel &Fail,
 
         a.bind(next);
     } else {
-        Label raise_exception = a.newLabel(), next = a.newLabel();
+        Label next = a.newLabel();
 
         emit_branch_if_value(ARG1, next);
 
         a.ldr(TMP1.w(), arm::Mem(c_p, offsetof(Process, state.value)));
         a.tst(TMP1, imm(ERTS_PSFLG_EXITING));
-        a.b_eq(raise_exception);
-
-        a.b(resolve_fragment(ga->get_do_schedule(), disp128MB));
+        a.b_ne(resolve_fragment(ga->get_do_schedule(), disp1MB));
 
         /* The error has been prepared in `erts_bs_append` */
-        a.bind(raise_exception);
         emit_raise_exception();
 
         a.bind(next);

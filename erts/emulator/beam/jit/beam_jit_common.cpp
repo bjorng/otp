@@ -851,6 +851,20 @@ Eterm beam_jit_bs_init_bits(Process *c_p,
     }
 }
 
+/*
+ * This function can return one of the following:
+ *
+ * - THE_NON_VALUE if the extraction failed (for example, if the
+ *   binary is shorter than the number of bits requested). The caller
+ *   must raise an exception.
+ *
+ * - A nonempty list (cons) term. That means that the max_heap_size
+ *   limit was exceeded. The caller must transfer control to the
+ *   scheduler.
+ *
+ * - A tagged integer (small or big). The operation was successful.
+ */
+
 Eterm beam_jit_bs_get_integer(Process *c_p,
                               Eterm *reg,
                               Eterm context,
@@ -876,7 +890,7 @@ Eterm beam_jit_bs_get_integer(Process *c_p,
         wordsneeded = 1 + WSIZE(NBYTES((Uint)size));
         reg[Live] = context;
         gc_test(c_p, reg, 0, wordsneeded, Live + 1);
-        if (ERTS_PSFLG_EXITING & erts_atomic32_read_nob(&c_p->state)) {
+        if (ERTS_PROC_IS_EXITING(c_p)) {
             return make_list(0);
         }
 
