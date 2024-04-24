@@ -622,7 +622,7 @@ opt_anno_types_1(#b_set{anno=Anno0}=I, [], _Ts, _Index, Acc) ->
         #{ arg_types := Acc } ->
             I;
         #{ arg_types := _ } when Acc =:= #{} ->
-            %% One or more arguments have been simplified to literal values.
+            %% Not a single argument has a more specific type than any.
             Anno = maps:remove(arg_types, Anno0),
             I#b_set{anno=Anno};
         #{} ->
