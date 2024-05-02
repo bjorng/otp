@@ -823,8 +823,8 @@ aliasing_after_tuple_extract(N, Acc) ->
     aliasing_after_tuple_extract(N - 1, {<<X/bitstring, 1>>, Acc}).
 
 
-%% Check that both the pair (Acc) and the extracted element (X) are
-%% aliased.
+%% Check that the pair (Acc) is unique on entry but that its contents
+%% are alised.
 alias_after_pair_hd(N) ->
     alias_after_pair_hd(N, [<<>>|dummy]).
 
@@ -838,8 +838,8 @@ alias_after_pair_hd(N, Acc) ->
     [X|_] = Acc,
     alias_after_pair_hd(N - 1, [<<X/bitstring, 1>>|Acc]).
 
-%% Check that both the pair (Acc) and the extracted element (X) are
-%% aliased.
+%% Check that the pair (Acc) is unique on entry but that its contents
+%% are alised.
 alias_after_pair_tl(N) ->
     alias_after_pair_tl(N, [dummy|<<>>]).
 
