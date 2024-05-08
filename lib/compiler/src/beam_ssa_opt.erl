@@ -3716,11 +3716,18 @@ ssa_opt_no_reuse_blks([{L,#b_blk{is=Is0}=Blk0}|Bs], New0) ->
 ssa_opt_no_reuse_blks([], _) ->
     [].
 
+ssa_opt_no_reuse_is([#b_set{op=update_record,args=[_,_,_,_,_,_,_|_]}=I|Is],
+                    New, Acc) ->
+    %% There is no point in attempting the reuse optimization when
+    %% more than one element is updated as checking more than one
+    %% element at runtime is known to be slower than just copying the
+    %% tuple in most cases.
+    ssa_opt_no_reuse_is(Is, New, [force_copy(I)|Acc]);
 ssa_opt_no_reuse_is([#b_set{op=update_record,args=Args}=I0|Is], New, Acc) ->
     [_,_,_|Updates] = Args,
     case cannot_reuse(Updates, New) of
         true ->
-            I = I0#b_set{args=[#b_literal{val=copy}|tl(Args)]},
+            I = force_copy(I0),
             ssa_opt_no_reuse_is(Is, New, [I|Acc]);
         false ->
             ssa_opt_no_reuse_is(Is, New, [I0|Acc])
@@ -3782,6 +3789,9 @@ cannot_reuse([_,Value|Updates], New) ->
     sets:is_element(Value, New) orelse cannot_reuse(Updates, New);
 cannot_reuse([], _New) ->
     false.
+
+force_copy(#b_set{op=update_record,args=Args}=I) ->
+    I#b_set{args=[#b_literal{val=copy}|tl(Args)]}.
 
 %%%
 %%% Common utilities.
