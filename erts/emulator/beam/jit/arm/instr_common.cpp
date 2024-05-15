@@ -1714,6 +1714,83 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
 void BeamModuleAssembler::emit_equal(const ArgSource &X,
                                      const ArgSource &Y,
                                      const CondAction &action) {
+    auto x = load_source(X, ARG1);
+
+    /* If either argument is known to be an immediate, we can fail immediately
+     * if they're not equal. */
+    if (always_immediate(X) || always_immediate(Y)) {
+        if (!X.isImmed() && !Y.isImmed()) {
+            comment("simplified check since one argument is an immediate");
+        }
+
+        preserve_cache([&]() {
+            cmp_arg(x.reg, Y);
+        });
+        if (action.beam_label.isLabel()) {
+            preserve_cache([&]() {
+                ArgLabel Fail = action.beam_label.as<ArgLabel>();
+                if (action.straight) {
+                    a.b_ne(resolve_beam_label(Fail, disp1MB));
+                } else {
+                    a.b_eq(resolve_beam_label(Fail, disp1MB));
+                }
+            });
+        } else {
+            arm::CondCode cc;
+
+            preserve_cache([&](TMP1, TMP2) {
+                mov_arg(TMP1, action.true_value);
+                mov_arg(TMP2, action.false_value);
+                cc = action.straight ? arm::CondCode::kEQ : arm::CondCode::kNE;
+                a.csel(dst.reg, TMP1, TMP2, cc);
+            });
+        }
+
+        return;
+    }
+
+#if 0
+    /* Both operands are registers or literals. */
+    Label next = a.newLabel();
+    auto y = load_source(Y, ARG2);
+
+    a.cmp(x.reg, y.reg);
+    a.b_eq(next);
+
+    if (exact_type<BeamTypeId::Integer>(X) &&
+        exact_type<BeamTypeId::Integer>(Y)) {
+        /* Fail immediately if one of the operands is a small. */
+        a.orr(TMP1, x.reg, y.reg);
+        emit_is_boxed(resolve_beam_label(Fail, dispUnknown), TMP1);
+    } else if (always_same_types(X, Y)) {
+        comment("skipped tag test since they are always equal");
+    } else {
+        /* Fail immediately if the pointer tags are not equal. */
+        emit_is_unequal_based_on_tags(resolve_beam_label(Fail, dispUnknown),
+                                      X,
+                                      x.reg,
+                                      Y,
+                                      y.reg);
+    }
+
+    /* Both operands are pointers having the same tag. Must do a
+     * deeper comparison. */
+    mov_var(ARG1, x);
+    mov_var(ARG2, y);
+
+    if (always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
+        always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y)) {
+        fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
+        a.b_ne(resolve_beam_label(Fail, disp1MB));
+    } else {
+        emit_enter_runtime();
+        runtime_call<2>(eq);
+        emit_leave_runtime();
+        a.cbz(ARG1.w(), resolve_beam_label(Fail, disp1MB));
+    }
+
+    a.bind(next);
+#endif
 }
 
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,

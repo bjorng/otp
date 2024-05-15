@@ -1348,16 +1348,6 @@ protected:
 
     void emit_dispatch_return();
 
-    struct CondAction {
-        ArgLabel beam_label;
-        Label label;
-        bool straight;
-        const ArgVal false_value;
-        const ArgVal true_value;
-    };
-
-    void emit_equal(const ArgSource &X, const ArgSource &Y, const CondAction &action);
-
 #include "beamasm_protos.h"
 
     /* Resolves a BEAM label.
@@ -1938,6 +1928,16 @@ protected:
         }
         a.cmp(SUPER_TMP, imm(TAG_PRIMARY_IMMED1));
     }
+
+    struct CondAction {
+        const ArgVal beam_label;
+        bool straight;
+        const ArgVal false_value;
+        const ArgVal true_value;
+        Variable<a64::Gp> dst;
+    };
+
+    void emit_equal(const ArgSource &X, const ArgSource &Y, const CondAction &action);
 };
 
 void *beamasm_metadata_insert(std::string module_name,
