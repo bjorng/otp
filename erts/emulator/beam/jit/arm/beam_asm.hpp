@@ -1348,6 +1348,16 @@ protected:
 
     void emit_dispatch_return();
 
+    struct CondAction {
+        ArgLabel beam_label;
+        Label label;
+        bool straight;
+        const ArgVal false_value;
+        const ArgVal true_value;
+    };
+
+    void emit_equal(const ArgSource &X, const ArgSource &Y, const CondAction &action);
+
 #include "beamasm_protos.h"
 
     /* Resolves a BEAM label.

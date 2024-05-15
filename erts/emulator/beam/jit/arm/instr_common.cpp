@@ -1711,6 +1711,11 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
     a.ret(a64::x30);
 }
 
+void BeamModuleAssembler::emit_equal(const ArgSource &X,
+                                     const ArgSource &Y,
+                                     const CondAction &action) {
+}
+
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
                                            const ArgSource &X,
                                            const ArgSource &Y) {
