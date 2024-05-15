@@ -1786,6 +1786,18 @@ void BeamModuleAssembler::fail_or_skip(bool straight, const ArgVal &Fail) {
     }
 }
 
+void BeamModuleAssembler::fail_or_next(bool straight,
+                                       const ArgVal &Fail,
+                                       const Label &next) {
+    if (Fail.isLabel()) {
+        if (straight) {
+            a.jne(resolve_beam_label(Fail));
+        } else {
+            a.jne(next);
+        }
+    }
+}
+
 void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                                         const ArgSource &Y,
                                         bool straight,
@@ -1821,7 +1833,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         a.mov(RETd, ARG1d);
         a.or_(RETd, ARG2d);
         emit_test_boxed(RET);
-        a.jne(resolve_beam_label(Fail));
+        fail_or_next(straight, Fail, next);
     } else if (always_same_types(X, Y)) {
         comment("skipped tag test since they are always equal");
     } else {
@@ -1839,13 +1851,13 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     if (always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
         always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y)) {
         safe_fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
-        a.jne(resolve_beam_label(Fail));
+        fail_or_skip(straight, Fail);
     } else {
         emit_enter_runtime();
         runtime_call<2>(eq);
         emit_leave_runtime();
         a.test(RETd, RETd);
-        a.je(resolve_beam_label(Fail));
+        fail_or_skip(straight, Fail);
     }
 
     a.bind(next);

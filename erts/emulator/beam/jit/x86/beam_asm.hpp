@@ -1415,6 +1415,7 @@ protected:
 #endif
 
     void fail_or_skip(bool straight, const ArgVal &Fail);
+    void fail_or_next(bool straight, const ArgVal &Fail, const Label &next);
 
     void is_equal_test(const ArgSource &X,
                        const ArgSource &Y,
