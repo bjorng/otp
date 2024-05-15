@@ -1910,12 +1910,9 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             a.bind(next);
             return;
         } else if (is_bitstring(literal) && bitstring_size(literal) == 0) {
-#if 0
             comment("simplified equality test with empty bitstring");
             mov_arg(ARG2, X);
-            emit_test_boxed(ARG2);
-            //            emit_is_boxed(resolve_beam_label(Fail), X, ARG2);
-            fail_or_skip();
+            is_boxed_fail_or_next(X, ARG2);
             x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
 
             ERTS_CT_ASSERT(offsetof(ErlHeapBits, size) == sizeof(Eterm));
@@ -1945,11 +1942,10 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                 a.sub(RETd, imm(_TAG_HEADER_HEAP_BITS));
                 a.or_(RETd, ARG1d);
             }
-            a.jne(resolve_beam_label(Fail));
+            fail_or_skip();
 
             a.bind(next);
             return;
-#endif
         } else if (is_map(literal) && erts_map_size(literal) == 0) {
             comment("optimized equality test with empty map", literal);
             mov_arg(ARG1, X);
