@@ -1796,6 +1796,28 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         }
     };
 
+    auto is_boxed_fail_or_next = [&](const ArgVal &Arg, x86::Gp Src) {
+        if (always_one_of<BeamTypeId::AlwaysBoxed>(Arg)) {
+            comment("skipped box test since argument is always boxed");
+            if (!straight) {
+                a.short_().jmp(next);
+            }
+            return;
+        }
+        emit_test_boxed(Src);
+        if (Fail.isLabel()) {
+            if (straight) {
+                a.jne(resolve_beam_label(Fail));
+            } else {
+#ifdef JIT_HARD_DEBUG
+                a.short_().jne(next);
+#else
+                a.jne(next);
+#endif
+            }
+        }
+    };
+
     auto inv_fail_or_next = [&]() {
         if (Fail.isLabel()) {
             if (straight) {
@@ -1931,8 +1953,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         } else if (is_map(literal) && erts_map_size(literal) == 0) {
             comment("optimized equality test with empty map", literal);
             mov_arg(ARG1, X);
-            emit_test_boxed(ARG1);
-            fail_or_next();
+            is_boxed_fail_or_next(X, ARG1);
             (void)emit_ptr_val(ARG1, ARG1);
             a.cmp(emit_boxed_val(ARG1, 0, sizeof(Uint32)), MAP_HEADER_FLATMAP);
             fail_or_next();
