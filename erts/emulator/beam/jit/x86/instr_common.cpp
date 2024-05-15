@@ -1839,16 +1839,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 
     Label next = a.newLabel();
 
-    mov_arg(ARG2, Y); /* May clobber ARG1 */
-    mov_arg(ARG1, X);
-
-    a.cmp(ARG1, ARG2);
-#ifdef JIT_HARD_DEBUG
-    a.je(next);
-#else
-    a.short_().je(next);
-#endif
-
     auto fail_or_next = [&]() {
         if (Fail.isLabel()) {
             if (straight) {
@@ -1862,6 +1852,30 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             }
         }
     };
+
+    auto next_or_skip = [&]() {
+        if (Fail.isLabel()) {
+            if (straight) {
+#ifdef JIT_HARD_DEBUG
+                a.je(next);
+#else
+                a.short_().je(next);
+#endif
+            } else {
+#ifdef JIT_HARD_DEBUG
+                a.jne(next);
+#else
+                a.short_().jne(next);
+#endif
+            }
+        }
+    };
+
+    mov_arg(ARG2, Y); /* May clobber ARG1 */
+    mov_arg(ARG1, X);
+
+    a.cmp(ARG1, ARG2);
+    next_or_skip();
 
     if (exact_type<BeamTypeId::Integer>(X) &&
         exact_type<BeamTypeId::Integer>(Y)) {
