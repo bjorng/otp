@@ -1806,18 +1806,27 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                                         const ArgSource &Y,
                                         bool straight,
                                         const ArgVal &Fail) {
+    auto fail_or_skip = [&]() {
+       if (Fail.isLabel()) {
+            if (straight) {
+                a.jne(resolve_beam_label(Fail));
+            } else {
+                a.je(resolve_beam_label(Fail));
+            }
+        }                     
+    };
+    
     /* If one argument is known to be an immediate, we can fail
      * immediately if they're not equal. */
     if (X.isRegister() && always_immediate(Y)) {
         comment("simplified check since one argument is an immediate");
 
         cmp_arg(getArgRef(X), Y);
-        preserve_cache([&]() {
-            fail_or_skip(straight, Fail);
-        });
+        preserve_cache(fail_or_skip);
 
         return;
     }
+    
     Label next = a.newLabel();
 
     mov_arg(ARG2, Y); /* May clobber ARG1 */
@@ -1829,6 +1838,21 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 #else
     a.short_().je(next);
 #endif
+
+    auto fail_or_next = [&]() {
+                            if (Fail.isLabel()) {
+                                if (straight) {
+                                    a.jne(resolve_beam_label(Fail));
+                                } else {
+#ifdef JIT_HARD_DEBUG
+                                    a.short_().jne(next);
+#else
+                                    a.jne(next);
+#endif
+                                }
+                            }
+    };
+    
     
     if (exact_type<BeamTypeId::Integer>(X) &&
         exact_type<BeamTypeId::Integer>(Y)) {
@@ -1836,7 +1860,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         a.mov(RETd, ARG1d);
         a.or_(RETd, ARG2d);
         emit_test_boxed(RET);
-        fail_or_next(straight, Fail, next);
+        fail_or_next();
     } else if (always_same_types(X, Y)) {
         comment("skipped tag test since they are always equal");
     } else {
@@ -1847,16 +1871,16 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 
         if (always_one_of<BeamTypeId::AlwaysBoxed>(X)) {
             emit_test_boxed(ARG2);
-            fail_or_next(straight, Fail, next);
+            fail_or_next();
         } else if (always_one_of<BeamTypeId::AlwaysBoxed>(Y)) {
             emit_test_boxed(ARG1);
-            fail_or_next(straight, Fail, next);
+            fail_or_next();
         } else if (exact_type<BeamTypeId::Cons>(X)) {
             emit_test_cons(ARG2);
-            fail_or_next(straight, Fail, next);
+            fail_or_next();
         } else if (exact_type<BeamTypeId::Cons>(Y)) {
             emit_test_cons(ARG1);
-            fail_or_next(straight, Fail, next);
+            fail_or_next();
         } else {
             a.mov(RETd, ARG1.r32());
             a.or_(RETd, ARG2.r32());
@@ -1864,11 +1888,11 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             if (never_one_of<BeamTypeId::Cons>(X) ||
                 never_one_of<BeamTypeId::Cons>(Y)) {
                 emit_test_boxed(RET);
-                fail_or_next(straight, Fail, next);
+                fail_or_next();
             } else if (never_one_of<BeamTypeId::AlwaysBoxed>(X) ||
                        never_one_of<BeamTypeId::AlwaysBoxed>(Y)) {
                 emit_test_cons(RET);
-                fail_or_next(straight, Fail, next);
+                fail_or_next();
             } else {
                 a.and_(RETb, imm(_TAG_PRIMARY_MASK));
 
@@ -1891,7 +1915,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     if (always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
         always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y)) {
         safe_fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
-        fail_or_skip(straight, Fail);
+        fail_or_skip();
     } else {
         emit_enter_runtime();
         runtime_call<2>(eq);
