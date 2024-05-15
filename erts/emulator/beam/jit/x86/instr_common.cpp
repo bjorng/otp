@@ -1854,7 +1854,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             if (!exact_type<BeamTypeId::Cons>(X)) {
                 emit_test_cons(RET);
                 fail_or_next();
-                //emit_is_cons(resolve_beam_label(Fail), RET);
             }
             (void)emit_ptr_val(RET, RET);
             if (Support::isInt32(head)) {
@@ -1864,10 +1863,8 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                 a.cmp(getCARRef(RET), ARG1);
             }
             fail_or_next();
-            //a.jne(resolve_beam_label(Fail));
             a.cmp(getCDRRef(RET), imm(NIL));
             fail_or_skip();
-            //a.jne(resolve_beam_label(Fail));
             
             a.bind(next);
 
@@ -1878,19 +1875,19 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             mov_arg(ARG1, X);
             safe_fragment_call(ga->get_is_eq_exact_list_shared());
             fail_or_skip();
-            //a.jne(resolve_beam_label(Fail));
 
             a.bind(next);
             return;
-#if 0
         } else if (beam_jit_is_shallow_boxed(literal)) {
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
             mov_arg(ARG1, X);
             safe_fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
-            a.jne(resolve_beam_label(Fail));
+            fail_or_skip();
 
+            a.bind(next);
             return;
+#if 0
         } else if (is_bitstring(literal) && bitstring_size(literal) == 0) {
             comment("simplified equality test with empty bitstring");
             mov_arg(ARG2, X);
