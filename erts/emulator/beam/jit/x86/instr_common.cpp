@@ -2080,6 +2080,8 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
 void BeamModuleAssembler::emit_is_ne_exact(const ArgLabel &Fail,
                                            const ArgSource &X,
                                            const ArgSource &Y) {
+    is_equal_test(X, Y, false, Fail);
+#if 0
     if (Y.isLiteral()) {
         Eterm literal = beamfile_get_literal(beam, Y.as<ArgLiteral>().get());
         bool imm_list = beam_jit_is_list_of_immediates(literal);
@@ -2233,6 +2235,7 @@ void BeamModuleAssembler::emit_is_ne_exact(const ArgLabel &Fail,
     }
 
     a.bind(next);
+#endif
 }
 
 void BeamGlobalAssembler::emit_arith_eq_shared() {
