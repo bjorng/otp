@@ -1736,9 +1736,9 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
                 }
             });
         } else {
-            arm::CondCode cc;
-
             preserve_cache([&]() {
+                arm::CondCode cc;
+
                 mov_arg(TMP1, action.true_value);
                 mov_arg(TMP2, action.false_value);
                 cc = action.straight ? arm::CondCode::kEQ : arm::CondCode::kNE;
@@ -1749,19 +1749,27 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
         return;
     }
 
-#if 0
     /* Both operands are registers or literals. */
     Label next = a.newLabel();
     auto y = load_source(Y, ARG2);
 
-    a.cmp(x.reg, y.reg);
-    a.b_eq(next);
+    preserve_cache([&]() {
+        a.cmp(x.reg, y.reg);
+        a.b_eq(next);
+    });
 
     if (exact_type<BeamTypeId::Integer>(X) &&
         exact_type<BeamTypeId::Integer>(Y)) {
         /* Fail immediately if one of the operands is a small. */
         a.orr(TMP1, x.reg, y.reg);
-        emit_is_boxed(resolve_beam_label(Fail, dispUnknown), TMP1);
+        if (action.beam_label.isLabel()) {
+            ArgLabel Fail = action.beam_label.as<ArgLabel>();
+            emit_is_boxed(resolve_beam_label(Fail, dispUnknown), TMP1);
+        } else {
+            const unsigned mask = _TAG_PRIMARY_MASK - TAG_PRIMARY_BOXED;
+            a.tst(TMP1, mask);
+            a.b_ne(next);
+        }
     } else if (always_same_types(X, Y)) {
         comment("skipped tag test since they are always equal");
     } else {
@@ -1790,7 +1798,16 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
     }
 
     a.bind(next);
-#endif
+    if (!action.beam_label.isLabel()) {
+        preserve_cache([&]() {
+            arm::CondCode cc;
+
+            mov_arg(TMP1, action.true_value);
+            mov_arg(TMP2, action.false_value);
+            cc = action.straight ? arm::CondCode::kEQ : arm::CondCode::kNE;
+            a.csel(action.dst.reg, TMP1, TMP2, cc);
+        }, TMP1, TMP2);
+    }
 }
 
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
