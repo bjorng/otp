@@ -1738,12 +1738,12 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
         } else {
             arm::CondCode cc;
 
-            preserve_cache([&](TMP1, TMP2) {
+            preserve_cache([&]() {
                 mov_arg(TMP1, action.true_value);
                 mov_arg(TMP2, action.false_value);
                 cc = action.straight ? arm::CondCode::kEQ : arm::CondCode::kNE;
-                a.csel(dst.reg, TMP1, TMP2, cc);
-            });
+                a.csel(action.dst.reg, TMP1, TMP2, cc);
+            }, TMP1, TMP2);
         }
 
         return;
