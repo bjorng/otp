@@ -1793,7 +1793,11 @@ void BeamModuleAssembler::fail_or_next(bool straight,
         if (straight) {
             a.jne(resolve_beam_label(Fail));
         } else {
+#ifdef JIT_HARD_DEBUG
+            a.short_().jne(next);
+#else
             a.jne(next);
+#endif
         }
     }
 }
@@ -1838,11 +1842,44 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         comment("skipped tag test since they are always equal");
     } else {
         /* Fail immediately if the pointer tags are not equal. */
-        emit_is_unequal_based_on_tags(resolve_beam_label(Fail),
-                                      X,
-                                      ARG1,
-                                      Y,
-                                      ARG2);
+        ERTS_CT_ASSERT(TAG_PRIMARY_IMMED1 == _TAG_PRIMARY_MASK);
+        ERTS_CT_ASSERT((TAG_PRIMARY_LIST | TAG_PRIMARY_BOXED) ==
+                       TAG_PRIMARY_IMMED1);
+
+        if (always_one_of<BeamTypeId::AlwaysBoxed>(ARG1)) {
+            emit_test_boxed(ARG2);
+            fail_or_next(straight, Fail, next);
+        } else if (always_one_of<BeamTypeId::AlwaysBoxed>(ARG2)) {
+            emit_test_boxed(ARG1);
+            fail_or_next(straight, Fail, next);
+        } else if (exact_type<BeamTypeId::Cons>(ARG1)) {
+            emit_test_cons(ARG2);
+            fail_or_next(straight, Fail, next);
+        } else if (exact_type<BeamTypeId::Cons>(ARG2)) {
+            emit_test_cons(ARG1);
+            fail_or_next(straight, Fail, next);
+        } else {
+            a.mov(RETd, ARG1.r32());
+            a.or_(RETd, ARG2.r32());
+
+            if (never_one_of<BeamTypeId::Cons>(ARG1) ||
+                never_one_of<BeamTypeId::Cons>(ARG2)) {
+                emit_test_boxed(RET);
+                fail_or_next(straight, Fail, next);
+            } else if (never_one_of<BeamTypeId::AlwaysBoxed>(ARG1) ||
+                       never_one_of<BeamTypeId::AlwaysBoxed>(ARG2)) {
+                emit_test_cons(RET);
+                fail_or_next(straight, Fail, next);
+            } else {
+                a.and_(RETb, imm(_TAG_PRIMARY_MASK));
+
+                /* RET will now be TAG_PRIMARY_IMMED1 if either one or
+                 * both registers are immediates, or if one register
+                 * is a list and the other a boxed. */
+                a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
+                fail_or_next(straight, Fail, next);
+            }
+        }
     }
 
     /* Both operands are pointers having the same tag. Must do a
