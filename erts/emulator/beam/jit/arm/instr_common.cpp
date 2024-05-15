@@ -1782,6 +1782,16 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
                                           Y,
                                           y.reg);
         } else {
+            Label unequal = a.newLabel();
+            mov_imm(TMP1, -1);
+            emit_is_unequal_based_on_tags(unequal,
+                                          X,
+                                          x.reg,
+                                          Y,
+                                          y.reg);
+            a.bind(unequal);
+            a.adds(TMP1, TMP1, imm(1));
+            a.b(next);
         }
     }
 
