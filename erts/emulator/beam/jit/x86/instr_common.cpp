@@ -1780,6 +1780,48 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                                         const ArgSource &Y,
                                         bool straight,
                                         const ArgVal &Fail) {
+    Label next = a.newLabel();
+
+    auto fail_or_next = [&]() {
+        if (Fail.isLabel()) {
+            if (straight) {
+                a.jne(resolve_beam_label(Fail));
+            } else {
+#ifdef JIT_HARD_DEBUG
+                a.short_().jne(next);
+#else
+                a.jne(next);
+#endif
+            }
+        }
+    };
+
+    auto inv_fail_or_next = [&]() {
+        if (Fail.isLabel()) {
+            if (straight) {
+                a.je(resolve_beam_label(Fail));
+            } else {
+#ifdef JIT_HARD_DEBUG
+                a.short_().je(next);
+#else
+                a.je(next);
+#endif
+            }
+        }
+    };
+
+    auto next_or_fail = [&]() {
+        if (straight) {
+#ifdef JIT_HARD_DEBUG
+            a.je(next);
+#else
+            a.short_().je(next);
+#endif
+        } else if (Fail.isLabel()) {
+            a.je(resolve_beam_label(Fail));
+        }
+    };
+
     auto fail_or_skip = [&]() {
         if (Fail.isLabel()) {
             if (straight) {
@@ -1801,7 +1843,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     };
 
     if (Y.isLiteral()) {
-#if 0        
         Eterm literal = beamfile_get_literal(beam, Y.as<ArgLiteral>().get());
         bool imm_list = beam_jit_is_list_of_immediates(literal);
 
@@ -1811,7 +1852,9 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 
             mov_arg(RET, X);
             if (!exact_type<BeamTypeId::Cons>(X)) {
-                emit_is_cons(resolve_beam_label(Fail), RET);
+                emit_test_cons(RET);
+                fail_or_next();
+                //emit_is_cons(resolve_beam_label(Fail), RET);
             }
             (void)emit_ptr_val(RET, RET);
             if (Support::isInt32(head)) {
@@ -1820,11 +1863,16 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                 mov_imm(ARG1, head);
                 a.cmp(getCARRef(RET), ARG1);
             }
-            a.jne(resolve_beam_label(Fail));
+            fail_or_next();
+            //a.jne(resolve_beam_label(Fail));
             a.cmp(getCDRRef(RET), imm(NIL));
-            a.jne(resolve_beam_label(Fail));
+            fail_or_skip();
+            //a.jne(resolve_beam_label(Fail));
+            
+            a.bind(next);
 
             return;
+#if 0        
         } else if (imm_list) {
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
@@ -1888,8 +1936,8 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             a.jne(resolve_beam_label(Fail));
 
             return;
-        }
 #endif
+        }
     }
 
 #if 0
@@ -1904,48 +1952,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         return;
     }
 #endif
-
-    Label next = a.newLabel();
-
-    auto fail_or_next = [&]() {
-        if (Fail.isLabel()) {
-            if (straight) {
-                a.jne(resolve_beam_label(Fail));
-            } else {
-#ifdef JIT_HARD_DEBUG
-                a.short_().jne(next);
-#else
-                a.jne(next);
-#endif
-            }
-        }
-    };
-
-    auto inv_fail_or_next = [&]() {
-        if (Fail.isLabel()) {
-            if (straight) {
-                a.je(resolve_beam_label(Fail));
-            } else {
-#ifdef JIT_HARD_DEBUG
-                a.short_().je(next);
-#else
-                a.je(next);
-#endif
-            }
-        }
-    };
-
-    auto next_or_fail = [&]() {
-        if (straight) {
-#ifdef JIT_HARD_DEBUG
-            a.je(next);
-#else
-            a.short_().je(next);
-#endif
-        } else if (Fail.isLabel()) {
-            a.je(resolve_beam_label(Fail));
-        }
-    };
 
     mov_arg(ARG2, Y); /* May clobber ARG1 */
     mov_arg(ARG1, X);
@@ -2128,10 +2134,9 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
             a.jne(resolve_beam_label(Fail));
         });
 
+        a.bind(next);
         return;
     }
-
-    Label next = a.newLabel();
 
     mov_arg(ARG2, Y); /* May clobber ARG1 */
     mov_arg(ARG1, X);
