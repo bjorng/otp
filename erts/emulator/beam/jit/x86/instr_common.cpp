@@ -1776,32 +1776,6 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
     a.ret();
 }
 
-void BeamModuleAssembler::fail_or_skip(bool straight, const ArgVal &Fail) {
-    if (Fail.isLabel()) {
-        if (straight) {
-            a.jne(resolve_beam_label(Fail));
-        } else {
-            a.je(resolve_beam_label(Fail));
-        }
-    }
-}
-
-void BeamModuleAssembler::fail_or_next(bool straight,
-                                       const ArgVal &Fail,
-                                       const Label &next) {
-    if (Fail.isLabel()) {
-        if (straight) {
-            a.jne(resolve_beam_label(Fail));
-        } else {
-#ifdef JIT_HARD_DEBUG
-            a.short_().jne(next);
-#else
-            a.jne(next);
-#endif
-        }
-    }
-}
-
 void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                                         const ArgSource &Y,
                                         bool straight,

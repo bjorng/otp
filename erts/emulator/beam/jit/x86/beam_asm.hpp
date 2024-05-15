@@ -1414,9 +1414,6 @@ protected:
     void emit_tuple_assertion(const ArgSource &Src, x86::Gp tuple_reg);
 #endif
 
-    void fail_or_skip(bool straight, const ArgVal &Fail);
-    void fail_or_next(bool straight, const ArgVal &Fail, const Label &next);
-
     void is_equal_test(const ArgSource &X,
                        const ArgSource &Y,
                        bool straight,
