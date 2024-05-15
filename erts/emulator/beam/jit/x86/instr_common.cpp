@@ -1872,15 +1872,17 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             a.bind(next);
 
             return;
-#if 0        
         } else if (imm_list) {
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
             mov_arg(ARG1, X);
             safe_fragment_call(ga->get_is_eq_exact_list_shared());
-            a.jne(resolve_beam_label(Fail));
+            fail_or_skip();
+            //a.jne(resolve_beam_label(Fail));
 
+            a.bind(next);
             return;
+#if 0
         } else if (beam_jit_is_shallow_boxed(literal)) {
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
