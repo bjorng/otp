@@ -1774,11 +1774,15 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
         comment("skipped tag test since they are always equal");
     } else {
         /* Fail immediately if the pointer tags are not equal. */
-        emit_is_unequal_based_on_tags(resolve_beam_label(Fail, dispUnknown),
-                                      X,
-                                      x.reg,
-                                      Y,
-                                      y.reg);
+        if (action.beam_label.isLabel()) {
+            ArgLabel Fail = action.beam_label.as<ArgLabel>();
+            emit_is_unequal_based_on_tags(resolve_beam_label(Fail, dispUnknown),
+                                          X,
+                                          x.reg,
+                                          Y,
+                                          y.reg);
+        } else {
+        }
     }
 
     /* Both operands are pointers having the same tag. Must do a
@@ -1789,12 +1793,26 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
     if (always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
         always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y)) {
         fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
-        a.b_ne(resolve_beam_label(Fail, disp1MB));
+        if (action.beam_label.isLabel()) {
+            ArgLabel Fail = action.beam_label.as<ArgLabel>();
+            if (action.straight) {
+                a.b_ne(resolve_beam_label(Fail, disp1MB));
+            } else {
+                a.b_eq(resolve_beam_label(Fail, disp1MB));
+            }
+        }
     } else {
         emit_enter_runtime();
         runtime_call<2>(eq);
         emit_leave_runtime();
-        a.cbz(ARG1.w(), resolve_beam_label(Fail, disp1MB));
+        if (action.beam_label.isLabel()) {
+            ArgLabel Fail = action.beam_label.as<ArgLabel>();
+            if (action.straight) {
+                a.cbz(ARG1.w(), resolve_beam_label(Fail, disp1MB));
+            } else {
+                a.cbnz(ARG1.w(), resolve_beam_label(Fail, disp1MB));
+            }
+        }
     }
 
     a.bind(next);
