@@ -1776,6 +1776,81 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
     a.ret();
 }
 
+void BeamModuleAssembler::fail_or_skip(bool straight, const ArgVal &Fail) {
+    if (Fail.isLabel()) {
+        if (straight) {
+            a.jne(resolve_beam_label(Fail));
+        } else {
+            a.je(resolve_beam_label(Fail));
+        }
+    }
+}
+
+void BeamModuleAssembler::is_equal_test(const ArgSource &X,
+                                        const ArgSource &Y,
+                                        bool straight,
+                                        const ArgVal &Fail) {
+    /* If one argument is known to be an immediate, we can fail
+     * immediately if they're not equal. */
+    if (X.isRegister() && always_immediate(Y)) {
+        comment("simplified check since one argument is an immediate");
+
+        cmp_arg(getArgRef(X), Y);
+        preserve_cache([&]() {
+            fail_or_skip(straight, Fail);
+        });
+
+        return;
+    }
+
+    Label next = a.newLabel();
+
+    mov_arg(ARG2, Y); /* May clobber ARG1 */
+    mov_arg(ARG1, X);
+
+    a.cmp(ARG1, ARG2);
+#ifdef JIT_HARD_DEBUG
+    a.je(next);
+#else
+    a.short_().je(next);
+#endif
+
+    if (exact_type<BeamTypeId::Integer>(X) &&
+        exact_type<BeamTypeId::Integer>(Y)) {
+        /* Fail immediately if one of the operands is a small. */
+        a.mov(RETd, ARG1d);
+        a.or_(RETd, ARG2d);
+        emit_test_boxed(RET);
+        a.jne(resolve_beam_label(Fail));
+    } else if (always_same_types(X, Y)) {
+        comment("skipped tag test since they are always equal");
+    } else {
+        /* Fail immediately if the pointer tags are not equal. */
+        emit_is_unequal_based_on_tags(resolve_beam_label(Fail),
+                                      X,
+                                      ARG1,
+                                      Y,
+                                      ARG2);
+    }
+
+    /* Both operands are pointers having the same tag. Must do a
+     * deeper comparison. */
+
+    if (always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
+        always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y)) {
+        safe_fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
+        a.jne(resolve_beam_label(Fail));
+    } else {
+        emit_enter_runtime();
+        runtime_call<2>(eq);
+        emit_leave_runtime();
+        a.test(RETd, RETd);
+        a.je(resolve_beam_label(Fail));
+    }
+
+    a.bind(next);
+}
+
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
                                            const ArgSource &X,
                                            const ArgSource &Y) {
