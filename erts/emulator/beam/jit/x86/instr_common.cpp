@@ -1921,6 +1921,20 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         }
     };
 
+    auto inv_fail_or_next = [&]() {
+        if (Fail.isLabel()) {
+            if (straight) {
+                a.je(resolve_beam_label(Fail));
+            } else {
+#ifdef JIT_HARD_DEBUG
+                a.short_().je(next);
+#else
+                a.je(next);
+#endif
+            }
+        }
+    };
+
     auto next_or_fail = [&]() {
         if (straight) {
 #ifdef JIT_HARD_DEBUG
@@ -1939,7 +1953,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     a.cmp(ARG1, ARG2);
     next_or_fail();
 
-#if 0
     if (exact_type<BeamTypeId::Integer>(X) &&
         exact_type<BeamTypeId::Integer>(Y)) {
         /* Fail immediately if one of the operands is a small. */
@@ -1986,17 +1999,16 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                  * both registers are immediates, or if one register
                  * is a list and the other a boxed. */
                 a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
-                inv_fail_or_skip();
+                inv_fail_or_next();
             }
         }
     }
-#endif
 
     /* Both operands are pointers having the same tag. Must do a
      * deeper comparison. */
 
-    if (0 && (always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
-              always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y))) {
+    if (always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
+        always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y)) {
         safe_fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
         fail_or_skip();
     } else {
