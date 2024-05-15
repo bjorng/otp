@@ -1846,28 +1846,28 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         ERTS_CT_ASSERT((TAG_PRIMARY_LIST | TAG_PRIMARY_BOXED) ==
                        TAG_PRIMARY_IMMED1);
 
-        if (always_one_of<BeamTypeId::AlwaysBoxed>(ARG1)) {
+        if (always_one_of<BeamTypeId::AlwaysBoxed>(X)) {
             emit_test_boxed(ARG2);
             fail_or_next(straight, Fail, next);
-        } else if (always_one_of<BeamTypeId::AlwaysBoxed>(ARG2)) {
+        } else if (always_one_of<BeamTypeId::AlwaysBoxed>(Y)) {
             emit_test_boxed(ARG1);
             fail_or_next(straight, Fail, next);
-        } else if (exact_type<BeamTypeId::Cons>(ARG1)) {
+        } else if (exact_type<BeamTypeId::Cons>(X)) {
             emit_test_cons(ARG2);
             fail_or_next(straight, Fail, next);
-        } else if (exact_type<BeamTypeId::Cons>(ARG2)) {
+        } else if (exact_type<BeamTypeId::Cons>(Y)) {
             emit_test_cons(ARG1);
             fail_or_next(straight, Fail, next);
         } else {
             a.mov(RETd, ARG1.r32());
             a.or_(RETd, ARG2.r32());
 
-            if (never_one_of<BeamTypeId::Cons>(ARG1) ||
-                never_one_of<BeamTypeId::Cons>(ARG2)) {
+            if (never_one_of<BeamTypeId::Cons>(X) ||
+                never_one_of<BeamTypeId::Cons>(Y)) {
                 emit_test_boxed(RET);
                 fail_or_next(straight, Fail, next);
-            } else if (never_one_of<BeamTypeId::AlwaysBoxed>(ARG1) ||
-                       never_one_of<BeamTypeId::AlwaysBoxed>(ARG2)) {
+            } else if (never_one_of<BeamTypeId::AlwaysBoxed>(X) ||
+                       never_one_of<BeamTypeId::AlwaysBoxed>(Y)) {
                 emit_test_cons(RET);
                 fail_or_next(straight, Fail, next);
             } else {
