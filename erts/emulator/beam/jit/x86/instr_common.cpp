@@ -1830,7 +1830,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     a.short_().je(next);
 #endif
     
-#if 0
     if (exact_type<BeamTypeId::Integer>(X) &&
         exact_type<BeamTypeId::Integer>(Y)) {
         /* Fail immediately if one of the operands is a small. */
@@ -1841,6 +1840,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     } else if (always_same_types(X, Y)) {
         comment("skipped tag test since they are always equal");
     } else {
+#if 0
         /* Fail immediately if the pointer tags are not equal. */
         ERTS_CT_ASSERT(TAG_PRIMARY_IMMED1 == _TAG_PRIMARY_MASK);
         ERTS_CT_ASSERT((TAG_PRIMARY_LIST | TAG_PRIMARY_BOXED) ==
@@ -1880,9 +1880,8 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                 fail_or_next(straight, Fail, next);
             }
         }
-    }
-
 #endif
+    }
     
     /* Both operands are pointers having the same tag. Must do a
      * deeper comparison. */
