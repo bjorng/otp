@@ -1812,6 +1812,8 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
             } else {
                 a.cbnz(ARG1.w(), resolve_beam_label(Fail, disp1MB));
             }
+        } else {
+            a.cmp(ARG1.w(), imm(0));
         }
     }
 
