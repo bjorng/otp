@@ -1735,7 +1735,8 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
             if (!exact_type<BeamTypeId::Cons>(X)) {
                 if (action.beam_label.isLabel()) {
                     if (action.straight) {
-                        emit_is_cons(resolve_beam_label(Fail, dispUnknown), x.reg);
+                        emit_is_cons(resolve_beam_label(Fail, dispUnknown),
+                                     x.reg);
                     } else {
                         emit_is_cons(next, x.reg);
                     }
@@ -1761,14 +1762,18 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
 
             a.bind(next);
             if (!action.beam_label.isLabel()) {
-                preserve_cache([&]() {
-                    arm::CondCode cc;
+                preserve_cache(
+                        [&]() {
+                            arm::CondCode cc;
 
-                    mov_arg(TMP1, action.true_value);
-                    mov_arg(TMP2, action.false_value);
-                    cc = action.straight ? arm::CondCode::kEQ : arm::CondCode::kNE;
-                    a.csel(action.dst.reg, TMP1, TMP2, cc);
-                }, TMP1, TMP2);
+                            mov_arg(TMP1, action.true_value);
+                            mov_arg(TMP2, action.false_value);
+                            cc = action.straight ? arm::CondCode::kEQ
+                                                 : arm::CondCode::kNE;
+                            a.csel(action.dst.reg, TMP1, TMP2, cc);
+                        },
+                        TMP1,
+                        TMP2);
             }
 
             return;
@@ -1860,14 +1865,18 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
                 }
             });
         } else {
-            preserve_cache([&]() {
-                arm::CondCode cc;
+            preserve_cache(
+                    [&]() {
+                        arm::CondCode cc;
 
-                mov_arg(TMP1, action.true_value);
-                mov_arg(TMP2, action.false_value);
-                cc = action.straight ? arm::CondCode::kEQ : arm::CondCode::kNE;
-                a.csel(action.dst.reg, TMP1, TMP2, cc);
-            }, TMP1, TMP2);
+                        mov_arg(TMP1, action.true_value);
+                        mov_arg(TMP2, action.false_value);
+                        cc = action.straight ? arm::CondCode::kEQ
+                                             : arm::CondCode::kNE;
+                        a.csel(action.dst.reg, TMP1, TMP2, cc);
+                    },
+                    TMP1,
+                    TMP2);
         }
 
         return;
@@ -1908,11 +1917,7 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
         } else {
             Label unequal = a.newLabel();
             mov_imm(TMP1, -1);
-            emit_is_unequal_based_on_tags(unequal,
-                                          X,
-                                          x.reg,
-                                          Y,
-                                          y.reg);
+            emit_is_unequal_based_on_tags(unequal, X, x.reg, Y, y.reg);
             a.bind(unequal);
             a.adds(TMP1, TMP1, imm(1));
             a.b(next);
@@ -1953,14 +1958,18 @@ void BeamModuleAssembler::emit_equal(const ArgSource &X,
 
     a.bind(next);
     if (!action.beam_label.isLabel()) {
-        preserve_cache([&]() {
-            arm::CondCode cc;
+        preserve_cache(
+                [&]() {
+                    arm::CondCode cc;
 
-            mov_arg(TMP1, action.true_value);
-            mov_arg(TMP2, action.false_value);
-            cc = action.straight ? arm::CondCode::kEQ : arm::CondCode::kNE;
-            a.csel(action.dst.reg, TMP1, TMP2, cc);
-        }, TMP1, TMP2);
+                    mov_arg(TMP1, action.true_value);
+                    mov_arg(TMP2, action.false_value);
+                    cc = action.straight ? arm::CondCode::kEQ
+                                         : arm::CondCode::kNE;
+                    a.csel(action.dst.reg, TMP1, TMP2, cc);
+                },
+                TMP1,
+                TMP2);
     }
 }
 

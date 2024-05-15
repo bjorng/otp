@@ -1937,7 +1937,9 @@ protected:
         Variable<a64::Gp> dst;
     };
 
-    void emit_equal(const ArgSource &X, const ArgSource &Y, const CondAction &action);
+    void emit_equal(const ArgSource &X,
+                    const ArgSource &Y,
+                    const CondAction &action);
 };
 
 void *beamasm_metadata_insert(std::string module_name,
