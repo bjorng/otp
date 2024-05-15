@@ -1247,6 +1247,17 @@ protected:
         });
     }
 
+    // void emit_test_boxed(const ArgVal &Arg, x86::Gp Src) {
+    //     if (always_one_of<BeamTypeId::AlwaysBoxed>(Arg)) {
+    //         comment("skipped box test since argument is always boxed");
+    //         return;
+    //     }
+
+    //     preserve_cache([&]() {
+    //         BeamAssembler::emit_test_boxed(Src);
+    //     });
+    // }
+
     void emit_is_boxed(Label Fail,
                        const ArgVal &Arg,
                        x86::Gp Src,

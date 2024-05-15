@@ -1865,7 +1865,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_next();
             a.cmp(getCDRRef(RET), imm(NIL));
             fail_or_skip();
-            
+
             a.bind(next);
 
             return;
@@ -1887,11 +1887,12 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 
             a.bind(next);
             return;
-#if 0
         } else if (is_bitstring(literal) && bitstring_size(literal) == 0) {
             comment("simplified equality test with empty bitstring");
             mov_arg(ARG2, X);
-            emit_is_boxed(resolve_beam_label(Fail), X, ARG2);
+            emit_test_boxed(ARG2);
+            //            emit_is_boxed(resolve_beam_label(Fail), X, ARG2);
+            fail_or_skip();
             x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
 
             ERTS_CT_ASSERT(offsetof(ErlHeapBits, size) == sizeof(Eterm));
@@ -1924,6 +1925,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             a.jne(resolve_beam_label(Fail));
 
             return;
+#if 0
         } else if (is_map(literal) && erts_map_size(literal) == 0) {
             comment("optimized equality test with empty map", literal);
             mov_arg(ARG1, X);
@@ -1939,7 +1941,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         }
     }
 
-#if 0
     /* If one argument is known to be an immediate, we can fail or succeed
      * immediately if they're not equal. */
     if (X.isRegister() && always_immediate(Y)) {
@@ -1950,7 +1951,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 
         return;
     }
-#endif
 
     mov_arg(ARG2, Y); /* May clobber ARG1 */
     mov_arg(ARG1, X);
