@@ -1888,6 +1888,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             a.bind(next);
             return;
         } else if (is_bitstring(literal) && bitstring_size(literal) == 0) {
+#if 0
             comment("simplified equality test with empty bitstring");
             mov_arg(ARG2, X);
             emit_test_boxed(ARG2);
@@ -1924,18 +1925,23 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             }
             a.jne(resolve_beam_label(Fail));
 
+            a.bind(next);
             return;
-#if 0
         } else if (is_map(literal) && erts_map_size(literal) == 0) {
             comment("optimized equality test with empty map", literal);
             mov_arg(ARG1, X);
-            emit_is_boxed(resolve_beam_label(Fail), X, ARG1);
+            emit_test_boxed(X, ARG1);
+            fail_or_next();
+            //emit_is_boxed(resolve_beam_label(Fail), X, ARG1);
             (void)emit_ptr_val(ARG1, ARG1);
             a.cmp(emit_boxed_val(ARG1, 0, sizeof(Uint32)), MAP_HEADER_FLATMAP);
-            a.jne(resolve_beam_label(Fail));
+            fail_or_next();
+            //a.jne(resolve_beam_label(Fail));
             a.cmp(emit_boxed_val(ARG1, sizeof(Eterm), sizeof(Uint32)), imm(0));
-            a.jne(resolve_beam_label(Fail));
+            //a.jne(resolve_beam_label(Fail));
+            fail_or_skip();
 
+            a.bind(next);
             return;
 #endif
         }
