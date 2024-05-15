@@ -1800,6 +1800,98 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         }
     };
 
+    if (Y.isLiteral()) {
+#if 0        
+        Eterm literal = beamfile_get_literal(beam, Y.as<ArgLiteral>().get());
+        bool imm_list = beam_jit_is_list_of_immediates(literal);
+
+        if (imm_list && erts_list_length(literal) == 1) {
+            Sint head = (Sint)CAR(list_val(literal));
+            comment("optimized equality test with %T", literal);
+
+            mov_arg(RET, X);
+            if (!exact_type<BeamTypeId::Cons>(X)) {
+                emit_is_cons(resolve_beam_label(Fail), RET);
+            }
+            (void)emit_ptr_val(RET, RET);
+            if (Support::isInt32(head)) {
+                a.cmp(getCARRef(RET), imm(head));
+            } else {
+                mov_imm(ARG1, head);
+                a.cmp(getCARRef(RET), ARG1);
+            }
+            a.jne(resolve_beam_label(Fail));
+            a.cmp(getCDRRef(RET), imm(NIL));
+            a.jne(resolve_beam_label(Fail));
+
+            return;
+        } else if (imm_list) {
+            comment("optimized equality test with %T", literal);
+            mov_arg(ARG2, Y);
+            mov_arg(ARG1, X);
+            safe_fragment_call(ga->get_is_eq_exact_list_shared());
+            a.jne(resolve_beam_label(Fail));
+
+            return;
+        } else if (beam_jit_is_shallow_boxed(literal)) {
+            comment("optimized equality test with %T", literal);
+            mov_arg(ARG2, Y);
+            mov_arg(ARG1, X);
+            safe_fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
+            a.jne(resolve_beam_label(Fail));
+
+            return;
+        } else if (is_bitstring(literal) && bitstring_size(literal) == 0) {
+            comment("simplified equality test with empty bitstring");
+            mov_arg(ARG2, X);
+            emit_is_boxed(resolve_beam_label(Fail), X, ARG2);
+            x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
+
+            ERTS_CT_ASSERT(offsetof(ErlHeapBits, size) == sizeof(Eterm));
+            a.mov(ARG1, emit_boxed_val(boxed_ptr, sizeof(Eterm)));
+
+            Label not_sub_bits = a.newLabel();
+            if (masked_types<BeamTypeId::MaybeBoxed>(X) ==
+                BeamTypeId::Bitstring) {
+                a.cmp(emit_boxed_val(boxed_ptr), imm(HEADER_SUB_BITS));
+            } else {
+                a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
+                a.cmp(RETb, imm(HEADER_SUB_BITS));
+            }
+            a.short_().jne(not_sub_bits);
+
+            a.mov(ARG1, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, end)));
+            a.sub(ARG1, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, start)));
+
+            a.bind(not_sub_bits);
+            if (masked_types<BeamTypeId::MaybeBoxed>(X) ==
+                BeamTypeId::Bitstring) {
+                comment("skipped header test since we know it's a bitstring "
+                        "when boxed");
+                a.test(ARG1, ARG1);
+            } else {
+                a.and_(RETd, imm(_BITSTRING_TAG_MASK));
+                a.sub(RETd, imm(_TAG_HEADER_HEAP_BITS));
+                a.or_(RETd, ARG1d);
+            }
+            a.jne(resolve_beam_label(Fail));
+
+            return;
+        } else if (is_map(literal) && erts_map_size(literal) == 0) {
+            comment("optimized equality test with empty map", literal);
+            mov_arg(ARG1, X);
+            emit_is_boxed(resolve_beam_label(Fail), X, ARG1);
+            (void)emit_ptr_val(ARG1, ARG1);
+            a.cmp(emit_boxed_val(ARG1, 0, sizeof(Uint32)), MAP_HEADER_FLATMAP);
+            a.jne(resolve_beam_label(Fail));
+            a.cmp(emit_boxed_val(ARG1, sizeof(Eterm), sizeof(Uint32)), imm(0));
+            a.jne(resolve_beam_label(Fail));
+
+            return;
+        }
+#endif
+    }
+
     /* If one argument is known to be an immediate, we can fail
      * immediately if they're not equal. */
     if (X.isRegister() && always_immediate(Y)) {
@@ -1923,8 +2015,9 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
                                            const ArgSource &X,
                                            const ArgSource &Y) {
+#if 1
     is_equal_test(X, Y, true, Fail);
-#if 0
+#else
     if (Y.isLiteral()) {
         Eterm literal = beamfile_get_literal(beam, Y.as<ArgLiteral>().get());
         bool imm_list = beam_jit_is_list_of_immediates(literal);
@@ -2080,8 +2173,9 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
 void BeamModuleAssembler::emit_is_ne_exact(const ArgLabel &Fail,
                                            const ArgSource &X,
                                            const ArgSource &Y) {
-    is_equal_test(X, Y, false, Fail);
 #if 0
+    is_equal_test(X, Y, false, Fail);
+#else
     if (Y.isLiteral()) {
         Eterm literal = beamfile_get_literal(beam, Y.as<ArgLiteral>().get());
         bool imm_list = beam_jit_is_list_of_immediates(literal);
