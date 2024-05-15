@@ -1840,7 +1840,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     } else if (always_same_types(X, Y)) {
         comment("skipped tag test since they are always equal");
     } else {
-#if 0
         /* Fail immediately if the pointer tags are not equal. */
         ERTS_CT_ASSERT(TAG_PRIMARY_IMMED1 == _TAG_PRIMARY_MASK);
         ERTS_CT_ASSERT((TAG_PRIMARY_LIST | TAG_PRIMARY_BOXED) ==
@@ -1877,17 +1876,20 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                  * both registers are immediates, or if one register
                  * is a list and the other a boxed. */
                 a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
-                fail_or_next(straight, Fail, next);
+                if (straight) {
+                    a.je(resolve_beam_label(Fail));
+                } else {
+                    a.jne(resolve_beam_label(Fail));
+                }
             }
         }
-#endif
     }
     
     /* Both operands are pointers having the same tag. Must do a
      * deeper comparison. */
 
-    if (0 && always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
-        0 && always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y)) {
+    if (always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(X) ||
+        always_one_of<BeamTypeId::Integer, BeamTypeId::Float>(Y)) {
         safe_fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
         fail_or_skip(straight, Fail);
     } else {
