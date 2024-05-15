@@ -1807,15 +1807,25 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                                         bool straight,
                                         const ArgVal &Fail) {
     auto fail_or_skip = [&]() {
-       if (Fail.isLabel()) {
+        if (Fail.isLabel()) {
             if (straight) {
                 a.jne(resolve_beam_label(Fail));
             } else {
                 a.je(resolve_beam_label(Fail));
             }
-        }                     
+        }
     };
-    
+
+    auto inv_fail_or_skip = [&]() {
+        if (Fail.isLabel()) {
+            if (straight) {
+                a.je(resolve_beam_label(Fail));
+            } else {
+                a.jne(resolve_beam_label(Fail));
+            }
+        }
+    };
+
     /* If one argument is known to be an immediate, we can fail
      * immediately if they're not equal. */
     if (X.isRegister() && always_immediate(Y)) {
@@ -1826,7 +1836,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 
         return;
     }
-    
+
     Label next = a.newLabel();
 
     mov_arg(ARG2, Y); /* May clobber ARG1 */
@@ -1840,20 +1850,19 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 #endif
 
     auto fail_or_next = [&]() {
-                            if (Fail.isLabel()) {
-                                if (straight) {
-                                    a.jne(resolve_beam_label(Fail));
-                                } else {
+        if (Fail.isLabel()) {
+            if (straight) {
+                a.jne(resolve_beam_label(Fail));
+            } else {
 #ifdef JIT_HARD_DEBUG
-                                    a.short_().jne(next);
+                a.short_().jne(next);
 #else
-                                    a.jne(next);
+                a.jne(next);
 #endif
-                                }
-                            }
+            }
+        }
     };
-    
-    
+
     if (exact_type<BeamTypeId::Integer>(X) &&
         exact_type<BeamTypeId::Integer>(Y)) {
         /* Fail immediately if one of the operands is a small. */
@@ -1900,15 +1909,11 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                  * both registers are immediates, or if one register
                  * is a list and the other a boxed. */
                 a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
-                if (straight) {
-                    a.je(resolve_beam_label(Fail));
-                } else {
-                    a.jne(resolve_beam_label(Fail));
-                }
+                inv_fail_or_skip();
             }
         }
     }
-    
+
     /* Both operands are pointers having the same tag. Must do a
      * deeper comparison. */
 
@@ -1921,11 +1926,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         runtime_call<2>(eq);
         emit_leave_runtime();
         a.test(RETd, RETd);
-        if (straight) {
-            a.je(resolve_beam_label(Fail));
-        } else {
-            a.jne(resolve_beam_label(Fail));
-        }
+        inv_fail_or_skip();
     }
 
     a.bind(next);
@@ -2045,11 +2046,11 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
     mov_arg(ARG1, X);
 
     a.cmp(ARG1, ARG2);
-#ifdef JIT_HARD_DEBUG
+#    ifdef JIT_HARD_DEBUG
     a.je(next);
-#else
+#    else
     a.short_().je(next);
-#endif
+#    endif
 
     if (exact_type<BeamTypeId::Integer>(X) &&
         exact_type<BeamTypeId::Integer>(Y)) {
