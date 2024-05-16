@@ -1966,6 +1966,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
         cmp_arg(getArgRef(X), Y);
         preserve_cache(fail_or_skip);
 
+        a.bind(next);
         return straight_return;
     }
 
