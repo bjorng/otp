@@ -1799,9 +1799,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     auto is_boxed_fail_or_next = [&](const ArgVal &Arg, x86::Gp Src) {
         if (always_one_of<BeamTypeId::AlwaysBoxed>(Arg)) {
             comment("skipped box test since argument is always boxed");
-            if (!straight) {
-                a.short_().jmp(next);
-            }
             return;
         }
         emit_test_boxed(Src);
