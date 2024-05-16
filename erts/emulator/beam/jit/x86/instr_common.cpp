@@ -1776,12 +1776,11 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
     a.ret();
 }
 
-bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
+void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                                         const ArgSource &Y,
                                         bool straight,
                                         const ArgVal &Fail) {
     Label next = a.newLabel();
-    bool straight_return = straight;
 
     auto fail_or_next = [&]() {
         if (Fail.isLabel() && straight) {
@@ -1889,7 +1888,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
 
             a.bind(next);
 
-            return straight_return;
+            return;
         } else if (imm_list) {
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
@@ -1898,7 +1897,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_skip();
 
             a.bind(next);
-            return straight_return;
+            return;
         } else if (beam_jit_is_shallow_boxed(literal)) {
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
@@ -1907,7 +1906,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_skip();
 
             a.bind(next);
-            return straight_return;
+            return;
         } else if (is_bitstring(literal) && bitstring_size(literal) == 0) {
             comment("simplified equality test with empty bitstring");
             mov_arg(ARG2, X);
@@ -1949,7 +1948,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_skip();
 
             a.bind(next);
-            return straight_return;
+            return;
         } else if (is_map(literal) && erts_map_size(literal) == 0) {
             comment("optimized equality test with empty map", literal);
             mov_arg(ARG1, X);
@@ -1966,7 +1965,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_skip();
 
             a.bind(next);
-            return straight_return;
+            return;
         }
     }
 
@@ -1979,7 +1978,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
         preserve_cache(fail_or_skip);
 
         a.bind(next);
-        return straight_return;
+        return;
     }
 
     mov_arg(ARG2, Y); /* May clobber ARG1 */
@@ -2035,7 +2034,6 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
                  * is a list and the other a boxed. */
                 a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
                 inv_fail_or_next();
-                //straight_return = !straight_return;
             }
         }
     }
@@ -2053,11 +2051,9 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
         emit_leave_runtime();
         a.test(RETd, RETd);
         inv_fail_or_skip();
-        //        straight_return = !straight_return;
     }
 
     a.bind(next);
-    return straight_return;
 }
 
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,

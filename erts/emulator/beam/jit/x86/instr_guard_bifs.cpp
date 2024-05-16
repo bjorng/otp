@@ -46,9 +46,8 @@ void BeamModuleAssembler::emit_bif_is_eq_ne_exact(const ArgSource &LHS,
                                                   const ArgSource &RHS,
                                                   const ArgRegister &Dst,
                                                   bool straight) {
-    bool straight_ret = is_equal_test(LHS, RHS, straight, ArgNil());
-    auto inst = straight_ret ? x86::Inst::kIdCmovne : x86::Inst::kIdCmove;
-
+    auto inst = straight ? x86::Inst::kIdCmovne : x86::Inst::kIdCmove;
+    is_equal_test(LHS, RHS, straight, ArgNil());
     emit_cond_to_bool(inst, Dst);
 }
 
