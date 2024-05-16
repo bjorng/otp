@@ -45,54 +45,23 @@ using namespace asmjit;
 void BeamModuleAssembler::emit_bif_is_eq_ne_exact(const ArgSource &LHS,
                                                   const ArgSource &RHS,
                                                   const ArgRegister &Dst,
-                                                  Eterm fail_value,
-                                                  Eterm succ_value) {
-    /* `mov_imm` may clobber the flags if either value is zero. */
-    ASSERT(fail_value && succ_value);
+                                                  bool straight) {
+    bool straight_ret = is_equal_test(LHS, RHS, straight, ArgNil());
+    auto inst = straight_ret ? x86::Inst::kIdCmovne : x86::Inst::kIdCmove;
 
-    cmp_arg(getArgRef(LHS), RHS);
-    mov_imm(RET, succ_value);
-
-    if (always_immediate(LHS) || always_immediate(RHS)) {
-        if (!LHS.isImmed() && !RHS.isImmed()) {
-            comment("simplified check since one argument is an immediate");
-        }
-        mov_imm(ARG1, fail_value);
-        a.cmovne(RET, ARG1);
-    } else {
-        Label next = a.newLabel();
-
-        a.je(next);
-
-        mov_arg(ARG1, LHS);
-        mov_arg(ARG2, RHS);
-
-        emit_enter_runtime();
-        runtime_call<2>(eq);
-        emit_leave_runtime();
-
-        a.test(RET, RET);
-
-        mov_imm(RET, succ_value);
-        mov_imm(ARG1, fail_value);
-        a.cmove(RET, ARG1);
-
-        a.bind(next);
-    }
-
-    mov_arg(Dst, RET);
+    emit_cond_to_bool(inst, Dst);
 }
 
 void BeamModuleAssembler::emit_bif_is_eq_exact(const ArgRegister &LHS,
                                                const ArgSource &RHS,
                                                const ArgRegister &Dst) {
-    emit_bif_is_eq_ne_exact(LHS, RHS, Dst, am_false, am_true);
+    emit_bif_is_eq_ne_exact(LHS, RHS, Dst, true);
 }
 
 void BeamModuleAssembler::emit_bif_is_ne_exact(const ArgRegister &LHS,
                                                const ArgSource &RHS,
                                                const ArgRegister &Dst) {
-    emit_bif_is_eq_ne_exact(LHS, RHS, Dst, am_true, am_false);
+    emit_bif_is_eq_ne_exact(LHS, RHS, Dst, false);
 }
 
 void BeamModuleAssembler::emit_cond_to_bool(uint32_t instId,

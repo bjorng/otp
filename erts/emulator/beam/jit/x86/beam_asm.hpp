@@ -1381,8 +1381,7 @@ protected:
     void emit_bif_is_eq_ne_exact(const ArgSource &LHS,
                                  const ArgSource &RHS,
                                  const ArgRegister &Dst,
-                                 Eterm fail_value,
-                                 Eterm succ_value);
+                                 bool straight);
 
     void emit_cond_to_bool(uint32_t instId, const ArgRegister &Dst);
     void emit_bif_is_ge_lt(uint32_t instId,
