@@ -1796,25 +1796,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         }
     };
 
-    auto is_boxed_fail_or_next = [&](const ArgVal &Arg, x86::Gp Src) {
-        if (always_one_of<BeamTypeId::AlwaysBoxed>(Arg)) {
-            comment("skipped box test since argument is always boxed");
-            return;
-        }
-        emit_test_boxed(Src);
-        if (straight) {
-            if (Fail.isLabel()) {
-                a.jne(resolve_beam_label(Fail));
-            }
-        } else {
-#ifdef JIT_HARD_DEBUG
-            a.short_().jne(next);
-#else
-            a.jne(next);
-#endif
-        }
-    };
-
     auto inv_fail_or_next = [&]() {
         if (Fail.isLabel()) {
             if (straight) {
@@ -1909,7 +1890,12 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         } else if (is_bitstring(literal) && bitstring_size(literal) == 0) {
             comment("simplified equality test with empty bitstring");
             mov_arg(ARG2, X);
-            is_boxed_fail_or_next(X, ARG2);
+            if (always_one_of<BeamTypeId::AlwaysBoxed>(X)) {
+                comment("skipped box test since argument is always boxed");
+            } else {
+                emit_test_boxed(ARG2);
+                fail_or_next();
+            }
             x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
 
             ERTS_CT_ASSERT(offsetof(ErlHeapBits, size) == sizeof(Eterm));
@@ -1946,7 +1932,12 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         } else if (is_map(literal) && erts_map_size(literal) == 0) {
             comment("optimized equality test with empty map", literal);
             mov_arg(ARG1, X);
-            is_boxed_fail_or_next(X, ARG1);
+            if (always_one_of<BeamTypeId::AlwaysBoxed>(X)) {
+                comment("skipped box test since argument is always boxed");
+            } else {
+                emit_test_boxed(ARG1);
+                fail_or_next();
+            }
             (void)emit_ptr_val(ARG1, ARG1);
             a.cmp(emit_boxed_val(ARG1, 0, sizeof(Uint32)), MAP_HEADER_FLATMAP);
             fail_or_next();
