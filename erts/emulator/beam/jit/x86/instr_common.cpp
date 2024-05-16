@@ -1783,16 +1783,16 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     Label next = a.newLabel();
 
     auto fail_or_next = [&]() {
-        if (Fail.isLabel()) {
-            if (straight) {
+        if (straight) {
+            if (Fail.isLabel()) {
                 a.jne(resolve_beam_label(Fail));
-            } else {
-#ifdef JIT_HARD_DEBUG
-                a.short_().jne(next);
-#else
-                a.jne(next);
-#endif
             }
+        } else {
+#ifdef JIT_HARD_DEBUG
+            a.short_().jne(next);
+#else
+            a.jne(next);
+#endif
         }
     };
 
@@ -1802,16 +1802,16 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             return;
         }
         emit_test_boxed(Src);
-        if (Fail.isLabel()) {
-            if (straight) {
+        if (straight) {
+            if (Fail.isLabel()) {
                 a.jne(resolve_beam_label(Fail));
-            } else {
-#ifdef JIT_HARD_DEBUG
-                a.short_().jne(next);
-#else
-                a.jne(next);
-#endif
             }
+        } else {
+#ifdef JIT_HARD_DEBUG
+            a.short_().jne(next);
+#else
+            a.jne(next);
+#endif
         }
     };
 
