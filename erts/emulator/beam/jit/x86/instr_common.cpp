@@ -1796,19 +1796,29 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
     };
 
     auto inv_fail_or_next = [&]() {
-        if (Fail.isLabel() && straight) {
-            a.je(resolve_beam_label(Fail));
-        } else {
+        if (Fail.isLabel()) {
+            if (straight) {
+                a.je(resolve_beam_label(Fail));
+            } else {
 #ifdef JIT_HARD_DEBUG
-            a.short_().je(next);
+                a.je(next);
 #else
-            a.je(next);
+                a.short_().je(next);
+#endif
+            }
+        } else {
+            a.sete(RETb);
+            a.test(RETb, RETb);
+#ifdef JIT_HARD_DEBUG
+            a.short_().jne(next);
+#else
+            a.jne(next);
 #endif
         }
     };
 
     auto next_or_fail = [&]() {
-        if (straight) {
+        if (straight || !Fail.isLabel()) {
 #ifdef JIT_HARD_DEBUG
             a.je(next);
 #else
@@ -1843,10 +1853,12 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
                 a.jne(resolve_beam_label(Fail));
             }
         } else {
+            a.sete(RETb);
+            a.test(RETb, RETb);
 #ifdef JIT_HARD_DEBUG
-            a.je(next);
+            a.jne(next);
 #else
-            a.short_().je(next);
+            a.short_().jne(next);
 #endif
         }
     };
@@ -2023,7 +2035,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
                  * is a list and the other a boxed. */
                 a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
                 inv_fail_or_next();
-                straight_return = !straight_return;
+                //straight_return = !straight_return;
             }
         }
     }
@@ -2041,7 +2053,7 @@ bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
         emit_leave_runtime();
         a.test(RETd, RETd);
         inv_fail_or_skip();
-        straight_return = !straight_return;
+        //        straight_return = !straight_return;
     }
 
     a.bind(next);
