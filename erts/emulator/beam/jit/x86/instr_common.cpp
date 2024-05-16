@@ -1848,11 +1848,6 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         } else {
             a.sete(RETb);
             a.test(RETb, RETb);
-#ifdef JIT_HARD_DEBUG
-            a.jne(next);
-#else
-            a.short_().jne(next);
-#endif
         }
     };
 
