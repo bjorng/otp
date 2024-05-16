@@ -1776,17 +1776,16 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
     a.ret();
 }
 
-void BeamModuleAssembler::is_equal_test(const ArgSource &X,
+bool BeamModuleAssembler::is_equal_test(const ArgSource &X,
                                         const ArgSource &Y,
                                         bool straight,
                                         const ArgVal &Fail) {
     Label next = a.newLabel();
+    bool straight_return = straight;
 
     auto fail_or_next = [&]() {
-        if (straight) {
-            if (Fail.isLabel()) {
-                a.jne(resolve_beam_label(Fail));
-            }
+        if (Fail.isLabel() && straight) {
+            a.jne(resolve_beam_label(Fail));
         } else {
 #ifdef JIT_HARD_DEBUG
             a.short_().jne(next);
@@ -1797,16 +1796,14 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
     };
 
     auto inv_fail_or_next = [&]() {
-        if (Fail.isLabel()) {
-            if (straight) {
-                a.je(resolve_beam_label(Fail));
-            } else {
+        if (Fail.isLabel() && straight) {
+            a.je(resolve_beam_label(Fail));
+        } else {
 #ifdef JIT_HARD_DEBUG
-                a.short_().je(next);
+            a.short_().je(next);
 #else
-                a.je(next);
+            a.je(next);
 #endif
-            }
         }
     };
 
@@ -1829,6 +1826,12 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             } else {
                 a.je(resolve_beam_label(Fail));
             }
+        } else {
+#ifdef JIT_HARD_DEBUG
+            a.jne(next);
+#else
+            a.short_().jne(next);
+#endif
         }
     };
 
@@ -1839,6 +1842,12 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             } else {
                 a.jne(resolve_beam_label(Fail));
             }
+        } else {
+#ifdef JIT_HARD_DEBUG
+            a.je(next);
+#else
+            a.short_().je(next);
+#endif
         }
     };
 
@@ -1868,7 +1877,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
 
             a.bind(next);
 
-            return;
+            return straight_return;
         } else if (imm_list) {
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
@@ -1877,7 +1886,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_skip();
 
             a.bind(next);
-            return;
+            return straight_return;
         } else if (beam_jit_is_shallow_boxed(literal)) {
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
@@ -1886,7 +1895,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_skip();
 
             a.bind(next);
-            return;
+            return straight_return;
         } else if (is_bitstring(literal) && bitstring_size(literal) == 0) {
             comment("simplified equality test with empty bitstring");
             mov_arg(ARG2, X);
@@ -1928,7 +1937,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_skip();
 
             a.bind(next);
-            return;
+            return straight_return;
         } else if (is_map(literal) && erts_map_size(literal) == 0) {
             comment("optimized equality test with empty map", literal);
             mov_arg(ARG1, X);
@@ -1945,7 +1954,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
             fail_or_skip();
 
             a.bind(next);
-            return;
+            return straight_return;
         }
     }
 
@@ -1957,7 +1966,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         cmp_arg(getArgRef(X), Y);
         preserve_cache(fail_or_skip);
 
-        return;
+        return straight_return;
     }
 
     mov_arg(ARG2, Y); /* May clobber ARG1 */
@@ -2013,6 +2022,7 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
                  * is a list and the other a boxed. */
                 a.cmp(RETb, imm(TAG_PRIMARY_IMMED1));
                 inv_fail_or_next();
+                straight_return = !straight_return;
             }
         }
     }
@@ -2030,9 +2040,11 @@ void BeamModuleAssembler::is_equal_test(const ArgSource &X,
         emit_leave_runtime();
         a.test(RETd, RETd);
         inv_fail_or_skip();
+        straight_return = !straight_return;
     }
 
     a.bind(next);
+    return straight_return;
 }
 
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
