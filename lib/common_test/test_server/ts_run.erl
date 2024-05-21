@@ -215,7 +215,9 @@ make_command(Vars, Spec, State) ->
 		      _ ->
 			  ok
 		  end,
-                  "cerl -asan"
+                  "cerl -asan";
+              "rr" ->
+                  "cerl -rr"
 	  end,
     Naming =
 	case ts_lib:var(longnames, Vars) of
@@ -274,7 +276,8 @@ run_batch(Vars, _Spec, State) ->
     Timeout = 30000 * case os:getenv("TS_RUN_EMU") of
 			  false -> 1;
 			  "valgrind" -> 100;
-                          "asan" -> 2
+                          "asan" -> 2;
+                          "rr" -> 2
 		      end,
     tricky_print_data(Port, Timeout).
 
