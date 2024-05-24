@@ -472,6 +472,16 @@ void BeamModuleAssembler::emit_tuple_assertion(const ArgSource &Src,
 }
 #endif
 
+void BeamModuleAssembler::emit_check_poison(x86::Gp reg) {
+    Label next = a.newLabel();
+
+    a.cmp(reg, am_poison__42__poison);
+    a.short_().jne(next);
+    a.ud2();
+    a.bind(next);
+}
+
+
 /* Fetch an element from the tuple pointed to by the boxed pointer
  * in ARG2. */
 void BeamModuleAssembler::emit_i_get_tuple_element(const ArgSource &Src,
@@ -486,6 +496,7 @@ void BeamModuleAssembler::emit_i_get_tuple_element(const ArgSource &Src,
     preserve_cache(
             [&]() {
                 a.mov(tmp_reg, emit_boxed_val(ARG2, Element.get()));
+                emit_check_poison(tmp_reg);
             },
             tmp_reg);
     mov_arg(Dst, tmp_reg);
@@ -504,6 +515,7 @@ void BeamModuleAssembler::emit_get_tuple_element_swap(
             [&]() {
                 mov_arg(ARG1, OtherDst);
                 a.mov(ARG3, emit_boxed_val(ARG2, Element.get()));
+                emit_check_poison(ARG3);
             },
             ARG1,
             ARG3);
@@ -521,46 +533,12 @@ void BeamModuleAssembler::emit_get_two_tuple_elements(const ArgSource &Src,
     emit_tuple_assertion(Src, ARG2);
 #endif
 
-    x86::Mem element_ptr =
-            emit_boxed_val(ARG2, Element.get(), 2 * sizeof(Eterm));
-
-    switch (ArgVal::memory_relation(Dst1, Dst2)) {
-    case ArgVal::Relation::consecutive: {
-        x86::Mem dst_ptr = getArgRef(Dst1, 16);
-        preserve_cache(
-                [&]() {
-                    vmovups(x86::xmm0, element_ptr);
-                    vmovups(dst_ptr, x86::xmm0);
-                },
-                getArgRef(Dst1),
-                getArgRef(Dst2));
-        break;
-    }
-    case ArgVal::Relation::reverse_consecutive: {
-        if (!hasCpuFeature(CpuFeatures::X86::kAVX)) {
-            goto fallback;
-        } else {
-            x86::Mem dst_ptr = getArgRef(Dst2, 16);
-            preserve_cache(
-                    [&]() {
-                        a.vpermilpd(x86::xmm0,
-                                    element_ptr,
-                                    1); /* Load and swap */
-                        a.vmovups(dst_ptr, x86::xmm0);
-                    },
-                    getArgRef(Dst1),
-                    getArgRef(Dst2));
-            break;
-        }
-    }
-    case ArgVal::Relation::none:
-    fallback:
-        a.mov(ARG1, emit_boxed_val(ARG2, Element.get()));
-        a.mov(ARG3, emit_boxed_val(ARG2, Element.get() + sizeof(Eterm)));
-        mov_arg(Dst1, ARG1);
-        mov_arg(Dst2, ARG3);
-        break;
-    }
+    a.mov(ARG1, emit_boxed_val(ARG2, Element.get()));
+    a.mov(ARG3, emit_boxed_val(ARG2, Element.get() + sizeof(Eterm)));
+    emit_check_poison(ARG1);
+    emit_check_poison(ARG3);
+    mov_arg(Dst1, ARG1);
+    mov_arg(Dst2, ARG3);
 }
 
 void BeamModuleAssembler::emit_init_yregs(const ArgWord &Size,

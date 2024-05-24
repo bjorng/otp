@@ -2678,8 +2678,14 @@ BIF_RETTYPE element_2(BIF_ALIST_2)
 	Eterm* tuple_ptr = tuple_val(BIF_ARG_2);
 	Sint ix = signed_val(BIF_ARG_1);
 
-	if ((ix >= 1) && (ix <= arityval(*tuple_ptr)))
-	    BIF_RET(tuple_ptr[ix]);
+	if ((ix >= 1) && (ix <= arityval(*tuple_ptr))) {
+            Eterm val = tuple_ptr[ix];
+            if (val == am_poison__42__poison) {
+                fprintf(stderr, "POISON\n");
+                abort();
+            }
+	    BIF_RET(val);
+        }
     }
     BIF_ERROR(BIF_P, BADARG);
 }

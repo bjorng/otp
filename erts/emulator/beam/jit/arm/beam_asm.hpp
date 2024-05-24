@@ -1348,6 +1348,8 @@ protected:
 
     void emit_dispatch_return();
 
+    void emit_check_poison(a64::Gp reg);
+
 #include "beamasm_protos.h"
 
     /* Resolves a BEAM label.

@@ -782,6 +782,10 @@ Eterm copy_struct_x(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap,
 		    *htop++ = *objp++; /* copy arity value */
 		    while (i--) {
 			elem = *objp++;
+                        if (elem == am_poison__42__poison) {
+                            fprintf(stderr, "POISON\n");
+                            abort();
+                        }
 			if (!IS_CONST(elem)) {
 			    const_flag = 0;
 			}

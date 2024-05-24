@@ -704,6 +704,7 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
 
         /* Fetch the element. */
         safe_ldur(dst.reg, emit_boxed_val(boxed_ptr, position << 3));
+        emit_check_poison(dst.reg);
         flush_var(dst);
     } else if (exact_type<BeamTypeId::Tuple>(Tuple) && Fail.get() == 0) {
         auto [pos, tuple] = load_sources(Pos, ARG1, Tuple, ARG2);
@@ -745,6 +746,7 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
 
         a.bind(good);
         a.ldr(dst.reg, arm::Mem(TMP1, TMP3, arm::lsl(3)));
+        emit_check_poison(dst.reg);
         flush_var(dst);
     } else {
         /* Too much code to inline. Call a helper fragment. */
@@ -761,6 +763,7 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
 
         auto dst = init_destination(Dst, ARG1);
         mov_var(dst, ARG1);
+        emit_check_poison(dst.reg);
         flush_var(dst);
     }
 }

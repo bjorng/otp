@@ -410,6 +410,7 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
             }
 
             a.bind(next);
+            emit_check_poison(RET);
             mov_arg(Dst, RET);
 
             return;
@@ -506,6 +507,7 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
         safe_fragment_call(ga->get_bif_element_shared());
     }
 
+    emit_check_poison(RET);
     mov_arg(Dst, RET);
 }
 

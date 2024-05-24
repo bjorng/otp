@@ -1414,6 +1414,8 @@ protected:
     void emit_tuple_assertion(const ArgSource &Src, x86::Gp tuple_reg);
 #endif
 
+    void emit_check_poison(x86::Gp reg);
+
 #include "beamasm_protos.h"
 
     const Label &resolve_beam_label(const ArgLabel &Lbl) const {

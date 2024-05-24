@@ -370,6 +370,15 @@ void BeamModuleAssembler::emit_tuple_assertion(const ArgSource &Src,
 }
 #endif
 
+void BeamModuleAssembler::emit_check_poison(a64::Gp reg) {
+    Label next = a.newLabel();
+
+    cmp(reg, am_poison__42__poison);
+    a.b_ne(next);
+    a.udf(0xaaaa);
+    a.bind(next);
+}
+
 /* Fetch an element from the tuple pointed to by the untagged pointer
  * in ARG1. */
 void BeamModuleAssembler::emit_i_get_tuple_element(const ArgSource &Src,
@@ -381,6 +390,7 @@ void BeamModuleAssembler::emit_i_get_tuple_element(const ArgSource &Src,
 
     auto dst = init_destination(Dst, TMP1);
     safe_ldr(dst.reg, arm::Mem(ARG1, Element.get()));
+    emit_check_poison(dst.reg);
     flush_var(dst);
 }
 
@@ -397,6 +407,7 @@ void BeamModuleAssembler::emit_get_tuple_element_swap(
 
     auto dst = init_destination(OtherDst, TMP1);
     safe_ldr(dst.reg, arm::Mem(ARG1, Element.get()));
+    emit_check_poison(dst.reg);
     flush_var(dst);
 }
 
@@ -415,6 +426,8 @@ void BeamModuleAssembler::emit_get_two_tuple_elements(const ArgSource &Src,
 
     arm::Mem element_ptr = arm::Mem(ARG1, Element.get());
     safe_ldp(dst1.reg, dst2.reg, element_ptr);
+    emit_check_poison(dst1.reg);
+    emit_check_poison(dst2.reg);
     flush_vars(dst1, dst2);
 }
 
