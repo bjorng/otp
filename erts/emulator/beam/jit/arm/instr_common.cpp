@@ -1026,6 +1026,9 @@ void BeamModuleAssembler::emit_update_record_in_place(
         }
     }
 
+    maybe_immediate = ArgNil();
+    all_safe = false;
+
     if (all_safe) {
         comment("skipped copy fallback because all new values are safe");
     } else {
@@ -1071,6 +1074,13 @@ void BeamModuleAssembler::emit_update_record_in_place(
 
     a.add(destination.reg, untagged_src, TAG_PRIMARY_BOXED);
     flush_var(destination);
+
+    comment("validating term pointer");
+    emit_enter_runtime();
+    a.mov(ARG1, c_p);
+    mov_arg(ARG2, Dst);
+    runtime_call<2>(erts_check_for_valid_heap_ptr);
+    emit_leave_runtime();
 }
 
 void BeamModuleAssembler::emit_set_tuple_element(const ArgSource &Element,
