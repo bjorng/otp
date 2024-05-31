@@ -1218,6 +1218,9 @@ Eterm expand_error_value(Process* c_p, Uint freason, Eterm Value);
 void erts_save_stacktrace(Process* p, struct StackTrace* s, int depth);
 ErtsCodePtr erts_printable_return_address(Process* p, Eterm *E) ERTS_NOINLINE;
 
+/* beam_common.c */
+void erts_check_for_valid_heap_ptr(Process* p, Eterm term);
+
 /* erl_init.c */
 
 typedef struct {

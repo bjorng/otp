@@ -2512,3 +2512,18 @@ erts_current_reductions(Process *c_p, Process *p)
     }
     return REDS_IN(c_p) - reds_left - erts_proc_sched_data(p)->virtual_reds;
 }
+
+void erts_check_for_valid_heap_ptr(Process* p, Eterm term)
+{
+    if ((void*)term >= (void*)p->hend || (void*)term <= (void*)p->heap) {
+        erts_fprintf(stderr,
+                     "term: (%p) %T\nc_p: %p\nheap: %p\nhend: %p\n",
+                     (void*)term, term, p, p->heap, p->hend);
+        if (p->old_heap != NULL && p->old_hend != NULL &&
+            (void*)term < (void*)p->old_hend &&
+            (void*)term >= (void*)p->old_heap) {
+            erts_fprintf(stderr, "the term is on the old heap\n");
+        }
+        abort();
+    }
+}

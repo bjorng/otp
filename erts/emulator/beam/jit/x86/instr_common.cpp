@@ -1081,6 +1081,12 @@ void BeamModuleAssembler::emit_update_record_in_place(
     }
 
     mov_arg(Dst, RET);
+
+    emit_enter_runtime();
+    a.mov(ARG1, c_p);
+    a.mov(ARG2, RET);
+    runtime_call<2>(erts_check_for_valid_heap_ptr);
+    emit_leave_runtime();
 }
 
 void BeamModuleAssembler::emit_set_tuple_element(const ArgSource &Element,
