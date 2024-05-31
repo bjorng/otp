@@ -559,6 +559,7 @@ delay_garbage_collection(Process *p, int need, int fcalls)
 	}
 	p->abandoned_heap = orig_heap;
         erts_adjust_memory_break(p, orig_htop - p->high_water);
+        p->high_water = (Eterm *) (Uint) -1;
     }
 
 #ifdef CHECK_FOR_HOLES
