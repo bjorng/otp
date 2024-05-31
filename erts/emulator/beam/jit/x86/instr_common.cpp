@@ -1013,6 +1013,9 @@ void BeamModuleAssembler::emit_update_record_in_place(
         }
     }
 
+    maybe_immediate = ArgNil();
+    all_safe = false;
+
     x86::Gp tagged_ptr = RET;
 
     mov_arg(tagged_ptr, Src);
