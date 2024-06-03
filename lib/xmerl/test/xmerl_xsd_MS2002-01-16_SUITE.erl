@@ -24,7 +24,7 @@
 %% For more info read the comments in the header of that file.
 
 -module('xmerl_xsd_MS2002-01-16_SUITE').
-
+-compile([no_ssa_opt_alias,no_ssa_opt_sink]).
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").

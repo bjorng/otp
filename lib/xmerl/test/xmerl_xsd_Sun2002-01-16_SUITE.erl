@@ -24,6 +24,7 @@
 %% For more info read the comments in the header of that file.
 
 -module('xmerl_xsd_Sun2002-01-16_SUITE').
+-compile([no_ssa_opt_alias]).
 
 -compile(export_all).
 
