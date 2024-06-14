@@ -1683,6 +1683,16 @@ simplify_remote_call(maps=Mod, put=Name, [Key,Val,Map], Ts, I) ->
         _ ->
             simplify_pure_call(Mod, Name, [Key,Val,Map], I)
     end;
+simplify_remote_call(maps=Mod, update=Name, [Key,Val,Map], Ts, I) ->
+    case concrete_type(Map, Ts) of
+        #t_map{} ->
+            %% This call to maps:put/3 cannot fail. Replace with the
+            %% slightly more efficient `put_map` instruction.
+            Args = [#b_literal{val=exact},Map,Key,Val],
+            I#b_set{op=put_map,args=Args};
+        _ ->
+            simplify_pure_call(Mod, Name, [Key,Val,Map], I)
+    end;
 simplify_remote_call(Mod, Name, Args, _Ts, I) ->
     case erl_bifs:is_pure(Mod, Name, length(Args)) of
         true ->
