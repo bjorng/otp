@@ -172,6 +172,7 @@ static erts_lc_lock_order_t erts_lock_order[] = {
     {"tracer_mtx", 				NULL},
     {"sys_msg_q", 				NULL},
     {"fun_staging_lock",                        NULL},
+    {"struct_tab",				NULL},
     {"atom_tab",				NULL},
     LEVEL,
     {"global_literals",                         NULL},
