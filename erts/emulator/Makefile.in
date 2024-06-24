@@ -1160,7 +1160,8 @@ RUN_OBJS += \
 	$(OBJDIR)/erl_term_hashing.o \
 	$(OBJDIR)/erl_bif_coverage.o \
 	$(OBJDIR)/erl_iolist.o \
-	$(OBJDIR)/erl_etp.o
+	$(OBJDIR)/erl_etp.o \
+	$(OBJDIR)/erl_struct.o
 
 LTTNG_OBJS = $(OBJDIR)/erlang_lttng.o
 

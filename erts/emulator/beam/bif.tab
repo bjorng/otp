@@ -839,3 +839,13 @@ bif re:import/1
 # New in 29.
 #
 ubif erlang:is_integer/3
+
+#
+# STRUCT PROTOTYPE
+#
+
+bif struct_prototype:define/3
+bif struct_prototype:create/3
+bif struct_prototype:update/3
+bif struct_prototype:read/2
+bif struct_prototype:is/4
