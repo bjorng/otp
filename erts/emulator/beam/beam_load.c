@@ -501,12 +501,16 @@ static int load_code(LoaderState* stp)
             int specific, arity, arg, i;
             Uint32 mask[3] = {0, 0, 0};
 
-            arity = gen_opc[tmp_op->op].arity;
+            if (num_specific != 0) {
+                arity = gen_opc[tmp_op->op].arity;
 
-            for (arg = 0; arg < arity; arg++) {
-                int type = tmp_op->a[arg].type;
+                ASSERT(2 * (sizeof(mask) / sizeof(mask[0])) >= arity);
 
-                mask[arg / 2] |= (1u << type) << ((arg % 2) << 4);
+                for (arg = 0; arg < arity; arg++) {
+                    int type = tmp_op->a[arg].type;
+
+                    mask[arg / 2] |= (1u << type) << ((arg % 2) << 4);
+                }
             }
 
             specific = gen_opc[tmp_op->op].specific;
@@ -572,7 +576,7 @@ static int load_code(LoaderState* stp)
                  * No specific operations and no transformations means that
                  * the instruction is obsolete.
                  */
-                if (num_specific == 0 && gen_opc[tmp_op->op].transform == -1) {
+                if (num_specific == 0 && gen_opc[tmp_op->op].transform == 0) {
                     BeamLoadError0(stp, PLEASE_RECOMPILE);
                 }
 
