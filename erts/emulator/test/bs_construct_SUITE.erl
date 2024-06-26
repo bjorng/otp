@@ -30,7 +30,7 @@
 	 otp_7422/1, zero_width/1, bad_append/1, bs_append_overflow/1,
          bs_append_offheap/1,
          reductions/1, fp16/1, zero_init/1, error_info/1, little/1,
-         heap_binary_unit/1
+         heap_binary_unit/1, floats/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -46,7 +46,7 @@ all() ->
      copy_writable_binary, kostis, dynamic, otp_7422, zero_width,
      bad_append, bs_append_overflow, bs_append_offheap,
      reductions, fp16, zero_init,
-     error_info, little, heap_binary_unit].
+     error_info, little, heap_binary_unit, floats].
 
 init_per_suite(Config) ->
     Config.
@@ -1633,6 +1633,106 @@ heap_binary_unit_2(Variant, Rest) ->
         Bin2 ->
             {error2, Bin2}
     end.
+
+floats(_Config) ->
+    _ = rand:uniform(),				%Seed generator
+    io:format("Seed: ~p", [rand:export_seed()]),
+
+    %% Random floats.
+    _ = [do_float(rand:uniform()) || _ <- lists:seq(1, 10)],
+    _ = [do_float(rand:uniform() * rand:uniform(1_000_000)) ||
+            _ <- lists:seq(1, 10)],
+
+    %% Random integers.
+    _ = [do_float(rand:uniform(1_000_000)) || _ <- lists:seq(1, 10)],
+
+    do_float(-0.0),
+    do_float(+0.0),
+
+    ok.
+
+do_float(F) ->
+    do_float(F, 0).
+
+do_float(F, 32) ->
+    ok;
+do_float(F, N) ->
+    do_float_be_16(F, N),
+    do_float_be_32(F, N),
+    do_float_be_64(F, N),
+
+    do_float_le_16(F, N),
+    do_float_le_32(F, N),
+    do_float_le_64(F, N),
+
+    do_float(F, N + 1).
+
+do_float_be_16(F, N) ->
+    FloatBin = id(<<F:16/big-float>>),
+    Bin = id(<<0:N, F:16/big-float>>),
+    Bin = id(<<0:N, (id(F)):16/big-float>>),
+    Bin = <<0:N, F:(id(16))/big-float>>,
+    Bin = <<0:N, (id(F)):(id(16))/big-float>>,
+    <<0:N, FloatBin/binary>> = Bin,
+    ok.
+
+do_float_be_32(F, N) ->
+    FloatBin = id(<<F:32/big-float>>),
+    Bin = id(<<0:N, F:32/big-float>>),
+    Bin = id(<<0:N, (id(F)):32/big-float>>),
+    Bin = <<0:N, F:(id(32))/big-float>>,
+    Bin = <<0:N, (id(F)):(id(32))/big-float>>,
+    <<0:N, FloatBin/binary>> = Bin,
+    ok.
+
+do_float_be_64(F, N) ->
+    FloatBin = id(<<F:64/big-float>>),
+    Bin = id(<<0:N, F:64/big-float>>),
+    Bin = id(<<0:N, (id(F)):64/big-float>>),
+    Bin = <<0:N, F:(id(64))/big-float>>,
+    Bin = <<0:N, (id(F)):(id(64))/big-float>>,
+    <<0:N, FloatBin/binary>> = Bin,
+    if
+        is_float(F) ->
+            <<0:N, F:64/big-float>> = Bin;
+        true ->
+            ok
+    end,
+    ok.
+
+do_float_le_16(F, N) ->
+    FloatBin = id(<<F:16/little-float>>),
+    Bin = id(<<0:N, F:16/little-float>>),
+    Bin = id(<<0:N, (id(F)):16/little-float>>),
+    Bin = <<0:N, F:(id(16))/little-float>>,
+    Bin = <<0:N, (id(F)):(id(16))/little-float>>,
+    <<0:N, FloatBin/binary>> = Bin,
+    ok.
+
+do_float_le_32(F, N) ->
+    FloatBin = id(<<F:32/little-float>>),
+    Bin = id(<<0:N, F:32/little-float>>),
+    Bin = id(<<0:N, (id(F)):32/little-float>>),
+    Bin = <<0:N, F:(id(32))/little-float>>,
+    Bin = <<0:N, (id(F)):(id(32))/little-float>>,
+    <<0:N, FloatBin/binary>> = Bin,
+    ok.
+
+do_float_le_64(F, N) ->
+    FloatBin = id(<<F:64/little-float>>),
+    Bin = id(<<0:N, F:64/little-float>>),
+    Bin = id(<<0:N, (id(F)):64/little-float>>),
+    Bin = <<0:N, F:(id(64))/little-float>>,
+    Bin = <<0:N, (id(F)):(id(64))/little-float>>,
+    <<0:N, FloatBin/binary>> = Bin,
+    if
+        is_float(F) ->
+            <<0:N, F:64/little-float>> = Bin;
+        true ->
+            ok
+    end,
+    ok.
+
 
 %%%
 %%% Common utilities.
