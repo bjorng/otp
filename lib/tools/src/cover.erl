@@ -1862,18 +1862,6 @@ analyse_info(_Module,[]) ->
 analyse_info(Module,Imported) ->
     imported_info("Analysis",Module,Imported).
 
-export_info(_Module,[]) ->
-    ok;
-export_info(_Module,_Imported) ->
-    %% Do not print that the export includes imported modules
-    ok.
-
-export_info([]) ->
-    ok;
-export_info(_Imported) ->
-    %% Do not print that the export includes imported modules
-    ok.
-
 get_all_importfiles([{_M,_F,ImportFiles}|Imported],Acc) ->
     NewAcc = do_get_all_importfiles(ImportFiles,Acc),
     get_all_importfiles(Imported,NewAcc);
@@ -2860,13 +2848,11 @@ do_export(Module, OutFile, From, State) ->
 	    Reply = 
 		case Module of
 		    '_' ->
-			export_info(State#main_state.imported),
 			collect(State#main_state.nodes),
 			do_export_table(State#main_state.compiled,
 					State#main_state.imported,
 					Fd);
 		    _ ->
-			export_info(Module,State#main_state.imported),
 			try is_loaded(Module, State) of
 			    {loaded, File} ->
 				collect_module(Module, State),
