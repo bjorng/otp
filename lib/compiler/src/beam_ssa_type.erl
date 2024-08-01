@@ -598,7 +598,7 @@ opt_is([], Ts, Ds, _Ls, Fdb, Sub, _Meta, Acc) ->
 %%  Also, ensure that the `arg_types` annotation is only present
 %%  in instructions that can benefit from it.
 opt_anno_types(#b_set{anno=Anno0,op=Op,args=Args}=I, Ts) ->
-    case benefits_from_type_anno(Op, Args) of
+    case benefits_from_type_anno(Op, Args, Ts) of
         true ->
             opt_anno_types_1(I, Args, Ts, 0, #{});
         false ->
@@ -645,6 +645,42 @@ opt_anno_types_1(#b_set{anno=Anno0}=I, [], _Ts, _Index, Acc) ->
             Anno = Anno0#{ arg_types => Acc },
             I#b_set{anno=Anno}
     end.
+
+benefits_from_type_anno(Op, Args, Ts) ->
+    uses_mctx(Args, Ts) orelse benefits_from_type_anno(Op, Args).
+
+uses_mctx([A|Args], Ts) when is_map_key(A, Ts) ->
+    contains_mctx(concrete_type(A, Ts)) orelse uses_mctx(Args, Ts);
+uses_mctx([_|Args], Ts) ->
+    uses_mctx(Args, Ts);
+uses_mctx([], _Ts) ->
+    false.
+
+contains_mctx(#t_list{type=A,terminator=B}) ->
+    contains_mctx(A) orelse contains_mctx(B);
+contains_mctx(#t_cons{type=A,terminator=B}) ->
+    contains_mctx(A) orelse contains_mctx(B);
+contains_mctx(#t_tuple{elements=Es}) ->
+    contains_mctx(maps:values(Es));
+contains_mctx(#t_fun{}) ->
+    false;
+contains_mctx(#t_map{super_key=A,super_value=B}) ->
+    contains_mctx(A) orelse contains_mctx(B);
+contains_mctx(#t_bs_matchable{}) ->
+    false;
+contains_mctx(#t_bitstring{}) ->
+    false;
+contains_mctx(#t_bs_context{}) ->
+    true;
+contains_mctx([H|T]) ->
+    contains_mctx(H) orelse contains_mctx(T);
+contains_mctx(_) ->
+    false.
+
+
+
+
+
 
 %% Only add type annotations when we know we'll make good use of them.
 benefits_from_type_anno({bif,_Op}, _Args) ->
@@ -864,7 +900,7 @@ ranges([L|Ls], Tss0, Blocks0) ->
 ranges([], _Tss, Blocks) -> Blocks.
 
 ranges_is([#b_set{op=Op,args=Args}=I0|Is], Ts0, Acc) ->
-    case benefits_from_type_anno(Op, Args) of
+    case benefits_from_type_anno(Op, Args, Ts0) of
         false ->
             ranges_is(Is, Ts0, [I0|Acc]);
         true ->
