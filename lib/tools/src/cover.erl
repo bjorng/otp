@@ -1503,11 +1503,8 @@ remote_process_loop(State) ->
 			  '_' -> [M || {M,_} <- State#remote_state.compiled];
 			  _ -> Modules0
 		      end,
-            spawn(fun() ->
-                          ?SPAWN_DBG(remote_collect, 
-                                     {Modules, CollectorPid, From}),
-                          do_collect(Modules, CollectorPid, From)
-                  end),
+            Result = do_collect(Modules, CollectorPid),
+            remote_reply(From, Result),
 	    remote_process_loop(State);
 
 	{remote,stop} ->
@@ -1547,12 +1544,23 @@ remote_process_loop(State) ->
 	    
     end.
 
-do_collect(Modules, CollectorPid, From) ->
-    _ = pmap(fun(Module) ->
-                     send_counters(Module, CollectorPid)
-             end, Modules),
-    CollectorPid ! done,
-    remote_reply(From, ok).
+do_collect(Modules, CollectorPid) ->
+    {Pid,Ref} =
+        spawn_monitor(
+          fun() ->
+                  ?SPAWN_DBG(do_collect, {Modules, CollectorPid}),
+                  _ = pmap(fun(Module) ->
+                                   send_counters(Module, CollectorPid)
+                           end, Modules)
+          end),
+    receive
+        {'DOWN',Ref,process,Pid,Result} ->
+            CollectorPid ! done,
+            case Result of
+                normal -> ok;
+                Other -> {error,Other}
+            end
+    end.
 
 send_chunk(CollectorPid,Chunk) ->
     CollectorPid ! {chunk,Chunk,self()},
@@ -1810,7 +1818,9 @@ do_collection(Node, Module, Stop) ->
 	ok when Stop ->
 	    remote_call(Node,{remote,stop});
 	ok ->
-	    ok
+	    ok;
+        {error,Error} ->
+            exit(Error)
     end.
 
 %% Process which receives chunks of data from remote nodes - either when
