@@ -222,6 +222,7 @@ struct erl_bits_state {
 
 Eterm erts_bs_start_match_2(Process *p, Eterm Bin, Uint Max);
 ErlSubBits *erts_bs_start_match_3(Process *p, Eterm Bin);
+Eterm erts_bs_get_unsigned_small_be(ErlSubBits *sb, Uint num_bits);
 Eterm erts_bs_get_integer_2(Process *p, Uint num_bits, unsigned flags, ErlSubBits* sb);
 Eterm erts_bs_get_float_2(Process *p, Uint num_bits, unsigned flags, ErlSubBits* sb);
 

@@ -155,6 +155,101 @@ static void check_match_buffer(const ErlSubBits *sb)
 # define CHECK_MATCH_BUFFER(MB)
 #endif
 
+#if defined(BEAMASM)
+Eterm
+erts_bs_get_unsigned_small_be(ErlSubBits *sb, Uint num_bits)
+{
+    Uint bit_offset;
+    const byte* bp;
+    Uint w;
+
+    if (num_bits == 0) {
+        return SMALL_ZERO;
+    }
+
+    ASSERT(num_bits < SMALL_BITS);
+
+    CHECK_MATCH_BUFFER(sb);
+    if (sb->end - sb->start < num_bits) {	/* Asked for too many bits. */
+        return THE_NON_VALUE;
+    }
+
+    bp = erl_sub_bits_get_base(sb) + BYTE_OFFSET(sb->start);
+    bit_offset = BIT_OFFSET(sb->start);
+
+    sb->start += num_bits;
+
+    if (num_bits <= 8-bit_offset) {
+        /*
+         * All bits are in one byte in the binary. We only need
+         * shift them right and mask them.
+         */
+        w = bp[0];
+        w >>= 8 - bit_offset - num_bits;
+        w &= MAKE_MASK(num_bits);
+        return make_small(w);
+    } else if (num_bits <= 8) {
+        /*
+         * The bits are in two different bytes. It is easiest to
+         * combine the bytes to a word first, and then shift right and
+         * mask to extract the bits.
+         */
+        w = bp[0] << 8 | bp[1];
+        w >>= 16 - bit_offset - num_bits;
+        w &= MAKE_MASK(num_bits);
+        return make_small(w);
+    } else {
+        /*
+         * Handle field sizes from 9 up to SMALL_BITS-1 bits, big-endian,
+         * stored in at least two bytes.
+         */
+        Uint n;
+
+        n = num_bits;
+
+        /*
+         * Handle the most signicant byte if it contains 1 to 7 bits.
+         * It only needs to be masked, not shifted.
+         */
+        if (bit_offset == 0) {
+            w = 0;
+        } else {
+            Uint num_bits_in_msb = 8 - bit_offset;
+            w = *bp++;
+            n -= num_bits_in_msb;
+            w &= MAKE_MASK(num_bits_in_msb);
+        }
+
+        /*
+         * Simply shift whole bytes into the result.
+         */
+        switch (BYTE_OFFSET(n)) {
+        case 7: w = (w << 8) | *bp++;
+        case 6: w = (w << 8) | *bp++;
+        case 5: w = (w << 8) | *bp++;
+        case 4: w = (w << 8) | *bp++;
+        case 3: w = (w << 8) | *bp++;
+        case 2: w = (w << 8) | *bp++;
+        case 1: w = (w << 8) | *bp++;
+        }
+        n = BIT_OFFSET(n);
+
+        /*
+         * Handle the 1 to 7 bits remaining in the last byte (if any).
+         * They need to be shifted right, but there is no need to mask;
+         * then they can be shifted into the word.
+         */
+        if (n > 0) {
+            byte b = *bp;
+            b >>= 8 - n;
+            w = (w << n) | b;
+        }
+
+        return make_small(w);
+    }
+}
+#endif
+
 Eterm
 erts_bs_get_integer_2(
 Process *p, Uint num_bits, unsigned flags, ErlSubBits *sb)
