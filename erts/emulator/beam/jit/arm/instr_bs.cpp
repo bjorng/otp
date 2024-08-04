@@ -1092,7 +1092,7 @@ struct BscSegment {
      * The DIRECT action is used when it is not possible to use the
      * accumulator (for unknown or too large sizes).
      */
-    enum class action { DIRECT, ACCUMULATE, STORE } action;
+    enum class action { DIRECT, ACCUMULATE_FLOAT, ACCUMULATE_INT, STORE } action;
 };
 
 static std::vector<BscSegment> bs_combine_segments(
@@ -1101,7 +1101,16 @@ static std::vector<BscSegment> bs_combine_segments(
 
     for (auto seg : segments) {
         switch (seg.type) {
+        case am_float:
         case am_integer: {
+            enum BscSegment::action accumulate;
+
+            if (seg.type == am_integer) {
+                accumulate = BscSegment::action::ACCUMULATE_INT;
+            } else {
+                accumulate = BscSegment::action::ACCUMULATE_FLOAT;
+            }
+
             if (!(0 < seg.effectiveSize && seg.effectiveSize <= 64)) {
                 /* Unknown or too large size. Handle using the default
                  * DIRECT action. */
@@ -1109,11 +1118,29 @@ static std::vector<BscSegment> bs_combine_segments(
                 continue;
             }
 
+            if (seg.type == am_float) {
+                if (seg.flags & BSF_LITTLE) {
+                    segs.push_back(seg);
+                    continue;
+                }
+                switch (seg.effectiveSize) {
+                case 32:
+                    break;
+                case 64:
+                    break;
+                default:
+                    segs.push_back(seg);
+                    continue;
+                }
+            }
+
+            seg.type = am_integer;
+
             if (seg.flags & BSF_LITTLE || segs.size() == 0 ||
                 segs.back().action == BscSegment::action::DIRECT) {
                 /* There are no previous compatible ACCUMULATE / STORE
                  * actions. Create the first ones. */
-                seg.action = BscSegment::action::ACCUMULATE;
+                seg.action = accumulate;
                 segs.push_back(seg);
                 seg.action = BscSegment::action::STORE;
                 segs.push_back(seg);
@@ -1124,7 +1151,7 @@ static std::vector<BscSegment> bs_combine_segments(
             if (prev.flags & BSF_LITTLE) {
                 /* Little-endian segments cannot be combined with other
                  * segments. Create new ACCUMULATE / STORE actions. */
-                seg.action = BscSegment::action::ACCUMULATE;
+                seg.action = accumulate;
                 segs.push_back(seg);
                 seg.action = BscSegment::action::STORE;
                 segs.push_back(seg);
@@ -1140,12 +1167,12 @@ static std::vector<BscSegment> bs_combine_segments(
                  * action. */
                 segs.pop_back();
                 prev.effectiveSize += seg.effectiveSize;
-                seg.action = BscSegment::action::ACCUMULATE;
+                seg.action = accumulate;
                 segs.push_back(seg);
                 segs.push_back(prev);
             } else {
                 /* The size exceeds 64 bits. Can't combine. */
-                seg.action = BscSegment::action::ACCUMULATE;
+                seg.action = accumulate;
                 segs.push_back(seg);
                 seg.action = BscSegment::action::STORE;
                 segs.push_back(seg);
@@ -1166,7 +1193,8 @@ static std::vector<BscSegment> bs_combine_segments(
         case BscSegment::action::STORE:
             offset = 64 - segs[i].effectiveSize;
             break;
-        case BscSegment::action::ACCUMULATE:
+        case BscSegment::action::ACCUMULATE_FLOAT:
+        case BscSegment::action::ACCUMULATE_INT:
             segs[i].offsetInAccumulator = offset;
             offset += segs[i].effectiveSize;
             break;
@@ -2267,7 +2295,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
             break;
         case am_integer:
             switch (seg.action) {
-            case BscSegment::action::ACCUMULATE: {
+            case BscSegment::action::ACCUMULATE_INT: {
                 /* Shift an integer of known size (no more than 64 bits)
                  * into a word-size accumulator. */
                 Label value_is_small = a.newLabel();
@@ -2341,6 +2369,28 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
                 }
 
                 a.bind(done);
+                break;
+            }
+            case BscSegment::action::ACCUMULATE_FLOAT: {
+                auto offset = seg.offsetInAccumulator;
+                auto src = load_source(seg.src, TMP1);
+                a64::Gp boxed_ptr;
+
+                comment("accumulate value for float segment at offset %ld", offset);
+
+                switch (seg.effectiveSize) {
+                case 32:
+                    boxed_ptr = emit_ptr_val(TMP1, src.reg);
+                    a.ldur(a64::d0, emit_boxed_val(boxed_ptr, sizeof(Eterm)));
+                    a.fcvt(a64::s0, a64::d0);
+                    a.fmov(TMP1.w(), a64::s0);
+                    a.bfi(ARG8, TMP1, arm::lsr(offset), 32);
+                    break;
+                case 64:
+                    boxed_ptr = emit_ptr_val(TMP1, src.reg);
+                    a.ldur(ARG8, emit_boxed_val(boxed_ptr, sizeof(Eterm)));
+                    break;
+                }
                 break;
             }
             case BscSegment::action::STORE: {
