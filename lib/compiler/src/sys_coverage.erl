@@ -21,7 +21,7 @@
 
 -module(sys_coverage).
 -moduledoc false.
--export([module/2,cover_transform/2]).
+-export([module/2,cover_transform/2,beam_debug_info/1]).
 -import(lists, [member/2,reverse/1,reverse/2]).
 
 -type attribute() :: atom().
@@ -34,16 +34,8 @@
 -spec module([form()], [compile:option()]) ->
         {'ok',[form()]}.
 
-module(Forms0, _Opts) when is_list(Forms0) ->
-    put(executable_line_index, 1),
-    GetIndex = fun(_, _, _, _, _) ->
-                       Index = get(executable_line_index),
-                       put(executable_line_index, Index + 1),
-                       Index
-               end,
-    Forms = transform(Forms0, GetIndex),
-    erase(executable_line_index),
-    Forms.
+module(Forms, _Opts) when is_list(Forms) ->
+    transform(Forms, executable_line).
 
 %% Undocumented helper function for the `cover` module.
 -spec cover_transform([form()], index_fun()) ->
@@ -51,7 +43,14 @@ module(Forms0, _Opts) when is_list(Forms0) ->
 
 cover_transform(Forms, IndexFun) when is_list(Forms),
                                       is_function(IndexFun, 5) ->
-    transform(Forms, IndexFun).
+    transform(Forms, IndexFun, executable_line).
+
+%% Undocumented helper function for inserting `debug_line` instructions.
+
+-spec beam_debug_info([form()]) -> {'ok',[form()]}.
+
+beam_debug_info(Forms) when is_list(Forms) ->
+    transform(Forms, debug_line).
 
 %%%
 %%% Local functions.
@@ -66,7 +65,8 @@ cover_transform(Forms, IndexFun) when is_list(Forms),
             true ->
                 ?BLOCK(Expr)
         end).
--define(EXECUTABLE_LINE, executable_line).
+
+-type bump_instruction() :: 'executable_line' | 'debug_line'.
 
 -record(vars,
         {module=[]      :: module() | [],
@@ -76,11 +76,23 @@ cover_transform(Forms, IndexFun) when is_list(Forms),
          lines=[]       :: [non_neg_integer()],
          bump_lines=[]  :: [non_neg_integer()],
          in_guard=false :: boolean(),
-         index_fun      :: index_fun()
+         index_fun      :: index_fun(),
+         bump_instr     :: bump_instruction()
         }).
 
-transform(Code, IndexFun) ->
-    Vars = #vars{index_fun=IndexFun},
+transform(Forms, BumpInstr) ->
+    put(bump_index, 1),
+    GetIndex = fun(_, _, _, _, _) ->
+                       Index = get(bump_index),
+                       put(bump_index, Index + 1),
+                       Index
+               end,
+    Result = transform(Forms, GetIndex, BumpInstr),
+    erase(bump_index),
+    Result.
+
+transform(Code, IndexFun, BumpInstr) ->
+    Vars = #vars{index_fun=IndexFun,bump_instr=BumpInstr},
     transform(Code, [], Vars, none, on).
 
 transform([Form0|Forms], MungedForms, Vars0, MainFile0, Switch0) ->
@@ -367,7 +379,7 @@ fix_expr(E, _Line, _Bump) ->
 fix_clauses([], _Line, _Bump) ->
     [];
 fix_clauses(Cs, Line, Bump) ->
-    case bumps_line(lists:last(Cs), Line) of
+    case bumps_line(lists:last(Cs), Line, Bump) of
         true ->
             fix_cls(Cs, Line, Bump);
         false ->
@@ -377,7 +389,7 @@ fix_clauses(Cs, Line, Bump) ->
 fix_cls([], _Line, _Bump) ->
     [];
 fix_cls([Cl | Cls], Line, Bump) ->
-    case bumps_line(Cl, Line) of
+    case bumps_line(Cl, Line, Bump) of
         true ->
             [fix_expr(C, Line, Bump) || C <- [Cl | Cls]];
         false ->
@@ -390,24 +402,30 @@ fix_cls([Cl | Cls], Line, Bump) ->
             [{clause,CA,P,G,Body1} | fix_cls(Cls, Line, Bump)]
     end.
 
-bumps_line(E, L) ->
-    try bumps_line1(E, L) catch true -> true end.
+bumps_line(E, L, Bump) ->
+    try
+        bumps_line1(E, L, Bump)
+    catch
+        throw:true ->
+            true
+    end.
 
-bumps_line1({?EXECUTABLE_LINE,Line,_}, Line) ->
+bumps_line1({BumpInstr,Line,_}, Line, {BumpInstr,_,_}) ->
     throw(true);
-bumps_line1([E | Es], Line) ->
-    bumps_line1(E, Line),
-    bumps_line1(Es, Line);
-bumps_line1(T, Line) when is_tuple(T) ->
-    bumps_line1(tuple_to_list(T), Line);
-bumps_line1(_, _) ->
+bumps_line1([E | Es], Line, Bump) ->
+    bumps_line1(E, Line, Bump),
+    bumps_line1(Es, Line, Bump);
+bumps_line1(T, Line, Bump) when is_tuple(T) ->
+    bumps_line1(tuple_to_list(T), Line, Bump);
+bumps_line1(_, _, _Bump) ->
     false.
 
 %% Insert an executable_line instruction in the abstract code.
 bump_call(Vars, Line) ->
-    #vars{module=M,function=F,arity=A,clause=C,index_fun=GetIndex} = Vars,
+    #vars{module=M,function=F,arity=A,clause=C,index_fun=GetIndex,
+          bump_instr=BumpInstr} = Vars,
     Index = GetIndex(M, F, A, C, Line),
-    {?EXECUTABLE_LINE,Line,Index}.
+    {BumpInstr,Line,Index}.
 
 %%% End of fix of last expression.
 
@@ -464,11 +482,11 @@ munge_expr({'catch',Anno,Expr}, Vars0) ->
 munge_expr({call,Anno1,{remote,Anno2,ExprM,ExprF},Exprs}, Vars0) ->
     {MungedExprM, Vars1} = munge_expr(ExprM, Vars0),
     {MungedExprF, Vars2} = munge_expr(ExprF, Vars1),
-    {MungedExprs, Vars3} = munge_exprs(Exprs, Vars2),
+    {MungedExprs, Vars3} = munge_args(Exprs, Vars2),
     {{call,Anno1,{remote,Anno2,MungedExprM,MungedExprF},MungedExprs}, Vars3};
 munge_expr({call,Anno,Expr,Exprs}, Vars0) ->
     {MungedExpr, Vars1} = munge_expr(Expr, Vars0),
-    {MungedExprs, Vars2} = munge_exprs(Exprs, Vars1),
+    {MungedExprs, Vars2} = munge_args(Exprs, Vars1),
     {{call,Anno,MungedExpr,MungedExprs}, Vars2};
 munge_expr({lc,Anno,Expr,Qs}, Vars0) ->
     {MungedExpr, Vars1} = munge_expr(?BLOCK1(Expr), Vars0),
@@ -531,6 +549,28 @@ munge_expr({bin_element,Anno,Value,Size,TypeSpecifierList}, Vars0) ->
     {{bin_element,Anno,MungedValue,MungedSize,TypeSpecifierList},Vars2};
 munge_expr(Form, Vars0) ->
     {Form, Vars0}.
+
+munge_args(Args0, #vars{in_guard=false,bump_instr=debug_line}=Vars) ->
+    %% We want to have `debug_line` instructions inserted before each line in
+    %% this example:
+    %%
+    %% bar:f(
+    %%     bar:g(X),
+    %%     bar:h(X)).
+    Args = [case is_atomic(Arg) of
+                true -> Arg;
+                false -> ?BLOCK(Arg)
+            end || Arg <- Args0],
+    munge_exprs(Args, Vars);
+munge_args(Args, Vars) ->
+    munge_exprs(Args, Vars).
+
+is_atomic({atom,_,_}) -> true;
+is_atomic({float,_,_}) -> true;
+is_atomic({integer,_,_}) -> true;
+is_atomic({nil,_}) -> true;
+is_atomic({var,_,_}) -> true;
+is_atomic(_) -> false.
 
 munge_exprs(Exprs, Vars) ->
     munge_exprs(Exprs, Vars, []).
