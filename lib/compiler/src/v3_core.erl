@@ -158,9 +158,10 @@
                gcount=0 :: non_neg_integer(),   %Goto counter
 	       function={none,0} :: fa(),	%Current function.
 	       in_guard=false :: boolean(),	%In guard or not.
-	       wanted=true :: boolean(),	%Result wanted or not.
-	       opts=[]     :: [compile:option()], %Options.
-               dialyzer=false :: boolean(),     %Help dialyzer or not.
+               beam_debug_info=false :: boolean(), %Keep BEAM debug info?
+               dialyzer=false :: boolean(),     %Help dialyzer?
+               tuple_calls=false :: boolean(),  %Support tuple calls?
+               wanted=true :: boolean(),	%Result wanted?
 	       ws=[]    :: [warning()],		%Warnings.
                file=[{file,""}],                %File.
                load_nif=false :: boolean()      %true if calls erlang:load_nif/2
@@ -180,7 +181,7 @@
 		  attrs = [],
 		  defs = [],
 		  file = [],
-		  opts = [],
+		  %% opts = [],
 		  ws = [],
                   load_nif=false :: boolean() %true if calls erlang:load_nif/2
                  }).
@@ -188,14 +189,15 @@
 -spec module([form()], [compile:option()]) ->
         {'ok',cerl:c_module(),[warning()]}.
 
-module(Forms0, Opts) ->
+module(Forms0, Opts0) ->
     Forms = erl_internal:add_predefined_functions(Forms0),
+    Opts = get_opts(Opts0),
     Module = foldl(fun (F, Acc) ->
 			   form(F, Acc, Opts)
 		   end, #imodule{}, Forms),
     #imodule{name=Mod,exports=Exp0,attrs=As0,
              defs=Kfs0,ws=Ws,load_nif=LoadNif,nifs=Nifs} = Module,
-    Exp = case member(export_all, Opts) of
+    Exp = case is_map_key(export_all, Opts) of
 	      true -> defined_functions(Forms);
 	      false -> Exp0
 	  end,
@@ -209,6 +211,10 @@ module(Forms0, Opts) ->
     As = reverse(As0),
 
     {ok,#c_module{name=#c_literal{val=Mod},exports=Cexp,attrs=As,defs=Kfs},Ws}.
+
+get_opts(Opts) ->
+    Names = [beam_debug_info, dialyzer, export_all, tuple_calls],
+    #{Name => member(Name, Opts) || Name <- Names}.
 
 form({function,_,_,_,_}=F0,
      #imodule{defs=Defs,load_nif=LoadNif0}=Module,
@@ -262,8 +268,13 @@ function({function,_,Name,Arity,Cs0}, Module, Opts)
   when is_integer(Arity), 0 =< Arity, Arity =< 255 ->
     #imodule{file=File, ws=Ws0, nifs=Nifs} = Module,
     try
-        St0 = #core{vcount=0,function={Name,Arity},opts=Opts,
-                    dialyzer=member(dialyzer, Opts),
+        #{beam_debug_info := BeamDebugInfo,
+          dialyzer := Dialyzer,
+          tuple_calls := TupleCalls} = Opts,
+        St0 = #core{vcount=0,function={Name,Arity},
+                    beam_debug_info=BeamDebugInfo,
+                    dialyzer=Dialyzer,
+                    tuple_calls=TupleCalls,
                     ws=Ws0,file=[{file,File}]},
         {B0,St1} = body(Cs0, Name, Arity, St0),
         %% ok = function_dump(Name, Arity, "body:~n~p~n",[B0]),
@@ -3375,7 +3386,7 @@ cexpr(#iapply{anno=A,op=Op,args=Args}, _As, St) ->
     {#c_apply{anno=A#a.anno,op=Op,args=Args},[],A#a.us,St};
 cexpr(#icall{anno=A,module=Mod,name=Name,args=Args}, _As, St0) ->
     Anno = A#a.anno -- [v3_core],
-    case (not cerl:is_c_atom(Mod)) andalso member(tuple_calls, St0#core.opts) of
+    case not cerl:is_c_atom(Mod) andalso St0#core.tuple_calls of
 	true ->
 	    GenAnno = [compiler_generated|Anno],
 
