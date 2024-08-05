@@ -1074,6 +1074,9 @@ expand_opt(r26, Os) ->
     [no_bsm_opt | expand_opt(r27, Os)];
 expand_opt(r27, Os) ->
     [no_long_atoms, compressed_literals | Os];
+expand_opt(beam_debug_info, Os) ->
+    [beam_debug_info, no_copt, no_bsm_opt, no_bool_opt,
+     no_share_opt, no_recv_opt, no_ssa_opt, no_throw_opt | Os];
 expand_opt({debug_info_key,_}=O, Os) ->
     [encrypt_debug_info,O|Os];
 expand_opt(no_type_opt=O, Os) ->
@@ -1670,7 +1673,12 @@ abstr_passes(AbstrStatus) ->
 
          {delay,[{iff,debug_info,?pass(save_abstract_code)}]},
 
-         {delay,[{iff,line_coverage,{pass,sys_coverage}}]},
+         %% The `beam_debug_info` and `line_coverage` options are
+         %% mutually exclusive. If both are given, ignore the
+         %% `line_coverage` option.
+         {delay,[{iff,beam_debug_info,{pass,sys_coverage}},
+                 {unless,beam_debug_info,
+                  {iff,line_coverage,{pass,sys_coverage}}}]},
 
          ?pass(expand_records),
          {iff,'dexp',{listing,"expand"}},
