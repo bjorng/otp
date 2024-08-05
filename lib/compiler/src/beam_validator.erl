@@ -373,8 +373,10 @@ vi({'%',_}, Vst) ->
     Vst;
 vi({line,_}, Vst) ->
     Vst;
-vi({executable_line,_,_}, Vst) ->
+vi({executable_line,_,Index}, Vst) when is_integer(Index) ->
     Vst;
+vi({executable_line,_,Index,Info}, Vst) when is_integer(Index) ->
+    validate_executable_line(Info, Vst);
 vi(nif_start, Vst) ->
     Vst;
 %%
@@ -2154,6 +2156,34 @@ validate_select_tuple_arity(Fail, [], _, #vst{}=Vst) ->
                    %% The next instruction is never executed.
                    kill_state(SuccVst)
            end).
+
+%%
+%% Validate executable_line instructions in the presence of BEAM debug info.
+%%
+
+validate_executable_line({Stk,Vars}, #vst{current=St}=Vst) ->
+    case St of
+        #st{numy=Stk} ->
+            ok;
+        #st{numy=ActualStk} ->
+            error({beam_debug_info,frame_size,Stk,actual,ActualStk})
+    end,
+    _ = [validate_el_vars(Regs, Name, Vst) || {Name,Regs} <- Vars],
+    Vst.
+
+validate_el_vars([R|Rs], Name, Vst) ->
+    Type = get_term_type(R, Vst),
+    validate_el_vars(Rs, Type, Name, Vst).
+
+validate_el_vars([R|Rs], Type, Name, Vst) ->
+    case get_term_type(R, Vst) of
+        Type ->
+            validate_el_vars(Rs, Type, Name, Vst);
+        OtherType ->
+            error({type_mismatch,Name,OtherType,Type})
+    end;
+validate_el_vars([], _Type, _Name, _Vst) ->
+    ok.
 
 %%
 %% Infers types from comparisons, looking at the expressions that produced the

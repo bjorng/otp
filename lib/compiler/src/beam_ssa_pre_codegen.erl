@@ -114,6 +114,8 @@ functions([], _Ps) -> [].
 
 passes(Opts) ->
     AddPrecgAnnos = proplists:get_bool(dprecg, Opts),
+    BeamDebugInfo = proplists:get_bool(beam_debug_info, Opts),
+
     Ps = [?PASS(assert_no_critical_edges),
 
           %% Preliminaries.
@@ -121,6 +123,12 @@ passes(Opts) ->
           ?PASS(sanitize),
           ?PASS(expand_match_fail),
           ?PASS(expand_update_tuple),
+
+          case BeamDebugInfo of
+              false -> ignore;
+              true -> ?PASS(break_out_executable_line)
+          end,
+
           ?PASS(place_frames),
           ?PASS(fix_receives),
 
@@ -820,6 +828,25 @@ sanitize_is([], Last, _InBlocks, _Blocks, Count, Values, Changed, Acc) ->
             no_change
     end.
 
+do_sanitize_is(#b_set{anno=Anno0,op=executable_line,args=Args0}=I0,
+               Is, Last, InBlocks, Blocks, Count, Values, Changed0, Acc) ->
+    Args = sanitize_args(Args0, Values),
+    Anno1 = case Anno0 of
+                #{alias := Alias0} ->
+                    Alias = sanitize_alias(Alias0, Values),
+                    Anno0#{alias := Alias};
+                #{} ->
+                    Anno0
+            end,
+    Anno = case [{Val,From} || #b_var{name=From} := #b_literal{val=Val} <- Values] of
+               [] ->
+                   Anno1;
+               [_|_]=NewLiterals ->
+                   Anno1#{literals => NewLiterals ++ map_get(literals, Anno1)}
+           end,
+    I = I0#b_set{anno=Anno,args=Args},
+    Changed = Changed0 orelse Args =/= Args0,
+    sanitize_is(Is, Last, InBlocks, Blocks, Count, Values, Changed, [I|Acc]);
 do_sanitize_is(#b_set{op=Op,dst=Dst,args=Args0}=I0,
                Is, Last, InBlocks, Blocks, Count, Values, Changed0, Acc) ->
     Args = sanitize_args(Args0, Values),
@@ -852,6 +879,19 @@ sanitize_last(#b_blk{last=Last0}=Blk, Values) ->
         true ->
             Blk
     end.
+
+sanitize_alias(Alias, Values) ->
+    sanitize_alias_1(maps:keys(Alias), Values, Alias).
+
+sanitize_alias_1([Old|Vs], Values, Alias0) ->
+    Alias = case Values of
+                #{#b_var{name=Old} := #b_var{name=New}} ->
+                    Alias0#{New => map_get(Old, Alias0)};
+                #{} ->
+                    Alias0
+            end,
+    sanitize_alias_1(Vs, Values, Alias);
+sanitize_alias_1([], _Values, Alias) -> Alias.
 
 sanitize_args(Args, Values) ->
     [sanitize_arg(Arg, Values) || Arg <- Args].
@@ -1189,6 +1229,91 @@ sort_update_tuple([#b_literal{}=Index, Value | Updates], Acc) ->
     sort_update_tuple(Updates, [{Index, Value} | Acc]);
 sort_update_tuple([], Acc) ->
     append([[Index, Value] || {Index, Value} <- sort(fun erlang:'>='/2, Acc)]).
+
+
+%%%
+%%% Avoid placing stack frame allocation instructions before an
+%%% `executable_line` instruction to potentially provide information
+%%% for more variables.
+%%%
+%%% This sub pass is only run when the `beam_debug_info` option has been given.
+%%%
+%%% As an example, consider this function:
+%%%
+%%%     foo(A, B, C) ->
+%%%         {ok,bar(A),B}.
+%%%
+%%% When compiled with the beam_debug_info option the first part of the SSA code
+%%% will look this:
+%%%
+%%%     0:
+%%%       _7 = executable_line `1`
+%%%       _3 = call (`bar`/1), _0
+%%%
+%%% The beam_ssa_pre_codegen pass will place a stack frame before the block:
+%%%
+%%%     %% #{frame_size => 1,yregs => #{{b_var,1} => []}}
+%%%     0:
+%%%       [1] y0/_12 = copy x1/_1
+%%%       [3] z0/_7 = executable_line `1`
+%%%
+%%% In the resulting BEAM code there will not be any information for
+%%% variable `C`, because the allocate instruction will kill it before
+%%% reaching the executable_line instruction:
+%%%
+%%%     {allocate,1,2}.
+%%%     {move,{x,1},{y,0}}.
+%%%     {executable_line,[{location,...}],
+%%%                      1,
+%%%                      {1,[{'A',[{x,0}]},{'B',[{x,1},{y,0}]}]}}.
+%%%
+%%% If we split the block after the executable_line instruction, the
+%%% allocation of the stack frame will be placed after the executable_line
+%%% instruction:
+%%%
+%%%     0:
+%%%       [1] z0/_7 = executable_line `1`
+%%%       [3] br ^12
+%%%
+%%%     %% #{frame_size => 1,yregs => #{{b_var,1} => []}}
+%%%     12:
+%%%       [5] y0/_13 = copy x1/_1
+%%%       [7] x0/_3 = call (`bar`/1), x0/_0
+%%%
+%%% In the resulting BEAM code, there will now be information for variable `C`:
+%%%
+%%%     {executable_line,[{location,"t.erl",5}],
+%%%                      1,
+%%%                      {none,[{'A',[{x,0}]},{'B',[{x,1}]},{'C',[{x,2}]}]}}.
+%%%     {allocate,1,2}.
+%%%
+
+break_out_executable_line(#st{ssa=Blocks0,cnt=Count0}=St) ->
+    RPO = beam_ssa:rpo(Blocks0),
+
+    %% Calculate the set of all indices for executable_line
+    %% instructions that occur as the first instruction in a
+    %% block. Splitting after every executable_line instruction is not
+    %% always beneficial, and can even result in worse information
+    %% about variables.
+    F = fun(_, #b_blk{is=[#b_set{op=executable_line,
+                                 args=[#b_literal{val=Index}]}|_]}, Acc) ->
+                sets:add_element(Index, Acc);
+           (_, _, Acc) ->
+                Acc
+        end,
+    ToBeSplit = beam_ssa:fold_blocks(F, RPO, sets:new(), Blocks0),
+
+    %% Now split blocks after the found executable_line instructions that
+    %% are known to start blocks.
+    P = fun(#b_set{op=executable_line,args=[#b_literal{val=Index}]}) ->
+                sets:is_element(Index, ToBeSplit);
+           (_) ->
+                false
+        end,
+    {Blocks,Count} = beam_ssa:split_blocks_after(RPO, P, Blocks0, Count0),
+
+    St#st{ssa=Blocks,cnt=Count}.
 
 %%%
 %%% Find out where frames should be placed.
@@ -1985,7 +2110,8 @@ copy_retval_is([#b_set{op=call,dst=#b_var{}=Dst}=I0|Is], RC, Yregs,
     case sets:is_element(Dst, Yregs) of
         true ->
             {NewVar,Count} = new_var(Count1),
-            Copy = #b_set{op=copy,dst=Dst,args=[NewVar]},
+            Copy = #b_set{anno=#{delayed_yreg_copy => true},
+                          op=copy,dst=Dst,args=[NewVar]},
             I = I1#b_set{dst=NewVar},
             copy_retval_is(Is, RC, Yregs, Copy, Count, [I|Acc]);
         false ->

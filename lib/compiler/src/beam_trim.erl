@@ -304,6 +304,12 @@ remap([return|_]=Is, _) ->
 remap([{line,_}=I|Is], Remap) ->
     [I|remap(Is, Remap)].
 
+remap_block([{set,[],Ss0,{executable_line,_,_,_}=Info0}|Is], Remap) ->
+    Ss = remap_args(Ss0, Remap),
+    {executable_line,Loc,Index,DebugInfo0} = Info0,
+    DebugInfo = remap_debug_info(DebugInfo0, Remap),
+    Info = {executable_line,Loc,Index,DebugInfo},
+    [{set,[],Ss,Info}|remap_block(Is, Remap)];
 remap_block([{set,[{x,_}]=Ds,Ss0,Info}|Is], Remap) ->
     Ss = remap_args(Ss0, Remap),
     [{set,Ds,Ss,Info}|remap_block(Is, Remap)];
@@ -312,6 +318,12 @@ remap_block([{set,Ds0,Ss0,Info}|Is], Remap) ->
     Ss = remap_args(Ss0, Remap),
     [{set,Ds,Ss,Info}|remap_block(Is, Remap)];
 remap_block([], _) -> [].
+
+remap_debug_info({FrameSize0,Vars0}, {Trim,Map}) ->
+    FrameSize = FrameSize0 - Trim,
+    Vars = [{Name,[remap_arg(Arg, Trim, Map) || Arg <- Args]} ||
+               {Name,Args} <- Vars0],
+    {FrameSize,Vars}.
 
 remap_args(Args, {Trim,Map}) ->
     [remap_arg(Arg, Trim, Map) || Arg <- Args].

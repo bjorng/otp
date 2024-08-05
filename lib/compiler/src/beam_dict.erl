@@ -23,11 +23,12 @@
 -moduledoc false.
 
 -export([new/0,opcode/2,highest_opcode/1,
-	 atom/2,local/4,export/4,import/4,
-	 string/2,lambda/3,literal/2,line/3,fname/2,type/2,
-	 atom_table/1,local_table/1,export_table/1,import_table/1,
-	 string_table/1,lambda_table/1,literal_table/1,
-	 line_table/1,type_table/1]).
+         atom/2,local/4,export/4,import/4,
+         string/2,lambda/3,literal/2,line/3,
+         fname/2,type/2,debug_info/3,
+         atom_table/1,local_table/1,export_table/1,import_table/1,
+         string_table/1,lambda_table/1,literal_table/1,
+         line_table/1,type_table/1,debug_table/1]).
 
 -include("beam_types.hrl").
 
@@ -35,13 +36,16 @@
 
 -type index() :: non_neg_integer().
 
+-type frame_size() :: 'none' | non_neg_integer().
+-type debug_info() :: {frame_size(), list()}.
+
 -type atom_tab()   :: #{atom() => index()}.
 -type import_tab() :: gb_trees:tree(mfa(), index()).
 -type fname_tab()  :: #{Name :: term() => index()}.
 -type line_tab()   :: #{{Fname :: index(), Line :: term()} => index()}.
 -type literal_tab() :: #{Literal :: term() => index()}.
--type type_tab() :: #{ Type :: binary() => index()}.
-
+-type type_tab()   :: #{Type :: binary() => index()}.
+-type debug_tab() :: #{index() => debug_info()}.
 -type lambda_info() :: {label(),{index(),label(),non_neg_integer()}}.
 -type lambda_tab() :: {non_neg_integer(),[lambda_info()]}.
 -type wrapper() :: #{label() => index()}.
@@ -58,6 +62,7 @@
          literals = #{}	            :: literal_tab(),
          fnames = #{}               :: fname_tab(),
          lines = #{}                :: line_tab(),
+         debug = #{}                :: debug_tab(),
          num_lines = 0              :: non_neg_integer(), %Number of line instructions
          exec_line = false          :: boolean(),
          next_import = 0            :: non_neg_integer(),
@@ -251,6 +256,14 @@ type(Type, #asm{types=Types0}=Dict) ->
             {Index, Dict#asm{types=Types}}
     end.
 
+-spec debug_info(index(), debug_info(), bdict()) -> bdict().
+
+debug_info(Index, DebugInfo, #asm{debug=DebugTab0}=Dict)
+  when is_integer(Index) ->
+    false = is_map_key(Index, DebugTab0),       %Assertion.
+    DebugTab = DebugTab0#{Index => DebugInfo},
+    Dict#asm{debug=DebugTab}.
+
 %% Returns the atom table.
 %%    atom_table(Dict, Encoding) -> {LastIndex,[Length,AtomString...]}
 -spec atom_table(bdict()) -> {non_neg_integer(), [[non_neg_integer(),...]]}.
@@ -357,6 +370,12 @@ line_table(#asm{fnames=Fnames0,lines=Lines0,
     Lines1 = lists:keysort(2, maps:to_list(Lines0)),
     Lines = [L || {L,_} <- Lines1],
     {NumLineInstrs,NumFnames,Fnames,NumLines,Lines,ExecLine}.
+
+
+-spec debug_table(bdict()) -> debug_tab().
+
+debug_table(#asm{debug=Debug}) ->
+    Debug.
 
 %% Search for binary string Str in the binary string pool Pool.
 %%    old_string(Str, Pool) -> none | Index
