@@ -1197,7 +1197,11 @@ try_after(Line, Es0, As0, St0) ->
     {V, St3} = new_var(St2),                    % (must not exist in As1)
     LineAnno = lineno_anno(Line, St3),
 
-    case is_iexprs_small(As, 20) of
+    %% If BEAM debug info has been requested, we must not duplicate
+    %% `executable_line` instructions.
+    BeamDebugInfo = member(beam_debug_info, St0#core.opts),
+
+    case not BeamDebugInfo andalso is_iexprs_small(As, 20) of
         true -> try_after_small(LineAnno, Es, As, V, St3);
         false -> try_after_large(LineAnno, Es, As, V, St3)
     end.
@@ -2879,8 +2883,16 @@ uexprs([#iexprs{bodies=Es0}|Les], Ks0, St0) ->
 uexprs([#imatch{anno=A,pat=P0,arg=Arg,fc=Fc}|Les], Ks, St0) ->
     case upat_is_new_var(P0, Ks) of
 	true ->
-	    %% Assignment to a new variable.
-	    uexprs([#iset{var=P0,arg=Arg}|Les], Ks, St0);
+            case P0 of
+                #c_var{name='_'} ->
+                    %% We need to rename '_' to a fresh name to
+                    %% ensure that '_' does not end up in the debug
+                    %% information.
+                    {Var,St1} = new_var(St0),
+                    uexprs([#iset{var=Var,arg=Arg}|Les], Ks, St1);
+                _ ->
+                    uexprs([#iset{var=P0,arg=Arg}|Les], Ks, St0)
+            end;
 	false when Les =:= [] ->
 	    %% Need to explicitly return match "value", make
 	    %% safe for efficiency.
