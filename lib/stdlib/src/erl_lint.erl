@@ -1640,7 +1640,7 @@ func_location_warning(Type, Fs, St) ->
 func_location_error(Type, Fs, St, FAList) ->
     foldl(fun ({F,Anno}, St0) ->
                   {Name, Arity} = F,
-                  PossibleFs = [atom_to_list(Func) || {Func, A} <- FAList, A == Arity],
+                  PossibleFs = [atom_to_list(Func) || {Func, A} <- FAList, A =:= Arity],
                   case most_possible_string(Name, PossibleFs) of
                       [] -> add_error(Anno, {Type,F}, St0);
                       GuessF -> add_error(Anno, {Type,F,GuessF}, St0)
@@ -3784,7 +3784,7 @@ check_dialyzer_attribute(Forms, St0) ->
                               true -> St;
                               false ->
                                   {Name, Arity} = FA,
-                                  PossibleFs = [atom_to_list(F) || {F, A} <- DefFunctions, A == Arity],
+                                  PossibleFs = [atom_to_list(F) || {F, A} <- DefFunctions, A =:= Arity],
                                   case most_possible_string(Name, PossibleFs) of
                                       [] -> add_error(Anno, {undefined_function,FA}, St);
                                       GuessF -> add_error(Anno, {undefined_function,FA,GuessF}, St)
