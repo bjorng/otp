@@ -3095,8 +3095,8 @@ check_field({record_field,Af,{atom,Aa,F},Val}, Name, Fields,
              case find_field(F, Fields) of
                  {ok,_I} -> CheckFun(Val, Vt, St);
                  error ->
-                     Field_names = [atom_to_list(R) || {record_field, _L, {_, _, R}, _} <- Fields],
-                     case most_possible_string(F, Field_names) of
+                     FieldNames = [atom_to_list(R) || {record_field, _L, {_, _, R}, _} <- Fields],
+                     case most_possible_string(F, FieldNames) of
                          [] -> {[],add_error(Aa, {undefined_field,Name,F}, St)};
                          GuessF -> {[],add_error(Aa, {undefined_field,Name,F,GuessF}, St)}
                      end
@@ -3120,8 +3120,8 @@ pattern_field({atom,Aa,F}, Name, Fields, St) ->
     case find_field(F, Fields) of
         {ok,_I} -> {[],St};
         error ->
-            Field_names = [atom_to_list(R) || {record_field, _L, {_, _, R}, _} <- Fields],
-            case most_possible_string(F, Field_names) of
+            FieldNames = [atom_to_list(R) || {record_field, _L, {_, _, R}, _} <- Fields],
+            case most_possible_string(F, FieldNames) of
                 [] -> {[],add_error(Aa, {undefined_field,Name,F}, St)};
                 GuessF -> {[],add_error(Aa, {undefined_field,Name,F,GuessF}, St)}
             end
@@ -3156,8 +3156,8 @@ record_field({atom,Aa,F}, Name, Fields, St) ->
     case find_field(F, Fields) of
         {ok,_I} -> {[],St};
         error ->
-            Field_names = [atom_to_list(R) || {record_field, _L, {_, _, R}, _} <- Fields],
-            case most_possible_string(F, Field_names) of
+            FieldNames = [atom_to_list(R) || {record_field, _L, {_, _, R}, _} <- Fields],
+            case most_possible_string(F, FieldNames) of
                 [] -> {[],add_error(Aa, {undefined_field,Name,F}, St)};
                 GuessF -> {[],add_error(Aa, {undefined_field,Name,F,GuessF}, St)}
             end
@@ -3464,8 +3464,8 @@ check_record_types([{type, _, field_type, [{atom, Anno, FName}, Type]}|Left],
     St1 = case exist_field(FName, DefFields) of
               true -> St;
               false ->
-                  Field_names = [atom_to_list(R) || {record_field, _L, {_, _, R}, _} <- DefFields],
-                  case most_possible_string(FName, Field_names) of
+                  FieldNames = [atom_to_list(R) || {record_field, _L, {_, _, R}, _} <- DefFields],
+                  case most_possible_string(FName, FieldNames) of
                       [] -> add_error(Anno, {undefined_field,Name,FName}, St);
                       GuessF -> add_error(Anno, {undefined_field,Name,FName,GuessF}, St)
                   end
