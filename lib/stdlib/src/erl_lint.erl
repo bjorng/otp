@@ -325,8 +325,8 @@ format_error_1({Tag, duplicate_doc_attribute, Ann}) ->
      [Tag, Ann]};
 format_error_1({undefined_on_load,{F,A}}) ->
     {~"function ~tw/~w undefined", [F,A]};
-        format_error_1({undefined_on_load,{F,A},GuessF}) ->
-                                                    {~"function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,A]};
+format_error_1({undefined_on_load,{F,A},GuessF}) ->
+    {~"function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,A]};
 format_error_1(nif_inline) ->
     ~"inlining is enabled - local calls to NIFs may call their Erlang implementation instead";
 
@@ -338,8 +338,8 @@ format_error_1({unused_import,{{F,A},M}}) ->
     {~"import ~w:~tw/~w is unused", [M,F,A]};
 format_error_1({undefined_function,{F,A}}) ->
     {~"function ~tw/~w undefined", [F,A]};
-        format_error_1({undefined_function,{F,A},GuessF}) ->
-                                                    {~"function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,A]};
+format_error_1({undefined_function,{F,A},GuessF}) ->
+    {~"function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,A]};
 format_error_1({redefine_function,{F,A}}) ->
     {~"function ~tw/~w already defined", [F,A]};
 format_error_1({define_import,{F,A}}) ->
