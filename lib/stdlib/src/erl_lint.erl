@@ -4207,10 +4207,12 @@ pat_binsize_var(V, Anno, Vt, New, St) ->
                 error ->
                     PossibleVs = [atom_to_list(DefV) || {DefV, _A} <- Vt],
                     case most_possible_string(V, PossibleVs) of
-                        [] -> {[{V,{bound,used,[Anno]}}],[],
-                               add_error(Anno, {unbound_var,V}, St)};
-                        GuessV -> {[{V,{bound,used,[Anno]}}],[],
-                                   add_error(Anno, {unbound_var,V,GuessV}, St)}
+                        [] ->
+                            {[{V,{bound,used,[Anno]}}],[],
+                             add_error(Anno, {unbound_var,V}, St)};
+                        GuessV ->
+                            {[{V,{bound,used,[Anno]}}],[],
+                             add_error(Anno, {unbound_var,V,GuessV}, St)}
                     end
             end
     end.
@@ -4251,10 +4253,12 @@ do_expr_var(V, Anno, Vt, St) ->
         error ->
             PossibleVs = [atom_to_list(DefV) || {DefV, _A} <- Vt],
             case most_possible_string(V, PossibleVs) of
-                [] -> {[{V,{bound,used,[Anno]}}],
-                       add_error(Anno, {unbound_var,V}, St)};
-                GuessV -> {[{V,{bound,used,[Anno]}}],
-                           add_error(Anno, {unbound_var,V,GuessV}, St)}
+                [] ->
+                    {[{V,{bound,used,[Anno]}}],
+                     add_error(Anno, {unbound_var,V}, St)};
+                GuessV ->
+                    {[{V,{bound,used,[Anno]}}],
+                     add_error(Anno, {unbound_var,V,GuessV}, St)}
             end
     end.
 
