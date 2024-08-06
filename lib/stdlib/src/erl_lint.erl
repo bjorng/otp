@@ -3038,8 +3038,8 @@ exist_record(Anno, Name, St) ->
     case is_map_key(Name, St#lint.records) of
         true -> used_record(Name, St);
         false ->
-            Record_names = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
-            case most_possible_string(Name, Record_names) of
+            RecordNames = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
+            case most_possible_string(Name, RecordNames) of
                 [] -> add_error(Anno, {undefined_record,Name}, St);
                 GuessF -> add_error(Anno, {undefined_record,Name,GuessF}, St)
             end
@@ -3060,8 +3060,8 @@ check_record(Anno, Name, St, CheckFun) ->
     case maps:find(Name, St#lint.records) of
         {ok,{_Anno,Fields}} -> CheckFun(Fields, used_record(Name, St));
         error ->
-            Record_names = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
-            case most_possible_string(Name, Record_names) of
+            RecordNames = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
+            case most_possible_string(Name, RecordNames) of
                 [] -> {[],add_error(Anno, {undefined_record,Name}, St)};
                 GuessF -> {[],add_error(Anno, {undefined_record,Name,GuessF}, St)}
             end
@@ -3451,8 +3451,8 @@ check_record_types(Anno, Name, Fields, SeenVars, St) ->
 		    {SeenVars, add_error(Anno, {type_syntax, record}, St)}
 	    end;
         error ->
-            Record_names = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
-            case most_possible_string(Name, Record_names) of
+            RecordNames = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
+            case most_possible_string(Name, RecordNames) of
                 [] -> {SeenVars, add_error(Anno, {undefined_record, Name}, St)};
                 GuessF -> {SeenVars, add_error(Anno, {undefined_record, Name, GuessF}, St)}
             end
