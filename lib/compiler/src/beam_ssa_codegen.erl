@@ -233,12 +233,23 @@ get_original_name_1(Name, VarMap) ->
                     #{} ->
                         []
                 end,
-    case is_atom(Name) of
+    case is_original_variable(Name) of
         true ->
             [Name|MoreNames];
         false ->
             MoreNames
     end.
+
+is_original_variable(Name) when is_atom(Name) ->
+    <<C/utf8,_/binary>> =  atom_to_binary(Name),
+    if
+        C =:= $_ -> true;
+        $A =< C, C =< $Z -> true;
+        $A =< C, C =< $Z -> true;
+        $À =< C, C =< $Þ, C =/= $× -> true;
+        true -> false
+    end;
+is_original_variable(_Name) -> false.
 
 %% collect_catch_labels(Linear, St) -> St.
 %%  Collect all catch labels (labels for blocks that begin
