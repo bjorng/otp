@@ -200,9 +200,8 @@ collect_debug_info_blk([], _Regs, _Mappings, Info) ->
     Info.
 
 collect_debug_info_is([#cg_set{op=executable_line,anno=Anno}|Is], Regs, Mappings, Info) ->
-    #{live := Live, live_yregs := LiveYregs0} = Anno,
-    LiveYregs = [{map_get(V, Regs),V} || V <- LiveYregs0],
-    LiveRegs = [{{x,R}, {x,R}} || R <- lists:seq(0, Live - 1)] ++ LiveYregs,
+    #{live_xregs := LiveXregs,live_yregs := LiveYregs} = Anno,
+    LiveRegs = [{map_get(V, Regs),V} || V <- LiveXregs ++ LiveYregs],
     io:format("~p\n", [LiveRegs]),
     collect_debug_info_is(Is, Regs, Mappings, Info);
 collect_debug_info_is([_|Is], Regs, Mappings, Info) ->
@@ -651,7 +650,10 @@ liveness_anno(#cg_set{op=Op}=I, Live, Regs) ->
     case need_live_anno(Op) of
         true ->
             NumLive = num_live(Live, Regs),
-            Anno = (I#cg_set.anno)#{live=>NumLive},
+            Rs0 = ordsets:from_list([{V,get_register(V, Regs)} ||
+                                        V <- Live]),
+            Rs = [V || {V,{x,_}} <- Rs0],
+            Anno = (I#cg_set.anno)#{live => NumLive,live_xregs => Rs},
             I#cg_set{anno=Anno};
         false ->
             I
