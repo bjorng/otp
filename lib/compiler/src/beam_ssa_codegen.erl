@@ -41,14 +41,16 @@
              regs=#{} :: #{beam_ssa:b_var() => ssa_register()},
              ultimate_fail=1 :: beam_label(),
              catches=gb_sets:empty() :: gb_sets:set(ssa_label()),
-             fc_label=1 :: beam_label()
+             fc_label=1 :: beam_label(),
+             debug_info=none :: 'none' | #{}
             }).
 
 -spec module(beam_ssa:b_module(), [compile:option()]) ->
                     {'ok',beam_asm:module_code()}.
 
-module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, _Opts) ->
-    {Asm,St} = functions(Fs, {atom,Mod}),
+module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
+    BeamDebugInfo = member(beam_debug_info, Opts),
+    {Asm,St} = functions(Fs, {atom,Mod}, BeamDebugInfo),
     {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
@@ -109,9 +111,13 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, _Opts) ->
 
 -type ssa_register() :: xreg() | yreg() | freg() | zreg().
 
-functions(Forms, AtomMod) ->
+functions(Forms, AtomMod, BeamDebugInfo) ->
+    DebugInfo = case BeamDebugInfo of
+                    true -> #{};
+                    false -> none
+                end,
     mapfoldl(fun (F, St) -> function(F, AtomMod, St) end,
-             #cg{lcount=1}, Forms).
+             #cg{lcount=1,debug_info=DebugInfo}, Forms).
 
 function(#b_function{anno=Anno,bs=Blocks}, AtomMod, St0) ->
     #{func_info:={_,Name,Arity}} = Anno,
@@ -689,6 +695,7 @@ need_live_anno(Op) ->
         bs_start_match -> true;
         bs_skip -> true;
         call -> true;
+        executable_line -> true;
         put_map -> true;
         update_record -> true;
         _ -> false
