@@ -2390,13 +2390,15 @@ cg(#b_set{op=copy,dst=#b_var{name=Dst},args=[Arg0]}, St0) ->
     %% Create an alias for a variable or literal.
     Arg = ssa_arg(Arg0, St0),
     St1 = set_ssa_var(Dst, Arg, St0),
-    case {St1#cg.var_map,Arg} of
-        {VarMap,#b_var{name=Src}} ->
-            St = St1#cg{var_map=VarMap#{Src => Dst}},
-            {[],St};
-        {_,_} ->
-            {[],St1}
-    end;
+    VarMap = St1#cg.var_map,
+    St = maybe
+             #b_var{name=Src} ?= Arg,
+             true ?= not is_map_key(Src, VarMap),
+             St1#cg{var_map=VarMap#{Src => Dst}}
+         else
+             _ -> St1
+         end,
+    {[],St};
 cg(#b_set{args=Args0}=Set0, St) ->
     Args = ssa_args(Args0, St),
     Set = Set0#b_set{args=Args},
