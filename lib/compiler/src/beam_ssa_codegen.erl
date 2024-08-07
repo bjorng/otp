@@ -202,8 +202,8 @@ collect_debug_info_blk([], _Regs, _VarMap, Info) ->
     Info.
 
 collect_debug_info_is([#cg_set{op=copy,dst=Dst,args=[Src]}|Is],
-                      Regs, VarMap, Info) ->
-    io:format("~p => ~p\n", [Src,Dst]),
+                      Regs, VarMap0, Info) ->
+    VarMap = VarMap0#{Dst => Src},
     collect_debug_info_is(Is, Regs, VarMap, Info);
 collect_debug_info_is([#cg_set{anno=Anno,op=executable_line,
                                args=[#b_literal{val=Index}]}|Is],
