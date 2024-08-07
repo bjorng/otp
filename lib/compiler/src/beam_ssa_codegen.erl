@@ -181,11 +181,21 @@ cg_fun(Blocks, NoBsMatch, St0) ->
     Linear4 = defined(Linear3, St1),
     Linear5 = opt_allocate(Linear4, St1),
     Linear = fix_wait_timeout(Linear5),
-    {Asm,St} = cg_linear(Linear, St1),
+    St2 = case St1 of
+              #cg{debug_info=none} ->
+                  St1;
+              #cg{debug_info=#{}} ->
+                  DebugInfo = collect_debug_info(Linear),
+                  St1#cg{debug_info=DebugInfo}
+          end,
+    {Asm,St} = cg_linear(Linear, St2),
     case NoBsMatch of
         true -> {Asm,St};
         false -> {bs_translate(Asm),St}
     end.
+
+collect_debug_info(_Linear) ->
+    #{}.
 
 %% collect_catch_labels(Linear, St) -> St.
 %%  Collect all catch labels (labels for blocks that begin
