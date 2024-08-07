@@ -49,8 +49,11 @@
                     {'ok',beam_asm:module_code()}.
 
 module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
-    BeamDebugInfo = member(beam_debug_info, Opts),
-    {Asm,St} = functions(Fs, {atom,Mod}, BeamDebugInfo),
+    DebugInfo = case member(beam_debug_info, Opts) of
+                    true -> #{};
+                    false -> none
+                end,
+    {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo),
     {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
@@ -111,11 +114,7 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
 
 -type ssa_register() :: xreg() | yreg() | freg() | zreg().
 
-functions(Forms, AtomMod, BeamDebugInfo) ->
-    DebugInfo = case BeamDebugInfo of
-                    true -> #{};
-                    false -> none
-                end,
+functions(Forms, AtomMod, DebugInfo) ->
     mapfoldl(fun (F, St) -> function(F, AtomMod, St) end,
              #cg{lcount=1,debug_info=DebugInfo}, Forms).
 
@@ -184,8 +183,8 @@ cg_fun(Blocks, NoBsMatch, St0) ->
     St2 = case St1 of
               #cg{debug_info=none} ->
                   St1;
-              #cg{debug_info=#{}} ->
-                  DebugInfo = collect_debug_info(Linear),
+              #cg{debug_info=DebugInfo0} when is_map(DebugInfo0) ->
+                  DebugInfo = collect_debug_info(Linear, DebugInfo0),
                   St1#cg{debug_info=DebugInfo}
           end,
     {Asm,St} = cg_linear(Linear, St2),
@@ -194,7 +193,7 @@ cg_fun(Blocks, NoBsMatch, St0) ->
         false -> {bs_translate(Asm),St}
     end.
 
-collect_debug_info(_Linear) ->
+collect_debug_info(_Linear, _DebugInfo0) ->
     #{}.
 
 %% collect_catch_labels(Linear, St) -> St.
