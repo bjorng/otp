@@ -120,7 +120,7 @@ functions(Forms, AtomMod, DebugInfo) ->
              #cg{lcount=1,debug_info=DebugInfo}, Forms).
 
 function(#b_function{anno=Anno,bs=Blocks}, AtomMod, St0) ->
-    #{func_info:={_,Name,Arity}} = Anno,
+    #{func_info := {_,Name,Arity},var_map := VarMap} = Anno,
     NoBsMatch = not maps:get(bs_ensure_opt, Anno, false),
     try
         assert_exception_block(Blocks),            %Assertion.
@@ -133,7 +133,7 @@ function(#b_function{anno=Anno,bs=Blocks}, AtomMod, St0) ->
         Labels = (St4#cg.labels)#{0=>Entry,?EXCEPTION_BLOCK=>0},
         St5 = St4#cg{labels=Labels,used_labels=gb_sets:singleton(Entry),
                      ultimate_fail=Ult},
-        {Body,St} = cg_fun(Blocks, NoBsMatch, St5#cg{fc_label=Fi}),
+        {Body,St} = cg_fun(Blocks, NoBsMatch, VarMap, St5#cg{fc_label=Fi}),
         Asm = [{label,Fi},line(Anno),
                {func_info,AtomMod,{atom,Name},Arity}] ++
                add_parameter_annos(Body, Anno) ++
@@ -172,7 +172,7 @@ add_parameter_annos([{label, _}=Entry | Body], Anno) ->
 
     [Entry | sort(Annos)] ++ Body.
 
-cg_fun(Blocks, NoBsMatch, St0) ->
+cg_fun(Blocks, NoBsMatch, VarMap, St0) ->
     Linear0 = linearize(Blocks),
     St1 = collect_catch_labels(Linear0, St0),
     Linear1 = need_heap(Linear0),
@@ -181,18 +181,19 @@ cg_fun(Blocks, NoBsMatch, St0) ->
     Linear4 = defined(Linear3, St1),
     Linear5 = opt_allocate(Linear4, St1),
     Linear = fix_wait_timeout(Linear5),
-    St2 = collect_debug_info(Linear, St1),
+    St2 = collect_debug_info(Linear, VarMap, St1),
     {Asm,St} = cg_linear(Linear, St2),
     case NoBsMatch of
         true -> {Asm,St};
         false -> {bs_translate(Asm),St}
     end.
 
-collect_debug_info(Linear, #cg{regs=Regs,debug_info=DebugInfo0}=St)
+collect_debug_info(Linear, VarMap, #cg{regs=Regs,debug_info=DebugInfo0}=St)
   when is_map(DebugInfo0) ->
-    DebugInfo = collect_debug_info_blk(Linear, Regs, #{}, DebugInfo0),
+    io:format("~p\n", [VarMap]),
+    DebugInfo = collect_debug_info_blk(Linear, Regs, VarMap, DebugInfo0),
     St#cg{debug_info=DebugInfo};
-collect_debug_info(_Linear, #cg{debug_info=none}=St) -> St.
+collect_debug_info(_Linear, _VarMap, #cg{debug_info=none}=St) -> St.
 
 collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, Mappings0, Info0) ->
     {Mappings,Info} = collect_debug_info_is(Is, Regs, Mappings0, Info0),
