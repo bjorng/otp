@@ -54,6 +54,7 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
                     false -> none
                 end,
     {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo),
+    io:format("~p\n", [St#cg.debug_info]),
     {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
@@ -199,15 +200,25 @@ collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, Mappings0, Info0) ->
 collect_debug_info_blk([], _Regs, _Mappings, Info) ->
     Info.
 
-collect_debug_info_is([#cg_set{op=executable_line,anno=Anno}|Is], Regs, Mappings, Info) ->
+collect_debug_info_is([#cg_set{anno=Anno,op=executable_line,
+                               args=[#b_literal{val=Index}]}|Is],
+                      Regs, Mappings, Info0) ->
     #{live_xregs := LiveXregs,live_yregs := LiveYregs} = Anno,
-    LiveRegs = [{map_get(V, Regs),V} || V <- LiveXregs ++ LiveYregs],
-    io:format("~p\n", [LiveRegs]),
+    LiveRegs = [{map_get(V, Regs),get_original_name(V, Mappings)} ||
+                   V <- LiveXregs ++ LiveYregs],
+    S0 = sofs:family(LiveRegs, [{reg,[variable]}]),
+    S1 = sofs:family_to_relation(S0),
+    S2 = sofs:converse(S1),
+    S = sofs:to_external(S2),
+    Info = Info0#{Index => S},
     collect_debug_info_is(Is, Regs, Mappings, Info);
 collect_debug_info_is([_|Is], Regs, Mappings, Info) ->
     collect_debug_info_is(Is, Regs, Mappings, Info);
 collect_debug_info_is([], _Regs, Mappings, Info) ->
     {Mappings,Info}.
+
+get_original_name(#b_var{name=Name}, _Mappings) ->
+    [Name].
 
 %% collect_catch_labels(Linear, St) -> St.
 %%  Collect all catch labels (labels for blocks that begin
