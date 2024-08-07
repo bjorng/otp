@@ -180,21 +180,25 @@ cg_fun(Blocks, NoBsMatch, St0) ->
     Linear4 = defined(Linear3, St1),
     Linear5 = opt_allocate(Linear4, St1),
     Linear = fix_wait_timeout(Linear5),
-    St2 = case St1 of
-              #cg{debug_info=none} ->
-                  St1;
-              #cg{debug_info=DebugInfo0} when is_map(DebugInfo0) ->
-                  DebugInfo = collect_debug_info(Linear, DebugInfo0),
-                  St1#cg{debug_info=DebugInfo}
-          end,
+    St2 = collect_debug_info(Linear, St1),
     {Asm,St} = cg_linear(Linear, St2),
     case NoBsMatch of
         true -> {Asm,St};
         false -> {bs_translate(Asm),St}
     end.
 
-collect_debug_info(_Linear, _DebugInfo0) ->
-    #{}.
+collect_debug_info(Linear, #cg{debug_info=DebugInfo0}=St)
+  when is_map(DebugInfo0) ->
+    DebugInfo = collect_debug_info_blk(Linear, DebugInfo0, #{}),
+    St#cg{debug_info=DebugInfo};
+collect_debug_info(_Linear, #cg{debug_info=none}=St) -> St.
+
+collect_debug_info_blk([{_,#cg_blk{}}|Bs], Info0, Mappings0) ->
+    Info = Info0,
+    Mappings = Mappings0,
+    collect_debug_info_blk(Bs, Info, Mappings);
+collect_debug_info_blk([], Info, _Mappings) ->
+    Info.
 
 %% collect_catch_labels(Linear, St) -> St.
 %%  Collect all catch labels (labels for blocks that begin
