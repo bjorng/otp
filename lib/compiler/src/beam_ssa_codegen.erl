@@ -54,7 +54,7 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
                     false -> none
                 end,
     {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo),
-    io:format("~p\n", [St#cg.debug_info]),
+    %% io:format("~p\n", [St#cg.debug_info]),
     {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
@@ -181,6 +181,7 @@ cg_fun(Blocks, NoBsMatch, VarMap, St0) ->
     Linear4 = defined(Linear3, St1),
     Linear5 = opt_allocate(Linear4, St1),
     Linear = fix_wait_timeout(Linear5),
+    io:format("~p\n", [Linear]),
     St2 = collect_debug_info(Linear, VarMap, St1),
     {Asm,St} = cg_linear(Linear, St2),
     case NoBsMatch of
@@ -200,6 +201,10 @@ collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, VarMap0, Info0) ->
 collect_debug_info_blk([], _Regs, _VarMap, Info) ->
     Info.
 
+collect_debug_info_is([#cg_set{op=copy,dst=Dst,args=[Src]}|Is],
+                      Regs, VarMap, Info) ->
+    io:format("~p => ~p\n", [Src,Dst]),
+    collect_debug_info_is(Is, Regs, VarMap, Info);
 collect_debug_info_is([#cg_set{anno=Anno,op=executable_line,
                                args=[#b_literal{val=Index}]}|Is],
                       Regs, VarMap, Info0) ->
