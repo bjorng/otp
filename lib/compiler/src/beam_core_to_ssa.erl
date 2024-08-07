@@ -2339,14 +2339,15 @@ pat_list_vars(Ps) ->
              catch_label=none :: 'none' | label(),
              vars=#{} :: map(),     %Defined variables.
              break=0 :: label(),    %Break label
-             checks=[] :: [term()]
+             checks=[] :: [term()],
+             var_map=none :: 'none' | #{}
             }).
 
 make_ssa_function(Anno0, Name, As, #cg_match{}=Body,
-                  #kern{module=Mod,vcount=Count0,var_map=VarMap}) ->
+                  #kern{module=Mod,vcount=Count0,var_map=VarMap0}) ->
     Anno1 = line_anno(Anno0),
     Anno2 = Anno1#{func_info => {Mod,Name,length(As)}},
-    St0 = #cg{lcount=Count0},
+    St0 = #cg{lcount=Count0,var_map=VarMap0},
     {Asm,St} = cg_fun(Body, St0),
     #cg{checks=Checks,lcount=Count} = St,
     Anno3 = case Checks of
@@ -2355,9 +2356,9 @@ make_ssa_function(Anno0, Name, As, #cg_match{}=Body,
                [_|_] ->
                    Anno2#{ssa_checks => Checks}
            end,
-    Anno = case VarMap of
+    Anno = case St#cg.var_map of
                none -> Anno3;
-               _ -> Anno3#{var_map => VarMap}
+               VarMap -> Anno3#{var_map => VarMap}
            end,
     #b_function{anno=Anno,args=As,bs=Asm,cnt=Count};
 make_ssa_function(Anno, Name, As, Body, St) ->
@@ -2388,8 +2389,14 @@ make_exception_block(St0) ->
 cg(#b_set{op=copy,dst=#b_var{name=Dst},args=[Arg0]}, St0) ->
     %% Create an alias for a variable or literal.
     Arg = ssa_arg(Arg0, St0),
-    St = set_ssa_var(Dst, Arg, St0),
-    {[],St};
+    St1 = set_ssa_var(Dst, Arg, St0),
+    case {St1#cg.var_map,Arg} of
+        {VarMap,#b_var{name=Src}} ->
+            St = St1#cg{var_map=VarMap#{Src => Dst}},
+            {[],St};
+        {_,_} ->
+            {[],St1}
+    end;
 cg(#b_set{args=Args0}=Set0, St) ->
     Args = ssa_args(Args0, St),
     Set = Set0#b_set{args=Args},
