@@ -149,7 +149,8 @@ get_anno(#cg_select{anno=Anno}) -> Anno.
                funs=[],                         %Fun functions
                free=#{},                        %Free variables
                ws=[]   :: [warning()],          %Warnings.
-               no_min_max_bifs=false :: boolean()
+               no_min_max_bifs=false :: boolean(),
+               var_map=none :: 'none' | #{}
               }).
 
 -spec module(cerl:c_module(), [compile:option()]) ->
@@ -207,7 +208,7 @@ function({#c_var{name={F,Arity}=FA},Body}, St0) ->
         Count = max(?EXCEPTION_BLOCK + 1, Count0),
 
         %% First pass: Basic translation.
-        St1 = St0#kern{func=FA,vcount=Count,fcount=0},
+        St1 = St0#kern{func=FA,vcount=Count,fcount=0,var_map=#{}},
         {#ifun{anno=Ab,vars=Kvs,body=B0},[],St2} = expr(Body, new_sub(), St1),
         St3 = St2#kern{ds=sets:new([{version,2}])},
 
@@ -272,14 +273,25 @@ gexpr_test_add(Ke, St0) ->
     {Ae,Ap,St1} = force_atomic(Ke, St0),
     {pre_seq(Ap, #cg_test{op='=:=',args=[Ae,#b_literal{val='true'}]}),St1}.
 
+update_var_map(_, _, #kern{var_map=none}=St) ->
+    St;
+update_var_map(New, Old, #kern{var_map=VarMap}=St) when is_map(VarMap) ->
+    St#kern{var_map=VarMap#{New => Old}}.
+
 %% expr(Cexpr, Sub, State) -> {Kexpr,[PreKexpr],State}.
 %%  Convert a Core expression, flattening it at the same time.
 
 expr(#c_var{name={Name0,Arity}}, Sub, St) ->
     Name = get_fsub(Name0, Arity, Sub),
     {#b_local{name=#b_literal{val=Name},arity=Arity},[],St};
-expr(#c_var{name=V}, Sub, St) ->
-    {#b_var{name=get_vsub(V, Sub)},[],St};
+expr(#c_var{name=V0}, Sub, St0) ->
+    case get_vsub(V0, Sub) of
+        V0 ->
+            {#b_var{name=V0},[],St0};
+        V ->
+            St = update_var_map(V, V0, St0),
+            {#b_var{name=V},[],St}
+    end;
 expr(#c_literal{val=V}, _Sub, St) ->
     {#b_literal{val=V},[],St};
 expr(#c_cons{hd=Ch,tl=Ct}, Sub, St0) ->
@@ -2331,17 +2343,21 @@ pat_list_vars(Ps) ->
             }).
 
 make_ssa_function(Anno0, Name, As, #cg_match{}=Body,
-                  #kern{module=Mod,vcount=Count0}) ->
+                  #kern{module=Mod,vcount=Count0,var_map=VarMap}) ->
     Anno1 = line_anno(Anno0),
     Anno2 = Anno1#{func_info => {Mod,Name,length(As)}},
     St0 = #cg{lcount=Count0},
     {Asm,St} = cg_fun(Body, St0),
     #cg{checks=Checks,lcount=Count} = St,
-    Anno = case Checks of
+    Anno3 = case Checks of
                [] ->
                    Anno2;
                [_|_] ->
                    Anno2#{ssa_checks => Checks}
+           end,
+    Anno = case VarMap of
+               none -> Anno3;
+               _ -> Anno3#{var_map => VarMap}
            end,
     #b_function{anno=Anno,args=As,bs=Asm,cnt=Count};
 make_ssa_function(Anno, Name, As, Body, St) ->
