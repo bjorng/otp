@@ -193,12 +193,14 @@ collect_debug_info(Linear, #cg{regs=Regs,debug_info=DebugInfo0}=St)
     St#cg{debug_info=DebugInfo};
 collect_debug_info(_Linear, #cg{debug_info=none}=St) -> St.
 
-collect_debug_info_blk([{_,#cg_blk{}}|Bs], Regs, Mappings0, Info0) ->
-    Info = Info0,
-    Mappings = Mappings0,
+collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, Mappings0, Info0) ->
+    {Mappings,Info} = collect_debug_info_is(Is, Regs, Mappings0, Info0),
     collect_debug_info_blk(Bs, Regs, Mappings, Info);
 collect_debug_info_blk([], _Regs, _Mappings, Info) ->
     Info.
+
+collect_debug_info_is(_Is, _Regs, Mappings0, Info0) ->
+    {Mappings0,Info0}.
 
 %% collect_catch_labels(Linear, St) -> St.
 %%  Collect all catch labels (labels for blocks that begin
