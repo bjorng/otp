@@ -187,17 +187,17 @@ cg_fun(Blocks, NoBsMatch, St0) ->
         false -> {bs_translate(Asm),St}
     end.
 
-collect_debug_info(Linear, #cg{debug_info=DebugInfo0}=St)
+collect_debug_info(Linear, #cg{regs=Regs,debug_info=DebugInfo0}=St)
   when is_map(DebugInfo0) ->
-    DebugInfo = collect_debug_info_blk(Linear, DebugInfo0, #{}),
+    DebugInfo = collect_debug_info_blk(Linear, Regs, #{}, DebugInfo0),
     St#cg{debug_info=DebugInfo};
 collect_debug_info(_Linear, #cg{debug_info=none}=St) -> St.
 
-collect_debug_info_blk([{_,#cg_blk{}}|Bs], Info0, Mappings0) ->
+collect_debug_info_blk([{_,#cg_blk{}}|Bs], Regs, Mappings0, Info0) ->
     Info = Info0,
     Mappings = Mappings0,
-    collect_debug_info_blk(Bs, Info, Mappings);
-collect_debug_info_blk([], Info, _Mappings) ->
+    collect_debug_info_blk(Bs, Regs, Mappings, Info);
+collect_debug_info_blk([], _Regs, _Mappings, Info) ->
     Info.
 
 %% collect_catch_labels(Linear, St) -> St.
