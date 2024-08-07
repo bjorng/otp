@@ -54,7 +54,7 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
                     false -> none
                 end,
     {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo),
-    io:format("~p\n", [St#cg.debug_info]),
+    io:format("~kp\n", [St#cg.debug_info]),
     {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
@@ -120,7 +120,7 @@ functions(Forms, AtomMod, DebugInfo) ->
              #cg{lcount=1,debug_info=DebugInfo}, Forms).
 
 function(#b_function{anno=Anno,bs=Blocks}, AtomMod, St0) ->
-    #{func_info := {_,Name,Arity},var_map := VarMap} = Anno,
+    #{func_info := {_,Name,Arity}} = Anno,
     NoBsMatch = not maps:get(bs_ensure_opt, Anno, false),
     try
         assert_exception_block(Blocks),            %Assertion.
@@ -133,6 +133,7 @@ function(#b_function{anno=Anno,bs=Blocks}, AtomMod, St0) ->
         Labels = (St4#cg.labels)#{0=>Entry,?EXCEPTION_BLOCK=>0},
         St5 = St4#cg{labels=Labels,used_labels=gb_sets:singleton(Entry),
                      ultimate_fail=Ult},
+        VarMap = maps:get(var_map, Anno, #{}),
         {Body,St} = cg_fun(Blocks, NoBsMatch, VarMap, St5#cg{fc_label=Fi}),
         Asm = [{label,Fi},line(Anno),
                {func_info,AtomMod,{atom,Name},Arity}] ++
