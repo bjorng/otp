@@ -190,36 +190,49 @@ cg_fun(Blocks, NoBsMatch, VarMap, St0) ->
 
 collect_debug_info(Linear, VarMap, #cg{regs=Regs,debug_info=DebugInfo0}=St)
   when is_map(DebugInfo0) ->
-    io:format("~p\n", [VarMap]),
     DebugInfo = collect_debug_info_blk(Linear, Regs, VarMap, DebugInfo0),
     St#cg{debug_info=DebugInfo};
 collect_debug_info(_Linear, _VarMap, #cg{debug_info=none}=St) -> St.
 
-collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, Mappings0, Info0) ->
-    {Mappings,Info} = collect_debug_info_is(Is, Regs, Mappings0, Info0),
-    collect_debug_info_blk(Bs, Regs, Mappings, Info);
-collect_debug_info_blk([], _Regs, _Mappings, Info) ->
+collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, VarMap0, Info0) ->
+    {VarMap,Info} = collect_debug_info_is(Is, Regs, VarMap0, Info0),
+    collect_debug_info_blk(Bs, Regs, VarMap, Info);
+collect_debug_info_blk([], _Regs, _VarMap, Info) ->
     Info.
 
 collect_debug_info_is([#cg_set{anno=Anno,op=executable_line,
                                args=[#b_literal{val=Index}]}|Is],
-                      Regs, Mappings, Info0) ->
+                      Regs, VarMap, Info0) ->
     #{live_xregs := LiveXregs,live_yregs := LiveYregs} = Anno,
-    LiveRegs = [{map_get(V, Regs),get_original_name(V, Mappings)} ||
+    LiveRegs = [{map_get(V, Regs),get_original_name(V, VarMap)} ||
                    V <- LiveXregs ++ LiveYregs],
     S0 = sofs:family(LiveRegs, [{reg,[variable]}]),
     S1 = sofs:family_to_relation(S0),
     S2 = sofs:converse(S1),
     S = sofs:to_external(S2),
     Info = Info0#{Index => S},
-    collect_debug_info_is(Is, Regs, Mappings, Info);
-collect_debug_info_is([_|Is], Regs, Mappings, Info) ->
-    collect_debug_info_is(Is, Regs, Mappings, Info);
-collect_debug_info_is([], _Regs, Mappings, Info) ->
-    {Mappings,Info}.
+    collect_debug_info_is(Is, Regs, VarMap, Info);
+collect_debug_info_is([_|Is], Regs, VarMap, Info) ->
+    collect_debug_info_is(Is, Regs, VarMap, Info);
+collect_debug_info_is([], _Regs, VarMap, Info) ->
+    {VarMap,Info}.
 
-get_original_name(#b_var{name=Name}, _Mappings) ->
-    [Name].
+get_original_name(#b_var{name=Name}, VarMap) ->
+    get_original_name_1(Name, VarMap).
+
+get_original_name_1(Name, VarMap) ->
+    MoreNames = case VarMap of
+                    #{Name := OtherName} ->
+                        get_original_name_1(OtherName, VarMap);
+                    #{} ->
+                        []
+                end,
+    case is_atom(Name) of
+        true ->
+            [Name|MoreNames];
+        false ->
+            MoreNames
+    end.
 
 %% collect_catch_labels(Linear, St) -> St.
 %%  Collect all catch labels (labels for blocks that begin
