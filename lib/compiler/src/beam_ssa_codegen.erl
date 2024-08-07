@@ -200,8 +200,9 @@ collect_debug_info_blk([], _Regs, _Mappings, Info) ->
     Info.
 
 collect_debug_info_is([#cg_set{op=executable_line,anno=Anno}|Is], Regs, Mappings, Info) ->
-    #{live := Live, live_yregs := LiveYregs} = Anno,
-    LiveRegs = [{x,R} || R <- lists:seq(0, Live - 1)] ++ LiveYregs,
+    #{live := Live, live_yregs := LiveYregs0} = Anno,
+    LiveYregs = [{map_get(V, Regs),V} || V <- LiveYregs0],
+    LiveRegs = [{{x,R}, {x,R}} || R <- lists:seq(0, Live - 1)] ++ LiveYregs,
     io:format("~p\n", [LiveRegs]),
     collect_debug_info_is(Is, Regs, Mappings, Info);
 collect_debug_info_is([_|Is], Regs, Mappings, Info) ->
