@@ -199,8 +199,15 @@ collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, Mappings0, Info0) ->
 collect_debug_info_blk([], _Regs, _Mappings, Info) ->
     Info.
 
-collect_debug_info_is(_Is, _Regs, Mappings0, Info0) ->
-    {Mappings0,Info0}.
+collect_debug_info_is([#cg_set{op=executable_line,anno=Anno}|Is], Regs, Mappings, Info) ->
+    #{live := Live, live_yregs := LiveYregs} = Anno,
+    LiveRegs = [{x,R} || R <- lists:seq(0, Live - 1)] ++ LiveYregs,
+    io:format("~p\n", [LiveRegs]),
+    collect_debug_info_is(Is, Regs, Mappings, Info);
+collect_debug_info_is([_|Is], Regs, Mappings, Info) ->
+    collect_debug_info_is(Is, Regs, Mappings, Info);
+collect_debug_info_is([], _Regs, Mappings, Info) ->
+    {Mappings,Info}.
 
 %% collect_catch_labels(Linear, St) -> St.
 %%  Collect all catch labels (labels for blocks that begin
