@@ -156,12 +156,18 @@ get_anno(#cg_select{anno=Anno}) -> Anno.
 -spec module(cerl:c_module(), [compile:option()]) ->
           {'ok', #b_module{}, [warning()]}.
 
-module(#c_module{name=#c_literal{val=Mod},exports=Es,attrs=As,defs=Fs}, Options) ->
+module(#c_module{name=#c_literal{val=Mod},exports=Es,attrs=As,defs=Fs},
+       Options) ->
+    VarMap = case member(beam_debug_info, Options) of
+                 true -> #{};
+                 false -> none
+             end,
     Kas = attributes(As),
     Kes = map(fun (#c_var{name={_,_}=Fname}) -> Fname end, Es),
     NoMinMaxBifs = proplists:get_bool(no_min_max_bifs, Options),
     St0 = #kern{module=Mod,
-                no_min_max_bifs=NoMinMaxBifs},
+                no_min_max_bifs=NoMinMaxBifs,
+                var_map=VarMap},
     {Kfs,St} = mapfoldl(fun function/2, St0, Fs),
     Body = Kfs ++ St#kern.funs,
     Code = #b_module{name=Mod,exports=Kes,attributes=Kas,body=Body},
@@ -208,7 +214,11 @@ function({#c_var{name={F,Arity}=FA},Body}, St0) ->
         Count = max(?EXCEPTION_BLOCK + 1, Count0),
 
         %% First pass: Basic translation.
-        St1 = St0#kern{func=FA,vcount=Count,fcount=0,var_map=#{}},
+        VarMap = case St0#kern.var_map of
+                     none -> none;
+                     #{} -> #{}
+                 end,
+        St1 = St0#kern{func=FA,vcount=Count,fcount=0,var_map=VarMap},
         {#ifun{anno=Ab,vars=Kvs,body=B0},[],St2} = expr(Body, new_sub(), St1),
         St3 = St2#kern{ds=sets:new([{version,2}])},
 
