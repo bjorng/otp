@@ -1455,7 +1455,7 @@ fix_first_pass([_|Passes]) ->
 %%			function Mod:module(Code, Options).  This
 %%			function must transform the code and return
 %%			{ok,NewCode} or {ok,NewCode,Warnings}.
-%%			Example: {pass,beam_ssa_codegen}
+%%			Example: {pass,sys_core_fold}
 %%
 %%    {Name,Fun}	Name is an atom giving the name of the pass.
 %%    			Fun is an 'fun' taking one argument: a #compile{} record.
@@ -1723,7 +1723,7 @@ kernel_passes() ->
      {pass,beam_ssa_pre_codegen},
      {iff,dprecg,{listing,"precodegen"}},
      {iff,ssalint,{pass,beam_ssa_lint}},
-     {pass,beam_ssa_codegen},
+     ?pass(beam_ssa_codegen),
      {iff,dcg,{listing,"codegen"}},
      {iff,doldcg,{listing,"codegen"}},
      ?pass(beam_validator_strong)
@@ -1822,6 +1822,18 @@ beam_consult_asm(_Code, St) ->
 	{error,E} ->
 	    Es = [{St#compile.ifile,[{none,?MODULE,{open,E}}]}],
 	    {error,St#compile{errors=St#compile.errors ++ Es}}
+    end.
+
+beam_ssa_codegen(Code0, #compile{options=Opts}=St) ->
+    case beam_ssa_codegen:module(Code0, Opts) of
+        {ok,Code,DebugInfo} ->
+            case DebugInfo of
+                none ->
+                    ok;
+                _ ->
+                    io:format("~p\n", [DebugInfo])
+            end,
+            {ok,Code,St}
     end.
 
 get_module_name_from_asm({Mod,_,_,_,_}=Asm, St) ->

@@ -54,13 +54,7 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
                      false -> none
                  end,
     {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo0),
-    case St#cg.debug_info of
-        none ->
-            ok;
-        DebugInfo ->
-            io:format("~kp\n", [DebugInfo])
-    end,
-    {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
+    {ok,{Mod,Es,Attrs,Asm,St#cg.lcount},St#cg.debug_info}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
                l=0 :: non_neg_integer(),   % lambdas (funs)
