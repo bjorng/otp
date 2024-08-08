@@ -201,7 +201,8 @@ collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, VarMap0, Info0) ->
 collect_debug_info_blk([], _Regs, _VarMap, Info) ->
     Info.
 
-collect_debug_info_is([#cg_set{op=copy,dst=Dst,args=[Src]}|Is],
+collect_debug_info_is([#cg_set{op=copy,dst=#b_var{name=Dst},
+                               args=[#b_var{name=Src}]}|Is],
                       Regs, VarMap0, Info) ->
     VarMap = VarMap0#{Dst => Src},
     collect_debug_info_is(Is, Regs, VarMap, Info);
