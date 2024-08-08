@@ -221,7 +221,8 @@ collect_debug_info_is([#cg_set{anno=Anno,op=executable_line,
     S0 = sofs:family(LiveRegs, [{reg,[variable]}]),
     S1 = sofs:family_to_relation(S0),
     S2 = sofs:converse(S1),
-    S = sofs:to_external(S2),
+    S3 = sofs:relation_to_family(S2),
+    S = sofs:to_external(S3),
     Info = Info0#{Index => S},
     collect_debug_info_is(Is, Regs, VarMap, Info);
 collect_debug_info_is([_|Is], Regs, VarMap, Info) ->
