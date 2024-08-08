@@ -251,7 +251,6 @@ is_original_variable(Name) when is_atom(Name) ->
     if
         C =:= $_ -> true;
         $A =< C, C =< $Z -> true;
-        $A =< C, C =< $Z -> true;
         $À =< C, C =< $Þ, C =/= $× -> true;
         true -> false
     end;

@@ -2402,6 +2402,7 @@ cg(#b_set{op=copy,dst=#b_var{name=Dst},args=[Arg0]}, St0) ->
     St1 = set_ssa_var(Dst, Arg, St0),
     VarMap = St1#cg.var_map,
     St = maybe
+             true ?= is_map(VarMap),
              #b_var{name=Src} ?= Arg,
              true ?= not is_map_key(Src, VarMap),
              St1#cg{var_map=VarMap#{Src => Dst}}
