@@ -49,12 +49,17 @@
                     {'ok',beam_asm:module_code()}.
 
 module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
-    DebugInfo = case member(beam_debug_info, Opts) of
-                    true -> #{};
-                    false -> none
-                end,
-    {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo),
-    io:format("~kp\n", [St#cg.debug_info]),
+    DebugInfo0 = case member(beam_debug_info, Opts) of
+                     true -> #{};
+                     false -> none
+                 end,
+    {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo0),
+    case St#cg.debug_info of
+        none ->
+            ok;
+        DebugInfo ->
+            io:format("~kp\n", [DebugInfo])
+    end,
     {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
