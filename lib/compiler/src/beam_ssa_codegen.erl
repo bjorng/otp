@@ -689,14 +689,17 @@ liveness_args([A|As], Live) ->
     end;
 liveness_args([], Live) -> Live.
 
+liveness_anno(#cg_set{op=executable_line}=I, Live, Regs) ->
+    Rs0 = ordsets:from_list([{V,get_register(V, Regs)} ||
+                                V <- Live]),
+    Rs = [V || {V,{x,_}} <- Rs0],
+    Anno = (I#cg_set.anno)#{live_xregs => Rs},
+    I#cg_set{anno=Anno};
 liveness_anno(#cg_set{op=Op}=I, Live, Regs) ->
     case need_live_anno(Op) of
         true ->
             NumLive = num_live(Live, Regs),
-            Rs0 = ordsets:from_list([{V,get_register(V, Regs)} ||
-                                        V <- Live]),
-            Rs = [V || {V,{x,_}} <- Rs0],
-            Anno = (I#cg_set.anno)#{live => NumLive,live_xregs => Rs},
+            Anno = (I#cg_set.anno)#{live => NumLive},
             I#cg_set{anno=Anno};
         false ->
             I
