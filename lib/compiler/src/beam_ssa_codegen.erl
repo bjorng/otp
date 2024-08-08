@@ -201,19 +201,24 @@ collect_debug_info(Linear, VarMap, #cg{regs=Regs,debug_info=DebugInfo0}=St)
 collect_debug_info(_Linear, _VarMap, #cg{debug_info=none}=St) -> St.
 
 collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, VarMap0, Info0) ->
-    {VarMap,Info} = collect_debug_info_is(Is, Regs, VarMap0, Info0),
+    FrameSize0 = none,
+    {VarMap,Info,_FrameSize} =
+        collect_debug_info_is(Is, Regs, FrameSize0, VarMap0, Info0),
     collect_debug_info_blk(Bs, Regs, VarMap, Info);
 collect_debug_info_blk([], _Regs, _VarMap, Info) ->
     Info.
 
+collect_debug_info_is([#cg_alloc{stack=FrameSize}|Is],
+                      Regs, _FrameSize, VarMap, Info) ->
+    collect_debug_info_is(Is, Regs, FrameSize, VarMap, Info);
 collect_debug_info_is([#cg_set{op=copy,dst=#b_var{name=Dst},
                                args=[#b_var{name=Src}]}|Is],
-                      Regs, VarMap0, Info) ->
+                      Regs, FrameSize, VarMap0, Info) ->
     VarMap = VarMap0#{Dst => Src},
-    collect_debug_info_is(Is, Regs, VarMap, Info);
+    collect_debug_info_is(Is, Regs, FrameSize, VarMap, Info);
 collect_debug_info_is([#cg_set{anno=Anno,op=executable_line,
                                args=[#b_literal{val=Index}]}|Is],
-                      Regs, VarMap, Info0) ->
+                      Regs, FrameSize, VarMap, Info0) ->
     #{live_xregs := LiveXregs,live_yregs := LiveYregs} = Anno,
     LiveRegs = [{map_get(V, Regs),get_original_name(V, VarMap)} ||
                    V <- LiveXregs ++ LiveYregs,
@@ -223,12 +228,12 @@ collect_debug_info_is([#cg_set{anno=Anno,op=executable_line,
     S2 = sofs:converse(S1),
     S3 = sofs:relation_to_family(S2),
     S = sofs:to_external(S3),
-    Info = Info0#{Index => S},
-    collect_debug_info_is(Is, Regs, VarMap, Info);
-collect_debug_info_is([_|Is], Regs, VarMap, Info) ->
-    collect_debug_info_is(Is, Regs, VarMap, Info);
-collect_debug_info_is([], _Regs, VarMap, Info) ->
-    {VarMap,Info}.
+    Info = Info0#{Index => {FrameSize,S}},
+    collect_debug_info_is(Is, Regs, FrameSize, VarMap, Info);
+collect_debug_info_is([_|Is], Regs, FrameSize, VarMap, Info) ->
+    collect_debug_info_is(Is, Regs, FrameSize, VarMap, Info);
+collect_debug_info_is([], _Regs, FrameSize, VarMap, Info) ->
+    {VarMap,Info,FrameSize}.
 
 get_original_name(#b_var{name=Name}, VarMap) ->
     get_original_name_1(Name, VarMap).
