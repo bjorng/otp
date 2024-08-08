@@ -196,16 +196,23 @@ cg_fun(Blocks, NoBsMatch, VarMap, St0) ->
 
 collect_debug_info(Linear, VarMap, #cg{regs=Regs,debug_info=DebugInfo0}=St)
   when is_map(DebugInfo0) ->
-    DebugInfo = collect_debug_info_blk(Linear, Regs, VarMap, DebugInfo0),
+    FrameSzMap = #{},
+    DebugInfo = collect_debug_info_blk(Linear, Regs, FrameSzMap,
+                                       VarMap, DebugInfo0),
     St#cg{debug_info=DebugInfo};
 collect_debug_info(_Linear, _VarMap, #cg{debug_info=none}=St) -> St.
 
-collect_debug_info_blk([{_,#cg_blk{is=Is}}|Bs], Regs, VarMap0, Info0) ->
-    FrameSize0 = none,
-    {VarMap,Info,_FrameSize} =
+collect_debug_info_blk([{L,#cg_blk{is=Is,last=Last}}|Bs],
+                       Regs, FrameSzMap0, VarMap0, Info0) ->
+    FrameSize0 = maps:get(L, FrameSzMap0, none),
+    {VarMap,Info,FrameSize} =
         collect_debug_info_is(Is, Regs, FrameSize0, VarMap0, Info0),
-    collect_debug_info_blk(Bs, Regs, VarMap, Info);
-collect_debug_info_blk([], _Regs, _VarMap, Info) ->
+    Successors = successors(Last),
+    FrameSzMap = foldl(fun(Succ, Acc) ->
+                               Acc#{Succ => FrameSize}
+                       end, FrameSzMap0, Successors),
+    collect_debug_info_blk(Bs, Regs, FrameSzMap, VarMap, Info);
+collect_debug_info_blk([], _Regs, _FrameSzMap, _VarMap, Info) ->
     Info.
 
 collect_debug_info_is([#cg_alloc{stack=FrameSize}|Is],
