@@ -1129,7 +1129,7 @@ format_error_reason(Class, Reason, Stack) ->
                   ofile=""         :: file:filename(),
                   module=[]        :: module() | [],
                   abstract_code=[] :: abstract_code(), %Abstract code for debugger.
-                  debug_info=none  :: 'none' | map(),
+                  beam_debug_info=none  :: 'none' | map(),
                   options=[]       :: [option()],  %Options for compilation
                   mod_options=[]   :: [option()], %Options for module_info
                   encoding=none    :: none | epp:source_encoding(),
@@ -1823,18 +1823,6 @@ beam_consult_asm(_Code, St) ->
 	{error,E} ->
 	    Es = [{St#compile.ifile,[{none,?MODULE,{open,E}}]}],
 	    {error,St#compile{errors=St#compile.errors ++ Es}}
-    end.
-
-beam_ssa_codegen(Code0, #compile{options=Opts}=St) ->
-    case beam_ssa_codegen:module(Code0, Opts) of
-        {ok,Code,DebugInfo} ->
-            case DebugInfo of
-                none ->
-                    ok;
-                _ ->
-                    io:format("~p\n", [DebugInfo])
-            end,
-            {ok,Code,St}
     end.
 
 get_module_name_from_asm({Mod,_,_,_,_}=Asm, St) ->
@@ -2562,6 +2550,13 @@ encrypt({des3_cbc=Type,Key,IVec,BlockSize}, Bin0) ->
     TypeString = atom_to_list(Type),
     list_to_binary([0,length(TypeString),TypeString,Bin]).
 
+beam_ssa_codegen(Code0, #compile{options=Opts}=St0) ->
+    case beam_ssa_codegen:module(Code0, Opts) of
+        {ok,Code,BeamDebugInfo} ->
+            St = St0#compile{beam_debug_info=BeamDebugInfo},
+            {ok,Code,St}
+    end.
+
 beam_validator_strong(Code, St) ->
     beam_validator_1(Code, St, strong).
 
@@ -2576,14 +2571,16 @@ beam_validator_1(Code, #compile{errors=Errors0}=St, Level) ->
             {error, St#compile{errors=Errors0 ++ Es}}
     end.
 
-beam_asm(Code0, #compile{ifile=File,extra_chunks=ExtraChunks,options=CompilerOpts}=St) ->
+beam_asm(Code0, #compile{ifile=File,beam_debug_info=BeamDebugInfo,
+                         extra_chunks=ExtraChunks,options=CompilerOpts}=St) ->
     case debug_info(St) of
 	{ok,DebugInfo,Opts0} ->
 	    Opts1 = [O || O <- Opts0, effects_code_generation(O)],
 	    Chunks = [{<<"Dbgi">>, DebugInfo} | ExtraChunks],
 	    CompileInfo = compile_info(File, CompilerOpts, Opts1),
-	    {ok,Code} = beam_asm:module(Code0, Chunks, CompileInfo, CompilerOpts),
-	    {ok,Code,St#compile{abstract_code=[]}};
+	    {ok,Code} = beam_asm:module(Code0, Chunks, BeamDebugInfo,
+                                        CompileInfo, CompilerOpts),
+	    {ok,Code,St#compile{abstract_code=[],beam_debug_info=none}};
 	{error,Es} ->
 	    {error,St#compile{errors=St#compile.errors ++ [{File,Es}]}}
     end.

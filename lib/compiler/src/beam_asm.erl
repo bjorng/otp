@@ -22,7 +22,7 @@
 -module(beam_asm).
 -moduledoc false.
 
--export([module/4]).
+-export([module/5]).
 -export([encode/2]).
 
 -export_type([fail/0,label/0,src/0,module_code/0,function_name/0]).
@@ -60,10 +60,17 @@
 -define(BEAMFILE_EXECUTABLE_LINE, 1).
 -define(BEAMFILE_FORCE_LINE_COUNTERS, 2).
 
--spec module(module_code(), [{binary(), binary()}], [{atom(),term()}], [compile:option()]) ->
+-spec module(module_code(), [{binary(), binary()}], term(),
+             [{atom(),term()}], [compile:option()]) ->
                     {'ok',binary()}.
 
-module(Code, ExtraChunks, CompileInfo, CompilerOpts) ->
+module(Code, ExtraChunks, BeamDebugInfo, CompileInfo, CompilerOpts) ->
+    case BeamDebugInfo of
+        none ->
+            ok;
+        _ ->
+            io:format("~p\n", [BeamDebugInfo])
+    end,
     {ok,assemble(Code, ExtraChunks, CompileInfo, CompilerOpts)}.
 
 assemble({Mod,Exp0,Attr0,Asm0,NumLabels}, ExtraChunks, CompileInfo, CompilerOpts) ->
