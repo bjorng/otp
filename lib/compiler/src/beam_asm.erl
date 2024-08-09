@@ -102,8 +102,16 @@ build_bdi([{FrameSize0,Vars0}|Items], Dict0) ->
 build_bdi([], Dict) ->
     {[],Dict}.
 
-build_bdi_vars(L, Dict0) ->
-    {lists:duplicate(length(L), 42),Dict0}.
+build_bdi_vars([{Name0,Regs0}|Vs], Dict0) ->
+    {Name,Dict1} = encode_arg({literal,atom_to_binary(Name0)}, Dict0),
+    {Regs,Dict2} = encode_regs(Regs0, Dict1),
+    {Tail,Dict3} = build_bdi_vars(Vs, Dict2),
+    {[Name,Regs|Tail],Dict3};
+build_bdi_vars([], Dict) ->
+    {[],Dict}.
+
+encode_regs(_Regs, Dict0) ->
+    {<<"regs">>,Dict0}.
 
 reject_unsupported_versions(Dict) ->
     %% Emit an instruction that was added in our lowest supported
