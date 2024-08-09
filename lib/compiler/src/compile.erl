@@ -2563,8 +2563,9 @@ beam_validator_strong(Code, St) ->
 beam_validator_weak(Code, St) ->
     beam_validator_1(Code, St, weak).
 
-beam_validator_1(Code, #compile{errors=Errors0}=St, Level) ->
-    case beam_validator:validate(Code, Level) of
+beam_validator_1(Code, #compile{errors=Errors0,
+                                beam_debug_info=BeamDebugInfo}=St, Level) ->
+    case beam_validator:validate(Code, BeamDebugInfo, Level) of
         ok ->
             {ok, Code, St};
         {error, Es} ->

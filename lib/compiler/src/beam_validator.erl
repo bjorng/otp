@@ -38,23 +38,25 @@
 -compile({no_auto_import,[error/1]}).
 
 %% Interface for compiler.
--export([validate/2, format_error/1]).
+-export([validate/3, format_error/1]).
 
 -import(lists, [dropwhile/2,foldl/3,member/2,reverse/2,zip/2]).
 
 %% To be called by the compiler.
 
--spec validate(Code, Level) -> Result when
+-spec validate(Code, BeamDebugInfo, Level) -> Result when
       Code :: beam_utils:module_code(),
+      BeamDebugInfo :: map(),
       Level :: strong | weak,
       Result :: ok | {error, [{atom(), list()}]}.
 
-validate({Mod,Exp,Attr,Fs,Lc}, Level) when is_atom(Mod),
-                                           is_list(Exp),
-                                           is_list(Attr),
-                                           is_integer(Lc) ->
+validate({Mod,Exp,Attr,Fs,Lc}, BeamDebugInfo,
+         Level) when is_atom(Mod),
+                     is_list(Exp),
+                     is_list(Attr),
+                     is_integer(Lc) ->
     Ft = build_function_table(Fs, #{}),
-    case validate_0(Fs, Mod, Level, Ft) of
+    case validate_0(Fs, Mod, Level, Ft, BeamDebugInfo) of
         [] ->
             ok;
         Es0 ->
@@ -108,17 +110,18 @@ format_error(Error) ->
 %%  format as used in the compiler and in .S files.
 
 
-validate_0([], _Module, _Level, _Ft) ->
+validate_0([], _Module, _Level, _Ft, _BeamDebugInfo) ->
     [];
-validate_0([{function, Name, Arity, Entry, Code} | Fs], Module, Level, Ft) ->
+validate_0([{function, Name, Arity, Entry, Code} | Fs],
+           Module, Level, Ft, BeamDebugInfo) ->
     MFA = {Module, Name, Arity},
-    try validate_1(Code, MFA, Entry, Level, Ft) of
+    try validate_1(Code, MFA, Entry, Level, Ft, BeamDebugInfo) of
         _ ->
-            validate_0(Fs, Module, Level, Ft)
+            validate_0(Fs, Module, Level, Ft, BeamDebugInfo)
     catch
         throw:Error ->
             %% Controlled error.
-            [Error | validate_0(Fs, Module, Level, Ft)];
+            [Error | validate_0(Fs, Module, Level, Ft, BeamDebugInfo)];
         Class:Error:Stack ->
             %% Crash.
             io:fwrite("Function: ~w/~w\n", [Name,Arity]),
@@ -233,7 +236,9 @@ validate_0([{function, Name, Arity, Entry, Code} | Fs], Module, Level, Ft) ->
          %% Information of other functions in the module
          ft=#{}                    :: #{ label() => map() },
          %% Counter for #value_ref{} creation
-         ref_ctr=0                 :: index()
+         ref_ctr=0                 :: index(),
+         %% Debug information for the BEAM code.
+         beam_debug_info :: map()
         }).
 
 build_function_table([{function,Name,Arity,Entry,Code0}|Fs], Acc) ->
@@ -267,10 +272,10 @@ find_parameter_info(_, Acc) ->
 always_fails([{jump,_}|_]) -> true;
 always_fails(_) -> false.
 
-validate_1(Is, MFA0, Entry, Level, Ft) ->
+validate_1(Is, MFA0, Entry, Level, Ft, BeamDebugInfo) ->
     {Offset, MFA, Header, Body} = extract_header(Is, MFA0, Entry, 1, []),
 
-    Vst0 = init_vst(MFA, Level, Ft),
+    Vst0 = init_vst(MFA, Level, Ft, BeamDebugInfo),
 
     %% We validate the header after the body as the latter may jump to the
     %% former to raise 'function_clause' exceptions.
@@ -298,11 +303,12 @@ extract_header([{line,_}=I | Is], MFA, Entry, Offset, Acc) ->
 extract_header(_Is, MFA, _Entry, _Offset, _Acc) ->
     error({MFA, invalid_function_header}).
 
-init_vst({_, _, Arity}, Level, Ft) ->
+init_vst({_, _, Arity}, Level, Ft, BeamDebugInfo) ->
     Vst = #vst{branched=#{},
                current=#st{},
                ft=Ft,
                labels=sets:new(),
+               beam_debug_info=BeamDebugInfo,
                level=Level},
     init_function_args(Arity - 1, Vst).
 
