@@ -86,8 +86,9 @@ build_beam_debug_info(BeamDebugInfo, ExtraChunks0, Dict0) ->
     io:format("~p\n", [BeamDebugInfo]),
     {Contents0,Dict} = build_bdi(BeamDebugInfo, Dict0),
     Contents = iolist_to_binary(Contents0),
+    io:format("~p\n", [Dict]),
     io:format("~p\n", [Contents]),
-    ExtraChunks = [{~"BDbg",Contents}|ExtraChunks0],
+    ExtraChunks = [{~"DbgB",Contents}|ExtraChunks0],
     {ExtraChunks,Dict}.
 
 build_bdi([{FrameSize0,Vars0}|Items], Dict0) ->
@@ -110,8 +111,12 @@ build_bdi_vars([{Name0,Regs0}|Vs], Dict0) ->
 build_bdi_vars([], Dict) ->
     {[],Dict}.
 
-encode_regs(_Regs, Dict0) ->
-    {<<"regs">>,Dict0}.
+encode_regs([R0|Rs], Dict0) ->
+    {R,Dict1} = encode_arg(R0, Dict0),
+    {Tail,Dict2} = encode_regs(Rs, Dict1),
+    {[R|Tail],Dict2};
+encode_regs([], Dict) ->
+    {[],Dict}.
 
 reject_unsupported_versions(Dict) ->
     %% Emit an instruction that was added in our lowest supported
