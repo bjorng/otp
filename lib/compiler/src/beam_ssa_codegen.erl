@@ -56,7 +56,7 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
     {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo0),
     DebugInfo = case St#cg.debug_info of
                     none ->
-                        ok;
+                        none;
                     DebugInfo1 when is_map(DebugInfo1) ->
                         [Info || _ := Info <- maps:iterator(DebugInfo1, ordered)]
                 end,

@@ -64,13 +64,13 @@
              [{atom(),term()}], [compile:option()]) ->
                     {'ok',binary()}.
 
-module(Code0, ExtraChunks0, BeamDebugInfo0, CompileInfo, CompilerOpts) ->
+module(Code0, ExtraChunks0, BeamDebugInfo, CompileInfo, CompilerOpts) ->
     {Mod,Exp0,Attr0,Asm0,NumLabels} = Code0,
     {1,Dict0} = beam_dict:atom(Mod, beam_dict:new()),
     {0,Dict1} = beam_dict:fname(atom_to_list(Mod) ++ ".erl", Dict0),
     {0,Dict2} = beam_dict:type(any, Dict1),
     Dict3 = reject_unsupported_versions(Dict2),
-    {ExtraChunks,Dict4} = build_beam_debug_info(BeamDebugInfo0,
+    {ExtraChunks,Dict4} = build_beam_debug_info(BeamDebugInfo,
                                                 ExtraChunks0, Dict3),
     NumFuncs = length(Asm0),
     {Asm,Attr} = on_load(Asm0, Attr0),
