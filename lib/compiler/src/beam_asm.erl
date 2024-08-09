@@ -83,9 +83,27 @@ module(Code0, ExtraChunks0, BeamDebugInfo0, CompileInfo, CompilerOpts) ->
 build_beam_debug_info(none, ExtraChunks, Dict) ->
     {ExtraChunks,Dict};
 build_beam_debug_info(BeamDebugInfo, ExtraChunks0, Dict0) ->
-    ExtraChunks = [{~"BDbg",<<>>}|ExtraChunks0],
     io:format("~p\n", [BeamDebugInfo]),
-    {ExtraChunks,Dict0}.
+    {Contents0,Dict} = build_bdi(BeamDebugInfo, Dict0),
+    Contents = iolist_to_binary(Contents0),
+    io:format("~p\n", [Contents]),
+    ExtraChunks = [{~"BDbg",Contents}|ExtraChunks0],
+    {ExtraChunks,Dict}.
+
+build_bdi([{FrameSize0,Vars0}|Items], Dict0) ->
+    FrameSize1 = case FrameSize0 of
+                     none -> nil;
+                     _ -> FrameSize0
+                 end,
+    {FrameSize,Dict1} = encode_arg(FrameSize1, Dict0),
+    {Vars,Dict2} = build_bdi_vars(Vars0, Dict1),
+    {Tail,Dict3} = build_bdi(Items, Dict2),
+    {[FrameSize,Vars|Tail],Dict3};
+build_bdi([], Dict) ->
+    {[],Dict}.
+
+build_bdi_vars(L, Dict0) ->
+    {lists:duplicate(length(L), 42),Dict0}.
 
 reject_unsupported_versions(Dict) ->
     %% Emit an instruction that was added in our lowest supported
