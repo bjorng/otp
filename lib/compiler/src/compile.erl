@@ -1129,6 +1129,7 @@ format_error_reason(Class, Reason, Stack) ->
                   ofile=""         :: file:filename(),
                   module=[]        :: module() | [],
                   abstract_code=[] :: abstract_code(), %Abstract code for debugger.
+                  debug_info=none  :: 'none' | map(),
                   options=[]       :: [option()],  %Options for compilation
                   mod_options=[]   :: [option()], %Options for module_info
                   encoding=none    :: none | epp:source_encoding(),
