@@ -2172,10 +2172,28 @@ validate_select_tuple_arity(Fail, [], _, #vst{}=Vst) ->
 %% Validate executable_line instructions in the presence of BEAM debug info.
 %%
 
-validate_executable_line({Stk,Vars0}, Vst) ->
-    io:format("~p ~p\n", [Stk,Vars0]),
-    #st{numy=NumY} = Vst#vst.current,
-    NumY = Stk,
+validate_executable_line({Stk,Vars}, #vst{current=St}=Vst) ->
+    case St of
+        #st{numy=Stk} ->
+            ok;
+        #st{numy=ActualStk} ->
+            error({beam_debug_info,frame_size,Stk,actual,ActualStk})
+    end,
+    _ = [validate_el_vars(Regs, Name, Vst) || {Name,Regs} <- Vars],
+    ok.
+
+validate_el_vars([R|Rs], Name, Vst) ->
+    Type = get_term_type(R, Vst),
+    validate_el_vars(Rs, Type, Name, Vst).
+
+validate_el_vars([R|Rs], Type, Name, Vst) ->
+    case get_term_type(R, Vst) of
+        Type ->
+            validate_el_vars(Rs, Type, Name, Vst);
+        OtherType ->
+            error({type_mismatch,Name,OtherType,Type})
+    end;
+validate_el_vars([], _Type, _Name, _Vst) ->
     ok.
 
 %%
