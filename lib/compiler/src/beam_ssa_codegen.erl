@@ -54,7 +54,13 @@ module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
                      false -> none
                  end,
     {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo0),
-    {ok,{Mod,Es,Attrs,Asm,St#cg.lcount},St#cg.debug_info}.
+    DebugInfo = case St#cg.debug_info of
+                    none ->
+                        ok;
+                    DebugInfo1 when is_map(DebugInfo1) ->
+                        [Info || _ := Info <- maps:iterator(DebugInfo1, ordered)]
+                end,
+    {ok,{Mod,Es,Attrs,Asm,St#cg.lcount},DebugInfo}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
                l=0 :: non_neg_integer(),   % lambdas (funs)
