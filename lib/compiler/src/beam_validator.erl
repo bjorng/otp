@@ -379,8 +379,15 @@ vi({'%',_}, Vst) ->
     Vst;
 vi({line,_}, Vst) ->
     Vst;
-vi({executable_line,_,_}, Vst) ->
-    Vst;
+vi({executable_line,_,Index}, #vst{beam_debug_info=Info}=Vst)
+  when is_integer(Index) ->
+    case Info of
+        none ->
+            Vst;
+        #{Index := Item} ->
+            validate_executable_line(Item, Vst),
+            Vst
+    end;
 vi(nif_start, Vst) ->
     Vst;
 %%
@@ -2160,6 +2167,16 @@ validate_select_tuple_arity(Fail, [], _, #vst{}=Vst) ->
                    %% The next instruction is never executed.
                    kill_state(SuccVst)
            end).
+
+%%
+%% Validate executable_line instructions in the presence of BEAM debug info.
+%%
+
+validate_executable_line({Stk,Vars0}, Vst) ->
+    io:format("~p ~p\n", [Stk,Vars0]),
+    #st{numy=NumY} = Vst#vst.current,
+    NumY = Stk,
+    ok.
 
 %%
 %% Infers types from comparisons, looking at the expressions that produced the
