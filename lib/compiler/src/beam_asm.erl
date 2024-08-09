@@ -86,8 +86,6 @@ build_beam_debug_info(BeamDebugInfo, ExtraChunks0, Dict0) ->
     io:format("~p\n", [BeamDebugInfo]),
     {Contents0,Dict} = build_bdi(BeamDebugInfo, Dict0),
     Contents = iolist_to_binary(Contents0),
-    io:format("~p\n", [Dict]),
-    io:format("~p\n", [Contents]),
     ExtraChunks = [{~"DbgB",Contents}|ExtraChunks0],
     {ExtraChunks,Dict}.
 
