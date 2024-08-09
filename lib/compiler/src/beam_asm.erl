@@ -27,7 +27,8 @@
 
 -export_type([fail/0,label/0,src/0,module_code/0,function_name/0]).
 
--import(lists, [append/1,duplicate/2,map/2,member/2,keymember/3,splitwith/2]).
+-import(lists, [append/1,duplicate/2,keymember/3,last/1,map/2,
+                member/2,splitwith/2]).
 
 -include("beam_opcodes.hrl").
 -include("beam_asm.hrl").
@@ -94,9 +95,9 @@ build_bdi([{FrameSize0,Vars0}|Items], Dict0) ->
                     none -> nil;
                     _ -> FrameSize0
                 end,
-    Vars1 = [[{literal,atom_to_binary(Name)},Reg] ||
-                {Name,[Reg|_]} <- Vars0],
-    Vars = lists:append(Vars1),
+    Vars1 = [[{literal,atom_to_binary(Name)},last(Regs)] ||
+                {Name,[_|_]=Regs} <- Vars0],
+    Vars = append(Vars1),
     Instr0 = {call,FrameSize,{list,Vars}},
     {Instr,Dict1} = make_op(Instr0, Dict0),
     {Tail,Dict2} = build_bdi(Items, Dict1),
