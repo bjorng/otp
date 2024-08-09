@@ -64,26 +64,28 @@
              [{atom(),term()}], [compile:option()]) ->
                     {'ok',binary()}.
 
-module(Code, ExtraChunks, BeamDebugInfo, CompileInfo, CompilerOpts) ->
-    case BeamDebugInfo of
-        none ->
-            ok;
-        _ ->
-            io:format("~p\n", [BeamDebugInfo])
-    end,
-    {ok,assemble(Code, ExtraChunks, CompileInfo, CompilerOpts)}.
-
-assemble({Mod,Exp0,Attr0,Asm0,NumLabels}, ExtraChunks, CompileInfo, CompilerOpts) ->
+module(Code0, ExtraChunks0, BeamDebugInfo0, CompileInfo, CompilerOpts) ->
+    {Mod,Exp0,Attr0,Asm0,NumLabels} = Code0,
     {1,Dict0} = beam_dict:atom(Mod, beam_dict:new()),
     {0,Dict1} = beam_dict:fname(atom_to_list(Mod) ++ ".erl", Dict0),
     {0,Dict2} = beam_dict:type(any, Dict1),
     Dict3 = reject_unsupported_versions(Dict2),
+    {ExtraChunks,Dict4} = build_beam_debug_info(BeamDebugInfo0,
+                                                ExtraChunks0, Dict3),
     NumFuncs = length(Asm0),
     {Asm,Attr} = on_load(Asm0, Attr0),
     Exp = sets:from_list(Exp0),
-    {Code,Dict} = assemble_1(Asm, Exp, Dict3, []),
-    build_file(Code, Attr, Dict, NumLabels, NumFuncs,
-               ExtraChunks, CompileInfo, CompilerOpts).
+    {Code,Dict} = assemble(Asm, Exp, Dict4, []),
+    Beam = build_file(Code, Attr, Dict, NumLabels, NumFuncs,
+                      ExtraChunks, CompileInfo, CompilerOpts),
+    {ok,Beam}.
+
+build_beam_debug_info(none, ExtraChunks, Dict) ->
+    {ExtraChunks,Dict};
+build_beam_debug_info(BeamDebugInfo, ExtraChunks0, Dict0) ->
+    ExtraChunks = [{~"BDbg",<<>>}|ExtraChunks0],
+    io:format("~p\n", [BeamDebugInfo]),
+    {ExtraChunks,Dict0}.
 
 reject_unsupported_versions(Dict) ->
     %% Emit an instruction that was added in our lowest supported
@@ -113,7 +115,7 @@ insert_on_load_instruction(Is0, Entry) ->
 		  end, Is0),
     Bef ++ [El,on_load|Is].
 
-assemble_1([{function,Name,Arity,Entry,Asm}|T], Exp, Dict0, Acc) ->
+assemble([{function,Name,Arity,Entry,Asm}|T], Exp, Dict0, Acc) ->
     Dict1 = case sets:is_element({Name,Arity}, Exp) of
 		true ->
 		    beam_dict:export(Name, Arity, Entry, Dict0);
@@ -121,8 +123,8 @@ assemble_1([{function,Name,Arity,Entry,Asm}|T], Exp, Dict0, Acc) ->
 		    beam_dict:local(Name, Arity, Entry, Dict0)
 	    end,
     {Code, Dict2} = assemble_function(Asm, Acc, Dict1),
-    assemble_1(T, Exp, Dict2, Code);
-assemble_1([], _Exp, Dict0, Acc) ->
+    assemble(T, Exp, Dict2, Code);
+assemble([], _Exp, Dict0, Acc) ->
     {IntCodeEnd,Dict1} = make_op(int_code_end, Dict0),
     {list_to_binary(lists:reverse(Acc, [IntCodeEnd])),Dict1}.
 
