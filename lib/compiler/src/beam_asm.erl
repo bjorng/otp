@@ -84,7 +84,10 @@ module(Code0, ExtraChunks0, BeamDebugInfo, CompileInfo, CompilerOpts) ->
 build_beam_debug_info(none, ExtraChunks, Dict) ->
     {ExtraChunks,Dict};
 build_beam_debug_info(BeamDebugInfo, ExtraChunks0, Dict0) ->
-    io:format("~p\n", [BeamDebugInfo]),
+    _ = lists:foldl(fun(Item, N) ->
+                            io:format("~p: ~p\n", [N,Item]),
+                            N + 1
+                    end, 1, BeamDebugInfo),
     {Contents0,Dict} = build_bdi(BeamDebugInfo, Dict0),
     Contents = iolist_to_binary(Contents0),
     ExtraChunks = [{~"DbgB",Contents}|ExtraChunks0],
