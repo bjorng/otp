@@ -385,7 +385,7 @@ vi({executable_line,_,Index}, #vst{beam_debug_info=Info}=Vst)
         none ->
             Vst;
         #{Index := Item} ->
-            validate_executable_line(Item, Vst),
+            validate_executable_line(Item, Index, Vst),
             Vst
     end;
 vi(nif_start, Vst) ->
@@ -2172,13 +2172,14 @@ validate_select_tuple_arity(Fail, [], _, #vst{}=Vst) ->
 %% Validate executable_line instructions in the presence of BEAM debug info.
 %%
 
-validate_executable_line({Stk,Vars}, #vst{current=St}=Vst) ->
+validate_executable_line({Stk,Vars}, Index, #vst{current=St}=Vst) ->
     case St of
         #st{numy=Stk} ->
             ok;
         #st{numy=ActualStk} ->
             error({beam_debug_info,frame_size,Stk,actual,ActualStk})
     end,
+    io:format("~p: ~p\n", [Index,Vars]),
     _ = [validate_el_vars(Regs, Name, Vst) || {Name,Regs} <- Vars],
     ok.
 
