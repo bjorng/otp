@@ -90,30 +90,18 @@ build_beam_debug_info(BeamDebugInfo, ExtraChunks0, Dict0) ->
     {ExtraChunks,Dict}.
 
 build_bdi([{FrameSize0,Vars0}|Items], Dict0) ->
-    FrameSize1 = case FrameSize0 of
-                     none -> nil;
-                     _ -> FrameSize0
-                 end,
-    {FrameSize,Dict1} = encode_arg(FrameSize1, Dict0),
-    {Vars,Dict2} = build_bdi_vars(Vars0, Dict1),
-    {Tail,Dict3} = build_bdi(Items, Dict2),
-    {[FrameSize,Vars|Tail],Dict3};
+    FrameSize = case FrameSize0 of
+                    none -> nil;
+                    _ -> FrameSize0
+                end,
+    Vars1 = [[{literal,atom_to_binary(Name)},Reg] ||
+                {Name,[Reg|_]} <- Vars0],
+    Vars = lists:append(Vars1),
+    Instr0 = {call,FrameSize,{list,Vars}},
+    {Instr,Dict1} = make_op(Instr0, Dict0),
+    {Tail,Dict2} = build_bdi(Items, Dict1),
+    {[Instr|Tail],Dict2};
 build_bdi([], Dict) ->
-    {[],Dict}.
-
-build_bdi_vars([{Name0,Regs0}|Vs], Dict0) ->
-    {Name,Dict1} = encode_arg({literal,atom_to_binary(Name0)}, Dict0),
-    {Regs,Dict2} = encode_regs(Regs0, Dict1),
-    {Tail,Dict3} = build_bdi_vars(Vs, Dict2),
-    {[Name,Regs|Tail],Dict3};
-build_bdi_vars([], Dict) ->
-    {[],Dict}.
-
-encode_regs([R0|Rs], Dict0) ->
-    {R,Dict1} = encode_arg(R0, Dict0),
-    {Tail,Dict2} = encode_regs(Rs, Dict1),
-    {[R|Tail],Dict2};
-encode_regs([], Dict) ->
     {[],Dict}.
 
 reject_unsupported_versions(Dict) ->
