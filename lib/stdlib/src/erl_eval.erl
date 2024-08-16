@@ -934,17 +934,17 @@ eval_lc1(E, [], Bs, Lf, Ef, FUVs, Acc) ->
     [V|Acc].
 
 eval_zlc(E, Qs, Bs, Lf, Ef, RBs, FUVs) ->
-    ret_expr(eval_zlc1(E, Qs, Bs, Lf, Ef, FUVs, []), Bs, RBs).
+    ret_expr(eval_zlc1(E, Qs, Bs, Lf, Ef, FUVs), Bs, RBs).
 
-eval_zlc1(E, Qs, Bs0, Lf, Ef, FUVs, Acc0) ->
-    lists:append(Acc0, convert_gen_values(Qs, [], Bs0, Lf, Ef,FUVs, E, [])).
+eval_zlc1(E, Qs, Bs0, Lf, Ef, FUVs) ->
+    convert_gen_values(Qs, [], Bs0, Lf, Ef,FUVs, E).
 
 %% assemble possible values for the generator vars from abstract form to a list 
-convert_gen_values([Q|Qs], Acc, Bs0, Lf, Ef,FUVs, E, []) ->
+convert_gen_values([Q|Qs], Acc, Bs0, Lf, Ef,FUVs, E) ->
     {generate,Anno,P,L0} = Q,
     {value,L1,_Bs1} = expr(L0, Bs0, Lf, Ef, none, FUVs),
-    convert_gen_values(Qs, [{Anno, P, L1}|Acc], Bs0, Lf, Ef, FUVs, E, []);
-convert_gen_values([], Acc, Bs0, Lf, Ef,FUVs, E, []) ->
+    convert_gen_values(Qs, [{Anno, P, L1}|Acc], Bs0, Lf, Ef, FUVs, E);
+convert_gen_values([], Acc, Bs0, Lf, Ef,FUVs, E) ->
     %% all vars now have a list of possible values of the form [value1, value2, value3], start binding
     bind_first_value_for_all(lists:reverse(Acc), [], Bs0, Lf, Ef, FUVs, E, []).
 
