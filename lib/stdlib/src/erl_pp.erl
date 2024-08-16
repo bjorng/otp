@@ -672,6 +672,13 @@ lexpr({bc,_,E,Qs}, _Prec, Opts) ->
     P = max_prec(),
     Lcl = {list,[{step,[lexpr(E, P, Opts),leaf(" ||")],lc_quals(Qs, Opts)}]},
     {list,[{seq,'<<',[],[[]],[{force_nl,leaf(" "),[Lcl]}]},'>>']};
+lexpr({zlc,_,E,Qs}, _Prec, Opts) ->
+    Lcl = {list,[{step,[lexpr(E, Opts),leaf(" ||")],zlc_quals(Qs, Opts)}]},
+    {list,[{seq,$[,[],[[]],[{force_nl,leaf(" "),[Lcl]}]},$]]};
+lexpr({zbc,_,E,Qs}, _Prec, Opts) ->
+    P = max_prec(),
+    Lcl = {list,[{step,[lexpr(E, P, Opts),leaf(" ||")],zlc_quals(Qs, Opts)}]},
+    {list,[{seq,'<<',[],[[]],[{force_nl,leaf(" "),[Lcl]}]},'>>']};
 lexpr({mc,_,E,Qs}, _Prec, Opts) ->
     Lcl = {list,[{step,[map_field(E, Opts),leaf(" ||")],lc_quals(Qs, Opts)}]},
     {list,[{seq,'#{',[],[[]],[{force_nl,leaf(" "),[Lcl]}]},$}]};
@@ -1046,6 +1053,9 @@ clauses(Type, Opts, Cs) ->
 
 lc_quals(Qs, Opts) ->
     {prefer_nl,[$,],lexprs(Qs, fun lc_qual/2, Opts)}.
+
+zlc_quals(Qs, Opts) ->
+    {prefer_nl,[$&,$&],lexprs(Qs, fun lc_qual/2, Opts)}.
 
 lc_qual({m_generate,_,Pat,E}, Opts) ->
     Pl = map_field(Pat, Opts),

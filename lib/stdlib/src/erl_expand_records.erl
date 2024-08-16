@@ -308,6 +308,14 @@ expr({bc,Anno,E0,Qs0}, St0) ->
     {Qs1,St1} = lc_tq(Anno, Qs0, St0),
     {E1,St2} = expr(E0, St1),
     {{bc,Anno,E1,Qs1},St2};
+expr({zlc,Anno,E0,Qs0}, St0) ->
+    {Qs1,St1} = lc_tq(Anno, Qs0, St0),
+    {E1,St2} = expr(E0, St1),
+    {{zlc,Anno,E1,Qs1},St2};
+expr({zbc,Anno,E0,Qs0}, St0) ->
+    {Qs1,St1} = lc_tq(Anno, Qs0, St0),
+    {E1,St2} = expr(E0, St1),
+    {{zbc,Anno,E1,Qs1},St2};
 expr({mc,Anno,E0,Qs0}, St0) ->
     {Qs1,St1} = lc_tq(Anno, Qs0, St0),
     {E1,St2} = expr(E0, St1),

@@ -403,6 +403,8 @@ format_error_1({too_many_arguments,Arity}) ->
     {~"too many arguments (~w) -- maximum allowed is ~w", [Arity,?MAX_ARGUMENTS]};
 format_error_1(update_literal) ->
     ~"expression updates a literal";
+format_error_1({illegal_zip_generator, Q}) ->
+    {~"expression ~w is illegal in zip comprehension. Only generators are allowed.",[Q]};
 %% --- patterns and guards ---
 format_error_1(illegal_map_assoc_in_pattern) -> ~"illegal pattern, did you mean to use `:=`?";
 format_error_1(illegal_pattern) -> ~"illegal pattern";
@@ -2649,6 +2651,11 @@ expr({lc,_Anno,E,Qs}, Vt, St) ->
     handle_comprehension(E, Qs, Vt, St);
 expr({bc,_Anno,E,Qs}, Vt, St) ->
     handle_comprehension(E, Qs, Vt, St);
+expr({zlc,Anno,E,Qs}, Vt, St) ->
+    St1 = are_all_generators(Anno,Qs,St),
+    handle_comprehension(E, Qs, Vt, St1);
+expr({zbc,_Anno,E,Qs}, Vt, St) ->
+    handle_comprehension(E, Qs, Vt, St);
 expr({mc,_Anno,E,Qs}, Vt, St) ->
     handle_comprehension(E, Qs, Vt, St);
 expr({tuple,_Anno,Es}, Vt, St) ->
@@ -4004,6 +4011,14 @@ is_guard_test2_info(#lint{records=RDs,locals=Locals,imports=Imports}) ->
 		 is_local_function(Locals, FA) orelse
 		     is_imported_function(Imports, FA)
 	 end}.
+
+are_all_generators(Anno,[{generate,_,_,_}|Qs],St) -> are_all_generators(Anno,Qs,St);
+are_all_generators(Anno,[{b_generate,_,_,_}|Qs],St) -> are_all_generators(Anno,Qs,St);
+are_all_generators(Anno,[{m_generate,_,_,_}|Qs],St) -> are_all_generators(Anno,Qs,St);
+are_all_generators(Anno,[Q|Qs],St) -> 
+    add_error(Anno, {illegal_zip_generator,Q}, St),
+    are_all_generators(Anno,Qs,St);
+are_all_generators(_Anno,[],St) -> St.
 
 handle_generator(P,E,Vt,Uvt,St0) ->
     {Evt,St1} = expr(E, Vt, St0),

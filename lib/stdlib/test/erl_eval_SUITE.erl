@@ -29,6 +29,7 @@
 	 pattern_expr/1,
          guard_3/1, guard_4/1, guard_5/1,
          lc/1,
+         zlc/1,
          simple_cases/1,
          unary_plus/1,
          apply_atom/1,
@@ -97,7 +98,7 @@ all() ->
      otp_8133, otp_10622, otp_13228, otp_14826,
      funs, custom_stacktrace, try_catch, eval_expr_5, zero_width,
      eep37, eep43, otp_15035, otp_16439, otp_14708, otp_16545, otp_16865,
-     eep49, binary_and_map_aliases, eep58].
+     eep49, binary_and_map_aliases, eep58, zlc].
 
 groups() -> 
     [].
@@ -276,6 +277,16 @@ lc(Config) when is_list(Config) ->
 	  [2,3,4]),
     check(fun() -> [X || X <- [true,false], X] end,
 	  "[X || X <- [true,false], X].", [true]),
+    ok.
+
+%% OTP-4518.
+zlc(Config) when is_list(Config) ->
+    check(fun() ->
+        [{1,4},{2,5},{3,6}]
+        %% X = 32, Y = 32, [{X, Y} || X <- [1,2,3] && Y <- [4,5,6]]
+     end,
+	  "begin X = 32, Y = 32, [{X, Y} || X <- [1,2,3] && Y <- [4,5,6]] end.",
+	[{1,4},{2,5},{3,6}]),
     ok.
 
 %% Simple cases, just to cover some code.

@@ -31,8 +31,10 @@ pat_expr pat_expr_max map_pat_expr record_pat_expr
 pat_argument_list pat_exprs
 list tail
 list_comprehension lc_expr lc_exprs
+zip_comprehension zc_exprs
 map_comprehension
 binary_comprehension
+zip_binary_comprehension
 tuple
 record_expr record_tuple record_field record_fields
 map_expr map_tuple map_field map_field_assoc map_field_exact map_fields map_key
@@ -79,7 +81,7 @@ ssa_check_when_clauses.
 Terminals
 char integer float atom sigil_prefix string sigil_suffix var
 
-'(' ')' ',' '->' '{' '}' '[' ']' '|' '||' '<-' ';' ':' '#' '.'
+'(' ')' ',' '->' '{' '}' '[' ']' '|' '||' '<-' ';' ':' '#' '.' '&&'
 'after' 'begin' 'case' 'try' 'catch' 'end' 'fun' 'if' 'of' 'receive' 'when'
 'maybe' 'else'
 'andalso' 'orelse'
@@ -278,8 +280,10 @@ expr_max -> list : '$1'.
 expr_max -> binary : '$1'.
 expr_max -> sigil : '$1'.
 expr_max -> list_comprehension : '$1'.
+expr_max -> zip_comprehension : '$1'.
 expr_max -> map_comprehension : '$1'.
 expr_max -> binary_comprehension : '$1'.
+expr_max -> zip_binary_comprehension : '$1'.
 expr_max -> tuple : '$1'.
 expr_max -> '(' expr ')' : '$2'.
 expr_max -> 'begin' exprs 'end' : {block,?anno('$1'),'$2'}.
@@ -356,10 +360,14 @@ sigil -> sigil_prefix string sigil_suffix : build_sigil('$1', '$2', '$3').
 
 list_comprehension -> '[' expr '||' lc_exprs ']' :
 	{lc,?anno('$1'),'$2','$4'}.
+zip_comprehension -> '[' expr '||' zc_exprs ']' :
+    {zlc,?anno('$1'),'$2','$4'}.
 map_comprehension -> '#' '{' map_field_assoc '||' lc_exprs '}' :
 	{mc,?anno('$1'),'$3','$5'}.
 binary_comprehension -> '<<' expr_max '||' lc_exprs '>>' :
 	{bc,?anno('$1'),'$2','$4'}.
+zip_binary_comprehension -> '<<' expr_max '||' zc_exprs '>>' :
+	{zbc,?anno('$1'),'$2','$4'}.
 lc_exprs -> lc_expr : ['$1'].
 lc_exprs -> lc_expr ',' lc_exprs : ['$1'|'$3'].
 
@@ -367,6 +375,9 @@ lc_expr -> expr : '$1'.
 lc_expr -> map_field_exact '<-' expr : {m_generate,?anno('$2'),'$1','$3'}.
 lc_expr -> expr '<-' expr : {generate,?anno('$2'),'$1','$3'}.
 lc_expr -> binary '<=' expr : {b_generate,?anno('$2'),'$1','$3'}.
+
+zc_exprs -> lc_expr '&&' lc_expr : ['$1','$3'].
+zc_exprs -> lc_expr '&&' zc_exprs : ['$1'|'$3'].
 
 tuple -> '{' '}' : {tuple,?anno('$1'),[]}.
 tuple -> '{' exprs '}' : {tuple,?anno('$1'),'$2'}.
@@ -884,8 +895,10 @@ processed (see section [Error Information](#module-error-information)).
                        | af_local_call()
                        | af_remote_call()
                        | af_list_comprehension()
+                       | af_zip_comprehension()
                        | af_map_comprehension()
                        | af_binary_comprehension()
+                       | af_zip_binary_comprehension()
                        | af_block()
                        | af_if()
                        | af_case()
@@ -921,11 +934,17 @@ processed (see section [Error Information](#module-error-information)).
 -type af_list_comprehension() ::
         {'lc', anno(), af_template(), af_qualifier_seq()}.
 
+-type af_zip_comprehension() ::
+        {'zlc', anno(), af_template(), af_qualifier_seq()}.
+
 -type af_map_comprehension() ::
         {'mc', anno(), af_assoc(abstract_expr()), af_qualifier_seq()}.
 
 -type af_binary_comprehension() ::
         {'bc', anno(), af_template(), af_qualifier_seq()}.
+
+-type af_zip_binary_comprehension() ::
+        {'zbc', anno(), af_template(), af_qualifier_seq()}.
 
 -type af_template() :: abstract_expr().
 

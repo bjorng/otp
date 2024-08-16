@@ -185,6 +185,9 @@ An expression E is one of the following:
 - If E is a bitstring comprehension `<<E_0 || Q_1, ..., Q_k>>`, where each `Q_i`
   is a qualifier, then Rep(E) = `{bc,ANNO,Rep(E_0),[Rep(Q_1), ..., Rep(Q_k)]}`.
   For Rep(Q), see below.
+- If E is a zip bitstring comprehension `<<E_0 || Q_1 && ...&& Q_k>>`, where each
+ `Q_i` is a generator, then Rep(E) = `{zbc,ANNO,Rep(E_0),[Rep(Q_1), ..., Rep(Q_k)]}`.
+  For Rep(Q), see below.
 - If E is a bitstring constructor `<<E_1:Size_1/TSL_1, ..., E_k:Size_k/TSL_k>>`,
   where each `Size_i` is an expression and each `TSL_i` is a type specificer
   list, then Rep(E) =
@@ -219,6 +222,9 @@ An expression E is one of the following:
 - If E is a list comprehension `[E_0 || Q_1, ..., Q_k]`, where each `Q_i` is a
   qualifier, then Rep(E) = `{lc,ANNO,Rep(E_0),[Rep(Q_1), ..., Rep(Q_k)]}`. For
   Rep(Q), see below.
+- If E is a zip comprehension `[E_0 || Q_1 && ...&& Q_k]`, where each `Q_i` is
+  a generator, then Rep(E) = `{zlc,ANNO,Rep(E_0),[Rep(Q_1), ..., Rep(Q_k)]}`. 
+  For Rep(Q), see below. 
 - If E is a map comprehension `#{E_0 || Q_1, ..., Q_k}`, where `E_0` is an
   association `K => V` and each `Q_i` is a qualifier, then Rep(E) =
   `{mc,ANNO,Rep(E_0),[Rep(Q_1), ..., Rep(Q_k)]}`. For Rep(E_0) and Rep(Q), see
