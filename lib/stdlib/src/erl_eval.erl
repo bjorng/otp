@@ -937,39 +937,52 @@ eval_zlc(E, Qs, Bs, Lf, Ef, RBs, FUVs) ->
     ret_expr(eval_zlc1(E, Qs, Bs, Lf, Ef, FUVs), Bs, RBs).
 
 eval_zlc1(E, Qs, Bs0, Lf, Ef, FUVs) ->
-    convert_gen_values(Qs, [], Bs0, Lf, Ef,FUVs, E).
+    {L,Bs1} = convert_gen_values(Qs, [], Bs0, Lf, Ef, FUVs),
+    do_something(L, [], Bs1, Lf, Ef, FUVs, E, []).
 
 %% assemble possible values for the generator vars from abstract form to a list 
-convert_gen_values([Q|Qs], Acc, Bs0, Lf, Ef,FUVs, E) ->
+convert_gen_values([Q|Qs], Acc, Bs0, Lf, Ef, FUVs) ->
     {generate,Anno,P,L0} = Q,
     {value,L1,_Bs1} = expr(L0, Bs0, Lf, Ef, none, FUVs),
-    convert_gen_values(Qs, [{Anno, P, L1}|Acc], Bs0, Lf, Ef, FUVs, E);
-convert_gen_values([], Acc, Bs0, Lf, Ef,FUVs, E) ->
+    convert_gen_values(Qs, [{Anno, P, L1}|Acc], Bs0, Lf, Ef, FUVs);
+convert_gen_values([], Acc, Bs0, _Lf, _Ef, _FUVs) ->
     %% all vars now have a list of possible values of the form [value1, value2, value3], start binding
-    bind_first_value_for_all(lists:reverse(Acc), [], Bs0, Lf, Ef, FUVs, E, []).
+    {lists:reverse(Acc), Bs0}.
+
+do_something(L, Acc, Bs0, Lf, Ef, FUVs, E, ResAcc) ->
+    case bind_first_value_for_all(L, Acc, Bs0, Lf, Ef, FUVs, E, ResAcc) of
+        {[_|_]=A,Bs} ->
+            Value = evaluate_expr(A, Bs, Lf, Ef, FUVs, E),
+            do_something(A, [], Bs0, Lf, Ef, FUVs, E, [Value|ResAcc]);
+        {[],_} ->
+            lists:reverse(ResAcc)
+    end.
 
 bind_first_value_for_all([{Anno, P, [H|T]}|Qs], Acc, Bs0, Lf, Ef, FUVs, E, ResAcc) ->
     case match(P, H, Anno, new_bindings(Bs0), Bs0, Ef) of
-    {match,Bsn} ->
-        %% bind the first available value to the current var, remove the var from the list that needs binding 
+        {match,Bsn} ->
+            %% bind the first available value to the current var,
+            %% remove the var from the list that needs binding
 	    Bs2 = add_bindings(Bsn, Bs0),
-        bind_first_value_for_all(Qs,[{Anno, P, T}|Acc], Bs2, Lf, Ef,FUVs, E, ResAcc);
+            bind_first_value_for_all(Qs,[{Anno, P, T}|Acc], Bs2, Lf, Ef,FUVs, E, ResAcc);
 	true ->
 	    io:format("error: cannot bind")
-	end;
-bind_first_value_for_all([{_,_,[]}|_], [], _, _, _, _, _, ResAcc) -> 
+    end;
+bind_first_value_for_all([{_,_,[]}|_], [], _, _, _, _, _, _ResAcc) -> 
     %% no more values left for a var, time to return
-    lists:reverse(ResAcc);
-bind_first_value_for_all([], [_H|_T] = Acc, Bs0, Lf, Ef, FUVs, E, ResAcc) -> 
+    %% lists:reverse(ResAcc);
+    {[],[]};
+bind_first_value_for_all([], [_H|_T] = Acc, Bs0, _Lf, _Ef, _FUVs, _E, _ResAcc) -> 
     %% all vars are bind, evaluate the expression and add the result to the list of results
-    evaluate_expr(Acc, Bs0, Lf, Ef, FUVs, E, ResAcc).
+    %% evaluate_expr(Acc, Bs0, Lf, Ef, FUVs, E, ResAcc).
+    {Acc,Bs0}.
 
-evaluate_expr(Acc, Bs0, Lf, Ef, FUVs, E, ResAcc) ->
+evaluate_expr(_Acc, Bs0, Lf, Ef, FUVs, E) ->
     {value,V,_} = expr(E, Bs0, Lf, Ef, none, FUVs),
     %% remove all bindings added this round, call bind_first_value_for_all for the next round
-    Bs1 = lists:foldl(fun(Elem, Bs) -> {_,{_,_,P},_} = Elem, del_binding(P, Bs) end, Bs0, Acc),
-    bind_first_value_for_all(Acc, [], Bs1, Lf, Ef, FUVs, E, [V|ResAcc]).
-    
+    %% Bs1 = lists:foldl(fun(Elem, Bs) -> {_,{_,_,P},_} = Elem, del_binding(P, Bs) end, Bs0, Acc),
+    %%bind_first_value_for_all(Acc, [], Bs1, Lf, Ef, FUVs, E, [V|ResAcc]).
+    V.
 
 %% eval_bc(Expr, [Qualifier], Bindings, LocalFunctionHandler,
 %%         ExternalFuncHandler, RetBindings) ->
