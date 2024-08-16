@@ -52,6 +52,7 @@ MODULES= \
 	trycatch_SUITE \
 	warnings_SUITE \
 	z_SUITE \
+	zlc_SUITE \
 	test_lib
 
 NO_OPT= \
@@ -83,7 +84,8 @@ NO_OPT= \
 	overridden_bif \
 	receive \
 	record \
-	trycatch
+	trycatch \
+	zlc
 
 INLINE= \
 	andor \

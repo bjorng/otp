@@ -139,7 +139,7 @@ to be called.
 
 -export([check_command/2, fun_data/1]).
 
--import(lists, [reverse/1,foldl/3,member/2]).
+-import(lists, [all/2,any/2,foldl/3,member/2,reverse/1]).
 
 -export_type([binding_struct/0]).
 
@@ -916,6 +916,9 @@ do_apply(F, _Anno, FunOrModFun, Args) when is_function(F, 2) ->
 eval_lc(E, Qs, Bs, Lf, Ef, RBs, FUVs) ->
     ret_expr(lists:reverse(eval_lc1(E, Qs, Bs, Lf, Ef, FUVs, [])), Bs, RBs).
 
+eval_lc1(E, [{zip, Anno, Gens}|Qs], Bs0, Lf, Ef, FUVs, Acc0) ->
+    {VarList, Bs1} = convert_gen_values(Gens, [], Bs0, Lf, Ef, FUVs),
+    eval_zip(E, [{zip, Anno, VarList}|Qs], Bs1, Lf, Ef, FUVs, Acc0, fun eval_lc1/7);
 eval_lc1(E, [Q|Qs], Bs0, Lf, Ef, FUVs, Acc0) ->
     case is_generator(Q) of
         true ->
@@ -929,6 +932,142 @@ eval_lc1(E, [], Bs, Lf, Ef, FUVs, Acc) ->
     {value,V,_} = expr(E, Bs, Lf, Ef, none, FUVs),
     [V|Acc].
 
+convert_gen_values([{generate, Anno, P, L0}|Qs], Acc, Bs0, Lf, Ef,FUVs) ->
+    {value,L1,_Bs1} = expr(L0, Bs0, Lf, Ef, none, FUVs),
+    convert_gen_values(Qs, [{generate, Anno, P, L1}|Acc], Bs0, Lf, Ef, FUVs);
+convert_gen_values([{b_generate, Anno, P, L0}|Qs], Acc, Bs0, Lf, Ef,FUVs) ->
+    {value,L1,_Bs1} = expr(L0, Bs0, Lf, Ef, none, FUVs),
+    convert_gen_values(Qs, [{b_generate, Anno, P, L1}|Acc], Bs0, Lf, Ef, FUVs);
+convert_gen_values([{m_generate, Anno, P, Map0}|Qs], Acc, Bs0, Lf, Ef,FUVs) ->
+    {map_field_exact,_,K,V} = P,
+    {value,Map,_Bs1} = expr(Map0, Bs0, Lf, Ef, none, FUVs),
+    Iter = case is_map(Map) of
+               true ->
+                   maps:iterator(Map);
+               false ->
+                   %% Validate iterator.
+                   try maps:foreach(fun(_, _) -> ok end, Map) of
+                       _ ->
+                           Map
+                   catch
+                       _:_ ->
+                           apply_error({bad_generator,Map}, ?STACKTRACE,
+                                       Anno, Bs0, Ef, none)
+                   end
+           end,
+    convert_gen_values(Qs, [{m_generate, Anno, {tuple, Anno, [K, V]}, Iter}|Acc], Bs0, Lf, Ef, FUVs);
+convert_gen_values([], Acc, Bs0, _Lf, _Ef, _FUVs) ->
+    {lists:reverse(Acc), Bs0}.
+
+bind_all_generators(Gens, Bs0, Lf, Ef, FUVs) ->
+    bind_all_generators1(Gens, [], Bs0, Bs0, Lf, Ef, FUVs, continue).
+
+%% convert values for generator vars from abstract form to flattened lists
+bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs], Acc, Bs0, OrigBs, Lf, Ef, FUVs, continue) ->
+    Mfun = match_fun(Bs0, Ef),
+    Efun = fun(Exp, Bs) -> expr(Exp, Bs, Lf, Ef, none) end,
+    ErrorFun = fun(A, R, S) -> apply_error(R, S, A, Bs0, Ef, none) end,
+    case eval_bits:bin_gen(P, Bin, new_bindings(Bs0), Bs0, Mfun, Efun, ErrorFun) of
+        {match, Rest, Bs1} ->
+            Bs2 = add_bindings(Bs1, Bs0),
+            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc], Bs2, OrigBs, Lf, Ef, FUVs, continue);
+        {nomatch, Rest} ->
+            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc], Bs0, OrigBs, Lf, Ef, FUVs, skip);
+        done ->
+            {[], Bs0}
+    end;
+bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs], Acc, Bs0, OrigBs, Lf, Ef, FUVs, skip) ->
+    Mfun = match_fun(Bs0, Ef),
+    Efun = fun(Exp, Bs) -> expr(Exp, Bs, Lf, Ef, none) end,
+    ErrorFun = fun(A, R, S) -> apply_error(R, S, A, Bs0, Ef, none) end,
+    case eval_bits:bin_gen(P, Bin, new_bindings(Bs0), Bs0, Mfun, Efun, ErrorFun) of
+        {match, Rest, _} ->
+            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc], Bs0, OrigBs, Lf, Ef, FUVs, skip);
+        {nomatch, Rest} ->
+            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc], Bs0, OrigBs, Lf, Ef, FUVs, skip);
+        done ->
+            {[], OrigBs}
+    end;
+bind_all_generators1([{generate, Anno, P, [H|T]}|Qs], Acc, Bs0, OrigBs, Lf, Ef, FUVs, continue) ->
+    % io:format("H~p~n", [H]),
+    % io:format("match(~p, ~p)~n", [P,H]),
+    case match(P, H, Anno, new_bindings(Bs0), Bs0, Ef) of
+        {match,Bsn} ->
+            %% bind a value to the current var, remove var from the not binded list
+            Bs2 = add_bindings(Bsn, Bs0),
+            bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs2, OrigBs, Lf, Ef, FUVs, continue);
+        nomatch ->
+            %% match/6 returns nomatch. Skip this value
+            bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs0, OrigBs, Lf, Ef, FUVs, skip)
+    end;
+bind_all_generators1([{generate, Anno, P, [_H|T]}|Qs], Acc, Bs0, OrigBs, Lf, Ef, FUVs, skip) ->
+    bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs0, OrigBs, Lf, Ef, FUVs, skip);
+bind_all_generators1([{m_generate, Anno, P, Iter0}|Qs], Acc, Bs0, OrigBs, Lf, Ef, FUVs, continue) ->
+    case maps:next(Iter0) of
+        {K,V,Iter} ->
+            case match(P, {K,V}, Anno, new_bindings(Bs0), Bs0, Ef) of
+                {match,Bsn} ->
+                    Bs2 = add_bindings(Bsn, Bs0),
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs2, OrigBs, Lf, Ef, FUVs, continue);
+                nomatch ->
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, OrigBs, Lf, Ef, FUVs, skip)
+            end;
+        none ->
+            {[], Bs0}
+    end;
+bind_all_generators1([{m_generate, Anno, P, Iter0}|Qs], Acc, Bs0, OrigBs, Lf, Ef, FUVs, skip) ->
+    case maps:next(Iter0) of
+        {K,V,Iter} ->
+            case match(P, {K,V}, Anno, new_bindings(Bs0), Bs0, Ef) of
+                {match,_} ->
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, OrigBs, Lf, Ef, FUVs, skip);
+                nomatch ->
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, OrigBs, Lf, Ef, FUVs, skip)
+            end;
+        none ->
+            {[], OrigBs}
+    end;
+bind_all_generators1([{_,_,_,[]}|_], _, _, _, _, _,_,_) ->
+    %% no more values left for a var, time to return
+    {[],[]};
+bind_all_generators1([{b_generate, _Anno, _P, _Term}|_Qs], Acc, _Bs0, _,_Lf, _Ef, _FUVs,_) ->
+    {Acc, error};
+bind_all_generators1([{generate, _Anno, _P, _Term}|_Qs], Acc, _Bs0, _,_Lf, _Ef, _FUVs,_) ->
+    {Acc, error};
+bind_all_generators1([], [_H|_T] = Acc, Bs0,_, _Lf, _Ef, _FUVs, continue) ->
+    %% all vars are bind for this round
+    {Acc, Bs0};
+bind_all_generators1([], [_H|_T] = Acc, _Bs0, OrigBs,_Lf, _Ef, _FUVs, skip) ->
+    {Acc, OrigBs}.
+
+check_bad_generators([{generate,_,_,V}|T], Acc) ->
+    check_bad_generators(T, [V|Acc]);
+check_bad_generators([{m_generate,_,_,Iter0}|T], Acc) ->
+    case maps:next(Iter0) of
+        none -> check_bad_generators(T, [#{}|Acc]);
+        _ -> check_bad_generators(T, [#{K => V || K := V <- Iter0}|Acc])
+    end;
+check_bad_generators([{b_generate,_,_,Bin}|T], Acc) ->
+    check_bad_generators(T, [Bin|Acc]);
+check_bad_generators([], Acc)->
+    case any(fun is_generator_end/1, Acc) of
+        false ->
+            %% None of the generators has reached its end.
+            {ok, list_to_tuple(reverse(Acc))};
+        true ->
+            case all(fun(V) -> is_generator_end(V) end, Acc) of
+                true ->
+                    %% All generators have reached their end.
+                    {ok, list_to_tuple(reverse(Acc))};
+                false ->
+                    {error, {bad_generators,list_to_tuple(reverse(Acc))}}
+            end
+    end.
+
+is_generator_end([]) -> true;
+is_generator_end(<<>>) -> true;
+is_generator_end(Other) -> Other =:= #{}.
+
 %% eval_bc(Expr, [Qualifier], Bindings, LocalFunctionHandler,
 %%         ExternalFuncHandler, RetBindings) ->
 %%	{value,Value,Bindings} | Value
@@ -936,6 +1075,9 @@ eval_lc1(E, [], Bs, Lf, Ef, FUVs, Acc) ->
 eval_bc(E, Qs, Bs, Lf, Ef, RBs, FUVs) ->
     ret_expr(eval_bc1(E, Qs, Bs, Lf, Ef, FUVs, <<>>), Bs, RBs).
 
+eval_bc1(E, [{zip, Anno, Gens}|Qs], Bs0, Lf, Ef, FUVs, Acc0) ->
+    {VarList, Bs1} = convert_gen_values(Gens, [], Bs0, Lf, Ef, FUVs),
+    eval_zip(E, [{zip, Anno, VarList}|Qs], Bs1, Lf, Ef, FUVs, Acc0, fun eval_bc1/7);
 eval_bc1(E, [Q|Qs], Bs0, Lf, Ef, FUVs, Acc0) ->
     case is_generator(Q) of
         true ->
@@ -958,6 +1100,9 @@ eval_mc(E, Qs, Bs, Lf, Ef, RBs, FUVs) ->
     Map = maps:from_list(L),
     ret_expr(Map, Bs, RBs).
 
+eval_mc1(E, [{zip, Anno, Gens}|Qs], Bs0, Lf, Ef, FUVs, Acc0) ->
+    {VarList, Bs1} = convert_gen_values(Gens, [], Bs0, Lf, Ef, FUVs),
+    eval_zip(E, [{zip, Anno, VarList}|Qs], Bs1, Lf, Ef, FUVs, Acc0, fun eval_mc1/7);
 eval_mc1(E, [Q|Qs], Bs0, Lf, Ef, FUVs, Acc0) ->
     case is_generator(Q) of
         true ->
@@ -970,6 +1115,24 @@ eval_mc1(E, [Q|Qs], Bs0, Lf, Ef, FUVs, Acc0) ->
 eval_mc1({map_field_assoc,Lfa,K0,V0}, [], Bs, Lf, Ef, FUVs, Acc) ->
     {value,KV,_} = expr({tuple,Lfa,[K0,V0]}, Bs, Lf, Ef, none, FUVs),
     [KV|Acc].
+
+eval_zip(E, [{zip, Anno, VarList}|Qs], Bs0, Lf, Ef, FUVs, Acc0, Fun) ->
+    Gens = case check_bad_generators(VarList, []) of
+        {ok, Acc} -> Acc;
+        {error, Reason} ->
+            apply_error(Reason, ?STACKTRACE, Anno, Bs0, Ef, none)
+    end,
+    {Rest, Bs1} = bind_all_generators(VarList, Bs0, Lf, Ef, FUVs),
+    case {Rest, Qs, Bs1} of
+        {_, _, error} -> apply_error({bad_generators,Gens}, ?STACKTRACE, Anno, Bs0, Ef, none);
+        {[], [], _} -> Acc0;
+        {[], _, _} -> Acc0;
+        {_, _, Bs0} ->
+            eval_zip(E, [{zip, Anno, reverse(Rest)}|Qs], Bs0, Lf, Ef, FUVs, Acc0, Fun);
+        {_, _, _} ->
+            Acc1 = Fun(E, Qs, Bs1, Lf, Ef, FUVs, Acc0),
+            eval_zip(E, [{zip, Anno, reverse(Rest)}|Qs], Bs1, Lf, Ef, FUVs, Acc1, Fun)
+    end.
 
 eval_generator({generate,Anno,P,L0}, Bs0, Lf, Ef, FUVs, Acc0, CompFun) ->
     {value,L1,_Bs1} = expr(L0, Bs0, Lf, Ef, none, FUVs),
