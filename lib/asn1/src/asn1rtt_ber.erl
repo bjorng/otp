@@ -127,7 +127,7 @@ ber_encode(Tlv) ->
     asn1rt_nif:encode_ber_tlv(Tlv).
 
 ber_decode_nif(B) ->
-    asn1rt_nif:decode_ber_tlv(B).
+    ber_decode_erlang(B).
 
 ber_decode_erlang(B) when is_binary(B) ->
     decode_primitive(B);
@@ -530,17 +530,21 @@ skip_ExtensionAdditions([{Tag,_}|Rest]=TLV, Tags) ->
 %% decode_tag(OctetListBuffer) -> {{Form, (Class bsl 16)+ TagNo}, RestOfBuffer, RemovedBytes}
 %%===============================================================================
 
-decode_tag_and_length(<<Class:2, Form:1, TagNo:5, 0:1, Length:7, V:Length/binary, RestBuffer/binary>>) when TagNo < 31 ->
+decode_tag_and_length(<<Class:2, Form:1, TagNo:5, 0:1, Length:7, V:Length/binary, RestBuffer/binary>>)
+  when TagNo =/= 31 ->
     {Form, (Class bsl 16) bor TagNo, V, RestBuffer};
-decode_tag_and_length(<<Class:2, 1:1, TagNo:5, 1:1, 0:7, T/binary>>) when TagNo < 31 ->
+decode_tag_and_length(<<Class:2, 1:1, TagNo:5, 1:1, 0:7, T/binary>>) when TagNo =/= 31 ->
     {2, (Class bsl 16) + TagNo, T, <<>>};
-decode_tag_and_length(<<Class:2, Form:1, TagNo:5, 1:1, LL:7, Length:LL/unit:8,V:Length/binary, T/binary>>) when TagNo < 31 ->
+decode_tag_and_length(<<Class:2, Form:1, TagNo:5, 1:1,
+                        LL:7, Length:LL/unit:8,V:Length/binary, T/binary>>) when TagNo =/= 31 ->
     {Form, (Class bsl 16) bor TagNo, V, T};
-decode_tag_and_length(<<Class:2, Form:1, 31:5, 0:1, TagNo:7, 0:1, Length:7, V:Length/binary, RestBuffer/binary>>) ->
+decode_tag_and_length(<<Class:2, Form:1, 31:5, 0:1, TagNo:7, 0:1,
+                        Length:7, V:Length/binary, RestBuffer/binary>>) ->
     {Form, (Class bsl 16) bor TagNo, V, RestBuffer};
 decode_tag_and_length(<<Class:2, 1:1, 31:5, 0:1, TagNo:7, 1:1, 0:7, T/binary>>)  ->
     {2, (Class bsl 16) bor TagNo, T, <<>>};
-decode_tag_and_length(<<Class:2, Form:1, 31:5, 0:1, TagNo:7, 1:1, LL:7, Length:LL/unit:8, V:Length/binary, T/binary>>)  ->
+decode_tag_and_length(<<Class:2, Form:1, 31:5, 0:1, TagNo:7, 1:1, LL:7,
+                        Length:LL/unit:8, V:Length/binary, T/binary>>)  ->
     {Form, (Class bsl 16) bor TagNo, V, T};
 decode_tag_and_length(<<Class:2, Form:1, 31:5, 1:1, TagPart1:7, 0:1, TagPartLast, Buffer/binary>>) ->
     TagNo = (TagPart1 bsl 7) bor TagPartLast,
