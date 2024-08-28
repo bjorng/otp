@@ -1277,6 +1277,8 @@ coverage(_Config) ->
     #coverage{name=whatever} = coverage_4(),
     {'EXIT',{{badrecord,ok},_}} = catch coverage_5(),
 
+    {'EXIT',{{badfun,22},_}} = catch coverage_6(),
+
     ok.
 
 coverage_1() ->
@@ -1307,6 +1309,10 @@ coverage_5() ->
         _:_ ->
             error
     end#coverage{name = whatever}.
+
+coverage_6() ->
+    %% Cover a line beam_ssa_type:opt_anno_types/2.
+    (catch 22)().
 
 %% Test beam_ssa:normalize/1, especially that argument types are
 %% correctly updated when arguments are swapped.
