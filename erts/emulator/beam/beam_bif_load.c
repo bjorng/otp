@@ -1251,6 +1251,125 @@ any_heap_refs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size)
     return 0;
 }
 
+BIF_RETTYPE code_get_debug_info_1(BIF_ALIST_1)
+{
+#ifdef BEAMASM
+    ErtsCodeIndex code_ix;
+    Module* modp;
+    const BeamCodeHeader* hdr;
+    const BeamCodeLineTab* lt;
+    const BeamDebugTab* debug;
+    Sint i;
+    Uint alloc_size;
+    Eterm result = NIL;
+    Eterm* hp;
+    Eterm* hend;
+
+    if (is_not_atom(BIF_ARG_1)) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
+    code_ix = erts_active_code_ix();
+    modp = erts_get_module(BIF_ARG_1, code_ix);
+    if (modp == NULL) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
+    hdr = modp->curr.code_hdr;
+    if (hdr == NULL) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
+
+    lt = hdr->line_table;
+
+    debug = hdr->debug;
+    if (debug == NULL) {
+        return am_none;
+    }
+
+    alloc_size = 0;
+
+    for (i = 0; i < debug->item_count; i++) {
+        /* [ {Index, {FrameSize,[{Name,Value}]} ] */
+        alloc_size += 2 + 3 + 3 + debug->items[i].num_vars * (2 + 3 + 3);
+    }
+
+    hp = HAlloc(BIF_P, alloc_size);
+    hend = hp + alloc_size;
+
+    for (i = debug->item_count-1; i >= 0; i--) {
+        BeamDebugItem* items = &debug->items[i];
+        Uint32 location_index;
+        Sint frame_size = items->frame_size;
+        Uint32 location;
+        Uint num_vars = items->num_vars;
+        Eterm *tp = items->first + 2 * num_vars - 2;
+        Eterm frame_size_term;
+        Eterm var_list = NIL;
+        Eterm tmp;
+
+        location_index = items->location_index;
+
+        if (location_index == (Uint32)-1) {
+            continue;
+        }
+        if (lt->loc_size == 2) {
+            location = lt->loc_tab.p2[location_index];
+        } else {
+            ASSERT(lt->loc_size == 4);
+            location = lt->loc_tab.p4[location_index];
+        }
+
+        if (frame_size < 0) {
+            frame_size_term = am_none;
+        } else {
+            frame_size_term = make_small(frame_size);
+        }
+
+        while (num_vars-- != 0) {
+            Eterm val;
+            Eterm tag;
+
+            if (_is_loader_x_reg(tp[1])) {
+                Uint xreg = loader_x_reg_index(tp[1]);
+                tag = am_x;
+                val = make_small(xreg);
+            } else if (_is_loader_y_reg(tp[1])) {
+                Uint yreg = loader_y_reg_index(tp[1]);
+                tag = am_y;
+                val = make_small(yreg);
+            } else {
+                tag = am_value;
+                val = tp[1];
+            }
+            tmp = TUPLE2(hp, tag, val);
+            hp += 3;
+
+            tmp = TUPLE2(hp, tp[0], tmp);
+            hp += 3;
+
+            tp -= 2;
+
+            var_list = CONS(hp, tmp, var_list);
+            hp += 2;
+        }
+
+        tmp = TUPLE2(hp, frame_size_term, var_list);
+        hp += 3;
+
+        tmp = TUPLE2(hp, make_small(LOC_LINE(location)), tmp);
+        hp += 3;
+
+        result = CONS(hp, tmp, result);
+        hp += 2;
+    }
+
+    ASSERT(hp <= hend);
+    HRelease(BIF_P, hend, hp);
+    return result;
+#endif
+
+    BIF_ERROR(BIF_P, BADARG);
+}
+
 /*
  * Release of literal areas...
  *
