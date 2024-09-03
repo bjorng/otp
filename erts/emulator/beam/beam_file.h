@@ -151,6 +151,20 @@ typedef struct {
 } BeamFile_TypeTable;
 
 typedef struct {
+    Sint32 frame_size;
+    Sint32 num_vars;
+    Eterm *first;
+} BeamFile_DebugItem;
+
+typedef struct {
+    Sint32 item_count;
+    Sint32 term_count;
+    BeamFile_DebugItem *items;
+    Eterm *terms;
+    byte *is_literal;
+} BeamFile_DebugTable;
+
+typedef struct {
     IFF_File iff;
 
     Eterm module;
@@ -166,6 +180,7 @@ typedef struct {
     BeamFile_LambdaTable lambdas;
     BeamFile_LineTable lines;
     BeamFile_TypeTable types;
+    BeamFile_DebugTable debug;
 
     /* Static literals are those defined in the file, and dynamic literals are
      * those created when loading. The former is positively indexed starting
@@ -206,7 +221,8 @@ enum beamfile_read_result {
     BEAMFILE_READ_CORRUPT_LAMBDA_TABLE,
     BEAMFILE_READ_CORRUPT_LINE_TABLE,
     BEAMFILE_READ_CORRUPT_LITERAL_TABLE,
-    BEAMFILE_READ_CORRUPT_TYPE_TABLE
+    BEAMFILE_READ_CORRUPT_TYPE_TABLE,
+    BEAMFILE_READ_CORRUPT_DEBUG_TABLE
 };
 
 typedef struct {
