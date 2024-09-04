@@ -20,6 +20,8 @@
 -module(beam_debug_info_SUITE).
 -include("beam_opcodes.hrl").
 
+-include_lib("common_test/include/ct.hrl").
+
 -export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
          smoke/1]).
@@ -49,6 +51,8 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 smoke(_Config) ->
+    {ok, Peer, Node} = ?CT_PEER(#{}),
+
     TestBeams0 = get_unique_beam_files(),
     TestBeams = compiler_beams() ++ TestBeams0,
 
@@ -62,12 +66,19 @@ smoke(_Config) ->
          """,
     io:put_chars(S),
 
-    test_lib:p_run(fun do_smoke/1, TestBeams).
+    test_lib:p_run(fun(Beam) ->
+                           do_smoke(Beam, Node)
+                   end, TestBeams),
+
+    peer:stop(Peer),
+
+    ok.
+
 
 compiler_beams() ->
     filelib:wildcard(filename:join([code:lib_dir(compiler), "ebin", "*.beam"])).
 
-do_smoke(Beam) ->
+do_smoke(Beam, Node) ->
     try
 	{ok,{Mod,[{abstract_code,{raw_abstract_v1,Abstr0}}]}} =
 	    beam_lib:chunks(Beam, [abstract_code]),
@@ -81,7 +92,20 @@ do_smoke(Beam) ->
                                      [beam_debug_info,dexp,binary,report_errors]),
         SrcVars = source_variables(Abstr),
         IndexToFunctionMap = abstr_executable_lines(Abstr),
+
+        %% Retrieve the debug information in two different ways.
         DebugInfo = get_debug_info(Mod, Code),
+        DebugInfoBif = load_get_debug_info(Node, Mod, Code),
+
+        if
+            DebugInfo =:= DebugInfoBif ->
+                ok;
+            true ->
+                io:format("~p\n", [DebugInfo]),
+                io:format("~p\n", [DebugInfoBif]),
+                error(inconsistent_debug_info)
+        end,
+
         {DbgVars,DbgLiterals} = debug_info_vars(DebugInfo, IndexToFunctionMap),
 
         %% The debug information must only contain variables that are
@@ -186,6 +210,27 @@ family_difference(F0, F1) ->
     SpecFun = fun(S) -> sofs:no_elements(S) =/= 0 end,
     S3 = sofs:family_specification(SpecFun, S2),
     sofs:to_external(S3).
+
+%% Load a module on a remote node and retrieve debug information.
+load_get_debug_info(Node, Mod, Beam) ->
+    erpc:call(Node,
+              fun() ->
+                      {module,Mod} = code:load_binary(Mod, "", Beam),
+                      DebugInfo = code:get_debug_info(Mod),
+
+                      case Mod of
+                          ?MODULE ->
+                              %% Don't purge the module that this fun
+                              %% is located in.
+                              ok;
+                          _ ->
+                              %% Smoke test of purging a module with
+                              %% debug information.
+                              _ = code:delete(Mod),
+                              _ = code:purge(Mod)
+                      end,
+                      DebugInfo
+              end).
 
 %%
 %% Extract variables mentioned in the source code. Try to remove

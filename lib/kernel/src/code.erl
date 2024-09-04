@@ -401,7 +401,8 @@ common reasons.
          module_status/0,
          module_status/1,
          modified_modules/0,
-         get_mode/0]).
+         get_mode/0,
+         get_debug_info/1]).
 
 -removed({rehash,0,"the code path cache feature has been removed"}).
 -removed({is_module_native,1,"HiPE has been removed"}).
@@ -2320,4 +2321,11 @@ _See also:_ [Native Coverage Support](#module-native-coverage-support)
 -spec coverage_support() -> Supported when
       Supported :: boolean().
 coverage_support() ->
+    erlang:nif_error(undefined).
+
+-doc(#{since => <<"OTP 28.0">>}).
+-spec get_debug_info(Module) -> Mode when
+      Module :: module(),
+      Mode :: coverage_mode().
+get_debug_info(_Module) ->
     erlang:nif_error(undefined).

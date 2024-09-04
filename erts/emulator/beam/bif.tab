@@ -805,3 +805,8 @@ bif erts_internal:trace_pattern/4
 bif erts_internal:trace_info/3
 bif erts_trace_cleaner:check/0
 bif erts_trace_cleaner:send_trace_clean_signal/1
+
+#
+# New in 28.
+#
+bif code:get_debug_info/1
