@@ -92,7 +92,7 @@ opt_start_1([Id | Ids], ArgDb, StMap0, FuncDb0, MetaCache) ->
         #{ Id := ArgTypes } ->
             #opt_st{ssa=Linear0,args=Args} = St0 = map_get(Id, StMap0),
 
-            Ts = maps:from_list(zip(Args, ArgTypes)),
+            Ts = #{Arg => Type || Arg <- Args && Type <- ArgTypes},
             {Linear, FuncDb} = opt_function(Linear0, Args, Id, Ts, FuncDb0, MetaCache),
 
             St = St0#opt_st{ssa=Linear},
@@ -202,7 +202,7 @@ sig_function_1(Id, StMap, State0, FuncDb) ->
     #opt_st{ssa=Linear,args=Args} = map_get(Id, StMap),
 
     {ArgTypes, State1} = sig_commit_args(Id, State0),
-    Ts = maps:from_list(zip(Args, ArgTypes)),
+    Ts = #{Arg => Type || Arg <- Args && Type <- ArgTypes},
 
     FakeCall = #b_set{op=call,args=[#b_remote{mod=#b_literal{val=unknown},
                                               name=#b_literal{val=unknown},
