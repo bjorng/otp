@@ -87,7 +87,7 @@
                 keydelete/3,keyfind/3,keymember/3,
                 last/1,map/2,member/2,mapfoldl/3,
                 reverse/1,reverse/2,
-                splitwith/2,sort/1, zip/2]).
+                splitwith/2,sort/1]).
 -import(ordsets, [add_element/2,del_element/2,is_element/2,
 		  union/1,union/2,intersection/2,subtract/2]).
 -import(cerl, [ann_c_cons/3,ann_c_tuple/2,c_tuple/1,
@@ -1846,7 +1846,7 @@ make_ignored(Ps, Vs) ->
     [case P of
          nomatch -> V;
          _ -> P
-     end || {P, V} <- zip(Ps, Vs)].
+     end || P <- Ps && V <- Vs].
 
 %% Helper function that collects a record field from all generators of a zip,
 %% depending on the first argument.
