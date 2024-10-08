@@ -1809,6 +1809,8 @@ kernel_passes() ->
        {iff,dssabsm,{listing,"ssabsm"}},
        {unless,no_bsm_opt,{iff,ssalint,{pass,beam_ssa_lint}}},
 
+       {iff,dpressaopt,{listing,"pressaopt"}},
+
        {unless,no_ssa_opt,{pass,beam_ssa_opt}},
        make_ssa_check_pass(post_ssa_opt),
        {iff,dssaopt,{listing,"ssaopt"}},
