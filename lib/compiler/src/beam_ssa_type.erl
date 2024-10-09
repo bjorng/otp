@@ -834,7 +834,13 @@ opt_finish_1([Arg | Args], [TypeMap | TypeMaps], Acc0) ->
             opt_finish_1(Args, TypeMaps, Acc0);
         JoinedType ->
             Info = maps:get(Arg, Acc0, []),
-            Acc = Acc0#{ Arg => [{type, JoinedType} | Info] },
+            AcceptsMCtx = case JoinedType of
+                              #t_bs_context{} ->
+                                  [accepts_match_context];
+                              _ ->
+                                  []
+                          end,
+            Acc = Acc0#{ Arg => AcceptsMCtx ++ [{type, JoinedType} | Info] },
             opt_finish_1(Args, TypeMaps, Acc)
     end;
 opt_finish_1([], [], Acc) ->
