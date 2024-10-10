@@ -135,6 +135,16 @@ zmc(Config) when is_list(Config) ->
         << <<X:64, Y:64, Z:64, W:64>> || X := Y <- M3 && Z := W <- M4>>,
     true = << <<(A*3):64>> || A <- Seq>> =:=
         << <<(X+Y+Z):64>> || X := Y <- M1 && Z <- Seq>>,
+
+    M5 = maps:iterator(#{X =>
+                             case X rem 2 of
+                                 0 -> {ok,X};
+                                 1 -> {error,X}
+                             end || X <- Seq}, ordered),
+    M6 = maps:iterator(#{X*2 => X*4 || X <- Seq}, ordered),
+    Result = [X || {{X,{ok,X}}, {_,X}} <- lists:zip(maps:to_list(M5), maps:to_list(M6))],
+    Result = [X || X := {ok,X} <- M5 && _ := X <- M6],
+
     ok.
 
 filter_guard(Config) when is_list(Config) ->

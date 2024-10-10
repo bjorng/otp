@@ -1236,15 +1236,9 @@ bind_all_generators1([{m_generate, Anno, P, Iter0}|Qs], Acc, Bs0, Ieval, continu
     end;
 bind_all_generators1([{m_generate, Anno, P, Iter0}|Qs], Acc, Bs0, Ieval, skip) ->
     case maps:next(Iter0) of
-        {K,V,Iter} ->
-            case catch match1(P, {K,V}, erl_eval:new_bindings(Bs0), Bs0) of
-                {match,_} ->
-                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
-                                         Bs0, Ieval, skip);
-                nomatch ->
-                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
-                                         Bs0, Ieval, skip)
-            end;
+        {_K,_V,Iter} ->
+            bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
+                                 Bs0, Ieval, skip);
         none ->
             {[], skip}
     end;
