@@ -1166,15 +1166,20 @@ convert_gen_values([], Acc, Bs0, _Ieval) ->
 bind_all_generators(Gens, Bs0, Ieval) ->
     bind_all_generators1(Gens, [], erl_eval:new_bindings(Bs0), Ieval, continue).
 
-bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs], Acc, Bs0, Ieval, continue) ->
+bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs],
+                     Acc, Bs0, Ieval, continue) ->
     Mfun = match_fun(Bs0),
     Efun = fun(Exp, Bs) -> expr(Exp, Bs, #ieval{}) end,
     case eval_bits:bin_gen(P, Bin, erl_eval:new_bindings(Bs0), Bs0, Mfun, Efun) of
         {match, Rest, Bs1} ->
             Bs2 = zip_add_bindings(Bs1, Bs0),
             case Bs2 of
-                nomatch -> bind_all_generators1(Qs,[{b_generate, Anno, P, Rest}|Acc], Bs0, Ieval, skip);
-                _ -> bind_all_generators1(Qs,[{b_generate, Anno, P, Rest}|Acc], Bs2, Ieval, continue)
+                nomatch ->
+                    bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc],
+                                         Bs0, Ieval, skip);
+                _ ->
+                    bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc],
+                                         Bs2, Ieval, continue)
             end;
         {nomatch, Rest} ->
             bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc], Bs0, Ieval, skip);
@@ -1197,8 +1202,10 @@ bind_all_generators1([{generate, Anno, P, [H|T]}|Qs], Acc, Bs0, Ieval, continue)
         {match,Bsn} ->
             Bs2 = zip_add_bindings(Bsn, Bs0),
             case Bs2 of
-                nomatch -> bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs0, Ieval, skip);
-                _ -> bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs2, Ieval, continue)
+                nomatch ->
+                    bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs0, Ieval, skip);
+                _ ->
+                    bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs2, Ieval, continue)
             end;
         nomatch ->
             %% match/6 returns nomatch. Skip this value
@@ -1213,11 +1220,16 @@ bind_all_generators1([{m_generate, Anno, P, Iter0}|Qs], Acc, Bs0, Ieval, continu
                 {match,Bsn} ->
                     Bs2 = zip_add_bindings(Bsn, Bs0),
                     case Bs2 of
-                        nomatch -> bind_all_generators1(Qs,[{m_generate, Anno, P, Iter}|Acc], Bs0, Ieval, skip);
-                        _ -> bind_all_generators1(Qs,[{m_generate, Anno, P, Iter}|Acc], Bs2, Ieval, continue)
+                        nomatch ->
+                            bind_all_generators1(Qs,[{m_generate, Anno, P, Iter}|Acc],
+                                                 Bs0, Ieval, skip);
+                        _ ->
+                            bind_all_generators1(Qs,[{m_generate, Anno, P, Iter}|Acc],
+                                                 Bs2, Ieval, continue)
                     end;
                 nomatch ->
-                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, Ieval, skip)
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
+                                         Bs0, Ieval, skip)
             end;
         none ->
             {[], done}
@@ -1227,9 +1239,11 @@ bind_all_generators1([{m_generate, Anno, P, Iter0}|Qs], Acc, Bs0, Ieval, skip) -
         {K,V,Iter} ->
             case catch match1(P, {K,V}, erl_eval:new_bindings(Bs0), Bs0) of
                 {match,_} ->
-                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, Ieval, skip);
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
+                                         Bs0, Ieval, skip);
                 nomatch ->
-                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, Ieval, skip)
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
+                                         Bs0, Ieval, skip)
             end;
         none ->
             {[], skip}

@@ -49,7 +49,7 @@ init_per_suite(Config) when is_list(Config) ->
     true = lists:member(?MODULE, int:interpreted()),
     Config.
 
-end_per_suite(Config) when is_list(Config) ->
+end_per_suite(_Config) ->
     ok.
 
 init_per_group(_GroupName, Config) ->
@@ -59,11 +59,10 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 
-init_per_testcase(_Case, Config) ->
-    test_lib:interpret(?MODULE),
+init_per_testcase(Case, Config) when is_atom(Case), is_list(Config) ->
     Config.
 
-end_per_testcase(_Case, _Config) ->
+end_per_testcase(Case, Config) when is_atom(Case), is_list(Config) ->
     ok.
 
 basic(Config) when is_list(Config) ->
@@ -94,19 +93,25 @@ ifelse(Tests, Xs, Ys) -> % Simulate R's ifelse(,,)
 mixed_zlc(Config) when is_list(Config) ->
     [{a, 2}, {b, 4}, {c, 6}] = [{X,Y} || X <- [a,b,c] && <<Y>> <= <<2,4,6>>],
     [{a, 2}, {b, 4}, {c, 6}] = [{X,Y} || <<Y>> <= <<2,4,6>> && X <- [a,b,c]],
-    [{a,c,1,3}, {b,d,2,4}] = [{K1,K2,V1,V2}|| K1 := V1 <- maps:iterator(#{a=>1, b=>2}, ordered) &&
-                                                  K2 := V2 <- maps:iterator(#{c=>3, d=>4}, ordered)],
-    [{a,1,2}, {b,2,4}] = [{K1,V1,Y} || K1 := V1 <- maps:iterator(#{a=>1, b=>2}, ordered) &&
-                                           <<Y>> <= <<2,4>>],
-    [{a,1,2}, {b,2,4}] = [{K1,V1,Y} || K1 := V1 <- maps:iterator(#{a=>1, b=>2}, ordered) &&
-                                           <<Y>> <= <<2,4>>],
+    [{a,c,1,3}, {b,d,2,4}] = [{K1,K2,V1,V2}||
+                                 K1 := V1 <- maps:iterator(#{a=>1, b=>2}, ordered) &&
+                                     K2 := V2 <- maps:iterator(#{c=>3, d=>4}, ordered)],
+    [{a,1,2}, {b,2,4}] =
+        [{K1,V1,Y} || K1 := V1 <- maps:iterator(#{a=>1, b=>2}, ordered) &&
+                          <<Y>> <= <<2,4>>],
+    [{a,1,2}, {b,2,4}] = [{K1,V1,Y} ||
+                             K1 := V1 <- maps:iterator(#{a=>1, b=>2}, ordered) &&
+                                 <<Y>> <= <<2,4>>],
     <<3,4,5>> = << <<(X+Y)/integer>> || X <- [1,2,3] && Y <- [2,2,2]>>,
-    <<3,4,5>> = << <<(X+V1)/integer>> || X <- [1,2,3] &&
-                                             _K1 := V1 <- maps:iterator(#{a=>2, b=>2, c=>2}, ordered)>>,
-    <<3,4,5>> = << <<(X+V1)/integer>> || <<X>> <= <<1,2,3>> &&
-                                             _K1 := V1 <- maps:iterator(#{a=>2, b=>2, c=>2}, ordered)>>,
-    <<3,4,5>> = << <<(V1+V2)/integer>> || _K1 := V1 <- maps:iterator(#{a=>1, b=>2, c=>3}, ordered) &&
-                                              _K2 := V2 <- maps:iterator(#{a=>2, b=>2, c=>2}, ordered)>>,
+    <<3,4,5>> = << <<(X+V1)/integer>> ||
+                    X <- [1,2,3] &&
+                        _K1 := V1 <- maps:iterator(#{a=>2, b=>2, c=>2}, ordered)>>,
+    <<3,4,5>> = << <<(X+V1)/integer>> ||
+                    <<X>> <= <<1,2,3>> &&
+                        _K1 := V1 <- maps:iterator(#{a=>2, b=>2, c=>2}, ordered)>>,
+    <<3,4,5>> = << <<(V1+V2)/integer>> ||
+                    _K1 := V1 <- maps:iterator(#{a=>1, b=>2, c=>3}, ordered) &&
+                        _K2 := V2 <- maps:iterator(#{a=>2, b=>2, c=>2}, ordered)>>,
     #{c := 3,b := 2,a := 1} = #{X => Y || X <- [a,b,c] && Y <- [1,2,3]},
     #{c := 3,b := 2,a := 1} = #{X => Y || X <- [a,b,c] && <<Y>> <= <<1,2,3>>},
     ok.
@@ -168,15 +173,19 @@ do_filter_pat_2(L1, L2) ->
     Res.
 
 cartesian(Config) when is_list(Config) ->
-    [{a,3}, {b,5}, {c,7}, {a,4}, {b,6}, {c,8}] = [{X, W+Y} || W <- [1,2],
-                                                              X <- [a,b,c] && <<Y>> <= <<2,4,6>>],
-    [{a,3}, {a,4}, {b,5}, {b,6}, {c,7}, {c,8}] = [{X, W+Y} || X <- [a,b,c] &&
-                                                                  <<Y>> <= <<2,4,6>>, W <- [1,2]],
-    [{a,4}, {b,6}, {c,8}] = [{X, W+Y} || X <- [a,b,c] &&
-                                             <<Y>> <= <<2,4,6>>, W <- [1,2], (W + Y) rem 2 == 0],
-    <<4,2,5,3,6,4>> = << <<(X+V1+Y)/integer>> || X <- [1,2,3] &&
-                                                     _K1 := V1 <- maps:iterator(#{a=>2, b=>2, c=>2}, ordered),
-                                                 <<Y>> <= <<1,-1>> >>,
+    [{a,3}, {b,5}, {c,7}, {a,4}, {b,6}, {c,8}] =
+        [{X, W+Y} || W <- [1,2],
+                     X <- [a,b,c] && <<Y>> <= <<2,4,6>>],
+    [{a,3}, {a,4}, {b,5}, {b,6}, {c,7}, {c,8}] =
+        [{X, W+Y} || X <- [a,b,c] &&
+                         <<Y>> <= <<2,4,6>>, W <- [1,2]],
+    [{a,4}, {b,6}, {c,8}] =
+        [{X, W+Y} || X <- [a,b,c] &&
+                         <<Y>> <= <<2,4,6>>, W <- [1,2], (W + Y) rem 2 == 0],
+    <<4,2,5,3,6,4>> = << <<(X+V1+Y)/integer>> ||
+                          X <- [1,2,3] &&
+                              _K1 := V1 <- maps:iterator(#{a=>2, b=>2, c=>2}, ordered),
+                          <<Y>> <= <<1,-1>> >>,
     ok.
 
 nomatch(Config) when is_list(Config) ->
@@ -199,40 +208,35 @@ do_nomatch_2(L, Bin) ->
 
 bad_generators(Config) when is_list(Config) ->
 
-    {'EXIT',{{bad_generators,{x,[1,2]}},_}} = (catch
-                                                   [{X,Y} || X <- x &&
-                                                                 Y <- [1,2]]),
-    {'EXIT',{{bad_generators,{[],[4]}},_}} = (catch
-                                                  [{X,Y} || X <- [1,2,3] &&
-                                                                Y <- [1,2,3,4]]),
-    {'EXIT',{{bad_generators,{[3,4],[]}},_}} = (catch
-                                                    [{X,Y} || X <- [1,2,3,4] &&
-                                                                  Y <- [1,2], X < 3]),
-    {'EXIT',{{bad_generators,{[3,4],[]}},_}} = (catch
-                                                    << <<(X+Y)/integer>> || X <- [1,2,3,4] &&
-                                                                                Y <- [1,2], X < 3>>),
-    {'EXIT',{{bad_generators,{[d],[]}},_}} = (catch
-                                                  #{X => Y || X <- [a,b,c,d] &&
-                                                                  Y <- [1,2,3], Y > 1}),
+    {'EXIT',{{bad_generators,{x,[1,2]}},_}} =
+        catch [{X,Y} || X <- x && Y <- [1,2]],
+    {'EXIT',{{bad_generators,{[],[4]}},_}} =
+        catch [{X,Y} || X <- [1,2,3] && Y <- [1,2,3,4]],
+    {'EXIT',{{bad_generators,{[3,4],[]}},_}} =
+        catch [{X,Y} || X <- [1,2,3,4] && Y <- [1,2], X < 3],
+    {'EXIT',{{bad_generators,{[3,4],[]}},_}} =
+        catch << <<(X+Y)/integer>> || X <- [1,2,3,4] && Y <- [1,2], X < 3>>,
+    {'EXIT',{{bad_generators,{[d],[]}},_}} =
+        catch #{X => Y || X <- [a,b,c,d] && Y <- [1,2,3], Y > 1},
 
     %% Make sure that line numbers point out the generator.
 
     {'EXIT',{{bad_generators,{[],[4]}},
              [{?MODULE,_,_,_}|_]}} =
-        (catch bad_generators([1,2,3],[1,2,3,4])),
+        catch bad_generators([1,2,3],[1,2,3,4]),
 
     {'EXIT',{{bad_generators,{a,[2,3]}},
              [{?MODULE,_,_,_}|_]}} =
-        (catch bad_generators_bc(a,[2,3])),
+        catch bad_generators_bc(a,[2,3]),
 
     {'EXIT',{{bad_generators,{[2],[]}},
              [{?MODULE,_,_,_}|_]}} =
-        (catch bad_generators_mc([1,2],[1])),
+        catch bad_generators_mc([1,2],[1]),
 
     %% List comprehensions with improper lists.
     {'EXIT',{{bad_generators,{d,[d]}},
              [{?MODULE,_,_,_}|_]}} =
-        (catch bad_generators([a,b,c|d],[a,b,c,d])),
+        catch bad_generators([a,b,c|d],[a,b,c,d]),
 
     ok.
 

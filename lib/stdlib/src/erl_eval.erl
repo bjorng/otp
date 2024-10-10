@@ -956,14 +956,16 @@ convert_gen_values([{m_generate, Anno, P, Map0}|Qs], Acc, Bs0, Lf, Ef,FUVs) ->
                                        Anno, Bs0, Ef, none)
                    end
            end,
-    convert_gen_values(Qs, [{m_generate, Anno, {tuple, Anno, [K, V]}, Iter}|Acc], Bs0, Lf, Ef, FUVs);
+    convert_gen_values(Qs, [{m_generate, Anno, {tuple, Anno, [K, V]}, Iter}|Acc],
+                       Bs0, Lf, Ef, FUVs);
 convert_gen_values([], Acc, Bs0, _Lf, _Ef, _FUVs) ->
     {reverse(Acc), Bs0}.
 
 bind_all_generators(Gens, Bs0, Lf, Ef, FUVs) ->
     bind_all_generators1(Gens, [], new_bindings(Bs0), Lf, Ef, FUVs, continue).
 
-bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs], Acc, Bs0, Lf, Ef, FUVs, continue) ->
+bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs],
+                     Acc, Bs0, Lf, Ef, FUVs, continue) ->
     Mfun = match_fun(Bs0, Ef),
     Efun = fun(Exp, Bs) -> expr(Exp, Bs, Lf, Ef, none) end,
     ErrorFun = fun(A, R, S) -> apply_error(R, S, A, Bs0, Ef, none) end,
@@ -971,23 +973,31 @@ bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs], Acc, Bs0, 
         {match, Rest, Bs1} ->
             Bs2 = zip_add_bindings(Bs1, Bs0),
             case Bs2 of
-                nomatch -> bind_all_generators1(Qs,[{b_generate, Anno, P, Rest}|Acc], Bs0, Lf, Ef, FUVs, skip);
-                _ -> bind_all_generators1(Qs,[{b_generate, Anno, P, Rest}|Acc], Bs2, Lf, Ef, FUVs, continue)
+                nomatch ->
+                    bind_all_generators1(Qs,[{b_generate, Anno, P, Rest}|Acc],
+                                         Bs0, Lf, Ef, FUVs, skip);
+                _ ->
+                    bind_all_generators1(Qs,[{b_generate, Anno, P, Rest}|Acc],
+                                         Bs2, Lf, Ef, FUVs, continue)
             end;
         {nomatch, Rest} ->
-            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc], Bs0, Lf, Ef, FUVs, skip);
+            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc],
+                                 Bs0, Lf, Ef, FUVs, skip);
         done ->
             {[], done}
     end;
-bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs], Acc, Bs0, Lf, Ef, FUVs, skip) ->
+bind_all_generators1([{b_generate, Anno, P, <<_/bitstring>>=Bin}|Qs],
+                     Acc, Bs0, Lf, Ef, FUVs, skip) ->
     Mfun = match_fun(Bs0, Ef),
     Efun = fun(Exp, Bs) -> expr(Exp, Bs, Lf, Ef, none) end,
     ErrorFun = fun(A, R, S) -> apply_error(R, S, A, Bs0, Ef, none) end,
     case eval_bits:bin_gen(P, Bin, new_bindings(Bs0), Bs0, Mfun, Efun, ErrorFun) of
         {match, Rest, _} ->
-            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc], Bs0, Lf, Ef, FUVs, skip);
+            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc],
+                                 Bs0, Lf, Ef, FUVs, skip);
         {nomatch, Rest} ->
-            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc], Bs0, Lf, Ef, FUVs, skip);
+            bind_all_generators1(Qs, [{b_generate, Anno, P, Rest}|Acc],
+                                 Bs0, Lf, Ef, FUVs, skip);
         done ->
             {[], skip}
     end;
@@ -996,8 +1006,11 @@ bind_all_generators1([{generate, Anno, P, [H|T]}|Qs], Acc, Bs0, Lf, Ef, FUVs, co
         {match,Bsn} ->
             Bs2 = zip_add_bindings(Bsn, Bs0),
             case Bs2 of
-                nomatch -> bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs0, Lf, Ef, FUVs, skip);
-                _ -> bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs2, Lf, Ef, FUVs, continue)
+                nomatch ->
+                    bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc],
+                                         Bs0, Lf, Ef, FUVs, skip);
+                _ -> bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc],
+                                          Bs2, Lf, Ef, FUVs, continue)
             end;
         nomatch ->
             %% match/6 returns nomatch. Skip this value
@@ -1012,11 +1025,15 @@ bind_all_generators1([{m_generate, Anno, P, Iter0}|Qs], Acc, Bs0, Lf, Ef, FUVs, 
                 {match,Bsn} ->
                     Bs2 = zip_add_bindings(Bsn, Bs0),
                     case Bs2 of
-                        nomatch -> bind_all_generators1(Qs,[{m_generate, Anno, P, Iter}|Acc], Bs0, Lf, Ef, FUVs, skip);
-                        _ -> bind_all_generators1(Qs,[{m_generate, Anno, P, Iter}|Acc], Bs2, Lf, Ef, FUVs, continue)
+                        nomatch ->
+                            bind_all_generators1(Qs,[{m_generate, Anno, P, Iter}|Acc],
+                                                 Bs0, Lf, Ef, FUVs, skip);
+                        _ -> bind_all_generators1(Qs,[{m_generate, Anno, P, Iter}|Acc],
+                                                  Bs2, Lf, Ef, FUVs, continue)
                     end;
                 nomatch ->
-                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, Lf, Ef, FUVs, skip)
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
+                                         Bs0, Lf, Ef, FUVs, skip)
             end;
         none ->
             {[], done}
@@ -1026,9 +1043,11 @@ bind_all_generators1([{m_generate, Anno, P, Iter0}|Qs], Acc, Bs0, Lf, Ef, FUVs, 
         {K,V,Iter} ->
             case match(P, {K,V}, Anno, new_bindings(Bs0), Bs0, Ef) of
                 {match,_} ->
-                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, Lf, Ef, FUVs, skip);
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
+                                         Bs0, Lf, Ef, FUVs, skip);
                 nomatch ->
-                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc], Bs0, Lf, Ef, FUVs, skip)
+                    bind_all_generators1(Qs, [{m_generate, Anno, P, Iter}|Acc],
+                                         Bs0, Lf, Ef, FUVs, skip)
             end;
         none ->
             {[], skip}
