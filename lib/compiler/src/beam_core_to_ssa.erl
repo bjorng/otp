@@ -321,7 +321,7 @@ expr(#c_let{vars=Cvs,arg=Ca,body=Cb}, Sub0, St0) ->
     %% Break known multiple values into separate sets.
     Sets = case Ka of
                #ivalues{args=Kas} ->
-                   [#iset{vars=[V],arg=Val} || {V,Val} <- zip(Kps, Kas)];
+                   [#iset{vars=[V],arg=Val} || {V,Val} <:- zip(Kps, Kas)];
                _Other ->
                    [#iset{vars=Kps,arg=Ka}]
            end,
@@ -1451,7 +1451,7 @@ reorder_bin_ints(Cs0) ->
     %% * The patterns that follow are also safe to re-order.
     try
         Cs = sort([{reorder_bin_int_sort_key(C),C} || C <- Cs0]),
-        [C || {_,C} <- Cs]
+        [C || {_,C} <:- Cs]
     catch
         throw:not_possible ->
             Cs0

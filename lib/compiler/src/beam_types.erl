@@ -1480,7 +1480,7 @@ convert_ext(?BEAM_TYPES_VERSION_25, Types0) ->
                        <<TypeBits:16,Min:64/signed,Max:64/signed>>;
                    false ->
                        <<TypeBits0:16>>
-               end || <<TypeBits0:16,Min:64/signed,Max:64/signed>> <= Types0 >>,
+               end || <<TypeBits0:16,Min:64/signed,Max:64/signed>> <:= Types0 >>,
     convert_ext(?BEAM_TYPES_VERSION_26, Types);
 convert_ext(_Version, _Types) ->
     none.

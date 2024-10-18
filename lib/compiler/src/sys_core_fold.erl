@@ -450,7 +450,7 @@ ifes_1(FVar, #c_fun{body=Body}, _Safe) ->
 ifes_1(FVar, #c_let{arg=Arg,body=Body}, Safe) ->
     ifes_1(FVar, Arg, false) andalso ifes_1(FVar, Body, Safe);
 ifes_1(FVar, #c_letrec{defs=Defs,body=Body}, Safe) ->
-    Funs = [Fun || {_,Fun} <- Defs],
+    Funs = [Fun || {_,Fun} <:- Defs],
     ifes_list(FVar, Funs, false) andalso ifes_1(FVar, Body, Safe);
 ifes_1(_FVar, #c_literal{}, _Safe) ->
     true;
@@ -2032,7 +2032,7 @@ opt_not_in_let_2(#c_case{clauses=Cs0}=Case, NotCall) ->
     Cs = [begin
 	      Let = #c_let{vars=Vars,arg=B,body=Body},
 	      C#c_clause{body=opt_not_in_let(Let)}
-	  end || #c_clause{body=B}=C <- Cs0],
+	  end || #c_clause{body=B}=C <:- Cs0],
     {yes,Case#c_case{clauses=Cs}};
 opt_not_in_let_2(#c_call{}=Call0, _NotCall) ->
     invert_call(Call0);
@@ -2274,7 +2274,7 @@ opt_build_stacktrace(#c_let{vars=[#c_var{name=Cooked}],
                     Cs = [begin
                               B = opt_build_stacktrace(Let#c_let{body=B0}),
                               C#c_clause{body=B}
-                          end || #c_clause{body=B0}=C <- Cs0],
+                          end || #c_clause{body=B0}=C <:- Cs0],
                     Body#c_case{clauses=Cs};
                 true ->
                     Let

@@ -1410,7 +1410,8 @@ decode_field_flags(FieldFlags) when is_integer(FieldFlags) ->
 %%-----------------------------------------------------------------------
 
 mk_imports(ImportList) ->
-    gb_trees:from_orddict([{I,{extfunc,M,F,A}} || {I,M,F,A} <- ImportList]).
+    gb_trees:from_orddict([{I,{extfunc,M,F,A}} ||
+                              {I,M,F,A} <:- ImportList]).
 
 mk_atoms(AtomList) ->
     gb_trees:from_orddict(AtomList).
