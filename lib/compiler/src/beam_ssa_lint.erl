@@ -108,7 +108,7 @@ validate_variables(#b_function{ args = Args, bs = Blocks }) ->
 -spec vvars_assert_unique(Blocks, [beam_ssa:b_var()]) -> ok when
       Blocks :: #{ beam_ssa:label() => beam_ssa:b_blk() }.
 vvars_assert_unique(Blocks, Args) ->
-    BlockIs = [Is || #b_blk{is=Is} <- maps:values(Blocks)],
+    BlockIs = [Is || #b_blk{is=Is} <:- maps:values(Blocks)],
     Defined0 = #{V => argument || V <- Args},
     _ = foldl(fun(Is, Defined) ->
                       vvars_assert_unique_1(Is, Defined)
@@ -130,7 +130,7 @@ vvars_assert_unique_1([], Defined) ->
 -spec vvars_phi_nodes(State :: #vvars{}) -> ok.
 vvars_phi_nodes(#vvars{ blocks = Blocks }=State) ->
     _ = [vvars_phi_nodes_1(Is, Id, State) ||
-            Id := #b_blk{ is = Is } <- Blocks],
+            Id := #b_blk{ is = Is } <:- Blocks],
     ok.
 
 -spec vvars_phi_nodes_1(Is, Id, State) -> ok when
@@ -308,8 +308,8 @@ vvars_terminator(#b_ret{arg=Arg,anno=Anno}=I, From, State) ->
 vvars_terminator(#b_switch{arg=Arg,fail=Fail,list=Switch,anno=Anno}=I, From, State) ->
     check_anno(Anno),
     ok = vvars_assert_args([Arg], I, State),
-    ok = vvars_assert_args([A || {A,_Lbl} <- Switch], I, State),
-    Labels = [Fail | [Lbl || {_Arg, Lbl} <- Switch]],
+    ok = vvars_assert_args([A || {A,_Lbl} <:- Switch], I, State),
+    Labels = [Fail | [Lbl || {_Arg, Lbl} <:- Switch]],
     ok = vvars_assert_labels(Labels, I, State),
     vvars_terminator_1(Labels, From, State);
 vvars_terminator(#b_br{bool=#b_literal{val=true},succ=Succ,anno=Anno}=I, From, State) ->

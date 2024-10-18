@@ -215,7 +215,7 @@ are_equivalent(_, _, _, _, _) -> false.
 share_switch(#b_switch{fail=Fail0,list=List0}=Sw, Blocks) ->
     Prep = share_prepare_sw([{value,Fail0}|List0], Blocks, 0, []),
     Res = do_share_switch(Prep, Blocks, []),
-    [{_,Fail}|List] = [VL || {_,VL} <- sort(Res)],
+    [{_,Fail}|List] = [VL || {_,VL} <:- sort(Res)],
     Sw#b_switch{fail=Fail,list=List}.
 
 share_prepare_sw([{V,L0}|T], Blocks, N, Acc) ->
