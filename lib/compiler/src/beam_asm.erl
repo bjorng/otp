@@ -177,9 +177,8 @@ build_file(Code, Attr, Dict, NumLabels, NumFuncs, ExtraChunks0, CompileInfo, Com
     LiteralChunk = case beam_dict:literal_table(Dict) of
 		       {0,[]} -> [];
 		       {NumLiterals,LitTab0} ->
-			   LitTab1 = [<<NumLiterals:32>>,LitTab0],
-			   LitTab = zlib:compress(LitTab1),
-			   chunk(<<"LitT">>, <<(iolist_size(LitTab1)):32>>,
+			   LitTab = [<<NumLiterals:32>>,LitTab0],
+			   chunk(<<"LitT">>, <<(iolist_size(LitTab)):32>>,
 				 LitTab)
 		   end,
 
