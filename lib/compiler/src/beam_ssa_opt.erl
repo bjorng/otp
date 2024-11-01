@@ -251,6 +251,7 @@ prologue_passes(Opts) ->
           ?PASS(ssa_opt_tuple_size),
           ?PASS(ssa_opt_record),
           ?PASS(ssa_opt_update_tuple),
+          ?PASS(ssa_opt_bsm_tails_as_ctx),
           ?PASS(ssa_opt_cse),                   % Helps the first type pass.
           ?PASS(ssa_opt_live)],                 % ...
     passes_1(Ps, Opts).
@@ -1997,6 +1998,90 @@ trim_try_is([I | Is], Killed) ->
     [I | trim_try_is(Is, Killed)];
 trim_try_is([], _Killed) ->
     [].
+
+
+%%%
+%%% Optimistically pass matched out tails to calls as match contexts
+%%% to functions, safe bifs, and returns.
+%%%
+%%% The alias pass will insert explicit bs_extract instructions if
+%%% that turns out to be unsafe (TODO).
+%%%
+ssa_opt_bsm_tails_as_ctx({#opt_st{ssa=Linear0}=St, FuncDb}) ->
+    Linear = bsm_tac_bs(Linear0, #{}, #{}),
+    {St#opt_st{ssa=Linear}, FuncDb}.
+
+bsm_tac_bs([{L,#b_blk{is=Is0,last=Last}=B0}|Bs], Tails0, ExtractedTails0) ->
+    {Is,Tails,ExtractedTails} = bsm_tac_is(Is0, [], Tails0, ExtractedTails0),
+    [{L,B0#b_blk{is=Is,last=bsm_tac_terminator(Last, Tails, ExtractedTails)}}
+     |bsm_tac_bs(Bs, Tails, ExtractedTails)];
+bsm_tac_bs([], _Tails, _ExtractedTails) ->
+    [].
+
+bsm_tac_is([#b_set{op=bs_match,dst=Dst,
+                   args=[#b_literal{val=binary},#b_var{}=Src,
+                         _,#b_literal{val=all},_]}=I|Is],
+           Acc, Tails, ExtractedTails) ->
+    bsm_tac_is(Is, [I|Acc], Tails#{Dst=>Src}, ExtractedTails);
+bsm_tac_is([#b_set{op=bs_extract,dst=Dst,args=[#b_var{}=Src]}=I|Is],
+           Acc, Tails, ExtractedTails) when is_map_key(Src, Tails) ->
+    bsm_tac_is(Is, [I|Acc], Tails, ExtractedTails#{Dst=>Src});
+
+bsm_tac_is([#b_set{op=call,args=[Target|Args0]}=I|Is],
+           Acc, Tails, ExtractedTails) ->
+    Args = [case ExtractedTails of
+                #{A:=Tail} -> map_get(Tail, Tails);
+                #{} -> A
+            end || A <- Args0],
+    bsm_tac_is(Is, [I#b_set{args=[Target|Args]}|Acc], Tails, ExtractedTails);
+bsm_tac_is([#b_set{op={bif,Bif},args=[Arg0]}=I|Is],
+           Acc, Tails, ExtractedTails)
+  when Bif =:= bit_size; Bif =:= byte_size ->
+    Arg = case ExtractedTails of
+              #{Arg0:=Tail} ->
+                  map_get(Tail, Tails);
+              #{} -> Arg0
+          end,
+    bsm_tac_is(Is, [I#b_set{args=[Arg]}|Acc], Tails, ExtractedTails);
+bsm_tac_is([#b_set{op=bs_match,args=[Type,Arg0|Args]}=I|Is],
+           Acc, Tails, ExtractedTails) ->
+    Arg = case ExtractedTails of
+              #{Arg0:=Tail} ->
+                  map_get(Tail, Tails);
+              #{} -> Arg0
+          end,
+    bsm_tac_is(Is, [I#b_set{args=[Type,Arg|Args]}|Acc], Tails, ExtractedTails);
+bsm_tac_is([#b_set{op=bs_test_tail,args=[Arg0|Args]}=I|Is],
+           Acc, Tails, ExtractedTails) ->
+    Arg = case ExtractedTails of
+              #{Arg0:=Tail} ->
+                  map_get(Tail, Tails);
+              #{} -> Arg0
+          end,
+    bsm_tac_is(Is, [I#b_set{args=[Arg|Args]}|Acc], Tails, ExtractedTails);
+bsm_tac_is([#b_set{op=Op,args=Args0}=I|Is],
+           Acc, Tails, ExtractedTails) when Op =:= put_tuple; Op =:= put_list ->
+    Args = [case ExtractedTails of
+                #{Arg0:=Tail} ->
+                    map_get(Tail, Tails);
+                #{} -> Arg0
+            end || Arg0 <- Args0],
+    bsm_tac_is(Is, [I#b_set{args=Args}|Acc], Tails, ExtractedTails);
+bsm_tac_is([I|Is], Acc, Tails, ExtractedTails) ->
+    bsm_tac_is(Is, [I|Acc], Tails, ExtractedTails);
+bsm_tac_is([], Acc, Tails, ExtractedTails) ->
+    {reverse(Acc), Tails, ExtractedTails}.
+
+bsm_tac_terminator(#b_ret{arg=Arg}=R, Tails, ExtractedTails) ->
+    case ExtractedTails of
+        #{Arg:=T} ->
+            #{T:=Ctx} = Tails,
+            R#b_ret{arg=Ctx};
+        #{} ->
+            R
+    end;
+bsm_tac_terminator(Term, _Tails, _ExtractedTails) ->
+    Term.
 
 %%%
 %%% Optimize binary matching.
