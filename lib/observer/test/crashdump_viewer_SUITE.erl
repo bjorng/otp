@@ -745,9 +745,22 @@ lookat_alloc_info([AllocSummary|_],false) ->
     } = AllocSummary,
 
     %% All values must be integer.
-    _ = [list_to_integer(IntStr) || {_,[_,_,_]=L} <- Data, IntStr <- L],
+    Filter = filter_alloc_info_fun(),
+    _ = [list_to_integer(IntStr) || {_,L} <- Data,
+                                    IntStr <- Filter(L)],
 
     ok.
+
+filter_alloc_info_fun() ->
+    case os:type() of
+        {win32,_} ->
+            fun([A,B,_]) ->
+                    %% The third column is never valid on Windows.
+                    [A,B]
+            end;
+        _ ->
+            fun([_,_,_]=L) -> L end
+    end.
 
 %%%-----------------------------------------------------------------
 %%% 
