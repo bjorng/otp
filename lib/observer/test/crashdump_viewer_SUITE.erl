@@ -380,7 +380,7 @@ browse_file(File) ->
     lookat_all_nodes(Nodes),
     io:format("  nodes ok",[]),
 
-    lookat_alloc_info(AllocInfo),
+    lookat_alloc_info(AllocInfo,is_truncated(File)),
     io:format("  alloc info ok",[]),
 
     Procs. % used as second arg to special/2
@@ -736,7 +736,9 @@ lookat_all_nodes([#nod{channel=Channel0}|Nodes]) ->
     {ok,_Node=#nod{},_NodeTW} = crashdump_viewer:node_info(Channel),
     lookat_all_nodes(Nodes).
 
-lookat_alloc_info([AllocSummary|_]) ->
+lookat_alloc_info(_,true) ->
+    ok;
+lookat_alloc_info([AllocSummary|_],false) ->
     {"Allocator Summary",
      ["blocks size", "carriers size", "mseg carriers size"],
      Data
