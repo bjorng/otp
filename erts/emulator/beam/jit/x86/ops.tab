@@ -1247,6 +1247,15 @@ gc_bif1 Fail _Live _Bif=u$bif:erlang:map_size/1 Src Dst=d =>
 bif_map_size j s d
 
 #
+# "Pure" BIFs.
+#
+
+gc_bif1 Fail=f _Live Bif S1 Dst | is_pure_bif(Bif) =>
+     i_bif1_pure S1 Fail Bif Dst
+
+i_bif1_pure s f? b d
+
+#
 # Guard BIFs.
 #
 gc_bif1 Fail _Live Bif Src Dst      => i_bif1 Src Fail Bif Dst
