@@ -140,6 +140,26 @@ pred.is_heavy_bif(Bif) {
     return 0;
 }
 
+pred.is_pure_bif(Bif) {
+    BeamFile_ImportEntry *import;
+    const Export *export;
+
+    if (Bif.type != TAG_u || Bif.val >= S->beam.imports.count) {
+        return 0;
+    }
+
+    import = &S->beam.imports.entries[Bif.val];
+    export = erts_active_export_entry(import->module,
+                                      import->function,
+                                      import->arity);
+
+    if (export->bif_number != -1) {
+        return bif_table[export->bif_number].kind == BIF_KIND_PURE;
+    }
+
+    return 0;
+}
+
 // Predicate to test whether all of the given new small map keys are literals
 pred.is_small_map_literal_keys(Size, Rest) {
     Uint pair_count = Size.val / 2;

@@ -90,6 +90,10 @@ i_bif.call(Fail, Bif, Dst) {
     $FAIL($Fail);
 }
 
+i_bif1_pure(Src, Fail, Bif, Dst) {
+    abort();
+}
+
 //
 // Guard BIF in body. It can fail like any BIF. No trace support.
 //

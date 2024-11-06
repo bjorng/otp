@@ -1521,6 +1521,11 @@ i_length_setup Live Src=c => move Src x | i_length_setup Live x
 i_length_setup t xy
 i_length j? t d
 
+gc_bif1 Fail=f _Live Bif S1 Dst | is_pure_bif(Bif) =>
+     i_bif1_pure S1 Fail Bif Dst
+
+i_bif1_pure s f? b d
+
 #
 # Guard BIFs.
 #

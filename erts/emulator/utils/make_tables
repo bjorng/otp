@@ -89,7 +89,8 @@ while (<>) {
     my($type, @args) = split;
     if ($type eq 'atom') {
 	save_atoms(@args);
-    } elsif ($type eq 'bif' or $type eq 'ubif' or $type eq 'hbif') {
+    } elsif ($type eq 'bif' or $type eq 'ubif' or
+             $type eq 'hbif' or $type eq 'pbif') {
 	if (@args > 2) {
 	    error("$type only allows two arguments");
 	}
@@ -130,6 +131,9 @@ while (<>) {
         }
         elsif ($type eq 'ubif') {
             $kind = 'BIF_KIND_GUARD';
+        }
+        elsif ($type eq 'pbif') {
+            $kind = 'BIF_KIND_PURE';
         }
         else {
             error("invalid bif_type: $type");
@@ -221,7 +225,8 @@ typedef void *BifFunction;
 typedef enum {
     BIF_KIND_REGULAR,
     BIF_KIND_HEAVY,
-    BIF_KIND_GUARD
+    BIF_KIND_GUARD,
+    BIF_KIND_PURE,
 } BifKind;
 
 typedef struct bif_entry {
