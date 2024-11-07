@@ -49,7 +49,7 @@ ubif erlang:abs/1
 bif erlang:adler32/1
 bif erlang:adler32/2
 bif erlang:adler32_combine/3
-pbif erlang:atom_to_list/1
+bif erlang:atom_to_list/1
 bif erlang:binary_to_list/1
 bif erlang:binary_to_list/3
 bif erlang:binary_to_term/1
@@ -87,7 +87,7 @@ ubif erlang:hd/1
 bif erlang:integer_to_list/1
 ubif erlang:length/1
 bif erlang:link/1
-bif erlang:list_to_atom/1
+pbif erlang:list_to_atom/1
 bif erlang:list_to_binary/1
 bif erlang:list_to_float/1
 bif erlang:list_to_pid/1
@@ -481,7 +481,7 @@ bif string:list_to_float/1
 bif erlang:make_fun/3
 bif erlang:iolist_size/1
 bif erlang:iolist_to_binary/1
-bif erlang:list_to_existing_atom/1
+pbif erlang:list_to_existing_atom/1
 
 #
 # New Bifs in R12B-0
@@ -513,8 +513,8 @@ bif unicode:bin_is_7bit/1
 # New Bifs in R13A.
 #
 bif erlang:atom_to_binary/2
-bif erlang:binary_to_atom/2
-bif erlang:binary_to_existing_atom/2
+pbif erlang:binary_to_atom/2
+pbif erlang:binary_to_existing_atom/2
 bif net_kernel:dflag_unicode_io/1
 #
 # New Bifs in R13B-1

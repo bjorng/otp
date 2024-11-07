@@ -786,8 +786,8 @@ bif2 Fail _Bif=u$bif:erlang:map_get/2 Src1 Src2=xy Dst=d =>
 bif_map_get j s s d
 
 bif2 Fail Bif=u$bif:erlang:is_map_key/2 Key Map=xy Dst=d =>
-    bif_is_map_key Bif Fail Key Map Dst
-bif_is_map_key b j s s d
+    bif_is_map_key Bif Bif Fail Key Map Dst
+bif_is_map_key b e j s s d
 
 bif2 _Fail _Bif=u$bif:erlang:max/2 Src1 Src2 Dst =>
     bif_max Src1 Src2 Dst
@@ -796,16 +796,16 @@ bif2 _Fail _Bif=u$bif:erlang:min/2 Src1 Src2 Dst =>
 bif_max s s d
 bif_min s s d
 
-bif1 _Fail Bif S1 Dst | never_fails(Bif) => nofail_bif1 S1 Bif Dst
-bif2 _Fail Bif S1 S2 Dst | never_fails(Bif) => nofail_bif2 S1 S2 Bif Dst
+bif1 _Fail Bif S1 Dst | never_fails(Bif) => nofail_bif1 S1 Bif Bif Dst
+bif2 _Fail Bif S1 S2 Dst | never_fails(Bif) => nofail_bif2 S1 S2 Bif Bif Dst
 
-bif1 Fail Bif S1 Dst    => i_bif1 S1 Fail Bif Dst
-bif2 Fail Bif S1 S2 Dst => i_bif2 S1 S2 Fail Bif Dst
+bif1 Fail Bif S1 Dst    => i_bif1 S1 Fail Bif Bif Dst
+bif2 Fail Bif S1 S2 Dst => i_bif2 S1 S2 Fail Bif Bif Dst
 
-nofail_bif2 S1=d S2 Bif Dst | is_eq_exact_bif(Bif) => bif_is_eq_exact S1 S2 Dst
-nofail_bif2 S1=d S2 Bif Dst | is_ne_exact_bif(Bif) => bif_is_ne_exact S1 S2 Dst
-nofail_bif2 S1 S2 Bif Dst | is_ge_bif(Bif) => bif_is_ge S1 S2 Dst
-nofail_bif2 S1 S2 Bif Dst | is_lt_bif(Bif) => bif_is_lt S1 S2 Dst
+nofail_bif2 S1=d S2 Bif _Exp Dst | is_eq_exact_bif(Bif) => bif_is_eq_exact S1 S2 Dst
+nofail_bif2 S1=d S2 Bif _Exp Dst | is_ne_exact_bif(Bif) => bif_is_ne_exact S1 S2 Dst
+nofail_bif2 S1 S2 Bif _Exp Dst | is_ge_bif(Bif) => bif_is_ge S1 S2 Dst
+nofail_bif2 S1 S2 Bif _Exp Dst | is_lt_bif(Bif) => bif_is_lt S1 S2 Dst
 
 i_get_hash c W d
 i_get s d
@@ -814,12 +814,12 @@ self d
 
 node d
 
-nofail_bif1 s b d
-nofail_bif2 s s b d
+nofail_bif1 s b e d
+nofail_bif2 s s b e d
 
-i_bif1 s j b d
-i_bif2 s s j b d
-i_bif3 s s s j b d
+i_bif1 s j b e d
+i_bif2 s s j b e d
+i_bif3 s s s j b e d
 
 bif_is_eq_exact S s d
 bif_is_ne_exact S s d
@@ -1319,17 +1319,17 @@ bif_map_size j s d
 #
 # Pure BIFs.
 #
-gc_bif1 Fail=f Live Bif S1 Dst | is_pure_bif(Bif) =>
-     i_bif1_pure Bif Bif Live Fail S1 Dst
+#gc_bif1 Fail=f Live Bif S1 Dst | is_pure_bif(Bif) =>
+#     i_bif1_pure Bif Bif Live Fail S1 Dst
 
-i_bif1_pure b e t f s d
+#i_bif1_pure b e t f s d
 
 #
 # Guard BIFs.
 #
-gc_bif1 Fail _Live Bif Src Dst      => i_bif1 Src Fail Bif Dst
-gc_bif2 Fail _Live Bif S1 S2 Dst    => i_bif2 S1 S2 Fail Bif Dst
-gc_bif3 Fail _Live Bif S1 S2 S3 Dst => i_bif3 S1 S2 S3 Fail Bif Dst
+gc_bif1 Fail _Live Bif Src Dst      => i_bif1 Src Fail Bif Bif Dst
+gc_bif2 Fail _Live Bif S1 S2 Dst    => i_bif2 S1 S2 Fail Bif Bif Dst
+gc_bif3 Fail _Live Bif S1 S2 S3 Dst => i_bif3 S1 S2 S3 Fail Bif Bif Dst
 
 #
 # The following instruction is specially handled in beam_load.c

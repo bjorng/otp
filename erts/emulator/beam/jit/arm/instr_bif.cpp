@@ -30,11 +30,28 @@ extern "C"
 #include "erl_msacc.h"
 }
 
-void BeamModuleAssembler::ubif_comment(const ArgWord &Bif) {
+void BeamModuleAssembler::ubif_comment(const ArgWord &Bif,
+                                       const ArgExport &Exp) {
     if (logger.file()) {
-        ErtsCodeMFA *mfa = ubif2mfa((void *)Bif.get());
-        if (mfa) {
-            comment("UBIF: %T/%d", mfa->function, mfa->arity);
+        BeamFile_ImportEntry *import;
+        const Export *exp;
+        bool is_pure;
+
+        import = &beam->imports.entries[Exp.val];
+        exp = erts_active_export_entry(import->module,
+                                       import->function,
+                                       import->arity);
+
+        is_pure = exp->bif_number != -1 &&
+            bif_table[exp->bif_number].kind == BIF_KIND_PURE;
+
+        if (is_pure) {
+            comment("fake UBIF: %T:%T/%d", import->module, import->function, import->arity);
+        } else {
+            ErtsCodeMFA *mfa = ubif2mfa((void *)Bif.get());
+            if (mfa) {
+                comment("UBIF: %T/%d", mfa->function, mfa->arity);
+            }
         }
     }
 }
@@ -108,12 +125,13 @@ void BeamGlobalAssembler::emit_i_bif_body_shared() {
 void BeamModuleAssembler::emit_i_bif1(const ArgSource &Src1,
                                       const ArgLabel &Fail,
                                       const ArgWord &Bif,
+                                      const ArgExport &Exp,
                                       const ArgRegister &Dst) {
     auto src1 = load_source(Src1);
 
     a.str(src1.reg, getXRef(0));
 
-    ubif_comment(Bif);
+    ubif_comment(Bif, Exp);
     emit_i_bif(Fail, Bif, Dst);
 }
 
@@ -121,12 +139,13 @@ void BeamModuleAssembler::emit_i_bif2(const ArgSource &Src1,
                                       const ArgSource &Src2,
                                       const ArgLabel &Fail,
                                       const ArgWord &Bif,
+                                      const ArgExport &Exp,
                                       const ArgRegister &Dst) {
     auto [src1, src2] = load_sources(Src1, TMP1, Src2, TMP2);
 
     a.stp(src1.reg, src2.reg, getXRef(0));
 
-    ubif_comment(Bif);
+    ubif_comment(Bif, Exp);
     emit_i_bif(Fail, Bif, Dst);
 }
 
@@ -135,6 +154,7 @@ void BeamModuleAssembler::emit_i_bif3(const ArgSource &Src1,
                                       const ArgSource &Src3,
                                       const ArgLabel &Fail,
                                       const ArgWord &Bif,
+                                      const ArgExport &Exp,
                                       const ArgRegister &Dst) {
     auto [src1, src2] = load_sources(Src1, TMP1, Src2, TMP2);
     auto src3 = load_source(Src3, TMP3);
@@ -142,7 +162,7 @@ void BeamModuleAssembler::emit_i_bif3(const ArgSource &Src1,
     a.stp(src1.reg, src2.reg, getXRef(0));
     a.str(src3.reg, getXRef(2));
 
-    ubif_comment(Bif);
+    ubif_comment(Bif, Exp);
     emit_i_bif(Fail, Bif, Dst);
 }
 
@@ -168,12 +188,13 @@ void BeamModuleAssembler::emit_i_bif(const ArgLabel &Fail,
 
 void BeamModuleAssembler::emit_nofail_bif1(const ArgSource &Src1,
                                            const ArgWord &Bif,
+                                           const ArgExport &Exp,
                                            const ArgRegister &Dst) {
     auto src1 = load_source(Src1);
 
     a.str(src1.reg, getXRef(0));
 
-    ubif_comment(Bif);
+    ubif_comment(Bif, Exp);
     mov_arg(ARG4, Bif);
     fragment_call(ga->get_i_bif_guard_shared());
     mov_arg(Dst, ARG1);
@@ -182,12 +203,13 @@ void BeamModuleAssembler::emit_nofail_bif1(const ArgSource &Src1,
 void BeamModuleAssembler::emit_nofail_bif2(const ArgSource &Src1,
                                            const ArgSource &Src2,
                                            const ArgWord &Bif,
+                                           const ArgExport &Exp,
                                            const ArgRegister &Dst) {
     auto [src1, src2] = load_sources(Src1, TMP1, Src2, TMP2);
 
     a.stp(src1.reg, src2.reg, getXRef(0));
 
-    ubif_comment(Bif);
+    ubif_comment(Bif, Exp);
     mov_arg(ARG4, Bif);
     fragment_call(ga->get_i_bif_guard_shared());
     mov_arg(Dst, ARG1);
@@ -609,25 +631,25 @@ void BeamModuleAssembler::emit_send() {
     fragment_call(ga->get_call_light_bif_shared());
 }
 
-void BeamModuleAssembler::emit_i_bif_pure(const ArgWord &Bif,
-                                          const ArgExport &Exp,
-                                          const ArgWord &Live,
-                                          const ArgLabel &Fail,
-                                          const ArgRegister &Dst) {
-}
+// void BeamModuleAssembler::emit_i_bif_pure(const ArgWord &Bif,
+//                                           const ArgExport &Exp,
+//                                           const ArgWord &Live,
+//                                           const ArgLabel &Fail,
+//                                           const ArgRegister &Dst) {
+// }
 
-void BeamModuleAssembler::emit_i_bif1_pure(const ArgWord &Bif,
-                                           const ArgExport &Exp,
-                                           const ArgWord &Live,
-                                           const ArgLabel &Fail,
-                                           const ArgSource &Src1,
-                                           const ArgRegister &Dst) {
-    auto src1 = load_source(Src1);
+// void BeamModuleAssembler::emit_i_bif1_pure(const ArgWord &Bif,
+//                                            const ArgExport &Exp,
+//                                            const ArgWord &Live,
+//                                            const ArgLabel &Fail,
+//                                            const ArgSource &Src1,
+//                                            const ArgRegister &Dst) {
+//     auto src1 = load_source(Src1);
 
-    a.str(src1.reg, getXRef(0));
+//     a.str(src1.reg, getXRef(0));
 
-    emit_i_bif_pure(Fail, Exp, Bif, Live, Dst);
-}
+//     emit_i_bif_pure(Fail, Exp, Bif, Live, Dst);
+// }
 
 void BeamModuleAssembler::emit_nif_start() {
     /* load time only instruction */

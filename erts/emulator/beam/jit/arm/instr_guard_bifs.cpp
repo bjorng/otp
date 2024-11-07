@@ -802,12 +802,13 @@ void BeamModuleAssembler::emit_bif_hd(const ArgSource &Src,
  */
 
 void BeamModuleAssembler::emit_bif_is_map_key(const ArgWord &Bif,
+                                              const ArgExport &Exp,
                                               const ArgLabel &Fail,
                                               const ArgSource &Key,
                                               const ArgSource &Src,
                                               const ArgRegister &Dst) {
     if (!exact_type<BeamTypeId::Map>(Src)) {
-        emit_i_bif2(Key, Src, Fail, Bif, Dst);
+        emit_i_bif2(Key, Src, Fail, Bif, Exp, Dst);
         return;
     }
 

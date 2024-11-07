@@ -1305,7 +1305,7 @@ protected:
 
     void emit_validate_unicode(Label next, Label fail, a64::Gp value);
 
-    void ubif_comment(const ArgWord &Bif);
+    void ubif_comment(const ArgWord &Bif, const ArgExport &Exp);
 
     void emit_cmp_immed_to_bool(arm::CondCode cc,
                                 const ArgSource &LHS,
