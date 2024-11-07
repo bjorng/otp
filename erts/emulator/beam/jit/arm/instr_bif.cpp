@@ -609,12 +609,24 @@ void BeamModuleAssembler::emit_send() {
     fragment_call(ga->get_call_light_bif_shared());
 }
 
+void BeamModuleAssembler::emit_i_bif_pure(const ArgWord &Bif,
+                                          const ArgExport &Exp,
+                                          const ArgWord &Live,
+                                          const ArgLabel &Fail,
+                                          const ArgRegister &Dst) {
+}
+
 void BeamModuleAssembler::emit_i_bif1_pure(const ArgWord &Bif,
                                            const ArgExport &Exp,
                                            const ArgWord &Live,
                                            const ArgLabel &Fail,
                                            const ArgSource &Src1,
                                            const ArgRegister &Dst) {
+    auto src1 = load_source(Src1);
+
+    a.str(src1.reg, getXRef(0));
+
+    emit_i_bif_pure(Fail, Exp, Bif, Live, Dst);
 }
 
 void BeamModuleAssembler::emit_nif_start() {

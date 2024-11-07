@@ -1243,6 +1243,12 @@ protected:
                     const ArgWord &Bif,
                     const ArgRegister &Dst);
 
+    void emit_i_bif_pure(const ArgWord &Bif,
+                         const ArgExport &Exp,
+                         const ArgWord &Live,
+                         const ArgLabel &Fail,
+                         const ArgRegister &Dst);
+
     void emit_error(int code);
     void emit_error(int reason, const ArgSource &Src);
 
