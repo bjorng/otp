@@ -1250,10 +1250,10 @@ bif_map_size j s d
 # "Pure" BIFs.
 #
 
-gc_bif1 Fail=f _Live Bif S1 Dst | is_pure_bif(Bif) =>
-     i_bif1_pure S1 Fail Bif Dst
+#gc_bif1 Fail=f _Live Bif S1 Dst | is_pure_bif(Bif) =>
+#     i_bif1_pure S1 Fail Bif Dst
 
-i_bif1_pure s f? b d
+#i_bif1_pure s f? b d
 
 #
 # Guard BIFs.
