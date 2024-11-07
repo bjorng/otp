@@ -609,6 +609,14 @@ void BeamModuleAssembler::emit_send() {
     fragment_call(ga->get_call_light_bif_shared());
 }
 
+void BeamModuleAssembler::emit_i_bif1_pure(const ArgWord &Bif,
+                                           const ArgExport &Exp,
+                                           const ArgWord &Live,
+                                           const ArgLabel &Fail,
+                                           const ArgSource &Src1,
+                                           const ArgRegister &Dst) {
+}
+
 void BeamModuleAssembler::emit_nif_start() {
     /* load time only instruction */
 }
