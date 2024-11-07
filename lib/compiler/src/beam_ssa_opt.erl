@@ -1895,7 +1895,7 @@ reduce_try_is([#b_set{op={succeeded,body}}=I0|Is], Acc) ->
     reduce_try_is(Is, [I|Acc]);
 reduce_try_is([#b_set{op=call,args=[#b_remote{mod=#b_literal{val=M},
                         name=#b_literal{val=F},arity=A}|Args]}=I0|Is], Acc) ->
-    case erl_bifs:is_pure(M, F, A) of
+    case is_safe_as_guard_bif(M, F, A) of
         true ->
             I = I0#b_set{op={bif,F},args=Args},
             reduce_try_is(Is, [I|Acc]);
@@ -1912,6 +1912,12 @@ reduce_try_is([#b_set{op=Op}=I|Is], Acc) ->
     end;
 reduce_try_is([], Acc) ->
     {safe,reverse(Acc)}.
+
+is_safe_as_guard_bif(erlang, binary_to_atom, 1) -> true;
+is_safe_as_guard_bif(erlang, binary_to_existing_atom, 1) -> true;
+is_safe_as_guard_bif(erlang, list_to_atom, 1) -> true;
+is_safe_as_guard_bif(erlang, list_to_existing_atom, 1) -> true;
+is_safe_as_guard_bif(_, _, _) -> false.
 
 %% Removes try/catch expressions whose expressions will never throw.
 %%
