@@ -329,6 +329,8 @@ extract_src_vars({op,_,_Name,Arg}, Lc, Acc0) ->
 extract_src_vars({op,_,_Name,Lhs,Rhs}, Lc, Acc0) ->
     Acc1 = extract_src_vars(Lhs, false, Acc0),
     extract_src_vars(Rhs, Lc, Acc1);
+extract_src_vars({debug_line,_,_}, _Lc, Acc) ->
+    Acc;
 extract_src_vars({executable_line,_,_}, _Lc, Acc) ->
     Acc;
 extract_src_vars({named_fun,_,Name,Cs}, Lc, Acc0) ->
@@ -488,10 +490,7 @@ abstr_debug_lines(Abstr) ->
 abstr_extract_debug_lines(Abstr) ->
     abstr_extract_debug_lines(Abstr, []).
 
-abstr_extract_debug_lines({executable_line,_,Index}, Acc) ->
-    %% Note: In the abstract code, `executable_line` is used to
-    %% represent `debug_line`. The translation to `debug_line` is
-    %% done in a later pass.
+abstr_extract_debug_lines({debug_line,_,Index}, Acc) ->
     [Index|Acc];
 abstr_extract_debug_lines([H|T], Acc0) ->
     Acc1 = abstr_extract_debug_lines(H, Acc0),
