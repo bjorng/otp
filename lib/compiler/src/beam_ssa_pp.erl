@@ -112,7 +112,7 @@ format_param_info([{type, T} | Infos], Break) ->
     [format_type(T, Break) |
      format_param_info(Infos, Break)];
 format_param_info([Info | Infos], Break) ->
-    [io_lib:format("~s~kp", [Break, Info]) |
+    [io_lib:format("~kp~s", [Info, Break]) |
      format_param_info(Infos, Break)];
 format_param_info([], _Break) ->
     [].
