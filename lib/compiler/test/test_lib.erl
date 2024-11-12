@@ -87,6 +87,7 @@ opt_opts(Mod) ->
     %% `options` may not be set at all if +deterministic is enabled.
     Opts = proplists:get_value(options, Comp, []),
     lists:filter(fun
+                     (beam_debug_info) -> true;
                      (debug_info) -> true;
                      (dialyzer) -> true;
                      ({feature,_,enable}) -> true;
