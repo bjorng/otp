@@ -482,11 +482,11 @@ munge_expr({'catch',Anno,Expr}, Vars0) ->
 munge_expr({call,Anno1,{remote,Anno2,ExprM,ExprF},Exprs}, Vars0) ->
     {MungedExprM, Vars1} = munge_expr(ExprM, Vars0),
     {MungedExprF, Vars2} = munge_expr(ExprF, Vars1),
-    {MungedExprs, Vars3} = munge_exprs(Exprs, Vars2),
+    {MungedExprs, Vars3} = munge_args(Exprs, Vars2),
     {{call,Anno1,{remote,Anno2,MungedExprM,MungedExprF},MungedExprs}, Vars3};
 munge_expr({call,Anno,Expr,Exprs}, Vars0) ->
     {MungedExpr, Vars1} = munge_expr(Expr, Vars0),
-    {MungedExprs, Vars2} = munge_exprs(Exprs, Vars1),
+    {MungedExprs, Vars2} = munge_args(Exprs, Vars1),
     {{call,Anno,MungedExpr,MungedExprs}, Vars2};
 munge_expr({lc,Anno,Expr,Qs}, Vars0) ->
     {MungedExpr, Vars1} = munge_expr(?BLOCK1(Expr), Vars0),
@@ -549,6 +549,28 @@ munge_expr({bin_element,Anno,Value,Size,TypeSpecifierList}, Vars0) ->
     {{bin_element,Anno,MungedValue,MungedSize,TypeSpecifierList},Vars2};
 munge_expr(Form, Vars0) ->
     {Form, Vars0}.
+
+munge_args(Args0, #vars{in_guard=false,bump_instr=debug_line}=Vars) ->
+    %% We want to have `debug_line` instructions inserted before each line in
+    %% this example:
+    %%
+    %% bar:f(
+    %%     bar:g(X),
+    %%     bar:h(X)).
+    Args = [case is_atomic(Arg) of
+                true -> Arg;
+                false -> ?BLOCK(Arg)
+            end || Arg <- Args0],
+    munge_exprs(Args, Vars);
+munge_args(Args, Vars) ->
+    munge_exprs(Args, Vars).
+
+is_atomic({atom,_,_}) -> true;
+is_atomic({float,_,_}) -> true;
+is_atomic({integer,_,_}) -> true;
+is_atomic({nil,_}) -> true;
+is_atomic({var,_,_}) -> true;
+is_atomic(_) -> false.
 
 munge_exprs(Exprs, Vars) ->
     munge_exprs(Exprs, Vars, []).

@@ -1676,8 +1676,8 @@ abstr_passes(AbstrStatus) ->
          %% The `beam_debug_info` and `line_coverage` options are
          %% mutually exclusive. If both are given, ignore the
          %% `line_coverage` option.
-         {delay,[{iff,beam_debug_info,?pass(beam_debug_info)},
-                 {iff,line_coverage,{pass,sys_coverage}}]},
+         {delay,[{iff,line_coverage,{pass,sys_coverage}},
+                 {iff,beam_debug_info,?pass(beam_debug_info)}]},
 
          ?pass(expand_records),
          {iff,'dexp',{listing,"expand"}},

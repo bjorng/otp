@@ -2052,8 +2052,12 @@ cg_instr(executable_line, [{integer,Index}], _Dst, #cg_set{anno=Anno}) ->
     [{executable_line,Location,Index}];
 cg_instr(debug_line, [{integer,Index},{integer,Live},{literal,Info}],
          _Dst, #cg_set{anno=Anno}) ->
-    {line,Location} = line(Anno),
-    [{debug_line,Location,Index,Live,Info}];
+    case line(Anno) of
+        {line,[]} ->
+            [];
+        {line,Location} ->
+            [{debug_line,Location,Index,Live,Info}]
+    end;
 cg_instr(put_map, [{atom,assoc},SrcMap|Ss], Dst, Set) ->
     Live = get_live(Set),
     [{put_map_assoc,{f,0},SrcMap,Dst,Live,{list,Ss}}];
