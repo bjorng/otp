@@ -32,7 +32,8 @@
 	 init_per_group/2,end_per_group/2,
          smoke/1,
          fixed_bugs/1,
-         empty_module/1]).
+         empty_module/1,
+         call_in_call_args/1]).
 
 suite() -> [{ct_hooks,[ts_install_cth]}].
 
@@ -43,7 +44,8 @@ all() ->
 groups() ->
     [{p,test_lib:parallel(),
       [fixed_bugs,
-       empty_module]}].
+       empty_module,
+       call_in_call_args]}].
 
 init_per_suite(Config) ->
     id(Config),
@@ -695,6 +697,32 @@ empty_module(_Config) ->
              {attribute,{1,2},module,Mod},
              {eof,{3,1}}],
     {ok,Mod,_Code} = compile:forms(Empty, [beam_debug_info,report]),
+
+    ok.
+
+call_in_call_args(Config) ->
+    M = ?FUNCTION_NAME,
+    PrivDir = proplists:get_value(priv_dir, Config),
+    SrcName = filename:join(PrivDir, atom_to_list(M) ++ ".erl"),
+
+    S = ~"""
+         -module(call_in_call_args).
+         -export([f/1]).
+
+         f(X) ->
+             bar:g(
+               bar:h(X),
+               id(X)
+              ).
+         id(I) -> I.
+         """,
+
+    ok = file:write_file(SrcName, S),
+    {ok,M,Asm} = compile:file(SrcName, [report,beam_debug_info,binary,to_asm]),
+    {M,_,_,[{function,f,1,_,Is}|_],_} = Asm,
+    DebugLines = [I || I <- Is, element(1, I) =:= debug_line],
+    io:format("~p\n", [DebugLines]),
+    3 = length(DebugLines),
 
     ok.
 
