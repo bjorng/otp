@@ -66,7 +66,8 @@ cover_transform(Forms, IndexFun) when is_list(Forms),
             true ->
                 ?BLOCK(Expr)
         end).
--define(EXECUTABLE_LINE, executable_line).
+
+-type bump_instruction() :: 'executable_line' | 'debug_line'.
 
 -record(vars,
         {module=[]      :: module() | [],
@@ -76,11 +77,12 @@ cover_transform(Forms, IndexFun) when is_list(Forms),
          lines=[]       :: [non_neg_integer()],
          bump_lines=[]  :: [non_neg_integer()],
          in_guard=false :: boolean(),
-         index_fun      :: index_fun()
+         index_fun      :: index_fun(),
+         bump_instr     :: bump_instruction()
         }).
 
 transform(Code, IndexFun) ->
-    Vars = #vars{index_fun=IndexFun},
+    Vars = #vars{index_fun=IndexFun,bump_instr=executable_line},
     transform(Code, [], Vars, none, on).
 
 transform([Form0|Forms], MungedForms, Vars0, MainFile0, Switch0) ->
@@ -367,7 +369,7 @@ fix_expr(E, _Line, _Bump) ->
 fix_clauses([], _Line, _Bump) ->
     [];
 fix_clauses(Cs, Line, Bump) ->
-    case bumps_line(lists:last(Cs), Line) of
+    case bumps_line(lists:last(Cs), Line, Bump) of
         true ->
             fix_cls(Cs, Line, Bump);
         false ->
@@ -377,7 +379,7 @@ fix_clauses(Cs, Line, Bump) ->
 fix_cls([], _Line, _Bump) ->
     [];
 fix_cls([Cl | Cls], Line, Bump) ->
-    case bumps_line(Cl, Line) of
+    case bumps_line(Cl, Line, Bump) of
         true ->
             [fix_expr(C, Line, Bump) || C <- [Cl | Cls]];
         false ->
@@ -390,24 +392,30 @@ fix_cls([Cl | Cls], Line, Bump) ->
             [{clause,CA,P,G,Body1} | fix_cls(Cls, Line, Bump)]
     end.
 
-bumps_line(E, L) ->
-    try bumps_line1(E, L) catch true -> true end.
+bumps_line(E, L, Bump) ->
+    try
+        bumps_line1(E, L, Bump)
+    catch
+        throw:true ->
+            true
+    end.
 
-bumps_line1({?EXECUTABLE_LINE,Line,_}, Line) ->
+bumps_line1({BumpInstr,Line,_}, Line, {BumpInstr,_,_}) ->
     throw(true);
-bumps_line1([E | Es], Line) ->
-    bumps_line1(E, Line),
-    bumps_line1(Es, Line);
-bumps_line1(T, Line) when is_tuple(T) ->
-    bumps_line1(tuple_to_list(T), Line);
-bumps_line1(_, _) ->
+bumps_line1([E | Es], Line, Bump) ->
+    bumps_line1(E, Line, Bump),
+    bumps_line1(Es, Line, Bump);
+bumps_line1(T, Line, Bump) when is_tuple(T) ->
+    bumps_line1(tuple_to_list(T), Line, Bump);
+bumps_line1(_, _, _Bump) ->
     false.
 
 %% Insert an executable_line instruction in the abstract code.
 bump_call(Vars, Line) ->
-    #vars{module=M,function=F,arity=A,clause=C,index_fun=GetIndex} = Vars,
+    #vars{module=M,function=F,arity=A,clause=C,index_fun=GetIndex,
+          bump_instr=BumpInstr} = Vars,
     Index = GetIndex(M, F, A, C, Line),
-    {?EXECUTABLE_LINE,Line,Index}.
+    {BumpInstr,Line,Index}.
 
 %%% End of fix of last expression.
 
