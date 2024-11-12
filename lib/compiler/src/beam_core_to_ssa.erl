@@ -371,8 +371,8 @@ expr(#c_call{anno=A,module=M0,name=F0,args=Cargs}, Sub, St0) ->
                            args=[M0,F0,cerl:make_list(Cargs)]},
             expr(Call, Sub, St)
     end;
-expr(#c_primop{anno=A0,name=#c_literal{val=executable_line},
-               args=Cargs}, Sub, #kern{beam_debug_info=true}=St0) ->
+expr(#c_primop{anno=A0,name=#c_literal{val=debug_line},
+               args=Cargs}, Sub, St0) ->
     {Args,Ap,St1} = atomic_list(Cargs, Sub, St0),
     #b_set{anno=A1} = I0 = primop(debug_line, A0, Args),
     {_,Alias} = Sub,

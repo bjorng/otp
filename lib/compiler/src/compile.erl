@@ -1676,9 +1676,8 @@ abstr_passes(AbstrStatus) ->
          %% The `beam_debug_info` and `line_coverage` options are
          %% mutually exclusive. If both are given, ignore the
          %% `line_coverage` option.
-         {delay,[{iff,beam_debug_info,{pass,sys_coverage}},
-                 {unless,beam_debug_info,
-                  {iff,line_coverage,{pass,sys_coverage}}}]},
+         {delay,[{iff,beam_debug_info,?pass(beam_debug_info)},
+                 {iff,line_coverage,{pass,sys_coverage}}]},
 
          ?pass(expand_records),
          {iff,'dexp',{listing,"expand"}},
@@ -2503,6 +2502,10 @@ debug_info(#compile{module=Module,ofile=OFile}=St) ->
 	false ->
 	    {ok,DebugInfo,Opts2}
     end.
+
+beam_debug_info(Code0, #compile{}=St) ->
+    {ok,Code} = sys_coverage:beam_debug_info(Code0),
+    {ok,Code,St}.
 
 debug_info_chunk(#compile{mod_options=ModOpts0,
                           options=CompOpts,

@@ -21,7 +21,7 @@
 
 -module(sys_coverage).
 -moduledoc false.
--export([module/2,cover_transform/2]).
+-export([module/2,cover_transform/2,beam_debug_info/1]).
 -import(lists, [member/2,reverse/1,reverse/2]).
 
 -type attribute() :: atom().
@@ -34,16 +34,8 @@
 -spec module([form()], [compile:option()]) ->
         {'ok',[form()]}.
 
-module(Forms0, _Opts) when is_list(Forms0) ->
-    put(executable_line_index, 1),
-    GetIndex = fun(_, _, _, _, _) ->
-                       Index = get(executable_line_index),
-                       put(executable_line_index, Index + 1),
-                       Index
-               end,
-    Forms = transform(Forms0, GetIndex),
-    erase(executable_line_index),
-    Forms.
+module(Forms, _Opts) when is_list(Forms) ->
+    transform(Forms, executable_line).
 
 %% Undocumented helper function for the `cover` module.
 -spec cover_transform([form()], index_fun()) ->
@@ -51,7 +43,14 @@ module(Forms0, _Opts) when is_list(Forms0) ->
 
 cover_transform(Forms, IndexFun) when is_list(Forms),
                                       is_function(IndexFun, 5) ->
-    transform(Forms, IndexFun).
+    transform(Forms, IndexFun, executable_line).
+
+%% Undocumented helper function for inserting `debug_line` instructions.
+
+-spec beam_debug_info([form()]) -> {'ok',[form()]}.
+
+beam_debug_info(Forms) when is_list(Forms) ->
+    transform(Forms, debug_line).
 
 %%%
 %%% Local functions.
@@ -81,8 +80,19 @@ cover_transform(Forms, IndexFun) when is_list(Forms),
          bump_instr     :: bump_instruction()
         }).
 
-transform(Code, IndexFun) ->
-    Vars = #vars{index_fun=IndexFun,bump_instr=executable_line},
+transform(Forms, BumpInstr) ->
+    put(bump_index, 1),
+    GetIndex = fun(_, _, _, _, _) ->
+                       Index = get(bump_index),
+                       put(bump_index, Index + 1),
+                       Index
+               end,
+    Result = transform(Forms, GetIndex, BumpInstr),
+    erase(bump_index),
+    Result.
+
+transform(Code, IndexFun, BumpInstr) ->
+    Vars = #vars{index_fun=IndexFun,bump_instr=BumpInstr},
     transform(Code, [], Vars, none, on).
 
 transform([Form0|Forms], MungedForms, Vars0, MainFile0, Switch0) ->

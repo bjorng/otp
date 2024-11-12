@@ -986,9 +986,10 @@ expr({op,L,Op,L0,R0}, St0) ->
     {#icall{anno=#a{anno=LineAnno},		%Must have an #a{}
 	    module=#c_literal{anno=LineAnno,val=erlang},
 	    name=#c_literal{anno=LineAnno,val=Op},args=As},Aps,St1};
-expr({executable_line,Loc,Index}, St0) ->
+expr({Op,Loc,Index}, St0) when Op =:= executable_line;
+                               Op =:= debug_line ->
     {#iprimop{anno=#a{anno=lineno_anno(Loc, St0)},
-              name=#c_literal{val=executable_line},
+              name=#c_literal{val=Op},
               args=[#c_literal{val=Index}]},[],St0};
 expr({ssa_check_when,L,WantedResult,Args,Tag,Clauses}, St) ->
     {#c_opaque{anno=full_anno(L, St),val={ssa_check_when,WantedResult,Tag,Args,Clauses}}, [], St}.
