@@ -1,0 +1,16 @@
+#!/usr/bin/env escript
+
+-define(SHEBANG, "/usr/bin/env escript").
+-define(COMMENT, "").
+-define(EMU_ARGS, "-noinput +B -sasl errlog_type error -escript main ").
+
+main([Name | Beams]) ->
+    BeamData = [{filename:basename(B), read(B)}|| B <- Beams],
+    ok = escript:create(Name, [{archive, BeamData, [memory]},
+                               {shebang, ?SHEBANG},
+                               {comment, ?COMMENT},
+                               {emu_args, ?EMU_ARGS ++ Name}]),
+    ok = file:change_mode(Name, 8#755).
+read(File) ->
+    {ok, B} = file:read_file(filename:absname(File)),
+    B.
