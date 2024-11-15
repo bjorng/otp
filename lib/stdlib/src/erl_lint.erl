@@ -283,12 +283,12 @@ format_error_1({redefine_import,{{F,A},M}}) ->
     {~"function ~tw/~w already imported from ~w", [F,A,M]};
 format_error_1({bad_inline,{F,A}}) ->
     {~"inlined function ~tw/~w undefined", [F,A]};
-format_error_1({bad_inline,{F,A},GuessF}) ->
-    {~"inlined function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,A]};
+format_error_1({bad_inline,{F,A},GuessF,GuessA}) ->
+    {~"inlined function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,GuessA]};
 format_error_1({undefined_nif,{F,A}}) ->
     {~"nif ~tw/~w undefined", [F,A]};
-format_error_1({undefined_nif,{F,A},GuessF}) ->
-    {~"nif ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,A]};
+format_error_1({undefined_nif,{F,A},GuessF,GuessA}) ->
+    {~"nif ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,GuessA]};
 format_error_1(no_load_nif) ->
     {~"nifs defined, but no call to erlang:load_nif/2", []};
 format_error_1({invalid_deprecated,D}) ->
@@ -305,10 +305,12 @@ format_error_1({bad_removed,{F,A}}) ->
     {~"removed function ~tw/~w is still exported", [F,A]};
 format_error_1({bad_nowarn_unused_function,{F,A}}) ->
     {~"function ~tw/~w undefined", [F,A]};
-format_error_1({bad_nowarn_unused_function,{F,A},GuessF}) ->
-    {~"function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,A]};
+format_error_1({bad_nowarn_unused_function,{F,A},GuessF,GuessA}) ->
+    {~"function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,GuessA]};
 format_error_1({bad_nowarn_bif_clash,{F,A}}) ->
     {~"function ~tw/~w undefined", [F,A]};
+format_error_1({bad_nowarn_bif_clash,{F,A},GuessF,GuessA}) ->
+    {~"function ~tw/~w undefined, did you mean ~ts/~w", [F,A,GuessF,GuessA]};
 format_error_1(disallowed_nowarn_bif_clash) ->
     ~"""
      compile directive nowarn_bif_clash is no longer allowed --
@@ -338,8 +340,8 @@ format_error_1({unused_import,{{F,A},M}}) ->
     {~"import ~w:~tw/~w is unused", [M,F,A]};
 format_error_1({undefined_function,{F,A}}) ->
     {~"function ~tw/~w undefined", [F,A]};
-format_error_1({undefined_function,{F,A},GuessF}) ->
-    {~"function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,A]};
+format_error_1({undefined_function,{F,A},GuessF,GuessA}) ->
+    {~"function ~tw/~w undefined, did you mean ~ts/~w?", [F,A,GuessF,GuessA]};
 format_error_1({redefine_function,{F,A}}) ->
     {~"function ~tw/~w already defined", [F,A]};
 format_error_1({define_import,{F,A}}) ->
@@ -1607,9 +1609,18 @@ check_undefined_functions(#lint{called=Called0,defined=Def0}=St0) ->
     foldl(fun ({NA,Anno}, St) ->
                   {Name, Arity} = NA,
                   PossibleFs = [atom_to_list(F) || {F, A} <- FAList, A =:= Arity],
-                  case most_possible_string(Name, PossibleFs) of
-                      [] -> add_error(Anno, {undefined_function,NA}, St);
-                      GuessF -> add_error(Anno, {undefined_function,NA,GuessF}, St)
+                  PossibleAs = [A || {F, A} <- FAList, F =:= Name],
+                  case PossibleAs of
+                      [] ->
+                          case most_possible_string(Name, PossibleFs) of
+                              [] ->
+                                  add_error(Anno, {undefined_function,NA}, St);
+                              GuessF ->
+                                  add_error(Anno, {undefined_function,NA,GuessF,Arity}, St)
+                          end;
+                      [_|_] ->
+                          GuessA = hd(PossibleAs),
+                          add_error(Anno, {undefined_function,NA,Name,GuessA}, St)
                   end
           end, St0, Undef).
 
@@ -1690,9 +1701,18 @@ func_location_error(Type, Fs, St, FAList) ->
     foldl(fun ({F,Anno}, St0) ->
                   {Name, Arity} = F,
                   PossibleFs = [atom_to_list(Func) || {Func, A} <- FAList, A =:= Arity],
-                  case most_possible_string(Name, PossibleFs) of
-                      [] -> add_error(Anno, {Type,F}, St0);
-                      GuessF -> add_error(Anno, {Type,F,GuessF}, St0)
+                  PossibleAs = [A || {FName, A} <- FAList, FName =:= Name],
+                  case PossibleAs of
+                      [] ->
+                          case most_possible_string(Name, PossibleFs) of
+                              [] ->
+                                  add_error(Anno, {Type,F}, St0);
+                              GuessF ->
+                                  add_error(Anno, {Type,F,GuessF,Arity}, St0)
+                          end;
+                      [_|_] ->
+                          GuessA = hd(PossibleAs),
+                          add_error(Anno, {Type,F,Name,GuessA}, St0)
                   end
           end, St, Fs).
 
@@ -3834,9 +3854,18 @@ check_dialyzer_attribute(Forms, St0) ->
                               false ->
                                   {Name, Arity} = FA,
                                   PossibleFs = [atom_to_list(F) || {F, A} <- DefFunctions, A =:= Arity],
-                                  case most_possible_string(Name, PossibleFs) of
-                                      [] -> add_error(Anno, {undefined_function,FA}, St);
-                                      GuessF -> add_error(Anno, {undefined_function,FA,GuessF}, St)
+                                  PossibleAs = [A || {F, A} <- DefFunctions, F =:= Name],
+                                  case PossibleAs of
+                                      [] ->
+                                          case most_possible_string(Name, PossibleFs) of
+                                              [] ->
+                                                  add_error(Anno, {undefined_function,FA}, St);
+                                              GuessF ->
+                                                  add_error(Anno, {undefined_function,FA,GuessF,Arity}, St)
+                                          end;
+                                      [_|_] ->
+                                          GuessA = hd(PossibleAs),
+                                          add_error(Anno, {undefined_function,FA,Name,GuessA}, St)
                                   end
                           end;
                       false ->

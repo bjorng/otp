@@ -1955,11 +1955,11 @@ otp_4988(Config) when is_list(Config) ->
                   {A}.
              ">>,
            [],
-           {errors,[{{1,22},erl_lint,{bad_inline,{1,foo}}},
-                    {{1,22},erl_lint,{bad_inline,{f,3}}},
-                    {{1,22},erl_lint,{bad_inline,{f,4}}},
-                    {{1,22},erl_lint,{bad_inline,{f,a}}},
-                    {{3,16},erl_lint,{bad_inline,{g,12}}}],
+            {errors,[{{1,22},erl_lint,{bad_inline,{1,foo}}},
+                    {{1,22},erl_lint,{bad_inline,{f,3},f,2}},
+                    {{1,22},erl_lint,{bad_inline,{f,4},f,2}},
+                    {{1,22},erl_lint,{bad_inline,{f,a},f,2}},
+                    {{3,16},erl_lint,{bad_inline,{g,12},g,1}}],
             []}}],
     [] = run(Config, Ts),
     ok.
@@ -2308,10 +2308,10 @@ otp_5362(Config) when is_list(Config) ->
                  ok.
            ">>,
           {[warn_unused_vars, warn_unused_import]},
-           {error,[{{5,15},erl_lint,{bad_inline,{inl,7}}},
-                   {{6,15},erl_lint,{bad_inline,{inl,17}}},
-                   {{11,18},erl_lint,{undefined_function,{fipp,0},"foop"}},
-                   {{22,15},erl_lint,{bad_nowarn_unused_function,{and_not_used,2}}}],
+           {error,[{{5,15},erl_lint,{bad_inline,{inl,7},inl,1}},
+                   {{6,15},erl_lint,{bad_inline,{inl,17},inl,1}},
+                   {{11,18},erl_lint,{undefined_function,{fipp,0},"foop",0}},
+                   {{22,15},erl_lint,{bad_nowarn_unused_function,{and_not_used,2},and_not_used,1}}],
             [{{3,15},erl_lint,{unused_import,{{b,1},lists}}},
              {{9,14},erl_lint,{unused_function,{foop,0}}},
              {{19,14},erl_lint,{unused_function,{not_used,0}}},
@@ -2403,7 +2403,7 @@ otp_5362(Config) when is_list(Config) ->
            {[nowarn_unused_function]},
            {errors,[{{3,16},erl_lint,disallowed_nowarn_bif_clash},
                     {{4,16},erl_lint,disallowed_nowarn_bif_clash},
-                    {{4,16},erl_lint,{bad_nowarn_bif_clash,{spawn,2}}}],
+                    {{4,16},erl_lint,{bad_nowarn_bif_clash,{spawn,2},spawn,1}}],
             []}
            },
 
@@ -5442,15 +5442,18 @@ messages_with_jaro_suggestions(Config) ->
            {error,[{{1,22},erl_lint,{undefined_on_load,{foa,0},"foo"}}],
             [{{2,15},erl_lint,{unused_function,{foo,0}}}]}},
           {undefined_nif,
-           <<"-export([foo/1]).
-              -nifs([foa/1]).
+           <<"-export([foo/1,bar/2]).
+              -nifs([foa/1,bar/1]).
               -on_load(init/0).
               init() ->
                   ok = erlang:load_nif(\"./example_nif\", 0).
               foo(_X) ->
+                  erlang:nif_error(nif_library_not_loaded).
+              bar(_X,_Y) ->
                   erlang:nif_error(nif_library_not_loaded).">>,
            {[]},
-           {errors,[{{2,16},erl_lint,{undefined_nif,{foa,1},"foo"}}],[]}},
+           {errors,[{{2,16},erl_lint,{undefined_nif,{bar,1},bar,2}},
+                    {{2,16},erl_lint,{undefined_nif,{foa,1},"foo",1}}],[]}},
           {record_and_field,
            <<"-record(meep, { moo, muu }).
               t(State) ->
@@ -5470,24 +5473,30 @@ messages_with_jaro_suggestions(Config) ->
            {error,[{{4,19},erl_lint,{unbound_var,'Stat',"State"}}],
             [{{2,15},erl_lint,{unused_function,{t,1}}}]}},
           {undefined_fun,
-           <<"-export([bar/1]).
-              baz(X) -> X.">>,
+           <<"-export([bar/1,foo/2]).
+              baz(X) -> X.
+              foo(X, Y, Z) -> X + Y + Z.">>,
            {[]},
-           {error,[{{1,22},erl_lint,{undefined_function,{bar,1},"baz"}}],
-            [{{2,15},erl_lint,{unused_function,{baz,1}}}]}},
+           {error,[{{1,22},erl_lint,{undefined_function,{bar,1},"baz",1}},
+                   {{1,22},erl_lint,{undefined_function,{foo,2},foo,3}}],
+                  [{{2,15},erl_lint,{unused_function,{baz,1}}},
+                   {{3,15},erl_lint,{unused_function,{foo,3}}}]}},
           {nowarn_undefined_fun,
            <<"-compile({nowarn_unused_function,[{an_not_used,1}]}).
               and_not_used(_) -> foo.">>,
            {[]},
            {error,[{{1,22}, erl_lint,
-                    {bad_nowarn_unused_function,{an_not_used,1},"and_not_used"}}],
+                    {bad_nowarn_unused_function,{an_not_used,1},"and_not_used",1}}],
             [{{2,15},erl_lint,{unused_function,{and_not_used,1}}}]}},
           {bad_inline,
-           <<"-compile({inline, {go,1}}).
-              gi(A) -> {A}.">>,
+           <<"-compile({inline, [{foo,1},{ba,1}]}).
+              foa(A) -> {A}.
+              ba(A, A) -> [A].">>,
            {[]},
-           {error,[{{1,22},erl_lint,{bad_inline,{go,1},"gi"}}],
-            [{{2,15},erl_lint,{unused_function,{gi,1}}}]}}
+           {error,[{{1,22},erl_lint,{bad_inline,{ba,1},ba,2}},
+                   {{1,22},erl_lint,{bad_inline,{foo,1},"foa",1}}],
+                  [{{2,15},erl_lint,{unused_function,{foa,1}}},
+                   {{3,15},erl_lint,{unused_function,{ba,2}}}]}}
          ],
     [] = run(Config, Ts),
 
