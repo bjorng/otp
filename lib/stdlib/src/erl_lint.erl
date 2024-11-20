@@ -1606,23 +1606,7 @@ check_undefined_functions(#lint{called=Called0,defined=Def0}=St0) ->
     Def = sofs:from_external(gb_sets:to_list(Def0), [func]),
     Undef = sofs:to_external(sofs:drestriction(Called, Def)),
     FAList = sofs:to_external(Def),
-    foldl(fun ({NA,Anno}, St) ->
-                  {Name, Arity} = NA,
-                  PossibleFs = [atom_to_list(F) || {F, A} <- FAList, A =:= Arity],
-                  PossibleAs = [A || {F, A} <- FAList, F =:= Name],
-                  case PossibleAs of
-                      [] ->
-                          case most_possible_string(Name, PossibleFs) of
-                              [] ->
-                                  add_error(Anno, {undefined_function,NA}, St);
-                              GuessF ->
-                                  add_error(Anno, {undefined_function,NA,GuessF,Arity}, St)
-                          end;
-                      [_|_] ->
-                          GuessA = hd(PossibleAs),
-                          add_error(Anno, {undefined_function,NA,Name,GuessA}, St)
-                  end
-          end, St0, Undef).
+    func_location_error(undefined_function, Undef, St0, FAList).
 
 most_possible_string(Name, PossibleNames) ->
     case PossibleNames of
@@ -1697,24 +1681,26 @@ nowarn_function(Tag, Opts) ->
 func_location_warning(Type, Fs, St) ->
     foldl(fun ({F,Anno}, St0) -> add_warning(Anno, {Type,F}, St0) end, St, Fs).
 
-func_location_error(Type, Fs, St, FAList) ->
-    foldl(fun ({F,Anno}, St0) ->
-                  {Name, Arity} = F,
-                  PossibleFs = [atom_to_list(Func) || {Func, A} <- FAList, A =:= Arity],
-                  PossibleAs = [A || {FName, A} <- FAList, FName =:= Name],
-                  case PossibleAs of
+func_location_error(Type, [{F,Anno}|Fs], St0, FAList) ->
+    {Name, Arity} = F,
+    PossibleAs = [A || {FName, A} <- FAList, FName =:= Name],
+    case PossibleAs of
+        [] ->
+            PossibleFs = [atom_to_list(Func) ||
+                             {Func, A} <- FAList, A =:= Arity],
+            St1 = case most_possible_string(Name, PossibleFs) of
                       [] ->
-                          case most_possible_string(Name, PossibleFs) of
-                              [] ->
-                                  add_error(Anno, {Type,F}, St0);
-                              GuessF ->
-                                  add_error(Anno, {Type,F,GuessF,Arity}, St0)
-                          end;
-                      [_|_] ->
-                          GuessA = hd(PossibleAs),
-                          add_error(Anno, {Type,F,Name,GuessA}, St0)
-                  end
-          end, St, Fs).
+                          add_error(Anno, {Type,F}, St0);
+                      GuessF ->
+                          add_error(Anno, {Type,F,GuessF,Arity}, St0)
+                  end,
+            func_location_error(Type, Fs, St1, FAList);
+        [GuessA|_] ->
+            St1 = add_error(Anno, {Type,F,Name,GuessA}, St0),
+            func_location_error(Type, Fs, St1, FAList)
+    end;
+func_location_error(_, [], St, _) ->
+    St.
 
 check_untyped_records(Forms, St0) ->
     case is_warn_enabled(untyped_record, St0) of
