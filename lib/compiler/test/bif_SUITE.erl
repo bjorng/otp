@@ -20,6 +20,7 @@
 -module(bif_SUITE).
 
 -include_lib("syntax_tools/include/merl.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
@@ -298,63 +299,140 @@ num_clamped_add(A) ->
     min(max(A, 0), 10) + 100.
 
 non_throwing(_Config) ->
-    a = try binary_to_atom(<<"a">>)
-        catch _:_ -> []
-        end,
-    l = try list_to_existing_atom([108])
-        catch _:_ -> []
-        end,
-    [] = try list_to_existing_atom([a])
-         catch _:_ -> []
-         end,
-    'Erlang' = try binary_to_atom(<<"Erlang">>, unicode)
-               catch _:_ -> []
-               end,
-    [] = try binary_to_existing_atom(a, unicode)
-         catch _:_ -> []
-         end,
+    abc = thing_to_atom(~"abc"),
+    [] = thing_to_atom(a),
+    [] = thing_to_atom(42),
+    [] = thing_to_atom([a,b,c]),
+
+    erlang = thing_to_existing_atom(~"erlang"),
+    [] = thing_to_existing_atom(~"not an existing atom"),
+    [] = thing_to_existing_atom(a),
+
     ok.
+
+thing_to_atom(Bin0) ->
+    Bin = id(Bin0),
+    Res = try
+              binary_to_atom(Bin)
+          catch
+              _:_ ->
+                  []
+          end,
+    Res = try
+              binary_to_atom(Bin, utf8)
+          catch
+              _:_ ->
+                  []
+          end,
+    if
+        is_atom(Res) ->
+            List = unicode:characters_to_list(Bin),
+            Res = try
+                      list_to_atom(List)
+                  catch
+                      _:_ ->
+                          []
+                  end;
+        true ->
+            Res
+    end.
+
+thing_to_existing_atom(Bin0) ->
+    Bin = id(Bin0),
+    Res = try
+              binary_to_existing_atom(Bin)
+          catch
+              _:_ ->
+                  []
+          end,
+    Res = try
+              binary_to_existing_atom(Bin, utf8)
+          catch
+              _:_ ->
+                  []
+          end,
+    if
+        is_atom(Res) ->
+            List = unicode:characters_to_list(Bin),
+            Res = try
+                      list_to_existing_atom(List)
+                  catch
+                      _:_ ->
+                          []
+                  end;
+        true ->
+            Res
+    end.
 
 non_throwing_pure(_Config) ->
-    [0] = non_throwing_pure1(id(<<0>>)),
-    error = non_throwing_pure1(id(a)),
-    [0] = non_throwing_pure2(id(<<0>>)),
-    error = non_throwing_pure2(id(a)),
-    <<0>> = non_throwing_pure3(id(<<0>>)),
-    error = non_throwing_pure3(id(a)),
+    [0] = bin2list(<<0>>),
+    error = bin2list(a),
 
-    try binary_to_list(a)
-    catch _:_ -> error
-    end,
+    ~"xyz" = list2bin("xyz"),
+    error = list2bin(a),
+    error = list2bin([a]),
+    error = list2bin([1,2,3|bad_tail]),
 
-    AnAtom = id(abc),
-    if
-        is_atom(AnAtom) ->
-            try binary_to_list(AnAtom)
-            catch _:_ -> error
-            end
-    end,
-    
+    HugeBin = rand:bytes(1_000_000),
+    ?assertEqual(HugeBin, list2bin(bin2list(HugeBin))),
+
+    %% FIXME: Handle error after trapping.
+    %% error = bin2list(<<HugeBin/binary,1:1>>),
+    %% error = list2bin(binary_to_list(HugeBin) ++ [a]),
+
+    Tracer = spawn_link(fun F() ->
+                                receive M ->
+                                        io:format("~p\n", [M]),
+                                        F()
+                                end
+                        end),
+    Session = trace:session_create(my_session, Tracer, []),
+
+    %% Stupid = {pointless,tuple},
+    %% Prog = [{['$1'],[],[{exception_trace},{message,{Stupid}}]}],
+    Prog = [],
+
+    1 = trace:process(Session, self(), true, [call]),
+    1 = trace:function(Session, {erlang,list_to_binary,1}, Prog, []),
+
+    ~"abcde" = list2bin("abcde"),
+
+    %% FIXME: Handle error when traced.
+    %% error = list2bin(not_a_list),
+
+    trace:delivered(Session, self()),
+
+    true = trace:session_destroy(Session),
+
     ok.
 
-non_throwing_pure1(A) ->
-    try binary_to_list(A)
-    catch _:_ -> error
-        end.
+bin2list(A0) ->
+    A = id(A0),
 
-non_throwing_pure2(A) ->
-    id(A),
+    Res = try
+              binary_to_list(A)
+          catch
+              _:_ -> error
+          end,
+    Res = try
+              binary_to_list(A, 1, byte_size(A))
+          catch
+              _:_ -> error
+          end,
+    Res = try
+              _ = binary_to_list(A),
+              binary_to_list(A)
+          catch
+              _:_ -> error
+          end,
+    Res.
+
+list2bin(A) ->
     try
-        _ = binary_to_list(A),
-        binary_to_list(A)
-    catch _:_ -> error
-        end.
-
-non_throwing_pure3(A) ->
-    try binary_to_list(A),
-        id(A)
-    catch _:_ -> error
-        end.
+        list_to_binary(A)
+    catch
+        _:_ -> error
+    end.
 
 %%%
 %%% Common utilities.
