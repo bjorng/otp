@@ -1465,6 +1465,60 @@ ptab_pix2el(ErtsPTab *ptab, int ix)
 	return ptab_el;
 }
 
+#define ERTS_PTAB_REDS_MULTIPLIER 25
+
+Eterm
+erts_ptab_processes_next(Process *c_p, ErtsPTab *ptab, Uint first)
+{
+    Uint i;
+    int scanned;
+    Sint limit;
+    Uint need;
+    Eterm res;
+    Eterm* hp;
+    Eterm *hp_end;
+
+    int max_pids = MAX(ERTS_BIF_REDS_LEFT(c_p), 1);
+    int num_pids = 0;
+    int n = max_pids * ERTS_PTAB_REDS_MULTIPLIER;
+
+    need = n * 2;
+    hp = HAlloc(c_p, need); /* we need two heap words for each id */
+    hp_end = hp + need;
+    res = make_list(hp);
+
+    limit = MIN(ptab->r.o.max, first+n);
+    if (first == limit) {
+	return NIL;
+    } else if (first > limit) {
+        return THE_NON_VALUE;
+    }
+
+    for (i = first; i < limit && num_pids < max_pids; i++) {
+	ErtsPTabElementCommon *el = ptab_pix2el(ptab, i);
+	if (el) {
+	    CONS(hp, el->id, make_list(hp+2));
+	    hp += 2;
+	    num_pids++;
+	}
+    }
+
+    if (num_pids == 0) {
+        res = NIL;
+    } else {
+        hp[-1] = NIL;
+    }
+
+    scanned = (i - first) / ERTS_PTAB_REDS_MULTIPLIER + 1;
+
+    res = TUPLE2(hp, make_small(i), res);
+    HRelease(c_p, hp_end, hp);
+
+    BUMP_REDS(c_p, scanned);
+
+    return res;
+}
+
 Eterm
 erts_debug_ptab_list(Process *c_p, ErtsPTab *ptab)
 {

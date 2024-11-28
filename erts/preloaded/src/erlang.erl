@@ -465,6 +465,7 @@ A list of binaries. This datatype is useful to use together with
 -export([time_offset/0, time_offset/1, timestamp/0]).
 -export([process_display/2]).
 -export([process_flag/3, process_info/1, processes/0, purge_module/1]).
+-export([processes_first/0, processes_next/1]).
 -export([put/2, raise/3, read_timer/1, read_timer/2, ref_to_list/1, register/2]).
 -export([send_after/3, send_after/4, start_timer/3, start_timer/4]).
 -export([registered/0, resume_process/1, round/1, self/0]).
@@ -5218,6 +5219,70 @@ Example:
 -spec processes() -> [pid()].
 processes() ->
     erlang:nif_error(undefined).
+
+%% The process iterator is a 2-tuple, consisting of an index to the process
+%% table and a list of process identifiers that existed when the last scan of
+%% the process table took place. The index is the starting place for the next
+%% scan of the process table.
+-type iter_ref() :: {integer(), [pid()]}.
+
+%% processes_first/0
+-doc """
+Returns a processes iterator that can be used in
+[`processes_next/1`](`processes_next/1`). This BIF does not return any specific
+process identifiers from the process table.
+
+
+Example:
+
+```erlang
+> processes_first().
+{0, []}
+```
+""".
+-doc #{ group => processes }.
+-spec processes_first() -> iter_ref().
+processes_first() ->
+    {0, []}.
+
+%% processes_next/1
+-doc """
+Returns a 2-tuple, consisting of one process identifier and a new processes
+iterator. If the process iterator has run out of processes in the process table,
+an empty list will be returned.
+
+Example:
+
+```erlang
+> processes_next(processes_first()).
+{<0.0.0>,
+ {93575,
+  [<0.1.0>,<0.2.0>,<0.3.0>,<0.4.0>,<0.5.0>,<0.6.0>,<0.7.0>,
+   <0.8.0>,<0.11.0>,<0.43.0>,<0.45.0>,<0.46.0>,<0.47.0>,
+   <0.49.0>,<0.50.0>,<0.51.0>,<0.52.0>,<0.53.0>,<0.55.0>,
+   <0.57.0>,<0.58.0>,<0.59.0>,<0.60.0>,<0.61.0>,<0.62.0>|...]}}
+```
+
+> #### Note {: .info }
+>
+> This BIF has less consistency guarantee than [`processes/0`](`processes/0`).
+> Process identifiers returned from consecutive calls of this BIF may not be a
+> consistent snapshot of all elements existing in the table during any of the
+> calls.
+""".
+-spec processes_next({iter_ref(), [pid()]}) -> {pid(), {iter_ref(), [pid()]}} | [].
+processes_next({IterRef, [Pid|Pids]}) ->
+    {Pid, {IterRef, Pids}};
+processes_next({IterRef0, []}=Arg) ->
+    try erts_internal:processes_next(IterRef0) of
+        [] -> [];
+        {IterRef, [Pid|Pids]} -> {Pid, {IterRef, Pids}};
+        {IterRef, []} -> processes_next({IterRef, []})
+    catch error:badarg ->
+            badarg_with_info([Arg])
+    end;
+processes_next(Arg) ->
+    badarg_with_info([Arg]).
 
 %% purge_module/1
 -doc """
