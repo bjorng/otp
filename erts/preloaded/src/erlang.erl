@@ -265,6 +265,7 @@ A timeout value that can be passed to a
 -export_type([message_queue_data/0]).
 -export_type([monitor_option/0]).
 -export_type([stacktrace/0]).
+-export_type([processes_iter_ref/0]).
 
 -type stacktrace_extrainfo() ::
         {line, pos_integer()} |
@@ -5224,24 +5225,15 @@ processes() ->
 %% table and a list of process identifiers that existed when the last scan of
 %% the process table took place. The index is the starting place for the next
 %% scan of the process table.
--type iter_ref() :: {integer(), [pid()]}.
+-opaque processes_iter_ref() :: {integer(), [pid()]}.
 
 %% processes_first/0
 -doc """
 Returns a processes iterator that can be used in
-[`processes_next/1`](`processes_next/1`). This BIF does not return any specific
-process identifiers from the process table.
-
-
-Example:
-
-```erlang
-> processes_first().
-{0, []}
-```
+[`processes_next/1`](`processes_next/1`).
 """.
 -doc #{ group => processes }.
--spec processes_first() -> iter_ref().
+-spec processes_first() -> processes_iter_ref().
 processes_first() ->
     {0, []}.
 
@@ -5249,18 +5241,17 @@ processes_first() ->
 -doc """
 Returns a 2-tuple, consisting of one process identifier and a new processes
 iterator. If the process iterator has run out of processes in the process table,
-an empty list will be returned.
+`none` will be returned.
 
 Example:
 
 ```erlang
-> processes_next(processes_first()).
-{<0.0.0>,
- {93575,
-  [<0.1.0>,<0.2.0>,<0.3.0>,<0.4.0>,<0.5.0>,<0.6.0>,<0.7.0>,
-   <0.8.0>,<0.11.0>,<0.43.0>,<0.45.0>,<0.46.0>,<0.47.0>,
-   <0.49.0>,<0.50.0>,<0.51.0>,<0.52.0>,<0.53.0>,<0.55.0>,
-   <0.57.0>,<0.58.0>,<0.59.0>,<0.60.0>,<0.61.0>,<0.62.0>|...]}}
+> I0 = erlang:processes_first(), ok.
+ok
+> {Pid1, I1} = erlang:processes_next(I0), Pid1.
+<0.0.0>,
+> {Pid2, I2} = erlang:processes_next(I1), Pid2.
+<0.1.0>
 ```
 
 > #### Note {: .info }
@@ -5270,12 +5261,16 @@ Example:
 > consistent snapshot of all elements existing in the table during any of the
 > calls.
 """.
--spec processes_next({iter_ref(), [pid()]}) -> {pid(), {iter_ref(), [pid()]}} | [].
+-doc #{ group => processes }.
+-spec processes_next(Iter) -> {Pid, NewIter} | 'none' when
+      Iter :: processes_iter_ref(),
+      NewIter :: processes_iter_ref(),
+      Pid :: pid().
 processes_next({IterRef, [Pid|Pids]}) ->
     {Pid, {IterRef, Pids}};
 processes_next({IterRef0, []}=Arg) ->
     try erts_internal:processes_next(IterRef0) of
-        [] -> [];
+        none -> none;
         {IterRef, [Pid|Pids]} -> {Pid, {IterRef, Pids}};
         {IterRef, []} -> processes_next({IterRef, []})
     catch error:badarg ->

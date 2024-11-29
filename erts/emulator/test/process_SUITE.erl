@@ -2568,8 +2568,8 @@ iter_all_processes(Iter0) ->
     case erlang:processes_next(Iter0) of
         {Pid, Iter} ->
             [Pid|iter_all_processes(Iter)];
-        [] ->
-            []
+        none ->
+            none
     end.
 
 do_processes_bif_test(WantReds, DieTest, Processes) ->
@@ -4228,7 +4228,7 @@ processes_iter(Config) when is_list(Config) ->
     {'EXIT',{badarg,_}} = catch erts_internal:processes_next(1 bsl 64),
     {'EXIT',{badarg,_}} = catch erts_internal:processes_next(abc),
 
-    [] = erts_internal:processes_next(ProcessLimit),
+    none = erts_internal:processes_next(ProcessLimit),
 
     ok.
 

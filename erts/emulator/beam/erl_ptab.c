@@ -1489,7 +1489,7 @@ erts_ptab_processes_next(Process *c_p, ErtsPTab *ptab, Uint first)
 
     limit = MIN(ptab->r.o.max, first+n);
     if (first == limit) {
-	return NIL;
+	return am_none;
     } else if (first > limit) {
         return THE_NON_VALUE;
     }

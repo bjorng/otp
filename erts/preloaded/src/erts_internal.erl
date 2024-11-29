@@ -1169,6 +1169,6 @@ system_monitor(_Session) ->
 system_monitor(_Session, _MonitorPid, _Options) ->
     erlang:nif_error(undefined).
 
--spec processes_next(integer()) -> {integer(), [pid()]} | [].
+-spec processes_next(integer()) -> {integer(), [pid()]} | 'none'.
 processes_next(_IterRef) ->
     erlang:nif_error(undefined).
