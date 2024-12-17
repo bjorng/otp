@@ -704,7 +704,10 @@ vi({make_fun3,{f,Lbl},_,_,Dst,{list,Env}}, #vst{ft=Ft}=Vst0) ->
 
     create_term(Type, make_fun, [], Dst, Vst);
 vi(return, Vst) ->
-    assert_durable_term({x,0}, Vst),
+    case get_movable_term_type({x,0}, Vst) of
+        #t_bs_context{} -> ok;
+        _ -> assert_durable_term({x,0}, Vst)
+    end,
     verify_return(Vst);
 
 %%
@@ -1048,7 +1051,10 @@ vi({badmatch,Src}, Vst) ->
     assert_durable_term(Src, Vst),
     branch(?EXCEPTION_LABEL, Vst, fun kill_state/1);
 vi({case_end,Src}, Vst) ->
-    assert_durable_term(Src, Vst),
+    case get_movable_term_type(Src, Vst) of
+        #t_bs_context{} -> ok;
+        _ -> assert_durable_term(Src, Vst)
+    end,
     branch(?EXCEPTION_LABEL, Vst, fun kill_state/1);
 vi(if_end, Vst) ->
     branch(?EXCEPTION_LABEL, Vst, fun kill_state/1);
@@ -2762,7 +2768,7 @@ get_concrete_type(Src, #vst{current=#st{vs=Vs}}=Vst) ->
 
 get_term_type(Src, Vst) ->
     case get_movable_term_type(Src, Vst) of
-        #t_bs_context{} -> error({match_context,Src});
+        %% #t_bs_context{} -> error({match_context,Src});
         #t_abstract{} -> error({abstract_term,Src});
         Type -> Type
     end.
