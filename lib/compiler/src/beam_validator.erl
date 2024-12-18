@@ -1923,15 +1923,17 @@ verify_local_args(X, ParamInfo, CtxRefs, Vst) ->
 
 verify_arg_type(Reg, GivenType, ParamInfo, Vst) ->
     case {ParamInfo, GivenType} of
+        %% {#{ Reg := Info }, #t_bs_context{}} ->
+        %%     %% Match contexts require explicit support, and may not be passed
+        %%     %% to a function that accepts arbitrary terms.
+        %%     case member(accepts_match_context, Info) of
+        %%         true -> verify_arg_type_1(Reg, GivenType, Info, Vst);
+        %%         false -> error(no_bs_start_match2)
+        %%     end;
         {#{ Reg := Info }, #t_bs_context{}} ->
-            %% Match contexts require explicit support, and may not be passed
-            %% to a function that accepts arbitrary terms.
-            case member(accepts_match_context, Info) of
-                true -> verify_arg_type_1(Reg, GivenType, Info, Vst);
-                false -> error(no_bs_start_match2)
-            end;
-        {_, #t_bs_context{}} ->
-            error(no_bs_start_match2);
+            verify_arg_type_1(Reg, GivenType, Info, Vst);
+        %% {_, #t_bs_context{}} ->
+        %%     error(no_bs_start_match2);
         {#{ Reg := Info }, _} ->
             verify_arg_type_1(Reg, GivenType, Info, Vst);
         {#{}, _} ->
