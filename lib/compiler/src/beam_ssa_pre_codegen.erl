@@ -211,16 +211,16 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 %% fix_bs(St0) -> St.
 %%  Combine bs_match and bs_extract instructions to bs_get instructions.
 
-fix_bs(#st{ssa=Blocks,cnt=Count0}=St) ->
+fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
     F = fun(#b_set{op=bs_start_match,dst=Dst}, A) ->
                 %% Mark the root of the match context list.
                 A#{Dst => {context,Dst}};
            (#b_set{op=bs_ensure,dst=Dst,args=[ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
-                A#{Dst => ParentCtx};
+                fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
            (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
-                A#{Dst => ParentCtx};
+                fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
            (_, A) ->
                 A
         end,
@@ -234,17 +234,38 @@ fix_bs(#st{ssa=Blocks,cnt=Count0}=St) ->
             Linear0 = beam_ssa:linearize(Blocks),
 
             %% Insert position instructions where needed.
-            {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain, Count0),
-
+            {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain, RPO,
+                                          FunArgs, Count0),
             %% Rename instructions.
             Linear = bs_instrs(Linear1, CtxChain, []),
 
             St#st{ssa=maps:from_list(Linear),cnt=Count}
     end.
 
+%%
+%% If Ctx is not in the CtxChain, it means that the match context has
+%% not been created in this function, it could be a function argument,
+%% a result from a function application or extracted from a term
+%% Regardless, we want it registered as a match context.
+%%
+fix_bs_ensure_root(Ctx, CtxChain) when is_map_key(Ctx, CtxChain) ->
+    CtxChain;
+fix_bs_ensure_root(Ctx, CtxChain) ->
+    CtxChain#{Ctx=>{context,Ctx}}.
+
 %% Insert bs_get_position and bs_set_position instructions as needed.
-bs_pos_bsm3(Linear0, CtxChain, Count0) ->
-    Rs0 = bs_restores(Linear0, CtxChain, #{}, #{}),
+bs_pos_bsm3(Linear0, CtxChain, RPO, FunArgs, Count0) ->
+    IsCtxInChain = fun(Arg) ->
+                           case CtxChain of
+                               #{Arg:={context,Arg}} -> true;
+                               #{} -> false
+                           end
+                   end,
+    %% Populate the position map with the function arguments which are
+    %% match contexts.
+    D = #{0 => #{Arg => Arg || Arg <- FunArgs, IsCtxInChain(Arg)}},
+
+    Rs0 = bs_restores(Linear0, CtxChain, D, #{}),
     Rs = maps:values(Rs0),
     S0 = sofs:relation(Rs, [{context,save_point}]),
     S1 = sofs:relation_to_family(S0),
@@ -253,10 +274,41 @@ bs_pos_bsm3(Linear0, CtxChain, Count0) ->
     {SavePoints,Count1} = make_bs_pos_dict(S, Count0, []),
 
     {Gets,Count2} = make_bs_getpos_map(Rs, SavePoints, Count1, []),
-    {Sets,Count} = make_bs_setpos_map(maps:to_list(Rs0), SavePoints, Count2, []),
+    {Sets,Count} =
+        make_bs_setpos_map(maps:to_list(Rs0), SavePoints, Count2, []),
 
     %% Now insert all saves and restores.
-    {bs_insert_bsm3(Linear0, Gets, Sets), Count}.
+    %%
+    %% Insert a save of an argument in the basic block which dominates
+    %% all match-context uses. This ensures that it is placed before
+    %% the first operation modifying it, but also after any guards
+    %% ensuring that the argument to bs_get_position is actually a
+    %% match context.
+    InsertBeforeFirstChange = #{Arg => map_get(Arg, Gets)
+                                || Arg <- FunArgs, is_map_key(Arg, Gets)},
+    BSUses = get_bs_uses(Linear0, InsertBeforeFirstChange, #{}),
+
+    %% Filter InsertBeforeFirstChange to only contain set-operations
+    %% for those contexts that are actually updated in the function,
+    %% make_bs_setpos_map/4 does not have this information. TODO:
+    %% Investigate if this filtering can be folded into
+    %% make_bs_setpos_map/4.
+
+    Blocks = maps:from_list(Linear0),
+    {Dom,Numbering} = beam_ssa:dominators(RPO, Blocks),
+    ArgInserts = maps:fold(
+                   fun(Arg, Save, Acc) when is_map_key(Arg, BSUses) ->
+                           Common =
+                               beam_ssa:common_dominators(map_get(Arg, BSUses),
+                                                          Dom, Numbering),
+                           L = hd(Common),
+                           Acc#{L=>[Save|maps:get(L, Acc, [])]};
+                      (_, _, Acc) ->
+                           % There are no uses of the argument which
+                           % changes the match context position.
+                           Acc
+                   end, #{}, InsertBeforeFirstChange),
+    {bs_insert_bsm3(Linear0, Gets, Sets, ArgInserts), Count}.
 
 make_bs_getpos_map([{Ctx,Save}=Ps|T], SavePoints, Count, Acc) ->
     SavePoint = get_savepoint(Ps, SavePoints),
@@ -464,7 +516,8 @@ bs_restores_is([#b_set{op=call,dst=Dst,args=Args}|Is],
 bs_restores_is([#b_set{op=Op,dst=Dst,args=Args}|Is],
                CtxChain, SPos0, _FPos, Rs0)
   when Op =:= bs_test_tail;
-       Op =:= bs_get_tail ->
+       Op =:= bs_get_tail;
+       Op =:= match_fail ->
     {SPos, Rs} = bs_restore_args(Args, SPos0, CtxChain, Dst, Rs0),
     FPos = SPos,
 
@@ -543,14 +596,23 @@ bs_restore_args([], Pos, _CtxChain, _Dst, Rs) ->
 
 %% Insert all bs_save and bs_restore instructions.
 
-bs_insert_bsm3(Blocks, Saves, Restores) ->
-    bs_insert_1(Blocks, [], Saves, Restores).
+bs_insert_bsm3(Blocks, Saves, Restores, ArgInserts) ->
+    bs_insert_1(Blocks, [], Saves, Restores, ArgInserts).
 
-bs_insert_1([{L,#b_blk{is=Is0}=Blk} | Bs], Deferred0, Saves, Restores) ->
+bs_insert_1([{L,#b_blk{is=Is0}=Blk} | Bs],
+            Deferred0, Saves, Restores, ArgInserts) ->
     Is1 = bs_insert_deferred(Is0, Deferred0),
-    {Is, Deferred} = bs_insert_is(Is1, Saves, Restores, []),
-    [{L,Blk#b_blk{is=Is}} | bs_insert_1(Bs, Deferred, Saves, Restores)];
-bs_insert_1([], [], _, _) ->
+    {Is2, Deferred} = bs_insert_is(Is1, Saves, Restores, []),
+
+    Is = case ArgInserts of
+             #{L:=ToInsert} ->
+                 %% There are restores to be inserted in this block.
+                 ToInsert;
+             _ -> []
+         end ++ Is2,
+    [{L,Blk#b_blk{is=Is}}|bs_insert_1(Bs, Deferred, Saves,
+                                      Restores, ArgInserts)];
+bs_insert_1([], [], _, _, _) ->
     [].
 
 bs_insert_deferred([#b_set{op=bs_extract}=I | Is], Deferred) ->
@@ -591,19 +653,26 @@ bs_insert_is([], _, _, Acc) ->
 %% Also rename match context variables to use the variable assigned to
 %% by the start_match instruction.
 
-bs_instrs([{L,#b_blk{is=Is0}=Blk}|Bs], CtxChain, Acc0) ->
+bs_instrs([{L,#b_blk{is=Is0,last=Last0}=Blk}|Bs], CtxChain, Acc0) ->
+    Last = bs_instrs_terminator(Last0, CtxChain),
     case bs_instrs_is(Is0, CtxChain, []) of
         [#b_set{op=bs_extract,dst=Dst,args=[Ctx]}|Is] ->
             %% Drop this instruction. Rewrite the corresponding
             %% bs_match instruction in the previous block to
             %% a bs_get instruction.
             Acc = bs_combine(Dst, Ctx, Acc0),
-            bs_instrs(Bs, CtxChain, [{L,Blk#b_blk{is=Is}}|Acc]);
+            bs_instrs(Bs, CtxChain, [{L,Blk#b_blk{is=Is,last=Last}}|Acc]);
         Is ->
-            bs_instrs(Bs, CtxChain, [{L,Blk#b_blk{is=Is}}|Acc0])
+            bs_instrs(Bs, CtxChain, [{L,Blk#b_blk{is=Is,last=Last}}|Acc0])
     end;
 bs_instrs([], _, Acc) ->
     bs_rewrite_skip(Acc).
+
+bs_instrs_terminator(#b_ret{arg=Arg0}=R, CtxChain) ->
+    Arg = bs_subst_ctx(Arg0, CtxChain),
+    R#b_ret{arg=Arg};
+bs_instrs_terminator(T, _CtxChain) ->
+    T.
 
 bs_rewrite_skip([{L,#b_blk{is=Is0,last=Last0}=Blk}|Bs]) ->
     case bs_rewrite_skip_is(Is0, []) of
@@ -690,6 +759,50 @@ bs_subst_ctx(#b_var{}=Var, CtxChain) ->
     end;
 bs_subst_ctx(Other, _CtxChain) ->
     Other.
+
+%%%
+%%% Create a map associating variables in the InsertBeforeFirstChange
+%%% to the blocks in which they are used as match contexts (as an
+%%% ordset of labels).
+%%%
+get_bs_uses([{L,#b_blk{is=Is}}|Linear], InsertBeforeFirstChange, Uses0) ->
+    Uses = get_bs_uses_is(Is, L, InsertBeforeFirstChange, Uses0),
+    get_bs_uses(Linear, InsertBeforeFirstChange, Uses);
+get_bs_uses([], _, Uses) ->
+    Uses.
+
+get_bs_uses_is([I|Is], L, InsertBeforeFirstChange, Uses0) ->
+    Uses = case get_bs_uses_i(I, InsertBeforeFirstChange) of
+               #b_var{}=V ->
+                   Uses0#{V=>ordsets:add_element(L, maps:get(V, Uses0, []))};
+               none ->
+                   Uses0
+           end,
+    get_bs_uses_is(Is, L, InsertBeforeFirstChange, Uses);
+get_bs_uses_is([], _, _, Uses) ->
+    Uses.
+
+get_bs_uses_i(#b_set{op=Op,args=Args}, InsertBeforeFirstChange) ->
+    case Op of
+        O when O =:= bs_ensure; O =:= bs_match_string; O =:= bs_test_tail ->
+            [A|_] = Args,
+            if is_map_key(A, InsertBeforeFirstChange) -> A;
+               true -> none
+            end;
+        O when O =:= bs_ensured_get, O =:= bs_checked_skip;
+               O =:= bs_get; O =:= bs_match; O =:= bs_skip ->
+            [_,A|_] = Args,
+            if is_map_key(A, InsertBeforeFirstChange) -> A;
+               true -> none
+            end;
+        bs_get_tail ->
+            [A] = Args,
+            if is_map_key(A, InsertBeforeFirstChange) -> A;
+               true -> none
+            end;
+        _ ->
+            none
+    end.
 
 %% sanitize(St0) -> St.
 %%  Remove constructs that can cause problems later:
