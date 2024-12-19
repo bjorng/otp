@@ -1805,7 +1805,7 @@ kernel_passes() ->
        {iff,drecv,{listing,"recv"}},
        {unless,no_recv_opt,{iff,ssalint,{pass,beam_ssa_lint}}},
 
-%       {unless,no_bsm_opt,{pass,beam_ssa_bsm}},
+       {unless,no_bsm_opt,{pass,beam_ssa_bsm}},
        {iff,dssabsm,{listing,"ssabsm"}},
        {unless,no_bsm_opt,{iff,ssalint,{pass,beam_ssa_lint}}},
 
