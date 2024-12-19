@@ -813,6 +813,15 @@ sanitize_is([#b_set{op={succeeded,Kind},args=[Arg0]} | Is],
             true = Kind =:= guard orelse Kind =:= body, %Assertion.
             sanitize_is(Is, Last, InBlocks, Blocks, Count, Values, true, Acc)
     end;
+sanitize_is([#b_set{op=bs_ensure,anno=#{arg_types:=#{0:=_}}=Anno}=I|Is],
+            Last, InBlocks, Blocks, Count, Values, _, Acc) ->
+    A = drop_type_anno_for_arg(Anno, 0),
+    sanitize_is([I#b_set{anno=A}|Is],
+                Last, InBlocks, Blocks, Count, Values, true, Acc);
+sanitize_is([#b_set{op=bs_skip,anno=#{arg_types:=#{1:=_}}=Anno}=I|Is],
+            Last, InBlocks, Blocks, Count, Values, _, Acc) ->
+    sanitize_is([I#b_set{anno=drop_type_anno_for_arg(Anno, 1)}|Is],
+                Last, InBlocks, Blocks, Count, Values, true, Acc);
 sanitize_is([#b_set{op=bs_test_tail}=I], Last, InBlocks, Blocks,
             Count, Values, Changed, Acc) ->
     case Last of
@@ -845,6 +854,22 @@ sanitize_is([], Last, _InBlocks, _Blocks, Count, Values, Changed, Acc) ->
             {reverse(Acc), Last, Count, Values};
         false ->
             no_change
+    end.
+
+%% Remove the type annotation for the argument with the specified
+%% index. Remove the arg_types annotation key completely if the there
+%% are no other argument annotations.
+drop_type_anno_for_arg(Anno, Idx) ->
+    case Anno of
+        #{arg_types:=#{Idx:=_}=Ts0} ->
+            case maps:remove(Idx, Ts0) of
+                Ts when map_size(Ts) =:= 0 ->
+                    maps:remove(arg_types, Anno);
+                Ts ->
+                    Anno#{arg_types=>Ts}
+            end;
+        #{} ->
+            Anno
     end.
 
 do_sanitize_is(#b_set{anno=Anno0,op=debug_line,args=Args0}=I0,
