@@ -41,6 +41,7 @@
 -export([module/2]).
 
 -include("beam_ssa_opt.hrl").
+-include("beam_types.hrl").
 
 -import(lists, [all/2,append/1,droplast/1,duplicate/2,flatten/1,foldl/3,
                 keyfind/3,last/1,mapfoldl/3,member/2,
@@ -2140,9 +2141,16 @@ ssa_opt_bsm_shortcut({#opt_st{ssa=Linear0}=St, FuncDb}) ->
 bsm_positions([{L,#b_blk{is=Is,last=Last}}|Bs], PosMap0) ->
     PosMap = bsm_positions_is(Is, PosMap0),
     case {Is,Last} of
-        {[#b_set{op=bs_test_tail,dst=Bool,args=[Ctx,#b_literal{val=Bits0}]}],
+        {[#b_set{op=bs_test_tail,dst=Bool,
+                 args=[Ctx,#b_literal{val=Bits0}],anno=Anno}],
          #b_br{bool=Bool,fail=Fail}} ->
-            Bits = Bits0 + map_get(Ctx, PosMap0),
+            Bits = Bits0 + case PosMap0 of
+                               #{Ctx:=N} -> N;
+                               #{} ->
+                                   %% Assertion
+                                   #{arg_types:=#{0:=#t_bs_context{}}} = Anno,
+                                   0
+                           end,
             bsm_positions(Bs, PosMap#{L=>{Bits,Fail}});
         {_,_} ->
             bsm_positions(Bs, PosMap)
@@ -2152,11 +2160,23 @@ bsm_positions([], PosMap) -> PosMap.
 bsm_positions_is([#b_set{op=bs_start_match,dst=New}|Is], PosMap0) ->
     PosMap = PosMap0#{New=>0},
     bsm_positions_is(Is, PosMap);
-bsm_positions_is([#b_set{op=bs_match,dst=New,args=Args}|Is], PosMap0) ->
+bsm_positions_is([#b_set{op=bs_match,dst=New,args=Args,anno=Anno}|Is],
+                 PosMap0) ->
     [_,Old|_] = Args,
-    #{Old:=Bits0} = PosMap0,
+    {PosMap1,Bits0} = case PosMap0 of
+                          #{Old:=Bs} ->
+                              {PosMap0,Bs};
+                          #{} ->
+                              %% Assertion
+                              #{arg_types:=#{1:=#t_bs_context{}}} = Anno,
+
+                              %% Treat as if we have seen a resume
+                              %% bs_start_match in the function.
+                              {PosMap0#{Old=>0},0}
+                      end,
+    Bits0 = maps:get(Old, PosMap0, 0),
     Bits = bsm_update_bits(Args, Bits0),
-    PosMap = PosMap0#{New=>Bits},
+    PosMap = PosMap1#{New=>Bits},
     bsm_positions_is(Is, PosMap);
 bsm_positions_is([_|Is], PosMap) ->
     bsm_positions_is(Is, PosMap);
