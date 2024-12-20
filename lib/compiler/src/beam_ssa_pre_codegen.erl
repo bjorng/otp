@@ -540,6 +540,22 @@ bs_restores_is([#b_set{op={succeeded,guard},args=[Arg]}],
                #{} -> SPos
            end,
     {SPos, FPos, Rs};
+bs_restores_is([#b_set{op=get_tuple_element,
+                       dst=Dst,
+                       args=[_,#b_literal{val=E}],
+                       anno=#{arg_types:=#{0:=#t_tuple{elements=ElemTys}}}} | Is],
+               CtxChain, SPos0, _FPos, Rs) ->
+    %% Handle extracts of context tuple elements.
+    %% TODO: Deal with lists too.
+    Idx = E  + 1,
+    case ElemTys of
+        #{Idx:=#t_bs_context{}} ->
+            SPos = SPos0#{Dst=>Dst},
+            FPos = SPos0,
+            bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
+        #{} ->
+            bs_restores_is(Is, CtxChain, SPos0, SPos0, Rs)
+    end;
 bs_restores_is([_ | Is], CtxChain, SPos, _FPos, Rs) ->
     FPos = SPos,
     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
