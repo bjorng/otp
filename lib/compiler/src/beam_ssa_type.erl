@@ -1143,6 +1143,28 @@ simplify(#b_set{op=bs_create_bin=Op,dst=Dst,args=Args0,anno=Anno}=I0,
             Ds = Ds0#{ Dst => I },
             {I, Ts, Ds}
     end;
+simplify(#b_set{dst=Dst,op=bs_start_match,
+                args=[#b_literal{val=resume},_]=Args0}=I0,
+         Ts0, Ds0, _Ls, Sub) ->
+    %% TODO: Clean this up and share code with the default case below.
+    Args = simplify_args(Args0, Ts0, Sub),
+    I1 = beam_ssa:normalize(I0#b_set{args=Args}),
+    #b_set{op=bs_start_match,args=[#b_literal{val=resume},Src]} = I1,
+    case concrete_type(Src, Ts0) of
+        #t_bs_context{} ->
+            Sub#{ Dst => Src };
+        _ ->
+            case simplify(I1, Ts0, Ds0) of
+                #b_set{}=I ->
+                    Ts = update_types(I, Ts0, Ds0),
+                    Ds = Ds0#{ Dst => I },
+                    {I, Ts, Ds};
+                #b_literal{}=Lit ->
+                    Sub#{ Dst => Lit };
+                #b_var{}=Var ->
+                    Sub#{ Dst => Var }
+            end
+    end;
 simplify(#b_set{dst=Dst,args=Args0}=I0, Ts0, Ds0, _Ls, Sub) ->
     Args = simplify_args(Args0, Ts0, Sub),
     I1 = beam_ssa:normalize(I0#b_set{args=Args}),
