@@ -23,8 +23,6 @@
 -module(eval_bits).
 -moduledoc false.
 
--compile(nowarn_deprecated_catch).
-
 %% Avoid warning for local function error/1 clashing with autoimported BIF.
 -compile({no_auto_import,[error/1]}).
 -export([expr_grp/3,expr_grp/4,match_bits/6,
@@ -228,7 +226,8 @@ bin_gen_field({bin_element,Anno,{string,SAnno,S},Size0,Options0},
               Bin0, Bs0, BBs0, Mfun, Efun, ErrorFun) ->
     {Size1, [Type,{unit,Unit},Sign,Endian]} =
         make_bit_type(Anno, Size0, Options0, ErrorFun),
-    case catch Efun(Size1, BBs0) of
+    %% WIP: catch removed here.
+    case Efun(Size1, BBs0) of
         {value, Size, _BBs} -> % 
             F = fun(C, Bin, Bs, BBs) ->
                         bin_gen_field1(Bin, Type, Size, Unit, Sign, Endian,
@@ -242,11 +241,12 @@ bin_gen_field({bin_element,Anno,VE,Size0,Options0},
         make_bit_type(Anno, Size0, Options0, ErrorFun),
     V = erl_eval:partial_eval(VE),
     NewV = coerce_to_float(V, Type),
-    case catch Efun(Size1, BBs0) of
+    try Efun(Size1, BBs0) of
         {value, Size, _BBs} ->
             bin_gen_field1(Bin, Type, Size, Unit, Sign, Endian,
-                           NewV, Bs0, BBs0, Mfun);
-        _ ->
+                           NewV, Bs0, BBs0, Mfun)
+    catch
+        error:_ ->
             done
     end.
 
@@ -263,33 +263,39 @@ bin_gen_field_string([C|Cs], Bin0, Bs0, BBs0, Fun) ->
     end.
 
 bin_gen_field1(Bin, float, Size, Unit, Sign, Endian, NewV, Bs0, BBs0, Mfun) ->
-    case catch get_value(Bin, float, Size, Unit, Sign, Endian) of
+    try get_value(Bin, float, Size, Unit, Sign, Endian) of
         {Val,<<_/bitstring>>=Rest} ->
-            case catch Mfun(match, {NewV,Val,Bs0}) of
+            try Mfun(match, {NewV,Val,Bs0}) of
                 {match,Bs} ->
                     BBs = add_bin_binding(Mfun, NewV, Bs, BBs0),
-                    {match,Bs,BBs,Rest};
-                _ ->
+                    {match,Bs,BBs,Rest}
+            catch
+                throw:nomatch ->
                     {nomatch,Rest}
-            end;
-        _ ->
-            case catch get_value(Bin, integer, Size, Unit, Sign, Endian) of
+            end
+    catch
+        error:_ ->
+            try get_value(Bin, integer, Size, Unit, Sign, Endian) of
                 {_,<<_/bitstring>>=Rest} ->
-                    {nomatch,Rest};
-                _ -> done
+                    {nomatch,Rest}
+            catch
+                error:_ ->
+                    done
             end
     end;
 bin_gen_field1(Bin, Type, Size, Unit, Sign, Endian, NewV, Bs0, BBs0, Mfun) ->
-    case catch get_value(Bin, Type, Size, Unit, Sign, Endian) of
+    try get_value(Bin, Type, Size, Unit, Sign, Endian) of
         {Val,<<_/bitstring>>=Rest} ->
-            case catch Mfun(match, {NewV,Val,Bs0}) of
+            try Mfun(match, {NewV,Val,Bs0}) of
                 {match,Bs} ->
                     BBs = add_bin_binding(Mfun, NewV, Bs, BBs0),
-                    {match,Bs,BBs,Rest};
-                _ ->
+                    {match,Bs,BBs,Rest}
+            catch
+                throw:nomatch ->
                     {nomatch,Rest}
-            end;
-        _ ->
+            end
+    catch
+        error:_ ->
             done
     end.
 
@@ -310,10 +316,10 @@ match_bits(Fs, Bin, Bs0, BBs, Mfun, Efun) ->
 
 match_bits(Fs, Bin, Bs0, BBs, Mfun, Efun, ErrorFun)
   when is_function(Mfun, 2), is_function(Efun, 2), is_function(ErrorFun, 3) ->
-    case catch match_bits_1(Fs, Bin, Bs0, BBs, Mfun, Efun, ErrorFun) of
-        {match,Bs} -> {match,Bs};
-        invalid -> throw(invalid);
-        _Error -> throw(nomatch)
+    try match_bits_1(Fs, Bin, Bs0, BBs, Mfun, Efun, ErrorFun) of
+        {match,Bs} -> {match,Bs}
+    catch
+        error:_ -> throw(nomatch)
     end.
 
 match_bits_1([], <<>>,  Bs, _BBs, _Mfun, _Efun, _ErrorFun) ->
