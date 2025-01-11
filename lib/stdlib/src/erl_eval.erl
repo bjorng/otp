@@ -127,8 +127,6 @@ the local function handler argument. A possible use is to call
 to be called.
 """.
 
--compile(nowarn_deprecated_catch).
-
 %% An evaluator for Erlang abstract syntax.
 
 -export([exprs/2,exprs/3,exprs/4,expr/2,expr/3,expr/4,expr/5,
@@ -1706,11 +1704,14 @@ type_test(Test) -> Test.
 %% binsize variable).
 
 match(Pat, Term, Anno, Bs, BBs, Ef) ->
-    case catch match1(Pat, Term, Bs, BBs, Ef) of
-	invalid ->
-            apply_error({illegal_pattern,to_term(Pat)}, ?STACKTRACE, Anno, Bs, Ef, none);
-	Other ->
-	    Other
+    try match1(Pat, Term, Bs, BBs, Ef) of
+        Result -> Result
+    catch
+        throw:nomatch ->
+            nomatch;
+        throw:invalid ->
+            apply_error({illegal_pattern,to_term(Pat)}, ?STACKTRACE, Anno,
+                        Bs, Ef, none)
     end.
 
 string_to_conses([], _, Tail) -> Tail;
@@ -2192,23 +2193,26 @@ is_constant_expr(Expr) ->
     end.
 
 eval_expr(Expr) ->
-    case catch ev_expr(Expr) of
+    try ev_expr(Expr) of
         X when is_integer(X) -> {ok, X};
         X when is_float(X) -> {ok, X};
         X when is_atom(X) -> {ok,X};
-        {'EXIT',Reason} -> {error, Reason};
         _ -> {error, badarg}
+    catch
+        error:Reason ->
+            Reason
     end.
 
 -doc false.
 partial_eval(Expr) ->
     Anno = anno(Expr),
-    case catch ev_expr(Expr) of
+    try ev_expr(Expr) of
 	X when is_integer(X) -> ret_expr(Expr,{integer,Anno,X});
-	X when is_float(X) -> ret_expr(Expr,{float,Anno,X});
+	X when is_float(X) -> ret_expr(Expr, {float,Anno,X});
 	X when is_atom(X) -> ret_expr(Expr,{atom,Anno,X});
-	_ ->
-	    Expr
+	_ -> Expr
+    catch
+        error:_ -> Expr
     end.
 
 ev_expr({op,_,Op,L,R}) -> erlang:Op(ev_expr(L), ev_expr(R));
@@ -2241,37 +2245,55 @@ ev_expr({cons,_,H,T}) -> [ev_expr(H) | ev_expr(T)].
                       {'ok', string()} | {'error', string()}.
 
 eval_str(Str) when is_list(Str) ->
-    case erl_scan:tokens([], Str, 0) of
-	{more, _} ->
-	    {error, "Incomplete form (missing .<cr>)??"};
-	{done, {ok, Toks, _}, Rest} ->
-	    case all_white(Rest) of
-		true ->
-		    case erl_parse:parse_exprs(Toks) of
-			{ok, Exprs} ->
-			    case catch erl_eval:exprs(Exprs, erl_eval:new_bindings()) of
-				{value, Val, _} ->
-				    {ok, Val};
-				Other ->
-				    {error, ?result("*** eval: ~p", [Other])}
-			    end;
-			{error, {_Location, Mod, Args}} ->
-                            Msg = ?result("*** ~ts",[Mod:format_error(Args)]),
-                            {error, Msg}
-		    end;
-		false ->
-		    {error, ?result("Non-white space found after "
-				    "end-of-form :~ts", [Rest])}
-		end
+    maybe
+        {ok, Toks} ?= do_scan_str(Str),
+        {ok, Exprs} ?= erl_parse:parse_exprs(Toks),
+        do_eval_str(Exprs)
+    else
+        {error, {_Location, Mod, Args}} ->
+            Msg = ?result(~"*** ~ts", [Mod:format_error(Args)]),
+            {error, Msg};
+        {error, Error} when is_list(Error) ->
+            {error, Error}
     end;
 eval_str(Bin) when is_binary(Bin) ->
     eval_str(binary_to_list(Bin)).
 
+do_scan_str(Str) ->
+    case erl_scan:tokens([], Str, 0) of
+        {done, {ok, Toks, _}, Rest} ->
+            case all_white(Rest) of
+                true ->
+                    {ok, Toks};
+                false ->
+                    Fmt = ~"*** Non-white space found after end-of-form: ~ts",
+                    {error, ?result(Fmt, [Rest])}
+            end;
+	{more, _} ->
+	    {error, ?result(~"*** Incomplete form (missing .<cr>?)", [])}
+    end.
+
+do_eval_str(Exprs) ->
+    try exprs(Exprs, erl_eval:new_bindings()) of
+        {value, Val, _} ->
+            {ok, Val}
+    catch
+        error:Reason ->
+            {error, ?result(~"*** eval failed: ~p",
+                            [Reason])};
+        throw:Reason ->
+            {error, ?result(~"*** eval failed with thrown exception: ~p",
+                            [Reason])};
+        exit:Reason ->
+            {error, ?result(~"*** eval failed with exit exception: ~p",
+                            [Reason])}
+    end.
+
 all_white([$\s|T]) -> all_white(T);
 all_white([$\n|T]) -> all_white(T);
 all_white([$\t|T]) -> all_white(T);
-all_white([])      -> true;
-all_white(_)       -> false.
+all_white([_|_])   -> false;
+all_white([])      -> true.
 
 ret_expr(_Old, New) ->
     %%    io:format("~w: reduced ~s => ~s~n",
