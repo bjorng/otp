@@ -68,8 +68,6 @@ Module:format_error(ErrorDescriptor)
 ```
 """.
 
--compile(nowarn_deprecated_catch).
-
 -export([put_chars/1,put_chars/2,nl/0,nl/1,
 	 get_chars/2,get_chars/3,get_line/1,get_line/2,
 	 get_password/0, get_password/1,
@@ -1761,10 +1759,13 @@ io_request(Pid, {put_chars,Enc,Chars}=Request0)
   when is_list(Chars), node(Pid) =:= node() ->
     %% Convert to binary data if the I/O server is guaranteed to be new
     Request =
-	case catch unicode:characters_to_binary(Chars,Enc) of
+	try unicode:characters_to_binary(Chars,Enc) of
 	    Binary when is_binary(Binary) ->
 		{put_chars,Enc,Binary};
 	    _ ->
+		Request0
+        catch
+            _:_ ->
 		Request0
 	end,
     {false,Request};
@@ -1772,18 +1773,24 @@ io_request(Pid, {put_chars,Enc,Chars}=Request0)
   when is_list(Chars) ->
     case net_kernel:dflag_unicode_io(Pid) of
 	true ->
-	    case catch unicode:characters_to_binary(Chars,Enc,unicode) of
+	    try unicode:characters_to_binary(Chars,Enc,unicode) of
 		Binary when is_binary(Binary) ->
 		    {false,{put_chars,unicode,Binary}};
 		_ ->
 		    {false,Request0}
+            catch
+                _:_ ->
+		    {false,Request0}
 	    end;
 	false ->
 	    %% Convert back to old style put_chars message...
-	    case catch unicode:characters_to_binary(Chars,Enc,latin1) of
+	    try unicode:characters_to_binary(Chars,Enc,latin1) of
 		Binary when is_binary(Binary) ->
 		    {false,{put_chars,Binary}};
 		_ ->
+		    {false,{put_chars,Chars}}
+            catch
+                _:_ ->
 		    {false,{put_chars,Chars}}
 	    end
     end;

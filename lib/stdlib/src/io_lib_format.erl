@@ -22,8 +22,6 @@
 -module(io_lib_format).
 -moduledoc false.
 
--compile(nowarn_deprecated_catch).
-
 -dialyzer([{nowarn_function, [iolist_to_bin/4]},
            no_improper_lists]).
 
@@ -825,9 +823,12 @@ cdata_to_chars([I|Cs]) ->
 cdata_to_chars([]) ->
     [];
 cdata_to_chars(B) when is_binary(B) ->
-    case catch unicode:characters_to_list(B) of
+    try unicode:characters_to_list(B) of
         L when is_list(L) -> L;
         _ -> binary_to_list(B)
+    catch
+        _:_ ->
+            binary_to_list(B)
     end.
 
 limit_cdata_to_chars(Cs, 0, normal) ->

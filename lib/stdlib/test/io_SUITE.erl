@@ -36,7 +36,8 @@
          otp_14285/1, limit_term/1, otp_14983/1, otp_15103/1, otp_15076/1,
          otp_15159/1, otp_15639/1, otp_15705/1, otp_15847/1, otp_15875/1,
          github_4801/1, chars_limit/1, error_info/1, otp_17525/1,
-         unscan_format_without_maps_order/1, build_text_without_maps_order/1]).
+         unscan_format_without_maps_order/1, build_text_without_maps_order/1,
+         cover_fread/1]).
 
 -export([pretty/2, trf/3, rfd/2]).
 
@@ -71,7 +72,8 @@ all() ->
      otp_14285, limit_term, otp_14983, otp_15103, otp_15076, otp_15159,
      otp_15639, otp_15705, otp_15847, otp_15875, github_4801, chars_limit,
      error_info, otp_17525, unscan_format_without_maps_order,
-     build_text_without_maps_order].
+     build_text_without_maps_order,
+     cover_fread].
 
 %% Error cases for output.
 error_1(Config) when is_list(Config) ->
@@ -3325,3 +3327,94 @@ build_text_without_maps_order(_Config) ->
         width => none
     },
     [["1"]] = io_lib:build_text([FormatSpec]).
+
+cover_fread(_Config) ->
+    {[-42], ""} = fread_good("~d", "-42"),
+    {[537], ""} = fread_good("int:~4d", "int: 537"),
+    integer = fread_bad("~10d", "abc"),
+
+    {[42], ""} = fread_good("~u", "42"),
+    {[1,27,31,505043], ""} =
+        fread_good("~2u ~8u ~16u ~36u",
+                   "1 33 1F atoz"),
+
+    format = fread_bad("~0u", "\n"),
+    format = fread_bad("~1u", "\n"),
+    format = fread_bad("~37u", "\n"),
+    unsigned = fread_bad("~u", "-42\n"),
+
+    {[1,27,31,505043], ""} =
+        fread_good("~#;~#;~#;~#",
+                   "2#1;8#33;16#1F;36#atoz"),
+    {[5,27,31,395], ""} =
+        fread_good("~5#;~4#;~5#;~5#",
+                   "2#101;8#33;16#1F;36#az"),
+    based = fread_bad("~#", "0#"),
+    based = fread_bad("~#", "1#"),
+    based = fread_bad("~#", "37#"),
+    based = fread_bad("~0#", "\n"),
+    based = fread_bad("~4#", "100#abcdef"),
+    based = fread_bad("~4#", "-99#abcdef"),
+    based = fread_bad("~9#", "99#\nabcdef"),
+
+    {[-1,+1,+1], "7"} = fread_good("~- ~- ~-", "- + 7"),
+
+    {["string"], "  "} = fread_good("~s", "   string  "),
+    {["str"], "ing  "} = fread_good("~3s", "string  "),
+    {["string"], "  "} = fread_good("~ts", "   string  "),
+    {["str"], "ing  "} = fread_good("~3ts", "string  "),
+    {["строка"], "  "} = fread_good("~ts", "   строка  "),
+    {["стр"], "ока  "} = fread_good("~3ts", "строка  "),
+    string = fread_bad("~s", "плохо"),
+
+    {[atom], ""} = fread_good("~a", "  atom"),
+    {[at], "om"} = fread_good("~2a", "atom"),
+    {['атом'], ""} = fread_good("~ta", "атом"),
+    atom = fread_bad("~a", "плохо"),
+
+    {[42.0,107.0], ""} = fread_good("~f ~f", "42.0   1.07e+2"),
+    {[42.0,107.0], ""} = fread_good("~4f ~7f", "42.0 1.07E+2"),
+    float = fread_bad("~f", "0"),
+    float = fread_bad("~f", ".0"),
+    float = fread_bad("~2f", "100.0"),
+
+    {["a","bc","def",7,"ghi"], ""} =
+        fread_good("~c~2c ~3c~l ~3c", "abc def ghi"),
+    character = fread_bad("~c", "плохо"),
+
+    {[150.0], ""} = fread_good("~~ ~f", "~       1.5E+2"),
+
+    {["def"], ""} = fread_good("~*3c ~s", "abc    def"),
+
+    ok.
+
+fread_good(Format, String) ->
+    {ok,Term,Remaining} = io_lib:fread(Format, String),
+    fread_float_not_accepted(Format, String, []),
+    {Term,Remaining}.
+
+fread_bad(Format, String) ->
+    {error,{fread,Hint}} = io_lib:fread(Format, String),
+    Hint.
+
+fread_float_not_accepted(Format, [C|Cs], Prefix) ->
+    String = lists:reverse(Prefix) ++ [float(C)|Cs],
+    case io_lib:fread(Format, String) of
+        {error,{fread,_}} ->
+            ok;
+        {ok,_Terms,[H|T]}=Result when is_integer(H) ->
+            %% We accept the success if the float is hidden
+            %% in the leftover part of the input.
+            case [F || F <- T, is_float(F)] of
+                [_] ->
+                    ok;
+                [] ->
+                    io:format("io_lib:fread(~p, ~p) should fail;\n"
+                              "but returned ~p\n",
+                              [Format,String,Result]),
+                    error(failed)
+            end
+    end,
+    fread_float_not_accepted(Format, Cs, [C|Prefix]);
+fread_float_not_accepted(_, [], _) ->
+    ok.

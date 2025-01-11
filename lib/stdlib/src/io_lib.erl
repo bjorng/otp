@@ -71,8 +71,6 @@ functions are flat, they can be deep lists. Function `lists:flatten/1` can be
 used for flattening deep lists.
 """.
 
--compile(nowarn_deprecated_catch).
-
 -export([fwrite/2,fwrite/3,fread/2,fread/3,format/2,format/3]).
 -export([bfwrite/2, bfwrite/3, bformat/2, bformat/3]).
 -export([scan_format/2,unscan_format/1,build_text/1,build_text/2]).
@@ -521,10 +519,12 @@ format_prompt(Prompt, Encoding) ->
     do_format_prompt(add_modifier(Encoding, "p"), [Prompt]).
 
 do_format_prompt(Format, Args) ->
-    case catch format(Format, Args) of
-	{'EXIT',_} -> "???";
-	List -> List
-    end.
+   try format(Format, Args) of
+       List -> List
+   catch
+       _:_ ->
+           "???"
+   end.
 
 add_modifier(latin1, C) ->
     "~"++C;
