@@ -780,8 +780,6 @@ This function is usually called implicitly when an ErrorInfo structure is
 processed (see section [Error Information](#module-error-information)).
 """).
 
--compile(nowarn_deprecated_catch).
-
 -export([parse_form/1,parse_exprs/1,parse_term/1]).
 -export([normalise/1,abstract/1,tokens/1,tokens/2]).
 -export([abstract/2]).
@@ -1742,7 +1740,12 @@ first_anno(Abstract) ->
                         throw(Anno1)
                 end
         end,
-    catch fold_anno(F, Anno0, Abstract).
+    try fold_anno(F, Anno0, Abstract) of
+        Anno -> Anno
+    catch
+        throw:Anno ->
+            Anno
+    end.
 
 last_anno(Abstract) ->
     Fun = fun(Anno, '*') ->
