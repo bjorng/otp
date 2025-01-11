@@ -57,8 +57,6 @@ normalization can be found in the
 [Unicode FAQ](http://unicode.org/faq/normalization.html).
 """.
 
--compile(nowarn_deprecated_catch).
-
 -export([characters_to_list/1, characters_to_list_int/2,
 	 characters_to_binary/1, characters_to_binary_int/2,
 	 characters_to_binary/3,
@@ -1001,9 +999,7 @@ do_o_binary(F,L) ->
 do_o_binary2(_F,[]) ->
     <<>>;
 do_o_binary2(F,[H|T]) ->
-    case (catch F(H)) of
-	{'EXIT',_} ->
-	    {error,<<>>,[H|T]};
+    try F(H) of
 	Bin when is_binary(Bin) ->
 	    case do_o_binary2(F,T) of
 		{error,Bin2,Rest} ->
@@ -1011,6 +1007,9 @@ do_o_binary2(F,[H|T]) ->
 		Bin3 ->
 		    [Bin|Bin3]
 	    end
+    catch
+        error:_ ->
+	    {error,<<>>,[H|T]}
     end.
 
 %% Specific functions only allowing codepoints in latin1 range
