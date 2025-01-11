@@ -22,8 +22,6 @@
 -module(sofs).
 -moduledoc({file, "../doc/src/sofs.md"}).
 
--compile(nowarn_deprecated_catch).
-
 -export([from_term/1, from_term/2, from_external/2, empty_set/0,
          is_type/1, set/1, set/2, from_sets/1, relation/1, relation/2,
          a_function/1, a_function/2, family/1, family/2,
@@ -2920,13 +2918,14 @@ family_to_digraph(F, Type) when ?IS_SET(F) ->
         _Else  -> erlang:error(badarg)
     end,
     try digraph:new(Type) of
-        G -> case catch fam2digraph(F, G) of
-                 {error, Reason} ->
-                     true = digraph:delete(G),
-                     erlang:error(Reason);
-                 _ ->
-                     G
-             end
+        G ->
+            try
+                fam2digraph(F, G)
+            catch
+                throw:{error, Reason} ->
+                    true = digraph:delete(G),
+                    erlang:error(Reason)
+            end
     catch
         error:badarg -> erlang:error(badarg)
     end.
@@ -4207,7 +4206,12 @@ types([S | Ss], L) ->
 %% Inlined.
 unify_types(T, T) -> T;
 unify_types(Type1, Type2) ->
-    catch unify_types1(Type1, Type2).
+    try
+        unify_types1(Type1, Type2)
+    catch
+        throw:Val ->
+            Val
+    end.
 
 unify_types1(Atom, Atom) when ?IS_ATOM_TYPE(Atom) ->
     Atom;
