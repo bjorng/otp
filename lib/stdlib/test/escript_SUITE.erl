@@ -913,15 +913,6 @@ foldl(Config) when is_list(Config) ->
     ok.
 
 escript_foldl(Fun, Acc, File) ->
-    code:ensure_loaded(zip),
-    case erlang:function_exported(zip, foldl, 3) of
-	true ->
-	    emulate_escript_foldl(Fun, Acc, File);
-	false ->
-	    escript:foldl(Fun, Acc, File)
-    end.
-
-emulate_escript_foldl(Fun, Acc, File) ->
     case escript:extract(File, [compile_source]) of
 	{ok, [_Shebang, _Comment, _EmuArgs, Body]} ->
 	    case Body of
