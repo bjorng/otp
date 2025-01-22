@@ -1197,19 +1197,6 @@ cg_block([#cg_set{op=bs_ensure,args=Ss0},
 cg_block([#cg_set{op=bs_get}=Set,
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     {cg_bs_get(Fail, Set, St),St};
-cg_block([#cg_set{op=bs_ensured_match_string,
-                  args=[CtxVar,#b_literal{val=String0}]},
-          #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
-    CtxReg = beam_arg(CtxVar, St),
-
-    Bits = bit_size(String0),
-    String = case Bits rem 8 of
-                 0 -> String0;
-                 Rem -> <<String0/bitstring,0:(8-Rem)>>
-             end,
-
-    Is = [{test,bs_ensured_match_string,Fail,[CtxReg,Bits,{string,String}]}],
-    {Is,St};
 cg_block([#cg_set{op=bs_match_string,args=[CtxVar,#b_literal{val=String0}]},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     CtxReg = beam_arg(CtxVar, St),
@@ -1869,6 +1856,13 @@ cg_instr(bs_ensured_skip, [_Type,Ctx,_Flags,{integer,Sz},{integer,U}], {z,_})
     [{bs_ensured_skip,Ctx,Sz*U}];
 cg_instr(bs_ensured_skip, [_Type,_Ctx,_Flags,{atom,all},{integer,_U}], {z,_}) ->
     [];
+cg_instr(bs_ensured_match_string, [Ctx,{literal,String0}], {z,_}) ->
+    Bits = bit_size(String0),
+    String = case Bits rem 8 of
+                 0 -> String0;
+                 Rem -> <<String0/bitstring,0:(8-Rem)>>
+             end,
+    [{bs_ensured_match_string,[Ctx,Bits,{string,String}]}];
 cg_instr(bs_init_writable, Args, Dst) ->
     setup_args(Args) ++ [bs_init_writable|copy({x,0}, Dst)];
 cg_instr(bs_set_position, [Ctx,Pos], _Dst) ->
@@ -2362,6 +2356,11 @@ bs_translate_instr({bs_ensured_get,Live,{atom,Type},Ctx,{field_flags,Flags0},
                          {anno,_} -> false
                      end],
     {Ctx,{f,0},{Type,Live,{literal,Flags},Size,Unit,Dst}};
+bs_translate_instr({bs_ensured_match_string,
+                    [Ctx,Bits,{string,String}]}) ->
+    <<Value:Bits,_/bitstring>> = String,
+    Live = nil,
+    {Ctx,{f,0},{'=:=',Live,Bits,Value}};
 bs_translate_instr({bs_ensured_skip,Ctx,Stride}) ->
     {Ctx,{f,0},{skip,Stride}};
 bs_translate_instr({bs_ensured_get_tail,Live,Ctx,Unit,Dst}) ->
@@ -2370,11 +2369,6 @@ bs_translate_instr({bs_get_tail,Ctx,Dst,Live}) ->
     {Ctx,{f,0},{get_tail,Live,1,Dst}};
 bs_translate_instr({test,bs_test_tail2,Fail,[Ctx,Bits]}) ->
     {Ctx,Fail,{test_tail,Bits}};
-bs_translate_instr({test,bs_ensured_match_string,Fail,
-                    [Ctx,Bits,{string,String}]}) ->
-    <<Value:Bits,_/bitstring>> = String,
-    Live = nil,
-    {Ctx,Fail,{'=:=',Live,Bits,Value}};
 bs_translate_instr(_) -> none.
 
 

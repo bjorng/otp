@@ -613,6 +613,9 @@ bs_rewrite_skip_is([#b_set{anno=#{ensured := true},op=bs_skip}=I0,
                     #b_set{op={succeeded,guard}}], Acc) ->
     I = I0#b_set{op=bs_ensured_skip},
     {yes,reverse(Acc, [I])};
+bs_rewrite_skip_is([#b_set{op=bs_ensured_match_string}=I,
+                    #b_set{op={succeeded,guard}}], Acc) ->
+    {yes,reverse(Acc, [I])};
 bs_rewrite_skip_is([I|Is], Acc) ->
     bs_rewrite_skip_is(Is, [I|Acc]);
 bs_rewrite_skip_is([], _Acc) ->
@@ -2626,6 +2629,7 @@ reserve_zreg([#b_set{op=Op,dst=Dst} | Is], Last, ShortLived, A) ->
     end;
 reserve_zreg([], _, _, A) -> A.
 
+use_zreg(bs_ensured_match_string) -> yes;
 use_zreg(bs_ensured_skip) -> yes;
 use_zreg(bs_ensure) -> yes;
 use_zreg(bs_match_string) -> yes;
