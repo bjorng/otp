@@ -550,7 +550,8 @@ opt_is([#b_set{op=call,
     I1 = I0#b_set{args=Args},
 
     [_ | CallArgs] = Args,
-    {I, Fdb} = opt_local_call(I1, Callee, CallArgs, Dst, Ts0, Fdb0, Meta),
+    {I2, Fdb} = opt_local_call(I1, Callee, CallArgs, Dst, Ts0, Fdb0, Meta),
+    I = opt_anno_types(I2, Ts0),
 
     Ts = update_types(I, Ts0, Ds0),
     Ds = Ds0#{ Dst => I },
@@ -695,7 +696,7 @@ benefits_from_type_anno(bs_test_tail, _Args) ->
     true;
 benefits_from_type_anno(is_tagged_tuple, _Args) ->
     true;
-benefits_from_type_anno(call, [#b_var{} | _]) ->
+benefits_from_type_anno(call, _) ->
     true;
 benefits_from_type_anno({float,convert}, _Args) ->
     %% Note: The {float,convert} instruction does not exist when
