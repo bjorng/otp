@@ -510,15 +510,23 @@ aa_is([_I=#b_set{dst=Dst,op=Op,args=Args,anno=Anno0}|Is], SS0,
                         %% TODO: Too conservative?
                         {aa_set_aliased([Dst|Args], SS0), AAS0}
                 end;
-            bs_extract ->
-                {aa_set_aliased([Dst|Args], SS0), AAS0};
-            bs_get_tail ->
-                {aa_set_aliased([Dst|Args], SS0), AAS0};
+            BSExtractOrBSGetTail
+              when BSExtractOrBSGetTail =:= bs_extract;
+                   BSExtractOrBSGetTail =:= bs_get_tail ->
+                #{arg_types:=#{0:=#t_bs_context{}}} = Anno0, %% Assertion
+                {beam_ssa_ss:add_var(Dst, unique, SS0), AAS0};
             bs_match ->
-                {aa_set_aliased([Dst|Args], SS0), AAS0};
+                %% TODO: For now, using aa_derive_from/3 appears
+                %% enough, but for the future the aliasing database
+                %% should probably be extended to allow for multiple
+                %% derivations, within a function, of match contexts
+                %% from the same context.
+                [_,Ctx|_] = Args,
+                #{arg_types:=#{1:=#t_bs_context{}}} = Anno0, %% Assertion
+                {aa_derive_from(Dst, Ctx, SS0), AAS0};
             bs_start_match ->
-                [_,Bin] = Args,
-                {aa_set_aliased([Dst,Bin], SS0), AAS0};
+                [#b_literal{val=new},_Bin] = Args,
+                {beam_ssa_ss:add_var(Dst, unique, SS0), AAS0};
             build_stacktrace ->
                 SS1 = beam_ssa_ss:add_var(Dst, unique, SS0),
                 %% build_stacktrace can potentially alias anything
