@@ -290,6 +290,10 @@ epilogue_module_passes(Opts) ->
             fun({StMap, FuncDb}) ->
                     beam_ssa_alias:opt(StMap, FuncDb)
             end},
+           {ssa_opt_bsm_ctx_calls_fixup,
+            fun({StMap, FuncDb}) ->
+                    ssa_opt_bsm_ctx_calls_fixup(StMap, FuncDb)
+            end},
            {ssa_opt_destructive_update,
             fun({StMap, FuncDb}) ->
                     beam_ssa_destructive_update:opt(StMap, FuncDb)
@@ -2568,6 +2572,107 @@ opt_bs_put_split_int_1(Int, L, R) ->
         _ ->
             opt_bs_put_split_int_1(Int, Mid + 1, R)
     end.
+
+%%%
+%%% Make sure aliased match contexts are never given to calls.
+%%%
+ssa_opt_bsm_ctx_calls_fixup(StMap, FuncDb) ->
+    %% Ignore functions which are not in the function db (never
+    %% called).
+    Funs = [ F || F <- maps:keys(StMap), is_map_key(F, FuncDb)],
+    ssa_opt_bsm_ctx_calls_fixup_funs(Funs, StMap, FuncDb).
+
+ssa_opt_bsm_ctx_calls_fixup_funs([F|Funs], StMap, FuncDb) ->
+    #{F:=#opt_st{ssa=Linear0,cnt=Cnt0}=OptSt0} = StMap,
+    {Linear,Cnt} = ssa_opt_bsm_ctx_calls_fixup_bs(Linear0, Cnt0, []),
+    OptSt = OptSt0#opt_st{ssa=Linear,cnt=Cnt},
+    ssa_opt_bsm_ctx_calls_fixup_funs(Funs, StMap#{F=>OptSt}, FuncDb);
+ssa_opt_bsm_ctx_calls_fixup_funs([], StMap, FuncDb) ->
+    {StMap, FuncDb}.
+
+ssa_opt_bsm_ctx_calls_fixup_bs([{L,#b_blk{is=Is0}=Blk}|Rest], Cnt0, Acc) ->
+    {Is,Cnt} = ssa_opt_bsm_ctx_calls_fixup_is(Is0, Cnt0, []),
+    ssa_opt_bsm_ctx_calls_fixup_bs(Rest, Cnt, [{L,Blk#b_blk{is=Is}}|Acc]);
+ssa_opt_bsm_ctx_calls_fixup_bs([], Cnt, Acc) ->
+    {reverse(Acc), Cnt}.
+
+ssa_opt_bsm_ctx_calls_fixup_is([#b_set{op=call,
+                                       args=[Callee|Args0],anno=Anno0}=I0|Is],
+                               Cnt0, Acc0) ->
+    #{arg_types:=ArgTypes0} = Anno0,
+    Aliased0 = maps:get(aliased, Anno0, []),
+    Unique0 = maps:get(unique, Anno0, []),
+    case ssa_opt_bsm_ctx_calls_fixup_args(Args0, ArgTypes0, Aliased0, Unique0,
+                                          Cnt0, 1, [], [], #{}) of
+        {[],_,_,_,Cnt0} ->
+            ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt0, [I0|Acc0]);
+        {ExtraIs,Args,ArgTypes,Aliased,Unique,Cnt} ->
+            Acc = ExtraIs ++ Acc0,
+            Anno1 = Anno0#{arg_types=>ArgTypes},
+            Anno2 = case Aliased of
+                        [] ->
+                            maps:remove(aliased, Anno1);
+                        _ ->
+                            Anno1#{aliased=>Aliased}
+                    end,
+            Anno = case Unique of
+                       [] ->
+                           maps:remove(unique, Anno2);
+                        _ ->
+                           Anno2#{unique=>Unique}
+                   end,
+            I = I0#b_set{args=[Callee|Args],anno=Anno},
+            ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt, [I|Acc])
+    end;
+ssa_opt_bsm_ctx_calls_fixup_is([I|Is], Cnt, Acc) ->
+    ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt, [I|Acc]);
+ssa_opt_bsm_ctx_calls_fixup_is([], Cnt, Acc) ->
+    {reverse(Acc), Cnt}.
+
+ssa_opt_bsm_ctx_calls_fixup_args([A0|Args0], ArgTypes, Aliased, Unique,
+                                 Cnt, Idx, Extra, ArgsAcc, AlreadyConverted)
+  when is_map_key(A0, AlreadyConverted) ->
+    %% Never extract the same tail twice, reuse the old extract.
+    #{A0:={A,Type}} = AlreadyConverted,
+    ssa_opt_bsm_ctx_calls_fixup_args(
+      Args0, ArgTypes#{Idx=>Type}, Aliased, Unique,
+      Cnt + 1, Idx + 1, Extra,
+      [A|ArgsAcc], AlreadyConverted);
+ssa_opt_bsm_ctx_calls_fixup_args([A0|Args0], ArgTypes0, Aliased0, Unique0,
+                                 Cnt0, Idx, Extra, ArgsAcc, AlreadyConverted) ->
+    case ArgTypes0 of
+        #{Idx:=#t_bs_context{tail_unit=Unit}=T} ->
+            case ordsets:is_element(A0, Aliased0) of
+                true ->
+                    A = #b_var{name=Cnt0},
+                    ExtraAnno = #{aliased=>[A0],arg_types=>#{0=>T}},
+                    ExtraI = #b_set{dst=A,
+                                    op=bs_get_tail,
+                                    args=[A0],
+                                    anno=ExtraAnno},
+                    Aliased = ordsets:del_element(A0, Aliased0),
+                    Unique = ordsets:add_element(A, Unique0),
+                    ArgType = #t_bitstring{size_unit=Unit},
+                    ArgTypes = ArgTypes0#{Idx=>ArgType},
+                    ssa_opt_bsm_ctx_calls_fixup_args(
+                      Args0, ArgTypes, Aliased, Unique,
+                      Cnt0 + 1, Idx + 1,
+                      [ExtraI|Extra], [A|ArgsAcc],
+                      AlreadyConverted#{A0=>{A,ArgType}});
+                false ->
+                    ssa_opt_bsm_ctx_calls_fixup_args(
+                      Args0, ArgTypes0, Aliased0, Unique0,
+                      Cnt0 + 1, Idx + 1,
+                      Extra, [A0|ArgsAcc], AlreadyConverted)
+            end;
+        #{} ->
+            ssa_opt_bsm_ctx_calls_fixup_args(
+              Args0, ArgTypes0, Aliased0, Unique0,
+              Cnt0 + 1, Idx + 1, Extra, [A0|ArgsAcc], AlreadyConverted)
+    end;
+ssa_opt_bsm_ctx_calls_fixup_args([], ArgTypes, Aliased, Unique, Cnt,
+                                 _, Extra, ArgsAcc, _) ->
+    {Extra, reverse(ArgsAcc), ArgTypes, Aliased, Unique, Cnt}.
 
 %%%
 %%% Optimize expressions such as "tuple_size(Var) =:= 2".
