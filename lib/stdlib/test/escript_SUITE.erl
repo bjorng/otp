@@ -556,14 +556,14 @@ epp(Config) when is_list(Config) ->
 create_and_extract(Config) when is_list(Config) ->
     {NewFile, FileInfo,
      EmuArg, Source,
-     ErlFile, ErlCode,
+     _ErlFile, ErlCode,
      _BeamBase, BeamCode} =
 	prepare_creation("create_and_extract", Config),
 
     Bodies =
 	[[{source, ErlCode}],
 	 [{beam, BeamCode}],
-	 [{modules, [BeamCode]}, {files, [ErlFile]}]],
+	 [{modules, [BeamCode]}, {files, [ErlCode]}]],
 
     %% Verify all combinations of scripts with shebangs
     [verify_sections(Config, NewFile, FileInfo, S ++ C ++ E ++ B) ||
@@ -698,46 +698,26 @@ normalize_sections(Sections) ->
 		 [{comment, Comment} | Rest2] ->
 		     [{comment, Comment} |
 		      case Rest2 of
-                          [{emu_args, EmuArgs}, {archive, Archive}] ->
-                              {Modules, Files} = beam_bundle_split(Archive),
-                              [{emu_args, EmuArgs},
-                               {modules, Modules}, {files, Files}];
-			  [{emu_args, EmuArgs}, Body] ->
-			      [{emu_args, EmuArgs}, Body];
-                          [{archive, Archive}] ->
-                              {Modules, Files} = beam_bundle_split(Archive),
-                              [{emu_args, undefined},
-                               {modules, Modules}, {files, Files}];
-                          [{modules, Modules}, {files, Files}]=Body ->
-                              [{emu_args, undefined},
-                               {modules, Modules}, {files, Files}];
+                          [{emu_args, _} | _]=Body ->
+                              Body;
+                          [{modules, _} | _]=Body ->
+                              [{emu_args, undefined} | Body];
 			  [Body] ->
 			      [{emu_args, undefined}, Body]
 		      end
 		     ];
-                 [{emu_args, EmuArgs}, {archive, Archive}] ->
-                     {Modules, Files} = beam_bundle_split(Archive),
-                     [{comment, undefined}, {emu_args, EmuArgs},
-                      {modules, Modules}, {files, Files}];
+                 [{emu_args, _}, {modules, _} | _]=Rest2 ->
+                     [{comment, undefined} | Rest2];
 		 [{emu_args, EmuArgs}, Body] ->
 		     [{comment, undefined}, {emu_args, EmuArgs}, Body];
-                 [{archive, Archive}] ->
-                     {Modules, Files} = beam_bundle_split(Archive),
-                     [{comment, undefined}, {emu_args, undefined},
-                      {modules, Modules}, {files, Files}];
-                 [{modules, Modules}, {files, Files}]=Body ->
-                     [{comment, undefined}, {emu_args, undefined},
-                      {modules, Modules}, {files, Files}];
+                 [{modules, _} | _]=Body ->
+                     [{comment, undefined}, {emu_args, undefined} | Body];
 		 [Body] ->
 		     [{comment, undefined}, {emu_args, undefined}, Body]
 	     end];
-        [{modules, Modules}, {files, Files}]=Body ->
-            [{shebang, undefined}, {comment, undefined}, {emu_args, undefined},
-             {modules, Modules}, {files, Files}];
-        [{archive, Archive}] ->
-            {Modules, Files} = beam_bundle_split(Archive),
-            [{shebang, undefined}, {comment, undefined}, {emu_args, undefined},
-             {modules, Modules}, {files, Files}];
+        [{modules, _} | _]=Body ->
+            [{shebang, undefined}, {comment, undefined}, {emu_args, undefined} |
+             Body];
 	[Body] ->
 	    [{shebang, undefined}, {comment, undefined}, {emu_args, undefined}, Body]
     end.
