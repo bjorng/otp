@@ -240,9 +240,10 @@ prepare([H | T], S) ->
 		{error, Reason} ->
 		    throw({Reason, H})
 	    end;
-        {archive, Bin} when is_binary(Bin) ->
-            {ok, BeamArchive} = beam_bundle(Bin),
-            prepare(T, S#sections{type = archive, body = BeamArchive});
+	{modules=Type, Files} when is_list(Files) ->
+            prepare_bundle(Type, Files, T, S);
+	{files=Type, Files} when is_list(Files) ->
+            prepare_bundle(Type, Files, T, S);
 	{Type, File} when is_list(File) ->
 	    case file:read_file(File) of
 		{ok, Bin} ->
@@ -257,46 +258,43 @@ prepare([H | T], S) ->
     end;
 prepare([], #sections{body = undefined}) ->
     throw(missing_body);
-prepare([], #sections{type = Type} = S)
-  when Type =:= source; Type =:= beam; Type =:= archive ->
+prepare([], #sections{type = bundle, body=BodyMap} = S) ->
+    Modules = case BodyMap of
+                  #{modules := Mods} -> Mods;
+                  #{} -> throw(no_modules)
+              end,
+    Files = maps:get(files, BodyMap, []),
+    S#sections{body=beam_bundle(Modules, Files)};
+prepare([], #sections{type = Type} = S) when Type =:= source; Type =:= beam ->
     S;
 prepare([], #sections{type = Type}) ->
     throw({illegal_type, Type});
 prepare(BadOptions, _) ->
     throw({badarg, BadOptions}).
 
-beam_bundle(ZipArchive) ->
-    {Beams, OtherFiles} = beam_bundle_split(ZipArchive),
+prepare_bundle(Type, Files0, T, #sections{body=undefined}=S) ->
+    Files = read_files(Files0),
+    prepare(T, S#sections{type=bundle,body=#{Type => Files}});
+prepare_bundle(Type, Files0, T, #sections{type=bundle,body=Body}=S)
+  when is_map(Body) ->
+    Files = read_files(Files0),
+    prepare(T, S#sections{body=Body#{Type => Files}}).
+
+read_files(Files) ->
+    [case file:read_file(File) of
+         {ok, Bin} ->
+             Bin;
+         {error, Reason} ->
+             throw({Reason, File})
+     end || File <- Files].
+
+beam_bundle(Beams, OtherFiles) ->
     Packed = term_to_binary(Beams, [{compressed,9}]),
     PackedSize = byte_size(Packed),
     OtherArchive = term_to_binary(OtherFiles, [{compressed,9}]),
     OtherArchiveSize = byte_size(OtherArchive),
-    Bundle = <<?BUNDLE_HEADER,PackedSize:32,Packed/binary,
-               OtherArchiveSize:32,OtherArchive/binary>>,
-    {ok, Bundle}.
-
-beam_bundle_split(Archive) ->
-    {ok, {Beams, OtherFiles}} =
-        zip:foldl(fun do_bundle_split/4, {[], []}, {"", Archive}),
-    {Beams, OtherFiles}.
-
-do_bundle_split(Name, _, Get, {BeamAcc, FileAcc}) ->
-    case filename:extension(Name) of
-        ".beam" ->
-            {[prepare_beam(Get()) | BeamAcc], FileAcc};
-        _ ->
-            {BeamAcc, [{Name, Get()} | FileAcc]}
-    end.
-
-prepare_beam(<<"FOR1",_/binary>> = Beam) ->
-    Beam;
-prepare_beam(Beam0) ->
-    try
-        zlib:gunzip(Beam0)
-    catch
-        error:Error ->
-            error({bad_beam, Error})
-    end.
+    <<?BUNDLE_HEADER,PackedSize:32,Packed/binary,
+      OtherArchiveSize:32,OtherArchive/binary>>.
 
 -type section_name() :: shebang | comment | emu_args | body .
 -type extract_option() :: compile_source | {section, [section_name()]}.
