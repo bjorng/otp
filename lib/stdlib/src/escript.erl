@@ -72,20 +72,18 @@ For example:
 
 -record(extract_options, {compile_source}).
 
--type zip_file() ::
-	  zip:filename()
-	| {zip:filename(), binary()}
-	| {zip:filename(), binary(), file:file_info()}.
 -type section() ::
-	  shebang
-	| {shebang, shebang() | default | undefined}
-	| comment
-	| {comment, comment() | default | undefined}
-	| {emu_args, emu_args() | undefined}
-	| {source, file:filename() | binary()}
-	| {beam, file:filename() | binary()}
-	| {archive, zip:filename() | binary()}
-	| {archive, [zip_file()], [zip:create_option()]}.
+        'shebang'
+      | {'shebang', shebang() | default | undefined}
+      | 'comment'
+      | {'comment', comment() | default | undefined}
+      | {'emu_args', emu_args() | undefined}
+      | {'source', file:filename() | binary()}
+      | {'beam', file:filename() | binary()}
+      | {'files', [file:filename() | binary()]}
+      | {'modules', [file:filename() | binary()]}.
+-type legacy_archive() :: {'archive', binary()}.
+
 
 %%-----------------------------------------------------------------------
 
@@ -242,9 +240,9 @@ prepare([H | T], S) ->
 		{error, Reason} ->
 		    throw({Reason, H})
 	    end;
-	{archive, Bin} when is_binary(Bin) ->
-        {ok, BeamArchive} = beam_bundle(Bin),
-        prepare(T, S#sections{type = archive, body = BeamArchive});
+        {archive, Bin} when is_binary(Bin) ->
+            {ok, BeamArchive} = beam_bundle(Bin),
+            prepare(T, S#sections{type = archive, body = BeamArchive});
 	{Type, File} when is_list(File) ->
 	    case file:read_file(File) of
 		{ok, Bin} ->
@@ -330,7 +328,7 @@ ok
 ```
 """.
 -spec extract(file:filename(), [extract_option()]) ->
-        {ok, [section()]} | {error, term()}.
+        {ok, [section() | legacy_archive()]} | {error, term()}.
 
 extract(File, Options) when is_list(File), is_list(Options) ->
     try
