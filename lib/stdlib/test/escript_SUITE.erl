@@ -455,15 +455,15 @@ legacy_archive_script(Config) when is_list(Config) ->
 			  ArchiveBin]),
     ok = file:write_file_info(MainScript, OrigFI),
 
-    run(Config, PrivDir, MainBase ++  " -arg1 arg2 arg3",
-	[<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+    run(Config, PrivDir, MainBase ++  " -legacy_arg1 arg2 arg3",
+	[<<"main:[\"-legacy_arg1\",\"arg2\",\"arg3\"]\n"
 	   "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
 	   "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
 	   "extract: ok\n"
 	   "ExitCode:0">>]),
 
-    run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
-		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+    run_with_opts(Config, PrivDir, "", MainBase ++  " -legacy_arg1 arg2 arg3",
+		  [<<"main:[\"-legacy_arg1\",\"arg2\",\"arg3\"]\n"
 		     "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
 		     "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
 		     "extract: ok\n"
@@ -477,8 +477,8 @@ legacy_archive_script(Config) when is_list(Config) ->
 			  ArchiveBin]),
     ok = file:write_file_info(MainScript, OrigFI),
 
-    run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
-		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+    run_with_opts(Config, PrivDir, "", MainBase ++  " -legacy_arg1 arg2 arg3",
+		  [<<"main:[\"-legacy_arg1\",\"arg2\",\"arg3\"]\n"
 		     "dict:[]\n"
 		     "dummy:[]\n"
 		     "extract: ok\n"
@@ -490,8 +490,8 @@ legacy_archive_script(Config) when is_list(Config) ->
     ok = file:write_file(MainScript, [ArchiveBin]),
     ok = file:write_file_info(MainScript, OrigFI),
 
-    run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
-		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+    run_with_opts(Config, PrivDir, "", MainBase ++  " -legacy_arg1 arg2 arg3",
+		  [<<"main:[\"-legacy_arg1\",\"arg2\",\"arg3\"]\n"
 		     "dict:[]\n"
 		     "dummy:[]\n"
 		     "extract: ok\n"
@@ -509,8 +509,8 @@ legacy_archive_script(Config) when is_list(Config) ->
 			  ArchiveBin]),
     ok = file:write_file_info(AltScript, OrigFI),
 
-    run(Config, PrivDir, AltBase ++  " -arg1 arg2 arg3",
-	[<<"main2:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+    run(Config, PrivDir, AltBase ++  " -legacy_arg1 arg2 arg3",
+	[<<"main2:[\"-legacy_arg1\",\"arg2\",\"arg3\"]\n"
 	   "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
 	   "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
 	   "extract: ok\n"
