@@ -281,12 +281,17 @@ prepare_bundle(Type, Files0, T, #sections{type=bundle,body=Body}=S)
     prepare(T, S#sections{body=Body#{Type => Files}}).
 
 read_files(Files) ->
-    [case file:read_file(File) of
-         {ok, Bin} ->
-             Bin;
-         {error, Reason} ->
-             throw({Reason, File})
-     end || File <- Files].
+    [if
+         is_binary(FileOrBin) ->
+             FileOrBin;
+         true ->
+             case file:read_file(FileOrBin) of
+                 {ok, Bin} ->
+                     Bin;
+                 {error, Reason} ->
+                     throw({Reason, FileOrBin})
+             end
+     end || FileOrBin <- Files].
 
 beam_bundle(Beams, OtherFiles) ->
     Packed = term_to_binary(Beams, [{compressed,9}]),
