@@ -629,12 +629,11 @@ prepare_creation(Base, Config) ->
      NewFile ++ ".beam", BeamCode}.
 
 verify_sections(Config, File, FileInfo, Sections) ->
-    io:format("~p:verify_sections(\n\t~p,\n\t~p,\n\t~p).\n",
-	      [?MODULE, File, FileInfo, Sections]),
+    %% io:format("~p:verify_sections(\n\t~p,\n\t~p,\n\t~p).\n",
+    %%           [?MODULE, File, FileInfo, Sections]),
 
     %% Create
     file:delete(File),
-    io:format("~P\n", [Sections, 30]),
     ok = escript:create(File, Sections),
     ok = file:write_file_info(File, FileInfo),
 
@@ -678,8 +677,8 @@ verify_sections(Config, File, FileInfo, Sections) ->
 
     Normalized = normalize_sections(Sections),
     {ok, Extracted} = escript:extract(File, []),
-    io:format("Normalized: ~p\n", [Normalized]),
-    io:format("Extracted:  ~p\n", [Extracted]),
+    %% io:format("Normalized: ~p\n", [Normalized]),
+    %% io:format("Extracted:  ~p\n", [Extracted]),
     ?assertEqual(Normalized, Extracted),
     ok.
 
