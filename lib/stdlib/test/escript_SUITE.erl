@@ -588,9 +588,12 @@ archive_script(Config) when is_list(Config) ->
     ok = file:rename(MainScript, MainScript ++ "_with_shebang"),
 
     %% Without shebang (no flags)
-    ok = file:write_file(MainScript,
-			 ["Something else than shebang!!!", "\n",
-			  ArchiveBin]),
+    ok = escript:create(MainScript, [comment,
+                                     {modules, Beams},
+                                     {files, Files}]),
+    %% ok = file:write_file(MainScript,
+    %%     		 ["Something else than shebang!!!", "\n",
+    %%     		  ArchiveBin]),
     ok = file:write_file_info(MainScript, OrigFI),
 
     run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
