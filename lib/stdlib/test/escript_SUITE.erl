@@ -31,10 +31,10 @@
 	 two_lines/1,
 	 module_script/1,
 	 beam_script/1,
+	 legacy_archive_script/1,
 	 archive_script/1,
 	 epp/1,
 	 create_and_extract/1,
-	 foldl/1,
 	 overflow/1,
 	 verify_sections/4,
          unicode/1,
@@ -53,8 +53,9 @@ suite() ->
 all() -> 
     [basic, errors, strange_name, emulator_flags,
      emulator_flags_no_shebang, two_lines,
-     module_script, beam_script, archive_script, epp,
-     create_and_extract, foldl, overflow,
+     module_script, beam_script,
+     legacy_archive_script, archive_script,
+     epp, create_and_extract, overflow,
      unicode, bad_io_server,
      bypass_unicode_conversion].
 
@@ -411,7 +412,7 @@ beam_script(Config) when is_list(Config) ->
 %% alternate main modules. Generate a new escript containing the archive
 %% (with .app and .beam files and) and the escript header.
 %% Archives in this test have the pre-OTP-28 format.
-archive_script(Config) when is_list(Config) ->
+legacy_archive_script(Config) when is_list(Config) ->
     %% Copy the orig files to priv_dir
     DataDir = proplists:get_value(data_dir, Config),
     PrivDir = proplists:get_value(priv_dir, Config),
@@ -517,6 +518,125 @@ archive_script(Config) when is_list(Config) ->
 
     ok.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Create an archive file containing two entire applications plus two
+%% alternate main modules. Generate a new escript containing the archive
+%% (with .app and .beam files and) and the escript header.
+%% Archives in this test have the new OTP-28 format.
+archive_script(Config) when is_list(Config) ->
+    %% Copy the orig files to priv_dir
+    DataDir = proplists:get_value(data_dir, Config),
+    PrivDir = proplists:get_value(priv_dir, Config),
+    Archive = filename:join([PrivDir, "archive_script.zip"]),
+    {ok, _} = zip:create(Archive, ["archive_script"],
+			 [{compress, []}, {cwd, DataDir}]),
+    {ok, _} = zip:extract(Archive, [{cwd, PrivDir}]),
+    TopDir = filename:join([PrivDir, "archive_script"]),
+
+    %% Compile the code
+    ok = compile_app(TopDir, "archive_script_dict"),
+    ok = compile_app(TopDir, "archive_script_dummy"),
+    {ok, MainFiles} = file:list_dir(TopDir),
+    ok = compile_files(MainFiles, TopDir, TopDir),
+
+    %% Create the archive
+    {ok, TopFiles} = file:list_dir(TopDir),
+    {ok, {_, ArchiveBin}} = zip:create(Archive, TopFiles,
+				       [memory, {compress, []}, {cwd, TopDir}]),
+
+    %% Read the source script
+    OrigFile = filename:join([DataDir, "emulator_flags"]),
+    {ok, OrigBin} = file:read_file(OrigFile),
+    [Shebang, Mode, _Flags | _Source] =
+	string:tokens(binary_to_list(OrigBin), "\n"),
+    Flags = "-archive_script_dict foo bar"
+	" -archive_script_dict foo"
+	" -archive_script_dummy bar",
+    {ok, OrigFI} = file:read_file_info(OrigFile),
+
+%%%%%%%
+    %% Create and run scripts without emulator flags
+    MainBase = "archive_script_main",
+    MainScript = filename:join([PrivDir, MainBase]),
+
+    %% With shebang
+    io:format("~p\n", [TopFiles]),
+    All = filelib:wildcard(filename:join(PrivDir, "**")),
+    Beams = filelib:wildcard(filename:join(PrivDir, "**/*.beam")),
+    Files = [F || F <- All, filelib:is_regular(F)] -- Beams,
+    io:format("~p\n", [Beams]),
+    io:format("~p\n", [Files]),
+
+    Options = [shebang,
+               {emu_args, Flags},
+               {modules, Beams},
+               {files, Files}],
+    io:format("~p\n", [Options]),
+    ok = escript:create(MainScript, Options),
+    ok = file:write_file_info(MainScript, OrigFI),
+
+    run(Config, PrivDir, MainBase ++  " -arg1 arg2 arg3",
+	[<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+	   "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
+	   "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
+	   "extract: ok\n"
+	   "ExitCode:0">>]),
+
+    run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
+		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+		     "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
+		     "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
+		     "extract: ok\n"
+		     "ExitCode:0">>]),
+
+    ok = file:rename(MainScript, MainScript ++ "_with_shebang"),
+
+    %% Without shebang (no flags)
+    ok = file:write_file(MainScript,
+			 ["Something else than shebang!!!", "\n",
+			  ArchiveBin]),
+    ok = file:write_file_info(MainScript, OrigFI),
+
+    run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
+		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+		     "dict:[]\n"
+		     "dummy:[]\n"
+		     "extract: ok\n"
+		     "ExitCode:0">>]),
+    ok = file:rename(MainScript, MainScript ++ "_without_shebang"),
+
+    %% Plain archive without header (no flags)
+
+    ok = file:write_file(MainScript, [ArchiveBin]),
+    ok = file:write_file_info(MainScript, OrigFI),
+
+    run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
+		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+		     "dict:[]\n"
+		     "dummy:[]\n"
+		     "extract: ok\n"
+		     "ExitCode:0">>]),
+    ok = file:rename(MainScript, MainScript ++ "_without_header"),
+
+%%%%%%%
+    %% Create and run scripts with emulator flags
+    AltBase = "archive_script_alternate_main",
+    AltScript = filename:join([PrivDir, AltBase]),
+    ok = file:write_file(AltScript,
+			 [Shebang, "\n",
+			  Mode, "\n",
+			  Flags, " -escript main archive_script_main2\n",
+			  ArchiveBin]),
+    ok = file:write_file_info(AltScript, OrigFI),
+
+    run(Config, PrivDir, AltBase ++  " -arg1 arg2 arg3",
+	[<<"main2:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+	   "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
+	   "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
+	   "extract: ok\n"
+	   "ExitCode:0">>]),
+
+    ok.
 
 compile_app(TopDir, AppName) ->
     AppDir = filename:join([TopDir, AppName]),
@@ -556,14 +676,15 @@ epp(Config) when is_list(Config) ->
 create_and_extract(Config) when is_list(Config) ->
     {NewFile, FileInfo,
      EmuArg, Source,
-     _ErlFile, ErlCode,
-     _BeamBase, BeamCode} =
+     ErlFile, ErlCode,
+     _BeamFile, BeamCode} =
 	prepare_creation("create_and_extract", Config),
 
     Bodies =
 	[[{source, ErlCode}],
 	 [{beam, BeamCode}],
-	 [{modules, [BeamCode]}, {files, [ErlCode]}]],
+	 [{modules, [BeamCode]},
+          {files, [{filename:basename(ErlFile), ErlCode}]}]],
 
     %% Verify all combinations of scripts with shebangs
     [verify_sections(Config, NewFile, FileInfo, S ++ C ++ E ++ B) ||
@@ -721,100 +842,6 @@ normalize_sections(Sections) ->
 	    [{shebang, undefined}, {comment, undefined}, {emu_args, undefined}, Body]
     end.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% Archives in this test have the new (OTP 28) format.
-foldl(Config) when is_list(Config) ->
-    {NewFile, _FileInfo,
-     _EmuArg, _Source,
-     ErlBase, ErlCode,
-     BeamBase, _BeamCode,
-     ArchiveBin} =
-	prepare_creation("foldl", Config),
-
-    Collect = fun(Name, GetInfo, GetBin, Acc) ->
-		      [{Name, GetInfo(), GetBin()} | Acc]
-	      end,
-
-    %% Get line numbers and the file attribute right
-    SourceFile = NewFile ++ ".erl",
-    <<_:1/binary, ErlCode2/binary>> = ErlCode,
-    ok = file:write_file(SourceFile, ErlCode2),
-    {ok, _Mod, BeamCode} =
-	compile:file(SourceFile, [binary, debug_info]),
-
-    %% Verify source script
-    ok = escript:create(SourceFile, [{source, ErlCode}]),
-    {ok, [{".", _, BeamCode2}]}
-	= escript_foldl(Collect, [], SourceFile),
-
-    {ok, Abstr} = beam_lib:chunks(BeamCode, [abstract_code]),
-    {ok, Abstr2} = beam_lib:chunks(BeamCode2, [abstract_code]),
-    %% io:format("abstr1=~p\n", [Abstr]),
-    %% io:format("abstr2=~p\n", [Abstr2]),
-    Abstr = Abstr2, % Assert
-
-    %% Verify beam script
-    ok = escript:create(NewFile, [{beam, BeamCode}]),
-    {ok, [{".", _, BeamCode}]}
-	= escript_foldl(Collect, [], NewFile),
-
-    %% Verify archive scripts
-    ok = escript:create(NewFile, [{archive, ArchiveBin}]),
-    Bundle1 = beam_bundle_split(ArchiveBin),
-    Bundle1 = escript_foldl(Collect, [], NewFile),
-
-    ArchiveFiles = [{ErlBase, ErlCode}, {BeamBase, BeamCode}],
-    ok = escript:create(NewFile, [{archive, ArchiveFiles, []}]),
-    {ok, {_, ArchiveBin2}} = zip:create("dummy.zip", ArchiveFiles, [memory]),
-    Bundle2 = beam_bundle_split(ArchiveBin2),
-    Bundle2 = escript_foldl(Collect, [], NewFile),
-
-    ok.
-
-escript_foldl(Fun, Acc, File) ->
-    case escript:extract(File, [compile_source]) of
-	{ok, [_Shebang, _Comment, _EmuArgs, Body]} ->
-	    case Body of
-		{source, BeamCode} ->
-		    GetInfo = fun() -> file:read_file_info(File) end,
-		    GetBin = fun() -> BeamCode end,
-		    {ok, Fun(".", GetInfo, GetBin, Acc)};
-		{beam, BeamCode} ->
-		    GetInfo = fun() -> file:read_file_info(File) end,
-		    GetBin = fun() -> BeamCode end,
-		    {ok, Fun(".", GetInfo, GetBin, Acc)};
-		{archive, ArchiveBin} ->
-		    zip:foldl(Fun, Acc, {File, ArchiveBin})
-	    end;
-    {ok, [_Shebang, _Comment, _EmuArgs, {modules, Modules}, {files, Files}]} ->
-        {Modules, Files};
-	{error, Reason} ->
-	    {error, Reason}
-    end.
-
-%% Helper functions copied from escript.erl to process archives
-beam_bundle_split(Archive) ->
-    {ok, {Beams, OtherFiles}} =
-        zip:foldl(fun do_bundle_split/4, {[], []}, {"", Archive}),
-    {Beams, OtherFiles}.
-
-do_bundle_split(Name, _, Get, {BeamAcc, FileAcc}) ->
-    case filename:extension(Name) of
-        ".beam" ->
-            {[prepare_beam(Get()) | BeamAcc], FileAcc};
-        _ ->
-            {BeamAcc, [{Name, Get()} | FileAcc]}
-    end.
-
-prepare_beam(<<"FOR1",_/binary>> = Beam) ->
-    Beam;
-prepare_beam(Beam0) ->
-    try
-        zlib:gunzip(Beam0)
-    catch
-        error:Error ->
-            error({bad_beam, Error})
-    end.
 
 unicode(Config) when is_list(Config) ->
     Data = proplists:get_value(data_dir, Config),

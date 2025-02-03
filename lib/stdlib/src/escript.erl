@@ -80,7 +80,7 @@ For example:
       | {'emu_args', emu_args() | undefined}
       | {'source', file:filename() | binary()}
       | {'beam', file:filename() | binary()}
-      | {'files', [file:filename() | binary()]}
+      | {'files', [file:filename() | {file:filename(), binary()}]}
       | {'modules', [file:filename() | binary()]}.
 -type legacy_archive() :: {'archive', binary()}.
 
@@ -258,7 +258,7 @@ prepare([H | T], S) ->
     end;
 prepare([], #sections{body = undefined}) ->
     throw(missing_body);
-prepare([], #sections{type = bundle, body=BodyMap} = S) ->
+prepare([], #sections{type = bundle, body = BodyMap} = S) ->
     Modules = case BodyMap of
                   #{modules := Mods} -> Mods;
                   #{} -> throw(no_modules)
@@ -272,25 +272,44 @@ prepare([], #sections{type = Type}) ->
 prepare(BadOptions, _) ->
     throw({badarg, BadOptions}).
 
-prepare_bundle(Type, Files0, T, #sections{body=undefined}=S) ->
-    Files = read_files(Files0),
-    prepare(T, S#sections{type=bundle,body=#{Type => Files}});
-prepare_bundle(Type, Files0, T, #sections{type=bundle,body=Body}=S)
+prepare_bundle(Type, Files, T, #sections{body=undefined}=S) ->
+    prepare_bundle(Type, Files, T, S#sections{type=bundle, body=#{}});
+prepare_bundle(Type, Files0, T, #sections{type=bundle, body=Body}=S)
   when is_map(Body) ->
-    Files = read_files(Files0),
+    Files = case Type of
+                modules -> read_beams(Files0);
+                files -> read_files(Files0)
+            end,
     prepare(T, S#sections{body=Body#{Type => Files}}).
 
 read_files(Files) ->
+    [case FileOrBin of
+         {Name, Binary} when is_list(Name), is_binary(Binary) ->
+             {filename:basename(Name), Binary};
+         Name when is_list(Name) ->
+             case file:read_file(Name) of
+                 {ok, Bin} ->
+                     {filename:basename(Name), Bin};
+                 {error, Reason} ->
+                     throw({Reason, FileOrBin})
+             end;
+         _ ->
+             throw({illegal_file, FileOrBin})
+     end || FileOrBin <- Files].
+
+read_beams(Files) ->
     [if
          is_binary(FileOrBin) ->
              FileOrBin;
-         true ->
+         is_list(FileOrBin) ->
              case file:read_file(FileOrBin) of
                  {ok, Bin} ->
                      Bin;
                  {error, Reason} ->
                      throw({Reason, FileOrBin})
-             end
+             end;
+         true ->
+             throw({illegal_file, FileOrBin})
      end || FileOrBin <- Files].
 
 beam_bundle(Beams, OtherFiles) ->
@@ -571,7 +590,9 @@ handle_archive(_File, <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,
                        OtherSize:32,OtherFiles:OtherSize/binary>>) ->
     Beams = separate_beams(binary_to_term(Beams0, [safe])),
     UnpackedFiles = binary_to_term(OtherFiles, [safe]),
-    AppFiles = [Name || {Name, _Bin} <- UnpackedFiles, filename:extension(Name) =:= ".app"],
+    AppFiles = [{list_to_atom(filename:rootname(Name)), Bin} ||
+                   {Name, Bin} <- UnpackedFiles,
+                   filename:extension(Name) =:= ".app"],
     persistent_term:put(?MODULE, AppFiles),
     {ok,Prepared} = code:prepare_loading(Beams),
     ok = code:finish_loading(Prepared),
