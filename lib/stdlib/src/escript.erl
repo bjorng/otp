@@ -88,7 +88,7 @@ For example:
 %%-----------------------------------------------------------------------
 
 %% Create a complete escript file with both header and body
--doc """
+-doc """"
 Creates an escript from a list of sections.
 
 The sections can be specified in any order. An escript begins with an optional
@@ -104,39 +104,36 @@ number of schedulers with `+S3`. We also extract the different sections from the
 newly created script:
 
 ```erlang
-> Source = "%% Demo\nmain(_Args) ->\n    io:format(\"~p\",[erlang:system_info(schedulers)]).\n".
-"%% Demo\nmain(_Args) ->\n    io:format(erlang:system_info(schedulers)).\n"
-> io:format("~s\n", [Source]).
+> Source = ~"""
 %% Demo
 main(_Args) ->
-    io:format(erlang:system_info(schedulers)).
-
-ok
+    io:format("~p\n", [erlang:system_info(schedulers)]).
+""", ok.
 > {ok, Bin} = escript:create(binary, [shebang, comment, {emu_args, "+S3"},
-                                      {source, list_to_binary(Source)}]).
+                                      {source, Source}]).
 {ok,<<"#!/usr/bin/env escript\n%% This is an -*- erlang -*- file\n%%!+S3"...>>}
 > file:write_file("demo.escript", Bin).
 ok
 > os:cmd("escript demo.escript").
-"3"
+"3\n"
 > escript:extract("demo.escript", []).
 {ok,[{shebang,default}, {comment,default}, {emu_args,"+S3"},
      {source,<<"%% Demo\nmain(_Args) ->\n    io:format(erlang:system_info(schedu"...>>}]}
 ```
 
-An escript without header can be created as follows:
+An escript containing a compiled BEAM file can be created as follows:
 
 ```erlang
 > file:write_file("demo.erl",
                   ["%% demo.erl\n-module(demo).\n-export([main/1]).\n\n", Source]).
 ok
-> {ok, _, BeamCode} = compile:file("demo.erl", [binary, debug_info]).
+> {ok, demo, BeamCode} = compile:file("demo.erl", [binary]).
 {ok,demo,
     <<70,79,82,49,0,0,2,208,66,69,65,77,65,116,111,109,0,0,0,
       79,0,0,0,9,4,100,...>>}
-> escript:create("demo.beam", [{beam, BeamCode}]).
+> escript:create("demo.escript", [shebang, {beam, BeamCode}]).
 ok
-> escript:extract("demo.beam", []).
+> escript:extract("demo.escript", []).
 {ok,[{shebang,undefined}, {comment,undefined}, {emu_args,undefined},
      {beam,<<70,79,82,49,0,0,3,68,66,69,65,77,65,116,
              111,109,0,0,0,83,0,0,0,9,...>>}]}
@@ -180,7 +177,7 @@ ok
                  54,1,0,0,0,0,0},
       <<"%% demo.erl\n-module(demo).\n-export([main/1]).\n\n%% Demo\nmain(_Arg"...>>}]}
 ```
-""".
+"""".
 -spec create(file:filename() | binary(), [section()]) ->
 		    ok | {ok, binary()} | {error, term()}.
 
