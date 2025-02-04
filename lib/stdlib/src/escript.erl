@@ -610,7 +610,7 @@ parse_and_run(File, Args, Options) ->
 
 handle_archive(_File, <<?BUNDLE_HEADER,BeamSize:32,Beams0:BeamSize/binary,
                        OtherSize:32,OtherFiles:OtherSize/binary>>) ->
-    Beams = separate_beams(binary_to_term(Beams0, [safe])),
+    Beams = name_beams(binary_to_term(Beams0, [safe])),
     UnpackedFiles = binary_to_term(OtherFiles, [safe]),
     AppFiles = [{list_to_atom(filename:rootname(Name)), Bin} ||
                    {Name, Bin} <- UnpackedFiles,
@@ -626,12 +626,12 @@ handle_archive(File, Archive) ->
     ok = code:finish_loading(Prepared),
     ok.
 
-separate_beams([Beam | Beams]) ->
+name_beams([Beam | Beams]) ->
     Info = beam_lib:info(Beam),
     {module, Mod} = lists:keyfind(module, 1, Info),
     File = atom_to_list(Mod) ++ ".erl",
-    [{Mod,File,Beam}|separate_beams(Beams)];
-separate_beams([]) -> [].
+    [{Mod,File,Beam}|name_beams(Beams)];
+name_beams([]) -> [].
 
 extract_archive(File, Archive) ->
     zip:foldl(fun do_extract_archive/4, {[], []}, {File, Archive}).
