@@ -141,9 +141,7 @@ ok
 "true"
 ```
 
-Here we create an archive script containing both Erlang code and Beam code, then
-we iterate over all files in the archive and collect their contents and some
-information about them:
+An escript containing both Erlang source files and BEAM code can be created as follows:
 
 ```erlang
 > {ok, SourceCode} = file:read_file("demo.erl"), ok.
@@ -320,15 +318,18 @@ Example:
 
 ```erlang
 > escript:create("demo.escript",
-                 [shebang, {archive, [{"demo.erl", SourceCode},
-                                      {"demo.beam", BeamCode}], []}]).
+                 [shebang,
+                  {modules, [BeamCode]},
+                  {files, ["demo.erl"]}]).
 ok
-> {ok, [{shebang,default}, {comment,undefined}, {emu_args,undefined},
-     {archive, ArchiveBin}]} =
-              escript:extract("demo.escript", []).
-{ok,[{{archive,<<80,75,3,4,20,0,0,0,8,0,118,7,98,60,105,
-                152,61,93,107,0,0,0,118,0,...>>}
-     {emu_args,undefined}]}
+> escript:extract("demo.escript", []).
+{ok,[{shebang,default},
+     {comment,undefined},
+     {emu_args,undefined},
+     {modules,[<<70,79,82,49,0,0,2,144,66,69,65,77,65,116,85,
+                 56,0,0,0,82,...>>]},
+     {files,[{"demo.erl",
+              <<"%% demo.erl\n-module(demo).\n-export([main/1]).\n\n%% Demo\nmain(_Args) -"...>>}]}]}
 ```
 """.
 -spec extract(file:filename(), [extract_option()]) ->
