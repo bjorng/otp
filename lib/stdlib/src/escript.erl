@@ -201,7 +201,7 @@ create(File, Options) when is_list(Options) ->
 		    ok ->
 			ok;
 		    {error, Reason} ->
-			{error, {Reason, ?LINE, File}}
+			{error, {Reason, File}}
 		end
 	end
     catch
@@ -249,7 +249,7 @@ prepare([H | T], S) ->
 		{ok, Bin} ->
 		    prepare(T, S#sections{type = Type, body = Bin});
 		{error, Reason} ->
-		    throw({Reason, ?LINE, H})
+		    throw({Reason, H})
 	    end;
 	{Type, Bin} when is_binary(Bin) ->
 	    prepare(T, S#sections{type = Type, body = Bin});
@@ -291,7 +291,7 @@ read_files(Files) ->
                  {ok, Bin} ->
                      {filename:basename(Name), Bin};
                  {error, Reason} ->
-                     throw({Reason, ?LINE, FileOrBin})
+                     throw({Reason, FileOrBin})
              end;
          _ ->
              throw({illegal_file, FileOrBin})
@@ -306,7 +306,7 @@ read_beams(Files) ->
                  {ok, Bin} ->
                      Bin;
                  {error, Reason} ->
-                     throw({Reason, ?LINE, FileOrBin})
+                     throw({Reason, FileOrBin})
              end;
          true ->
              throw({illegal_file, FileOrBin})
