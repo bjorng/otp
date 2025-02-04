@@ -98,6 +98,21 @@ begins with a `shebang`, possibly followed by a `comment` and `emu_args`. The
 `"This is an -*- erlang -*- file"`. The created escript can either be returned
 as a binary or written to file.
 
+> #### Change {: .info }
+>
+> Support for archive files is an experimental feature, and as such can be
+> subject to incompatible changes.
+>
+> In Erlang/OTP 28, the archive support in `m:erl_prim_loader` and the
+> the code server was removed. Archives can be still be used for escripts,
+> but the internal implementation of archives has changed as well a how
+> to create an escript containing multiple file.
+>
+> `escript` scripts that use archive files must use
+> `escript:extract/2` to read data files from its archive, as reading files
+> from archives using `code:lib_dir/2` and `m:erl_prim_loader` is no longer
+> supported.
+
 As an example of how the function can be used, we create an
 interpreted escript that uses `emu_args` to set some emulator flag. In
 this case, it sets the number of schedulers with `+S3`. We also
@@ -303,12 +318,26 @@ beam_bundle(Beams, OtherFiles) ->
 -type section_name() :: shebang | comment | emu_args | body .
 -type extract_option() :: compile_source | {section, [section_name()]}.
 -doc """
-Parses an escript and extracts its sections. This is the reverse of `create/2`.
+Parses an escript and extracts its sections.
+
+This is the reverse of `create/2`.
 
 All sections are returned even if they do not exist in the escript. If a
 particular section happens to have the same value as the default value, the
 extracted value is set to the atom `default`. If a section is missing, the
 extracted value is set to the atom `undefined`.
+
+> #### Change {: .info }
+>
+> Support for archive files is an experimental feature, and as such can be
+> subject to incompatible changes.
+>
+> `escript:extract/2` now returns BEAM files and other files separately
+> in `{modules, [...]}` and `{files, [...]}` tuples, respectively,
+> when the input is an escript created by Erlang/OTP 28 or later.
+>
+> If the escript was created by Erlang/OTP 27 or earlier, a zip archive
+> will still be returned in an `{archive, ZipArchive}` tuple.
 
 Option `compile_source` only affects the result if the escript contains `source`
 code. In this case the Erlang code is automatically compiled and
@@ -330,6 +359,16 @@ ok
                  56,0,0,0,82,...>>]},
      {files,[{"demo.erl",
               <<"%% demo.erl\n-module(demo).\n-export([main/1]).\n\n%% Demo\nmain(_Args) -"...>>}]}]}
+```
+
+`escript:extract/2` in Erlang/OTP 28 can extract the sections of an
+escript created by Erlang/OTP 27 and earlier:
+
+```
+> escript:extract("demo_otp27.escript", []).
+{ok,[{{archive,<<80,75,3,4,20,0,0,0,8,0,118,7,98,60,105,
+                152,61,93,107,0,0,0,118,0,...>>}
+     {emu_args,undefined}]}
 ```
 """.
 -spec extract(file:filename(), [extract_option()]) ->
