@@ -578,7 +578,7 @@ archive_script(Config) when is_list(Config) ->
 
     ok = file:rename(MainScript, MainScript ++ "_with_shebang"),
 
-    %% Without shebang (no flags)
+    %% Without shebang (no flags).
     ok = escript:create(MainScript, [{comment, "Something else than shebang!!!"},
                                      {modules, Beams},
                                      {files, Files}]),
@@ -592,7 +592,7 @@ archive_script(Config) when is_list(Config) ->
 		     "ExitCode:0">>]),
     ok = file:rename(MainScript, MainScript ++ "_without_shebang"),
 
-    %% Plain archive without header (no flags)
+    %% Plain archive without header (no flags).
 
     ok = escript:create(MainScript, [{modules, Beams}, {files, Files}]),
     ok = file:write_file_info(MainScript, OrigFI),
@@ -606,7 +606,7 @@ archive_script(Config) when is_list(Config) ->
     ok = file:rename(MainScript, MainScript ++ "_without_header"),
 
 %%%%%%%
-    %% Create and run scripts with emulator flags
+    %% Create and run scripts with emulator flags.
     AltBase = "archive_script_alternate_main",
     AltScript = filename:join([PrivDir, AltBase]),
     ok = escript:create(AltScript,
