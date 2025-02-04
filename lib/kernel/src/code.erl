@@ -806,14 +806,8 @@ application.
 
 > #### Change {: .info }
 >
-> This function is part of the archive support, which is an experimental
-> feature that will be changed or removed in a future release.
-
-Normally the subdirectories reside under the top directory for the
-application, but when applications at least partly reside in an archive, the
-situation is different. Some of the subdirectories can reside as regular
-directories while others reside in an archive file. It is not checked whether
-this directory exists.
+> This function used to be part of the experimental support for code archives,
+> which was removed in Erlang/OTP 28.
 
 Instead of using this function, use [`code:lib_dir/1`](`code:lib_dir/1`)
 and `filename:join/2`.
@@ -1986,24 +1980,10 @@ module_status(Module, PathFiles) ->
 %% be reloaded; does not care about file timestamps or compilation time
 module_changed_on_disk(Module, Path) ->
     MD5 = erlang:get_module_info(Module, md5),
-    MD5 =/= beam_file_md5(Module, Path).
+    MD5 =/= beam_file_md5(Path).
 
-beam_file_md5(Module, Path) ->
-    case do_beam_file_md5(Path) of
-        MD5 when is_binary(MD5) ->
-            MD5;
-        undefined ->
-            %% This module is probably embedded in an archive.
-            case get_object_code(Module) of
-                {Module, Code, _Path} ->
-                    do_beam_file_md5(Code);
-                error ->
-                    undefined
-            end
-    end.
-
-do_beam_file_md5(PathOrCode) ->
-    case beam_lib:md5(PathOrCode) of
+beam_file_md5(Path) ->
+    case beam_lib:md5(Path) of
         {ok,{_Mod,MD5}} -> MD5;
         _ -> undefined
     end.
