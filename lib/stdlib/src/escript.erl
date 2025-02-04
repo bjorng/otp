@@ -92,16 +92,16 @@ For example:
 Creates an escript from a list of sections.
 
 The sections can be specified in any order. An escript begins with an optional
-`Header` followed by a mandatory `Body`. If the header is present, it does always
- begin with a `shebang`, possibly followed by a `comment` and `emu_args`. The
+`Header` followed by a mandatory `Body`. If the header is present, it always
+begins with a `shebang`, possibly followed by a `comment` and `emu_args`. The
 `shebang` defaults to `"/usr/bin/env escript"`. The `comment` defaults to
 `"This is an -*- erlang -*- file"`. The created escript can either be returned
 as a binary or written to file.
 
-As an example of how the function can be used, we create an interpreted escript
-that uses `emu_args` to set some emulator flag. In this case, it happens to set
-number of schedulers with `+S3`. We also extract the different sections from the
-newly created script:
+As an example of how the function can be used, we create an
+interpreted escript that uses `emu_args` to set some emulator flag. In
+this case, it sets the number of schedulers with `+S3`. We also
+extract the different sections from the newly created script:
 
 ```erlang
 > Source = ~"""
