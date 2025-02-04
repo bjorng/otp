@@ -524,7 +524,7 @@ legacy_archive_script(Config) when is_list(Config) ->
 %% (with .app and .beam files and) and the escript header.
 %% Archives in this test have the new OTP-28 format.
 archive_script(Config) when is_list(Config) ->
-    %% Copy the orig files to priv_dir
+    %% Copy the orig files to priv_dir.
     DataDir = proplists:get_value(data_dir, Config),
     PrivDir = proplists:get_value(priv_dir, Config),
     Archive = filename:join([PrivDir, "archive_script.zip"]),
@@ -533,34 +533,25 @@ archive_script(Config) when is_list(Config) ->
     {ok, _} = zip:extract(Archive, [{cwd, PrivDir}]),
     TopDir = filename:join([PrivDir, "archive_script"]),
 
-    %% Compile the code
+    %% Compile the code.
     ok = compile_app(TopDir, "archive_script_dict"),
     ok = compile_app(TopDir, "archive_script_dummy"),
     {ok, MainFiles} = file:list_dir(TopDir),
     ok = compile_files(MainFiles, TopDir, TopDir),
 
-    %% Create the archive
-    {ok, TopFiles} = file:list_dir(TopDir),
-    {ok, {_, ArchiveBin}} = zip:create(Archive, TopFiles,
-				       [memory, {compress, []}, {cwd, TopDir}]),
-
-    %% Read the source script
+    %% Read the source script.
     OrigFile = filename:join([DataDir, "emulator_flags"]),
-    {ok, OrigBin} = file:read_file(OrigFile),
-    [Shebang, Mode, _Flags | _Source] =
-	string:tokens(binary_to_list(OrigBin), "\n"),
     Flags = "-archive_script_dict foo bar"
 	" -archive_script_dict foo"
 	" -archive_script_dummy bar",
     {ok, OrigFI} = file:read_file_info(OrigFile),
 
 %%%%%%%
-    %% Create and run scripts without emulator flags
+    %% Create and run scripts without emulator flags.
     MainBase = "archive_script_main",
     MainScript = filename:join([PrivDir, MainBase]),
 
-    %% With shebang
-    io:format("~p\n", [TopFiles]),
+    %% With shebang.
     All = filelib:wildcard(filename:join(PrivDir, "archive_script/**")),
     Beams = filelib:wildcard(filename:join(PrivDir, "**/*.beam")),
     Files = [F || F <- All, filelib:is_regular(F)] -- Beams,
@@ -588,15 +579,10 @@ archive_script(Config) when is_list(Config) ->
     ok = file:rename(MainScript, MainScript ++ "_with_shebang"),
 
     %% Without shebang (no flags)
-    io:format("~ts\n", [MainScript]),
     ok = escript:create(MainScript, [{comment, "Something else than shebang!!!"},
                                      {modules, Beams},
                                      {files, Files}]),
-
-    %% ok = file:write_file(MainScript,
-    %%     		 ["Something else than shebang!!!", "\n",
-    %%     		  ArchiveBin]),
-    %%ok = file:write_file_info(MainScript, OrigFI),
+    ok = file:write_file_info(MainScript, OrigFI),
 
     run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
 		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
@@ -609,7 +595,6 @@ archive_script(Config) when is_list(Config) ->
     %% Plain archive without header (no flags)
 
     ok = escript:create(MainScript, [{modules, Beams}, {files, Files}]),
-    %% ok = file:write_file(MainScript, [ArchiveBin]),
     ok = file:write_file_info(MainScript, OrigFI),
 
     run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
@@ -624,11 +609,12 @@ archive_script(Config) when is_list(Config) ->
     %% Create and run scripts with emulator flags
     AltBase = "archive_script_alternate_main",
     AltScript = filename:join([PrivDir, AltBase]),
-    ok = file:write_file(AltScript,
-			 [Shebang, "\n",
-			  Mode, "\n",
-			  Flags, " -escript main archive_script_main2\n",
-			  ArchiveBin]),
+    ok = escript:create(AltScript,
+                        [shebang,
+                         {comment, "-*- erlang -*-"},
+                         {emu_args, Flags ++ " -escript main archive_script_main2"},
+                         {modules, Beams},
+                         {files, Files}]),
     ok = file:write_file_info(AltScript, OrigFI),
 
     run(Config, PrivDir, AltBase ++  " -arg1 arg2 arg3",
