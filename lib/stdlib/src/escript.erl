@@ -146,36 +146,21 @@ we iterate over all files in the archive and collect their contents and some
 information about them:
 
 ```erlang
-> {ok, SourceCode} = file:read_file("demo.erl").
-{ok,<<"%% demo.erl\n-module(demo).\n-export([main/1]).\n\n%% Demo\nmain(_Arg"...>>}
+> {ok, SourceCode} = file:read_file("demo.erl"), ok.
+ok
 > escript:create("demo.escript",
                  [shebang,
-                  {archive, [{"demo.erl", SourceCode},
-                             {"demo.beam", BeamCode}], []}]).
+                  {modules, [BeamCode]},
+                  {files, ["demo.erl"]}]).
 ok
-> {ok, [{shebang,default}, {comment,undefined}, {emu_args,undefined},
-     {archive, ArchiveBin}]} = escript:extract("demo.escript", []).
-{ok,[{shebang,default}, {comment,undefined}, {emu_args,undefined},
-     {{archive,<<80,75,3,4,20,0,0,0,8,0,118,7,98,60,105,
-                152,61,93,107,0,0,0,118,0,...>>}]}
-> file:write_file("demo.zip", ArchiveBin).
-ok
-> zip:foldl(fun(N, I, B, A) -> [{N, I(), B()} | A] end, [], "demo.zip").
-{ok,[{"demo.beam",
-      {file_info,748,regular,read_write,
-                 {{2010,3,2},{0,59,22}},
-                 {{2010,3,2},{0,59,22}},
-                 {{2010,3,2},{0,59,22}},
-                 54,1,0,0,0,0,0},
-      <<70,79,82,49,0,0,2,228,66,69,65,77,65,116,111,109,0,0,0,
-        83,0,0,...>>},
-     {"demo.erl",
-      {file_info,118,regular,read_write,
-                 {{2010,3,2},{0,59,22}},
-                 {{2010,3,2},{0,59,22}},
-                 {{2010,3,2},{0,59,22}},
-                 54,1,0,0,0,0,0},
-      <<"%% demo.erl\n-module(demo).\n-export([main/1]).\n\n%% Demo\nmain(_Arg"...>>}]}
+> escript:extract("demo.escript", []).
+{ok,[{shebang,default},
+     {comment,undefined},
+     {emu_args,undefined},
+     {modules,[<<70,79,82,49,0,0,2,144,66,69,65,77,65,116,85,
+                 56,0,0,0,82,...>>]},
+     {files,[{"demo.erl",
+              <<"%% demo.erl\n-module(demo).\n-export([main/1]).\n\n%% Demo\nmain(_Args) -"...>>}]}]}
 ```
 """".
 -spec create(file:filename() | binary(), [section()]) ->
