@@ -44,7 +44,7 @@ main(MainArgs) ->
                 {ok, Extracted} ->
                     [{shebang, _Shebang}, {comment,_Comment},
                      {emu_args, _Emu}, {archive, Archive}] = Extracted,
-                    true = is_binary(Archive),
+                    <<"PK",_/binary>> = Archive,
                     io:format("extract: ok\n");
                 error ->
                     io:format("extract: error\n")

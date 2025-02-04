@@ -201,7 +201,7 @@ create(File, Options) when is_list(Options) ->
 		    ok ->
 			ok;
 		    {error, Reason} ->
-			{error, {Reason, File}}
+			{error, {Reason, ?LINE, File}}
 		end
 	end
     catch
@@ -249,7 +249,7 @@ prepare([H | T], S) ->
 		{ok, Bin} ->
 		    prepare(T, S#sections{type = Type, body = Bin});
 		{error, Reason} ->
-		    throw({Reason, H})
+		    throw({Reason, ?LINE, H})
 	    end;
 	{Type, Bin} when is_binary(Bin) ->
 	    prepare(T, S#sections{type = Type, body = Bin});
@@ -291,7 +291,7 @@ read_files(Files) ->
                  {ok, Bin} ->
                      {filename:basename(Name), Bin};
                  {error, Reason} ->
-                     throw({Reason, FileOrBin})
+                     throw({Reason, ?LINE, FileOrBin})
              end;
          _ ->
              throw({illegal_file, FileOrBin})
@@ -306,7 +306,7 @@ read_beams(Files) ->
                  {ok, Bin} ->
                      Bin;
                  {error, Reason} ->
-                     throw({Reason, FileOrBin})
+                     throw({Reason, ?LINE, FileOrBin})
              end;
          true ->
              throw({illegal_file, FileOrBin})
@@ -705,6 +705,9 @@ parse_header(File, KeepFirst) ->
 	beam ->
             {HeaderSz0, LineNo, Fd,
 	     #sections{type = beam}};
+        comment ->
+            find_first_body_line(Fd, HeaderSz0, LineNo, KeepFirst,
+				 #sections{comment = Line1});
 	_ ->
             find_first_body_line(Fd, HeaderSz0, LineNo, KeepFirst,
 				 #sections{})
@@ -715,17 +718,19 @@ find_first_body_line(Fd, HeaderSz0, LineNo, KeepFirst, Sections) ->
     %% Look for special comment on second line
     Line2 = get_line(Fd),
     {ok, HeaderSz2} = file:position(Fd, cur),
-    if
-        Sections#sections.shebang =:= undefined,
-        KeepFirst =:= true ->
-            %% No shebang. Use the entire file
-            {HeaderSz0, LineNo, Fd,
-             Sections#sections{type = guess_type(Line2)}};
-        Sections#sections.shebang =:= undefined ->
-            %% No shebang. Skip the first line
+    case Sections of
+        #sections{shebang=undefined,comment=Comment} when is_list(Comment) ->
             {HeaderSz1, LineNo, Fd,
              Sections#sections{type = guess_type(Line2)}};
-        true ->
+        #sections{shebang=undefined} when KeepFirst ->
+            %% No shebang and no comment. Use the entire file.
+            {HeaderSz0, LineNo, Fd,
+             Sections#sections{type = guess_type(Line2)}};
+        #sections{shebang=undefined} ->
+            %% No shebang. Skip the first line.
+            {HeaderSz1, LineNo, Fd,
+             Sections#sections{type = guess_type(Line2)}};
+        #sections{} ->
             case classify_line(Line2) of
                 emu_args ->
                     %% Skip special comment on second line

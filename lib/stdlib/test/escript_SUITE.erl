@@ -561,7 +561,7 @@ archive_script(Config) when is_list(Config) ->
 
     %% With shebang
     io:format("~p\n", [TopFiles]),
-    All = filelib:wildcard(filename:join(PrivDir, "**")),
+    All = filelib:wildcard(filename:join(PrivDir, "archive_script/**")),
     Beams = filelib:wildcard(filename:join(PrivDir, "**/*.beam")),
     Files = [F || F <- All, filelib:is_regular(F)] -- Beams,
 
@@ -572,29 +572,31 @@ archive_script(Config) when is_list(Config) ->
     ok = file:write_file_info(MainScript, OrigFI),
 
     run(Config, PrivDir, MainBase ++  " -arg1 arg2 arg3",
-	[<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
-	   "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
-	   "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
-	   "extract: ok\n"
-	   "ExitCode:0">>]),
+        [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+           "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
+           "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
+           "extract: ok\n"
+           "ExitCode:0">>]),
 
     run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
-		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
-		     "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
-		     "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
-		     "extract: ok\n"
-		     "ExitCode:0">>]),
+                  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
+                     "dict:[{archive_script_dict,[\"foo\",\"bar\"]},{archive_script_dict,[\"foo\"]}]\n"
+                     "dummy:[{archive_script_dummy,[\"bar\"]}]\n"
+                     "extract: ok\n"
+                     "ExitCode:0">>]),
 
     ok = file:rename(MainScript, MainScript ++ "_with_shebang"),
 
     %% Without shebang (no flags)
-    ok = escript:create(MainScript, [comment,
+    io:format("~ts\n", [MainScript]),
+    ok = escript:create(MainScript, [{comment, "Something else than shebang!!!"},
                                      {modules, Beams},
                                      {files, Files}]),
+
     %% ok = file:write_file(MainScript,
     %%     		 ["Something else than shebang!!!", "\n",
     %%     		  ArchiveBin]),
-    ok = file:write_file_info(MainScript, OrigFI),
+    %%ok = file:write_file_info(MainScript, OrigFI),
 
     run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
 		  [<<"main:[\"-arg1\",\"arg2\",\"arg3\"]\n"
@@ -606,7 +608,8 @@ archive_script(Config) when is_list(Config) ->
 
     %% Plain archive without header (no flags)
 
-    ok = file:write_file(MainScript, [ArchiveBin]),
+    ok = escript:create(MainScript, [{modules, Beams}, {files, Files}]),
+    %% ok = file:write_file(MainScript, [ArchiveBin]),
     ok = file:write_file_info(MainScript, OrigFI),
 
     run_with_opts(Config, PrivDir, "", MainBase ++  " -arg1 arg2 arg3",
