@@ -95,8 +95,7 @@ The `erl_prim_loader` module interprets the following command-line flags:
 
 -type host() :: atom().
 
--record(prim_state, {debug :: boolean(),
-		     primary_archive}).
+-record(prim_state, {debug :: boolean()}).
 -type prim_state() :: #prim_state{}.
 
 -record(state, 

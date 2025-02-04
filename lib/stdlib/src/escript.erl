@@ -29,7 +29,7 @@ for more details on how to use escripts.
 -export([script_name/0, create/2, extract/2]).
 
 %% Internal API.
--export([start/0, start/1, parse_file/1]).
+-export([start/0, start/1]).
 
 %%-----------------------------------------------------------------------
 
@@ -104,7 +104,7 @@ as a binary or written to file.
 > subject to incompatible changes.
 >
 > In Erlang/OTP 28, the archive support in `m:erl_prim_loader` and the
-> the code server was removed. Archives can be still be used for escripts,
+> the code server has been removed. Archives can be still be used for escripts,
 > but the internal implementation of archives has changed as well a how
 > to create an escript containing multiple file.
 >
@@ -653,20 +653,6 @@ do_extract_archive(Name, _, Get, {BeamAcc, AppFileAcc}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Parse script
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%% Only used as callback by erl_prim_loader
--doc hidden.
-parse_file(File) ->
-    try parse_file(File, false) of
-	{_Source, _Module, FormsOrBin, _HasRecs, _Mode}
-	  when is_binary(FormsOrBin) ->
-	    {ok, FormsOrBin};
-	_ ->
-	    {error, no_archive_bin}
-    catch
-	throw:Reason ->
-	    {error, Reason}
-    end.
 
 parse_file(File, CheckOnly) ->
     {HeaderSz, StartLine, Fd, Sections} =
