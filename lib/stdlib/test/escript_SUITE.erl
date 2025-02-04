@@ -473,7 +473,7 @@ legacy_archive_script(Config) when is_list(Config) ->
 
     %% Without shebang (no flags)
     ok = file:write_file(MainScript,
-			 ["Something else than shebang!!!", "\n",
+			 ["%% Something else than shebang!!!", "\n",
 			  ArchiveBin]),
     ok = file:write_file_info(MainScript, OrigFI),
 
