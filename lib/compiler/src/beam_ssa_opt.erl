@@ -2602,7 +2602,12 @@ ssa_opt_bsm_ctx_calls_fixup_is([#b_set{op=call,
     #{arg_types:=ArgTypes0} = Anno0,
     Aliased0 = maps:get(aliased, Anno0, []),
     Unique0 = maps:get(unique, Anno0, []),
-    case ssa_opt_bsm_ctx_calls_fixup_args(Args0, ArgTypes0, Aliased0, Unique0,
+    IsLocalCall = case Callee of
+                      #b_local{} -> true;
+                      _ -> false
+                  end,
+    case ssa_opt_bsm_ctx_calls_fixup_args(Args0, IsLocalCall,
+                                          ArgTypes0, Aliased0, Unique0,
                                           Cnt0, 1, [], [], #{}) of
         {[],_,_,_,Cnt0} ->
             ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt0, [I0|Acc0]);
@@ -2629,23 +2634,45 @@ ssa_opt_bsm_ctx_calls_fixup_is([I|Is], Cnt, Acc) ->
 ssa_opt_bsm_ctx_calls_fixup_is([], Cnt, Acc) ->
     {reverse(Acc), Cnt}.
 
-ssa_opt_bsm_ctx_calls_fixup_args([A0|Args0], ArgTypes, Aliased, Unique,
-                                 Cnt, Idx, Extra, ArgsAcc, AlreadyConverted)
+%% TODO: refactor to avoid the duplicated handling of local calls.
+ssa_opt_bsm_ctx_calls_fixup_args([A0|Args0], IsLocalCall, ArgTypes, Aliased,
+                                 Unique, Cnt, Idx, Extra,
+                                 ArgsAcc, AlreadyConverted)
   when is_map_key(A0, AlreadyConverted) ->
     %% Never extract the same tail twice, reuse the old extract.
     #{A0:={A,Type}} = AlreadyConverted,
-    ssa_opt_bsm_ctx_calls_fixup_args(
-      Args0, ArgTypes#{Idx=>Type}, Aliased, Unique,
-      Cnt + 1, Idx + 1, Extra,
-      [A|ArgsAcc], AlreadyConverted);
-ssa_opt_bsm_ctx_calls_fixup_args([A0|Args0], ArgTypes0, Aliased0, Unique0,
-                                 Cnt0, Idx, Extra, ArgsAcc, AlreadyConverted) ->
+    if IsLocalCall ->
+            %% We can't send a bs to a local function, as it expects
+            %% to get a match context.
+            V = #b_var{name=Cnt},
+            BSM = #b_set{dst=V,op=bs_start_match,
+                         args=[#b_literal{val=new},A],
+                         anno=#{arg_types=>#{1=>Type},
+                                unique=>[A],
+                                created_for=>{already_converted,A0,local}}},
+            ssa_opt_bsm_ctx_calls_fixup_args(
+              Args0, IsLocalCall, ArgTypes, Aliased, Unique,
+              Cnt + 1, Idx + 1, [BSM|Extra],
+              [V|ArgsAcc], AlreadyConverted);
+       true ->
+            %% Remote functions cannot assume that they get a match
+            %% context, so just reuse the the extracted tail and
+            %% ignore the potential type mismatch.
+            ssa_opt_bsm_ctx_calls_fixup_args(
+              Args0, IsLocalCall, ArgTypes#{Idx=>Type}, Aliased, Unique,
+              Cnt, Idx + 1, Extra,
+              [A|ArgsAcc], AlreadyConverted)
+    end;
+ssa_opt_bsm_ctx_calls_fixup_args([A0|Args0], IsLocalCall, ArgTypes0, Aliased0,
+                                 Unique0, Cnt0, Idx, Extra,
+                                 ArgsAcc, AlreadyConverted) ->
     case ArgTypes0 of
         #{Idx:=#t_bs_context{tail_unit=Unit}=T} ->
             case ordsets:is_element(A0, Aliased0) of
                 true ->
                     A = #b_var{name=Cnt0},
-                    ExtraAnno = #{aliased=>[A0],arg_types=>#{0=>T}},
+                    ExtraAnno = #{aliased=>[A0],arg_types=>#{0=>T},
+                                  created_for=>tail},
                     ExtraI = #b_set{dst=A,
                                     op=bs_get_tail,
                                     args=[A0],
@@ -2654,24 +2681,45 @@ ssa_opt_bsm_ctx_calls_fixup_args([A0|Args0], ArgTypes0, Aliased0, Unique0,
                     Unique = ordsets:add_element(A, Unique0),
                     ArgType = #t_bitstring{size_unit=Unit},
                     ArgTypes = ArgTypes0#{Idx=>ArgType},
-                    ssa_opt_bsm_ctx_calls_fixup_args(
-                      Args0, ArgTypes, Aliased, Unique,
-                      Cnt0 + 1, Idx + 1,
-                      [ExtraI|Extra], [A|ArgsAcc],
-                      AlreadyConverted#{A0=>{A,ArgType}});
+
+                    if IsLocalCall ->
+                            %% We can't send a bs to a local function,
+                            %% as it expects to get a match context.
+                            NewCtx = #b_var{name=Cnt0 + 1},
+                            BSM = #b_set{dst=NewCtx,op=bs_start_match,
+                                         args=[#b_literal{val=new},A],
+                                         anno=#{arg_types=>#{1=>T},
+                                                unique=>[A],
+                                                created_for=>{local_call,A0}}},
+                            ssa_opt_bsm_ctx_calls_fixup_args(
+                              Args0, IsLocalCall, ArgTypes, Aliased, Unique,
+                              Cnt0 + 2, Idx + 1,
+                              [BSM,ExtraI|Extra], [NewCtx|ArgsAcc],
+                              AlreadyConverted#{A0=>{A,ArgType}});
+                       true ->
+                            %% Remote functions cannot assume that
+                            %% they get a match context, so just reuse
+                            %% the the extracted tail and ignore the
+                            %% potential type mismatch.
+                            ssa_opt_bsm_ctx_calls_fixup_args(
+                              Args0, IsLocalCall, ArgTypes, Aliased, Unique,
+                              Cnt0 + 1, Idx + 1,
+                              [ExtraI|Extra], [A|ArgsAcc],
+                              AlreadyConverted#{A0=>{A,ArgType}})
+                    end;
                 false ->
                     ssa_opt_bsm_ctx_calls_fixup_args(
-                      Args0, ArgTypes0, Aliased0, Unique0,
+                      Args0, IsLocalCall, ArgTypes0, Aliased0, Unique0,
                       Cnt0 + 1, Idx + 1,
                       Extra, [A0|ArgsAcc], AlreadyConverted)
             end;
         #{} ->
             ssa_opt_bsm_ctx_calls_fixup_args(
-              Args0, ArgTypes0, Aliased0, Unique0,
+              Args0, IsLocalCall, ArgTypes0, Aliased0, Unique0,
               Cnt0 + 1, Idx + 1, Extra, [A0|ArgsAcc], AlreadyConverted)
     end;
-ssa_opt_bsm_ctx_calls_fixup_args([], ArgTypes, Aliased, Unique, Cnt,
-                                 _, Extra, ArgsAcc, _) ->
+ssa_opt_bsm_ctx_calls_fixup_args([], _, ArgTypes, Aliased,
+                                 Unique, Cnt, _, Extra, ArgsAcc, _) ->
     {Extra, reverse(ArgsAcc), ArgTypes, Aliased, Unique, Cnt}.
 
 %%%
