@@ -1303,7 +1303,7 @@ aa_call(Dst, [#b_local{}=Callee|Args], Anno, SS0,
             %% We don't know anything about the function, so
             %% explicitly mark that we don't know anything about the
             %% result.
-            {beam_ssa_ss:set_status(Dst, no_info, SS0), AAS}
+            {beam_ssa_ss:set_status(Dst, no_info, SS1), AAS}
     end;
 aa_call(_Dst, [#b_remote{mod=#b_literal{val=erlang},
                          name=#b_literal{val=exit},
