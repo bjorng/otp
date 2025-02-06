@@ -990,6 +990,29 @@ aa_alias_repeated_args([_|Args], SS, Seen) ->
 aa_alias_repeated_args([], SS, _Seen) ->
     SS.
 
+%% If the call passes match contexts to the callee, we need to take
+%% special care and consider contexts derived from the same source as
+%% aliased.
+aa_alias_argument_match_contexts(Args, #{arg_types:=ArgTypes}, SS) ->
+    MCtxArgs = aa_alias_argument_match_contexts_args(Args, 1, ArgTypes),
+    beam_ssa_ss:alias_common_sources(MCtxArgs, SS);
+aa_alias_argument_match_contexts(Args, _, SS) ->
+    %% Without argument types we have to assume that everything aliases.
+    aa_set_aliased(Args, SS).
+
+%% Filter out the arguments which are match contexts.
+aa_alias_argument_match_contexts_args([#b_var{}=A|Args], Idx, ArgTypes) ->
+    case ArgTypes of
+        #{Idx:=#t_bs_context{}} ->
+            [A|aa_alias_argument_match_contexts_args(Args, Idx + 1, ArgTypes)];
+        #{} ->
+            aa_alias_argument_match_contexts_args(Args, Idx + 1, ArgTypes)
+    end;
+aa_alias_argument_match_contexts_args([_|Args], Idx, ArgTypes) ->
+    aa_alias_argument_match_contexts_args(Args, Idx + 1, ArgTypes);
+aa_alias_argument_match_contexts_args([], _, _) ->
+    [].
+
 %% Return the kill-set for the instruction defining Dst.
 aa_killset_for_instr(Dst, #aas{caller=Caller,kills=Kills}) ->
     {_LiveIns,KillMap,_PhiLiveIns} = map_get(Caller, Kills),
@@ -1280,9 +1303,10 @@ aa_call(Dst, [#b_local{}=Callee|Args], Anno, SS0,
     ?DP("A Call~n  callee: ~s~n  args: ~p~n", [fn(Callee), Args]),
     ?DP("  caller args: ~p~n", [Args]),
     SS1 = aa_alias_surviving_args(Args, Dst, SS0, AAS0),
-    ?DP("  caller ss before call:~n~s.~n", [beam_ssa_ss:dump(SS1)]),
+    SS2 = aa_alias_argument_match_contexts(Args, Anno, SS1),
+    ?DP("  caller ss before call:~n~s.~n", [beam_ssa_ss:dump(SS2)]),
     #aas{alias_map=AliasMap} = AAS =
-        aa_add_call_info(Callee, Args, SS1, AAS0),
+        aa_add_call_info(Callee, Args, SS2, AAS0),
     case sets:is_element(Callee, Analyzed) of
         true ->
             ?DP("  The callee has been analyzed~n"),
@@ -1290,7 +1314,7 @@ aa_call(Dst, [#b_local{}=Callee|Args], Anno, SS0,
             ?DP("  callee args: ~p~n", [_CalleeArgs]),
             #{Callee:=#{0:=_CalleeSS}=Lbl2SS} = AliasMap,
             ?DP("  callee ss:~n~s~n", [beam_ssa_ss:dump(_CalleeSS)]),
-            ?DP("  caller ss after call:~n~s~n", [beam_ssa_ss:dump(SS1)]),
+            ?DP("  caller ss after call:~n~s~n", [beam_ssa_ss:dump(SS2)]),
 
             ReturnStatusByType = maps:get(returns, Lbl2SS, #{}),
             ?DP("  status by type: ~p~n", [ReturnStatusByType]),
@@ -1303,7 +1327,7 @@ aa_call(Dst, [#b_local{}=Callee|Args], Anno, SS0,
                                                  ReturnStatusByType),
             ?DP("  result status: ~p~n", [ResultStatus]),
             {SS,Cnt} =
-                beam_ssa_ss:set_call_result(Dst, ResultStatus, SS1, Cnt0),
+                beam_ssa_ss:set_call_result(Dst, ResultStatus, SS2, Cnt0),
             ?DP("~s~n", [beam_ssa_ss:dump(SS)]),
             {SS, AAS#aas{cnt=Cnt}};
         false ->
@@ -1311,7 +1335,7 @@ aa_call(Dst, [#b_local{}=Callee|Args], Anno, SS0,
             %% We don't know anything about the function, so
             %% explicitly mark that we don't know anything about the
             %% result.
-            {beam_ssa_ss:set_status(Dst, no_info, SS1), AAS}
+            {beam_ssa_ss:set_status(Dst, no_info, SS2), AAS}
     end;
 aa_call(_Dst, [#b_remote{mod=#b_literal{val=erlang},
                          name=#b_literal{val=exit},

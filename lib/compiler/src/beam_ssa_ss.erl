@@ -34,6 +34,7 @@
 -compile({inline,[add_edge/4, add_vertex/3]}).
 
 -export([add_var/3,
+         alias_common_sources/2,
          derive_from/3,
          embed_in/3,
          extract/4,
@@ -120,6 +121,37 @@ add_edge(State, Src, Dst, Lbl) ->
                 end
             end),
     beam_digraph:add_edge(State, Src, Dst, Lbl).
+
+%% If any of the variables are derived from the same source variable,
+%% the common source is aliased (and thus the variables derived from
+%% it).
+-spec alias_common_sources([beam_ssa:b_var()], sharing_state()) ->
+          sharing_state().
+alias_common_sources(Vars, State) ->
+    Roots = [alias_common_sources_find_root(V, State) || V <- Vars],
+    alias_common_sources_duplicates(Roots, [], State).
+
+alias_common_sources_find_root(V, State) ->
+    case [Src || {Src,_,embed} <- beam_digraph:in_edges(State, V)] of
+        [] ->
+            V;
+        [Src] ->
+            alias_common_sources_find_root(Src, State)
+    end.
+
+%% Duplicated roots trigger aliasing.
+alias_common_sources_duplicates([Root|Roots], Seen, State) ->
+    case ordsets:is_element(Root, Seen) of
+        true ->
+            alias_common_sources_duplicates(
+              Roots, Seen,
+              ?assert_state(set_status(Root, aliased, State)));
+        false ->
+            alias_common_sources_duplicates(
+              Roots, ordsets:add_element(Root, Seen), State)
+    end;
+alias_common_sources_duplicates([], _Seen, State) ->
+    State.
 
 -spec derive_from(beam_ssa:b_var(), beam_ssa:b_var(), sharing_state()) ->
           sharing_state().
