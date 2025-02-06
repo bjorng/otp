@@ -2595,10 +2595,12 @@ ssa_opt_bsm_ctx_calls_fixup_bs([{L,#b_blk{is=Is0}=Blk}|Rest], Cnt0, Acc) ->
 ssa_opt_bsm_ctx_calls_fixup_bs([], Cnt, Acc) ->
     {reverse(Acc), Cnt}.
 
-ssa_opt_bsm_ctx_calls_fixup_is([#b_set{op=call,
-                                       args=[Callee|Args0],anno=Anno0}=I0|Is],
-                               Cnt0, Acc0) ->
-    #{arg_types:=ArgTypes0} = Anno0,
+ssa_opt_bsm_ctx_calls_fixup_is(
+  [#b_set{op=call,
+          args=[Callee|Args0],
+          anno=#{arg_types:=ArgTypes0}=Anno0}=I0|Is],
+  Cnt0, Acc0) ->
+    %% TODO: Whatever should we do if there is no type info?
     Aliased0 = maps:get(aliased, Anno0, []),
     Unique0 = maps:get(unique, Anno0, []),
     IsLocalCall = case Callee of
