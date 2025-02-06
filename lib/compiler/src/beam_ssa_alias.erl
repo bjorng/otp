@@ -87,13 +87,16 @@ fn(#b_local{name=#b_literal{val=N},arity=A}) ->
 %% Map a label to the set of variables which are live in to that block.
 -type live_in_set() :: #{ beam_ssa:label() => var_set() }.
 
+-type live_set() :: #{ #b_var{} => var_set() }.
+
 %% Map a flow-control edge to the set of variables which are live in
 %% to the destination block due to phis.
 -type phi_live_set() :: #{ {beam_ssa:label(), beam_ssa:label()} => var_set() }.
 
 -type kills_map() :: #{ func_id() => {live_in_set(),
                                       kill_set(),
-                                      phi_live_set()} }.
+                                      phi_live_set(),
+                                      live_set()} }.
 
 -type alias_map() :: #{ func_id() => lbl2ss() }.
 
@@ -156,24 +159,28 @@ killsets(Funs, StMap) ->
 killsets_fun(Blocks) ->
     %% Pre-calculate the live-ins due to Phi-instructions.
     PhiLiveIns = killsets_phi_live_ins(Blocks),
-    killsets_blks(Blocks, #{}, #{}, PhiLiveIns).
+    killsets_blks(Blocks, #{}, #{}, PhiLiveIns, #{}).
 
-killsets_blks([{Lbl,Blk}|Blocks], LiveIns0, Kills0, PhiLiveIns) ->
-    {LiveIns,Kills} = killsets_blk(Lbl, Blk, LiveIns0, Kills0, PhiLiveIns),
-    killsets_blks(Blocks, LiveIns, Kills, PhiLiveIns);
-killsets_blks([], LiveIns, Kills, PhiLiveIns) ->
-    {LiveIns,Kills,PhiLiveIns}.
+killsets_blks([{Lbl,Blk}|Blocks], LiveIns0, Kills0, PhiLiveIns, LiveAtI0) ->
+    {LiveIns,Kills, LiveAtI} =
+        killsets_blk(Lbl, Blk, LiveIns0, Kills0, PhiLiveIns, LiveAtI0),
+    killsets_blks(Blocks, LiveIns, Kills, PhiLiveIns, LiveAtI);
+killsets_blks([], LiveIns, Kills, PhiLiveIns, LiveAtI) ->
+    {LiveIns,Kills,PhiLiveIns,LiveAtI}.
 
-killsets_blk(Lbl, #b_blk{is=Is0,last=L}=Blk, LiveIns0, Kills0, PhiLiveIns) ->
+killsets_blk(Lbl, #b_blk{is=Is0,last=L}=Blk, LiveIns0,
+             Kills0, PhiLiveIns, LiveAtI0) ->
     Successors = beam_ssa:successors(Blk),
     Live1 = killsets_blk_live_outs(Successors, Lbl, LiveIns0, PhiLiveIns),
     Kills1 = Kills0#{{live_outs,Lbl}=>Live1},
     Is = [L|reverse(Is0)],
-    {Live,Kills} = killsets_is(Is, Live1, Kills1, Lbl, sets:new()),
+    {Live,Kills,LiveAtI} = killsets_is(Is, Live1, Kills1,
+                                       Lbl, sets:new(), LiveAtI0),
     LiveIns = LiveIns0#{Lbl=>Live},
-    {LiveIns, Kills}.
+    {LiveIns, Kills, LiveAtI}.
 
-killsets_is([#b_set{op=phi,dst=Dst}=I|Is], Live, Kills0, Lbl, KilledInBlock0) ->
+killsets_is([#b_set{op=phi,dst=Dst}=I|Is], Live, Kills0,
+            Lbl, KilledInBlock0, LiveAtCall) ->
     %% The Phi uses are logically located in the predecessors, so we
     %% don't want them live in to this block. But to correctly
     %% calculate the aliasing of the arguments to the Phi in this
@@ -183,23 +190,34 @@ killsets_is([#b_set{op=phi,dst=Dst}=I|Is], Live, Kills0, Lbl, KilledInBlock0) ->
     {_,LastUses} = killsets_update_live_and_last_use(Live, Uses),
     Kills = killsets_add_kills({phi,Dst}, LastUses, Kills0),
     KilledInBlock = sets:union(LastUses, KilledInBlock0),
-    killsets_is(Is, sets:del_element(Dst, Live), Kills, Lbl, KilledInBlock);
-killsets_is([I|Is], Live0, Kills0, Lbl, KilledInBlock0) ->
+    killsets_is(Is, sets:del_element(Dst, Live), Kills,
+                Lbl, KilledInBlock, LiveAtCall);
+killsets_is([I|Is], Live0, Kills0, Lbl, KilledInBlock0, LiveAtCall0) ->
     Uses = beam_ssa:used(I),
     {Live,LastUses} = killsets_update_live_and_last_use(Live0, Uses),
     KilledInBlock = sets:union(LastUses, KilledInBlock0),
     case I of
-        #b_set{dst=Dst} ->
+        #b_set{dst=Dst,op=Op,args=Args} ->
+            LiveAtCall = case {Op,Args} of
+                             {call,[#b_local{}|_]} ->
+                                 %% We want full liveness information
+                                 %% for local calls.
+                                 LiveAtCall0#{Dst=>Live};
+                             _ ->
+                                 LiveAtCall0
+                         end,
             killsets_is(Is, sets:del_element(Dst, Live),
                         killsets_add_kills(Dst, LastUses, Kills0),
-                        Lbl, KilledInBlock);
+                        Lbl, KilledInBlock, LiveAtCall);
         _ ->
             killsets_is(Is, Live,
                         killsets_add_kills({terminator,Lbl}, LastUses, Kills0),
-                        Lbl, KilledInBlock)
+                        Lbl, KilledInBlock, LiveAtCall0)
     end;
-killsets_is([], Live, Kills, Lbl, KilledInBlock) ->
-    {Live,killsets_add_kills({killed_in_block,Lbl}, KilledInBlock, Kills)}.
+killsets_is([], Live, Kills, Lbl, KilledInBlock, LiveAtCall) ->
+    {Live,
+     killsets_add_kills({killed_in_block,Lbl}, KilledInBlock, Kills),
+     LiveAtCall}.
 
 killsets_update_live_and_last_use(Live0, Uses) ->
     foldl(fun(Use, {LiveAcc,LastAcc}=Acc) ->
@@ -412,7 +430,7 @@ aa_fun(F, #opt_st{ssa=Linear0,args=Args},
     %% AAS, we use it. For an exported function, all arguments are
     %% assumed to be aliased.
     {SS0,Cnt} = aa_init_fun_ss(Args, F, AAS0),
-    #{F:={LiveIns,Kills,PhiLiveIns}} = KillsMap,
+    #{F:={LiveIns,Kills,PhiLiveIns,_LiveAtCall}} = KillsMap,
     Strategy0 = maps:get(F, StrategyMap0, #{}),
     {SS,Strategy,AAS1} =
         aa_blocks(Linear0, LiveIns, PhiLiveIns,
@@ -922,7 +940,7 @@ aa_update_annotation_for_var(Var, Status, Anno0) ->
 %% instruction.
 dies_at(Var, #b_set{dst=Dst}, AAS) ->
     #aas{caller=Caller,kills=KillsMap} = AAS,
-    {_LiveIns,KillMap,_PhiLiveIns} = map_get(Caller, KillsMap),
+    {_LiveIns,KillMap,_PhiLiveIns,_LiveAtCall} = map_get(Caller, KillsMap),
     sets:is_element(Var, map_get(Dst, KillMap)).
 
 aa_set_aliased(Args, SS) ->
@@ -1015,7 +1033,7 @@ aa_alias_argument_match_contexts_args([], _, _) ->
 
 %% Return the kill-set for the instruction defining Dst.
 aa_killset_for_instr(Dst, #aas{caller=Caller,kills=Kills}) ->
-    {_LiveIns,KillMap,_PhiLiveIns} = map_get(Caller, Kills),
+    {_LiveIns,KillMap,_PhiLiveIns,_LiveAtCall} = map_get(Caller, Kills),
     map_get(Dst, KillMap).
 
 %% Predicate to check if all variables in `Vars` dies at `Where`.
