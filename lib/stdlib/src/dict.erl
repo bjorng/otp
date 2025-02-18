@@ -67,8 +67,8 @@ stored in a list _accumulator_, for example:
 This saves the trouble of first fetching a keyed value, appending a new value to
 the list of stored values, and storing the result.
 
-Function `fetch` is to be used if the key is known to be in the dictionary,
-otherwise function `find`.
+Function [`fetch/2`](`fetch/2`) is to be used if the key is known to be in the
+dictionary, otherwise function [`find/2`](`find/2`).
 
 ## See Also
 
@@ -119,7 +119,15 @@ otherwise function `find`.
 -define(kv(K,V), [K|V]).			% Key-Value pair format
 %%-define(kv(K,V), {K,V}).			% Key-Value pair format
 
--doc "Creates a new dictionary.".
+-doc """
+Creates a new dictionary.
+
+## Examples
+
+```erlang
+1> dict:new().
+```
+""".
 -spec new() -> dict().
 
 new() ->
@@ -139,7 +147,17 @@ find_key(K, [?kv(K,_Val)|_]) -> true;
 find_key(K, [_|Bkt]) -> find_key(K, Bkt);
 find_key(_, []) -> false.
 
--doc "Converts dictionary `Dict` to a list representation.".
+-doc """
+Converts a dictionary to a list representation.
+
+## Examples
+
+```erlang
+1> Dict = dict:from_list([{2,b},{1,a}]).
+2> lists:sort(dict:to_list(Dict)).
+[{1,a},{2,b}]
+```
+""".
 -spec to_list(Dict) -> List when
       Dict :: dict(Key, Value),
       List :: [{Key, Value}].
