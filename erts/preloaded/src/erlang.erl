@@ -711,13 +711,13 @@ Returns a new tuple that has one element more than `Tuple1`, and contains the
 elements in `Tuple1` followed by `Term` as the last element.
 
 Semantically equivalent to
-[`list_to_tuple(tuple_to_list(Tuple1) ++ [Term])`](`list_to_tuple/1`), but much
+[`list_to_tuple(tuple_to_list(Tuple1) ++ [Term])`](`list_to_tuple/1`), but
 faster.
 
-For example:
+## Examples
 
 ```erlang
-> erlang:append_element({one, two}, three).
+1> erlang:append_element({one, two}, three).
 {one,two,three}
 ```
 """.
@@ -743,13 +743,13 @@ atom_to_binary(Atom) ->
             error_with_info(Error, [Atom])
     end.
 
-%% atom_to_binary/2
 -doc """
 Returns a binary corresponding to the text representation of `Atom`.
 
-If `Encoding` is `latin1`, one byte exists for each character in the text
-representation. If `Encoding` is `utf8` or `unicode`, the characters are encoded
-using UTF-8 where characters may require multiple bytes.
+If `Encoding` is `latin1`, each character in the text representation
+is stored as a single byte.  If `Encoding` is `utf8` or `unicode`, the
+characters are encoded using UTF-8, where some characters may require
+multiple bytes.
 
 > #### Change {: .info }
 >
@@ -757,11 +757,13 @@ using UTF-8 where characters may require multiple bytes.
 > [`atom_to_binary(Atom, latin1)`](`atom_to_binary/2`) may fail if the text
 > representation for `Atom` contains a Unicode character > 255.
 
-Example:
+## Examples
 
 ```erlang
-> atom_to_binary('Erlang', latin1).
+1> atom_to_binary('Erlang', latin1).
 <<"Erlang">>
+2> atom_to_binary('π', unicode).
+<<207,128>>
 ```
 """.
 -doc #{ category => terms }.
@@ -776,15 +778,12 @@ atom_to_binary(_Atom, _Encoding) ->
 Returns a list of unicode code points corresponding to the text representation
 of `Atom`.
 
-For example:
+## Examples
 
 ```erlang
-> atom_to_list('Erlang').
+1> atom_to_list('Erlang').
 "Erlang"
-```
-
-```erlang
-> atom_to_list('你好').
+2> atom_to_list('你好').
 [20320,22909]
 ```
 
@@ -796,32 +795,29 @@ See `m:unicode` for how to convert the resulting list to different formats.
 atom_to_list(_Atom) ->
     erlang:nif_error(undefined).
 
-%% binary_part/2
 %% Shadowed by erl_bif_types: erlang:binary_part/2
 -doc """
-Extracts the part of the binary described by `PosLen`.
+Extracts the part of the binary described by `Pos` and `Len`.
 
-Negative length can be used to extract bytes at the end of a binary. 
+A negative length can be used to extract bytes at the end of a binary.
 
-For example:
-
-```erlang
-1> Bin = <<1,2,3,4,5,6,7,8,9,10>>.
-2> binary_part(Bin,{byte_size(Bin), -5}).
-<<6,7,8,9,10>>
-```
+`Start` is zero-based.
 
 Failure: `badarg` if `PosLen` in any way references outside the binary.
 
-`Start` is zero-based, that is:
+For details about the `PosLen` semantics, see `binary:part/3`.
+
+## Examples
 
 ```erlang
-1> Bin = <<1,2,3>>
-2> binary_part(Bin,{0,2}).
+1> Bin = <<1,2,3,4,5,6,7,8,9,10>>.
+2> binary_part(Bin, 0, 2).
 <<1,2>>
+3> binary_part(Bin, 2, 3).
+<<3,4,5>>
+4> binary_part(Bin, byte_size(Bin), -5).
+<<6,7,8,9,10>>
 ```
-
-For details about the `PosLen` semantics, see `m:binary`.
 """.
 -doc #{ category => terms }.
 -doc(#{since => <<"OTP R14B">>}).
@@ -881,16 +877,13 @@ or `unicode`, the binary must contain valid UTF-8 sequences.
 > than [`binary_to_atom/2`](`binary_to_atom/2`). The default limits can be found
 > in [Efficiency Guide (section System Limits)](`e:system:system_limits.md#atoms`).
 
-Examples:
+## Examples
 
 ```erlang
-> binary_to_atom(<<"Erlang">>, latin1).
+1> binary_to_atom(<<"Erlang">>, latin1).
 'Erlang'
-```
-
-```erlang
-> binary_to_atom(<<1024/utf8>>, utf8).
-'Ѐ'
+2> binary_to_atom(<<960/utf8>>, utf8).
+'π'
 ```
 """.
 -doc #{ category => terms }.
@@ -959,18 +952,23 @@ binary_to_existing_atom(_Binary, _Encoding) ->
 -doc """
 Returns the float whose text representation is `Binary`.
 
-For example:
-
-```erlang
-> binary_to_float(<<"2.2017764e+0">>).
-2.2017764
-```
-
 The float string format is the same as the format for
 [Erlang float literals](`e:system:data_types.md`) except for that underscores
 are not permitted.
 
 Failure: `badarg` if `Binary` contains a bad representation of a float.
+
+## Examples
+
+```erlang
+1> binary_to_float(~"10.5").
+10.5
+2> binary_to_float(~"17.0").
+17.0
+3> binary_to_float(<<"2.2017764e+1">>).
+22.017764
+```
+
 """.
 -doc(#{since => <<"OTP R16B">>}).
 -doc #{ category => terms }.
@@ -1311,12 +1309,11 @@ See also `term_to_binary/1`, `binary_to_term/1`, and `list_to_existing_atom/1`.
 binary_to_term(_Binary, _Opts) ->
     erlang:nif_error(undefined).
 
-%% bit_size/1
 %% Shadowed by erl_bif_types: erlang:bit_size/1
 -doc """
 Returns an integer that is the size in bits of `Bitstring`.
 
-For example:
+## Examples
 
 ```erlang
 > bit_size(<<433:16,3:3>>).
@@ -1376,20 +1373,20 @@ the maximum number of reductions for a process (4000 reductions in Erlang/OTP 19
 bump_reductions(_Reductions) ->
     erlang:nif_error(undefined).
 
-%% byte_size/1
 %% Shadowed by erl_bif_types: erlang:byte_size/1
 -doc """
 Returns an integer that is the number of bytes needed to contain `Bitstring`.
-That is, if the number of bits in `Bitstring` is not divisible by 8, the
-resulting number of bytes is rounded _up_.
 
-For example:
+If the number of bits in `Bitstring` is not a multiple of 8, the
+result is rounded **up**.
+
+## Examples
 
 ```erlang
-> byte_size(<<433:16,3:3>>).
+1> byte_size(<<433:16,3:3>>).
 3
-> byte_size(<<1,2,3>>).
-3
+2> byte_size(<<1,2,3,4>>).
+4
 ```
 """.
 -doc #{ category => terms }.
@@ -2307,7 +2304,8 @@ The intent of the exception class `error` is to signal that an unexpected error
 has happened (for example, a function is called with a parameter that has an
 incorrect type). See the guide about
 [errors and error handling](`e:system:errors.md`) for additional information.
-Example:
+
+## Examples
 
 `test.erl`:
 
@@ -2321,10 +2319,10 @@ example_fun(A1, A2) ->
 
 Erlang shell:
 
-```erlang
-6> c(test).
+```text
+1> c(test).
 {ok,test}
-7> test:example_fun(arg1,"this is the second argument").
+2> test:example_fun(arg1, "this is the second argument").
 ** exception error: my_error
      in function  test:example_fun/2
          called as test:example_fun(arg1,"this is the second argument")
@@ -6708,13 +6706,15 @@ whereis(_RegName) ->
 Returns an integer or float that is the arithmetical absolute value of `Float`
 or `Int`.
 
-For example:
+## Examples
 
 ```erlang
-> abs(-3.33).
+1> abs(-3.33).
 3.33
-> abs(-3).
+2> abs(-3).
 3
+3> abs(5).
+5
 ```
 """.
 -doc #{ category => terms }.
