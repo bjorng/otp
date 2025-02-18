@@ -211,13 +211,33 @@ should also be OK.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--doc "Returns a new empty tree.".
+-doc """
+Returns a new empty tree.
+
+## Examples
+
+```erlang
+1> gb_trees:to_list(gb_trees:empty()).
+[]
+```
+""".
 -spec empty() -> tree(none(), none()).
 
 empty() ->
     {0, nil}.
 
--doc "Returns `true` if `Tree` is an empty tree, othwewise `false`.".
+-doc """
+Returns `true` if `Tree` is an empty tree; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> gb_trees:is_empty(gb_trees:empty()).
+true
+2> gb_trees:is_empty(gb_trees:from_orddict([{a,99}])).
+false
+```
+""".
 -spec is_empty(Tree) -> boolean() when
       Tree :: tree().
 
@@ -226,7 +246,19 @@ is_empty({0, nil}) ->
 is_empty(_) ->
     false.
 
--doc "Returns the number of nodes in `Tree`.".
+-doc """
+Returns the number of nodes in `Tree`.
+
+## Examples
+
+```erlang
+1> gb_trees:size(gb_trees:empty()).
+0
+2> gb_trees:size(gb_trees:from_orddict([{a,1},{b,2}])).
+2
+```
+
+""".
 -spec size(Tree) -> non_neg_integer() when
       Tree :: tree().
 
@@ -236,8 +268,17 @@ size({Size, _}) when is_integer(Size), Size >= 0 ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 -doc """
-Looks up `Key` in `Tree`. Returns `{value, Value}`, or `none` if `Key` is not
-present.
+Looks up `Key` in `Tree` and returns `{value, Value}` if found, or `none` if not present.
+
+## Examples
+
+```erlang
+1> Tree = gb_trees:from_orddict([{a,1},{b,2},{c,3}]).
+2> gb_trees:lookup(a, Tree).
+{value,1}
+3> gb_trees:lookup(z, Tree).
+none
+```
 """.
 -spec lookup(Key, Tree) -> 'none' | {'value', Value} when
       Tree :: tree(Key, Value).
