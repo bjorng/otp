@@ -18,11 +18,12 @@
 %% %CopyrightEnd%
 %%
 -module(queue_SUITE).
--export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1, 
+-export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1,
 	 init_per_testcase/2, end_per_testcase/2,
 	 init_per_group/2,end_per_group/2]).
 
--export([do/1, to_list/1, io_test/1, op_test/1, error/1, oops/1]).
+-export([do/1, to_list/1, io_test/1, op_test/1, error/1, oops/1,
+         doctests/1]).
 
 
 -include_lib("common_test/include/ct.hrl").
@@ -37,10 +38,11 @@ suite() ->
     [{ct_hooks,[ts_install_cth]},
      {timetrap,{minutes,1}}].
 
-all() -> 
-    [do, to_list, io_test, op_test, error, oops].
+all() ->
+    [do, to_list, io_test, op_test, error, oops,
+     doctest].
 
-groups() -> 
+groups() ->
     [].
 
 init_per_suite(Config) ->
@@ -645,3 +647,6 @@ chk_tuple(QsA, QsB, T, _, _, N) when N > tuple_size(T) ->
 chk_tuple(QsA0, QsB0, T, X, Y, N) ->
     {QsA,QsB} = chk(QsA0, QsB0, element(N, T), element(N, X), element(N, Y)),
     chk_tuple(QsA, QsB, T, X, Y, N+1).
+
+doctests(_Config) ->
+    shell_docs:test(queue, []).

@@ -99,7 +99,7 @@ some with more readable but perhaps less understandable aliases.
 %%
 %% {RearList,FrontList}
 %%
-%% The first element in the queue is at the head of the FrontList
+%% The first element in the queue is at the head of the FrontList.
 %% The last element in the queue is at the head of the RearList,
 %% that is; the RearList is reversed.
 %%
@@ -112,17 +112,38 @@ some with more readable but perhaps less understandable aliases.
 %% Creation, inspection and conversion
 
 %% O(1)
--doc "Returns an empty queue.".
+-doc """
+Returns an empty queue.
+
+## Examples
+
+```erlang
+1> Q = queue:new().
+2> queue:to_list(Q).
+[]
+```
+""".
 -doc(#{group => <<"Original API">>}).
 -spec new() -> queue(none()).
 new() -> {[],[]}. %{RearList,FrontList}
 
 %% O(1)
 -doc """
-Tests if `Term` is a queue and returns `true` if so, otherwise `false`. Note
-that the test will return `true` for a term coinciding with the representation
-of a queue, even when not constructed by thus module. See also note on
-[data types](`e:system:data_types.md#no_user_types`).
+Returns `true` if `Term` is queue; otherwise, returns `false`.
+
+Note that the test will return `true` for any term that matches the
+internal representation of a queue, even if it was not created by this
+module. See also the note on [data
+types](`e:system:data_types.md#no_user_types`).
+
+## Examples
+
+```erlang
+1> queue:is_queue(queue:from_list([1,2,3,4,5])).
+true
+2> queue:is_queue(42).
+false
+```
 """.
 -doc(#{group => <<"Original API">>}).
 -spec is_queue(Term :: term()) -> boolean().
@@ -132,7 +153,22 @@ is_queue(_) ->
     false.
 
 %% O(1)
--doc "Tests if `Q` is empty and returns `true` if so, otherwise `false`.".
+-doc """
+Returns `true` if `Q` is empty; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> queue:is_empty(queue:new()).
+true
+2> queue:is_empty(queue:from_list([a])).
+false
+3> queue:is_empty(42).
+** exception error: bad argument
+     in function  queue:is_empty/1
+        called as queue:is_empty(42)
+```
+""".
 -doc(#{group => <<"Original API">>}).
 -spec is_empty(Q :: queue()) -> boolean().
 is_empty({[],[]}) ->
@@ -143,7 +179,16 @@ is_empty(Q) ->
     erlang:error(badarg, [Q]).
 
 %% O(len(Q))
--doc "Calculates and returns the length of queue `Q`.".
+-doc """
+Returns the length of queue `Q`.
+
+## Examples
+
+```erlang
+1> queue:len(queue:from_list([1,2,3])).
+3
+```
+""".
 -doc(#{group => <<"Original API">>}).
 -spec len(Q :: queue()) -> non_neg_integer().
 len({R,F}) when is_list(R), is_list(F) ->
@@ -156,13 +201,12 @@ len(Q) ->
 Returns a list of the items in the queue in the same order; the front item of
 the queue becomes the head of the list.
 
-_Example:_
+## Examples
 
 ```erlang
-1> Queue = queue:from_list([1,2,3,4,5]).
-{[5,4,3],[1,2]}
-2> List == queue:to_list(Queue).
-true
+1> Q = queue:from_list([1,2,3,4,5]).
+2> queue:to_list(Q).
+[1,2,3,4,5]
 ```
 """.
 -doc(#{group => <<"Original API">>}).
@@ -172,12 +216,18 @@ to_list({In,Out}) when is_list(In), is_list(Out) ->
 to_list(Q) ->
     erlang:error(badarg, [Q]).
 
-%% Create queue from list
-%%
 %% O(length(L))
 -doc """
 Returns a queue containing the items in `L` in the same order; the head item of
 the list becomes the front item of the queue.
+
+## Examples
+
+```erlang
+1> Q = queue:from_list([a,b,c,d,e]).
+2> queue:get(Q).
+a
+```
 """.
 -doc(#{group => <<"Original API">>}).
 -spec from_list(L :: list(Item)) -> queue(Item).
@@ -186,9 +236,7 @@ from_list(L) when is_list(L) ->
 from_list(L) ->
     erlang:error(badarg, [L]).
 
-%% Return true or false depending on if element is in queue
-%% 
-%% O(length(Q)) worst case
+%% O(length(Q))
 -doc "Returns `true` if `Item` matches some element in `Q`, otherwise `false`.".
 -doc(#{group => <<"Original API">>}).
 -spec member(Item, Q :: queue(Item)) -> boolean().
@@ -468,11 +516,11 @@ Fails with reason `empty` if `Q1` is empty.
 _Example:_
 
 ```erlang
-1> Queue = queue:from_list([1,2,3,4,5]).
+1> Queue1 = queue:from_list([1,2,3,4,5]).
 {[5,4,3],[1,2]}
-2> Queue = queue:drop(Queue).
+2> Queue2 = queue:drop(Queue1).
 {[5,4,3],[2]}
-3> queue:to_list(Queue1).
+3> queue:to_list(Queue2).
 [2,3,4,5]
 ```
 """.
@@ -503,11 +551,11 @@ Fails with reason `empty` if `Q1` is empty.
 _Example:_
 
 ```erlang
-1> Queue = queue:from_list([1,2,3,4,5]).
+1> Queue1 = queue:from_list([1,2,3,4,5]).
 {[5,4,3],[1,2]}
-2> Queue = queue:drop_r(Queue).
+2> Queue2 = queue:drop_r(Queue1).
 {[4,3],[1,2]}
-3> queue:to_list(Queue1).
+3> queue:to_list(Queue2).
 [1,2,3,4]
 ```
 """.
@@ -725,10 +773,10 @@ _Example 1:_
 {[5],[3,4]}
 3> queue:to_list(Queue1).
 [3,4,5]
-4> Queue1 = queue:filtermap(fun (E) -> {true, E+100} end, Queue).
+4> Queue2 = queue:filtermap(fun (E) -> {true, E+100} end, Queue).
 {"ihg","ef"}
-5> queue:to_list(Queue1).
-"efghi
+5> queue:to_list(Queue2).
+"efghi"
 ```
 """.
 -doc(#{group => <<"Original API">>,since => <<"OTP 24.0">>}).
@@ -954,7 +1002,7 @@ _Example:_
 
 ```erlang
 1> Queue = queue:from_list([100,1,2,3,4,5]).
-2> Queue1 = queue:delete_with(fun (E) -> E > 0, Queue).
+2> Queue1 = queue:delete_with(fun (E) -> E > 0 end, Queue).
 3> queue:to_list(Queue1).
 [1,2,3,4,5]
 ```
@@ -996,7 +1044,7 @@ _Example:_
 
 ```erlang
 1> Queue = queue:from_list([1,2,3,4,5,100]).
-2> Queue1 = queue:delete_with(fun (E) -> E > 10, Queue).
+2> Queue1 = queue:delete_with(fun (E) -> E > 10 end, Queue).
 3> queue:to_list(Queue1).
 [1,2,3,4,5]
 ```
