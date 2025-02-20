@@ -119,7 +119,9 @@
          see_through/0,
 
          duplicated_args/1,
-         gh9813/0]).
+         gh9813/0,
+         duplicated_args/1,
+         live_past_call_mctx/1]).
 
 %% Trivial smoke test
 transformable0(L) ->
@@ -1273,3 +1275,20 @@ gh9813() ->
 
 gh9813_inner(Sec) ->
     {19, {2038, Sec}}.
+
+live_past_call_mctx_1(<<_:32,Bin/binary>> = KO) ->
+%ssa% (X) when post_ssa_opt ->
+%ssa% T = bs_get_tail(X),
+%ssa% C = bs_start_match(new, T),
+%ssa% _ = call(fun live_past_call_mctx_2/2, _, C).
+    live_past_call_mctx_2(<<4:8>>, KO),
+    <<_:8,Rest/binary>> = e:f(),
+    live_past_call_mctx_2(Bin, Rest).
+
+live_past_call_mctx_2(<<_:32,T/binary>>, KO) ->
+    live_past_call_mctx_2(T, KO);
+live_past_call_mctx_2(<<>>, _) ->
+    ok.
+
+live_past_call_mctx(<<_:32,KO/binary>>) ->
+    live_past_call_mctx_1(KO).
