@@ -34,7 +34,7 @@
 -compile({inline,[add_edge/4, add_vertex/3]}).
 
 -export([add_var/3,
-         alias_common_sources/2,
+         alias_common_sources/3,
          derive_from/3,
          embed_in/3,
          extract/4,
@@ -123,13 +123,15 @@ add_edge(State, Src, Dst, Lbl) ->
     beam_digraph:add_edge(State, Src, Dst, Lbl).
 
 %% If any of the variables are derived from the same source variable,
-%% the common source is aliased (and thus the variables derived from
-%% it).
--spec alias_common_sources([beam_ssa:b_var()], sharing_state()) ->
+%% or share roots with any of the variables in the live set, the
+%% common source is aliased (and thus the variables derived from it).
+-spec alias_common_sources([beam_ssa:b_var()],
+                           sets:set(beam_ssa:b_var()),
+                           sharing_state()) ->
           sharing_state().
-alias_common_sources(Vars, State) ->
+alias_common_sources(Vars, Live, State) ->
     Roots = [alias_common_sources_find_root(V, State) || V <- Vars],
-    alias_common_sources_duplicates(Roots, [], State).
+    alias_common_sources_duplicates(Roots, [], Live, State).
 
 alias_common_sources_find_root(V, State) ->
     case [Src || {Src,_,embed} <- beam_digraph:in_edges(State, V)] of
@@ -140,17 +142,33 @@ alias_common_sources_find_root(V, State) ->
     end.
 
 %% Duplicated roots trigger aliasing.
-alias_common_sources_duplicates([Root|Roots], Seen, State) ->
+alias_common_sources_duplicates([Root|Roots], Seen, Live, State) ->
     case ordsets:is_element(Root, Seen) of
         true ->
             alias_common_sources_duplicates(
-              Roots, Seen,
+              Roots, Seen, Live,
               ?assert_state(set_status(Root, aliased, State)));
         false ->
             alias_common_sources_duplicates(
-              Roots, ordsets:add_element(Root, Seen), State)
+              Roots, ordsets:add_element(Root, Seen), Live, State)
     end;
-alias_common_sources_duplicates([], _Seen, State) ->
+alias_common_sources_duplicates([], Seen, Live, State) ->
+    %% We now have all common roots in Seen, if they are common to any
+    %% match contexts in Live, we have to alias the root (and derived
+    %% values). As there is no type information available for the
+    %% variables in Live, we do a search from the roots in Seen.
+    alias_if_shared(Seen, Live, State).
+
+alias_if_shared([Ctx|Ctxs], Live, State) ->
+    case sets:is_element(Ctx, Live) of
+        true ->
+            alias_if_shared(Ctxs, Live,
+                            ?assert_state(set_status(Ctx, aliased, State)));
+        false ->
+            Out = [Dst || {_,Dst,embed} <- beam_digraph:out_edges(State, Ctx)],
+            alias_if_shared(Out ++ Ctxs, Live, State)
+    end;
+alias_if_shared([], _Live, State) ->
     State.
 
 -spec derive_from(beam_ssa:b_var(), beam_ssa:b_var(), sharing_state()) ->

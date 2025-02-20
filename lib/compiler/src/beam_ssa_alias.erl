@@ -1010,11 +1010,15 @@ aa_alias_repeated_args([], SS, _Seen) ->
 
 %% If the call passes match contexts to the callee, we need to take
 %% special care and consider contexts derived from the same source as
-%% aliased.
-aa_alias_argument_match_contexts(Args, #{arg_types:=ArgTypes}, SS) ->
+%% sources of aliasing.
+aa_alias_argument_match_contexts(Args, Dst, #{arg_types:=ArgTypes}, SS,
+                                 #aas{caller=Caller,kills=KillsMap}) ->
+    #{Caller:={_,KillSet,_,#{Dst:=LiveAtCall}}} = KillsMap,
+    Killed = maps:get(Dst, KillSet, sets:new()),
     MCtxArgs = aa_alias_argument_match_contexts_args(Args, 1, ArgTypes),
-    beam_ssa_ss:alias_common_sources(MCtxArgs, SS);
-aa_alias_argument_match_contexts(Args, _, SS) ->
+    LiveAfterCall = sets:subtract(LiveAtCall, Killed),
+    beam_ssa_ss:alias_common_sources(MCtxArgs, LiveAfterCall, SS);
+aa_alias_argument_match_contexts(Args, _, _, SS, _) ->
     %% Without argument types we have to assume that everything aliases.
     aa_set_aliased(Args, SS).
 
@@ -1321,7 +1325,7 @@ aa_call(Dst, [#b_local{}=Callee|Args], Anno, SS0,
     ?DP("A Call~n  callee: ~s~n  args: ~p~n", [fn(Callee), Args]),
     ?DP("  caller args: ~p~n", [Args]),
     SS1 = aa_alias_surviving_args(Args, Dst, SS0, AAS0),
-    SS2 = aa_alias_argument_match_contexts(Args, Anno, SS1),
+    SS2 = aa_alias_argument_match_contexts(Args, Dst, Anno, SS1, AAS0),
     ?DP("  caller ss before call:~n~s.~n", [beam_ssa_ss:dump(SS2)]),
     #aas{alias_map=AliasMap} = AAS =
         aa_add_call_info(Callee, Args, SS2, AAS0),
