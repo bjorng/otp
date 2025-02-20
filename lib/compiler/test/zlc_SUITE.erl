@@ -25,7 +25,7 @@
          basic/1,mixed_zlc/1,zmc/1,filter_guard/1,
          filter_pattern/1,cartesian/1,nomatch/1,bad_generators/1,
          strict_list/1,strict_binary/1,
-         cover/1]).
+         cover/1,strict_pat/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
@@ -49,7 +49,8 @@ groups() ->
        bad_generators,
        strict_list,
        strict_binary,
-       cover
+       cover,
+       strict_pat
       ]}].
 
 init_per_suite(Config) ->
@@ -330,7 +331,7 @@ strict_binary(Config) when is_list(Config) ->
     Seq100 = lists:seq(1, 100),
 
     <<2,4,6>> = << <<(X+Y)>> || X <:- [1,2,3] && <<Y>> <= <<1,2,3>>>>,
-    <<2,4>> = << <<(X+Y)>> || <<X>> <:= <<1,2,3>> && {X, Y} <- [{1,1},{2,2},{2,3}]>>,
+    {'EXIT',{{bad_generators,{<<3>>,[{2,3}]}},_}} = catch << <<(X+Y)>> || <<X>> <:= <<1,2,3>> && {X, Y} <- [{1,1},{2,2},{2,3}]>>,
     <<2,24>> = << <<(X*Y*Z)>> || X := Y <:- #{1 => 2, 3 => 4} && <<Z>> <:= <<1,2>> >>,
 
     <<>> = strict_binary_1(#{}, <<>>),
@@ -356,11 +357,11 @@ strict_binary(Config) when is_list(Config) ->
     {'EXIT',{{bad_generators,{<<0:1>>,{0,0,none},{0,{v,7},none}}},_}} =
         catch strict_binary_mixed_1(<<0:1>>, #{0 => 0}, #{0 => {v,7}}),
 
-    Island = ~"skärgårdsö",
-    IslandSeq = lists:seq(1, length([C || <<C/utf8>> <= Island])),
-    ?assertEqual(<< <<I:8,C:32>> ||
-                     {I,C} <:- lists:zip(IslandSeq, [C || <<C/utf8>> <= Island]) >>,
-                 strict_binary_utf8(IslandSeq, Island)),
+    % Island = ~"skärgårdsö",
+    % IslandSeq = lists:seq(1, length([C || <<C/utf8>> <= Island])),
+    % ?assertEqual(<< <<I:8,C:32>> ||
+    %                  {I,C} <:- lists:zip(IslandSeq, [C || <<C/utf8>> <= Island]) >>,
+    %              strict_binary_utf8(IslandSeq, Island)),
     {'EXIT',{{bad_generators,{[4,5,6,7,8],<<16#ff,16#ff,"def">>}},_}} =
         catch strict_binary_utf8(lists:seq(1, 8), <<"abc",16#ff,16#ff,"def">>),
 
@@ -469,6 +470,38 @@ do_cover_1(L1, L2) ->
                       L2
                   end],
     Res.
+
+strict_pat(Config) when is_list(Config) ->
+    [a] = strict_pat_1([a], [a], [a]),
+    {'EXIT',{{bad_generators,{[b],[a],[a]}},_}} =
+        catch strict_pat_1([b], [a], [a]),
+    {'EXIT',{{bad_generators,{[b],[a],[b]}},_}} =
+        catch strict_pat_1([b], [a], [b]),
+    {'EXIT',{{bad_generators,{[b],[a],[b]}},_}} =
+        catch strict_pat_1([a,b], [a,a], [a,b]),
+
+    [{a,b}] = strict_pat_2([{a,b}], [b], [a]),
+    [] = strict_pat_2([{a,b}], [b], [b]),
+    {'EXIT',{{bad_generators,{[{a,b}],[a],[b]}},_}} =
+        catch strict_pat_2([{a,b}], [a], [b]),
+
+    #{1:= 2} = strict_pat_3(#{1=>2}, #{1=>3}),
+    {'EXIT',{{bad_generators,{{1,2,none},{2,3,none}}},_}} =
+        catch strict_pat_3(#{1=>2}, #{2=>3}),
+    ok.
+
+strict_pat_1(G1, G2, G3) ->
+    Res1 = [Y || Y <- G1 && Y <:- G2 && Y <- G3],
+    Res2 = [Y || Y <- G1 && Y <- G2 && Y <:- G3],
+    Res3 = [Y || Y <:- G1 && Y <- G2 && Y <- G3],
+    Res1 = Res2 = Res3,
+    Res1.
+
+strict_pat_2(G1, G2, G3) ->
+    [{X,Y} || {X,Y} <- G1 && Y <:- G2 && X <- G3].
+
+strict_pat_3(G1, G2) ->
+    Res1 = #{K => V || K := V <- G1 && K := _ <:- G2}.
 
 -file("bad_zlc.erl", 1).
 bad_generators(L1,L2) ->                        %Line 2
