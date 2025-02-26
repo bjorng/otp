@@ -489,7 +489,12 @@ strict_pat(Config) when is_list(Config) ->
     {'EXIT',{{bad_generators,{{1,2,none},{2,3,none}}},_}} =
         catch strict_pat_3(#{1=>2}, #{2=>3}),
 
-    [{a,b,c}] = strict_pat_4([{a,{b,c}}], [c]),
+    [{a,b,c}] = strict_pat_4([{{a,b},c}], [c]),
+    [] = strict_pat_4([{[a,b],c}], [c]),
+    [] = strict_pat_4([{no_tuple,c}], [c]),
+    {'EXIT',{{bad_generators,{[{{a,b},c}],[d]}},_}} =
+        catch strict_pat_4([{{a,b},c}], [d]),
+
     ok.
 
 strict_pat_1(G1, G2, G3) ->
@@ -504,8 +509,8 @@ strict_pat_3(G1, G2) ->
     Res1 = #{K => V || K := V <- G1 && K := _ <:- G2}.
 
 strict_pat_4(G1, G2) ->
-    Res = [{X,Y,Z} || {X,{Y,Z}} <- G1 && Z <:- G2],
-    Res = [{X,Y,Z} || Z <:- G2 && {X,{Y,Z}} <- G1],
+    Res = [{X,Y,Z} || {{X,Y},Z} <- G1 && Z <:- G2],
+    Res = [{X,Y,Z} || Z <:- G2 && {{X,Y},Z} <- G1],
     Res.
 
 -file("bad_zlc.erl", 1).

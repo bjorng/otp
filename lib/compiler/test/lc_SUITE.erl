@@ -24,7 +24,7 @@
 	 init_per_testcase/2,end_per_testcase/2,
 	 basic/1,deeply_nested/1,no_generator/1,
 	 empty_generator/1,no_export/1,shadow/1,
-	 effect/1]).
+	 effect/1,strict/1]).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -43,7 +43,8 @@ groups() ->
        empty_generator,
        no_export,
        shadow,
-       effect
+       effect,
+       strict
       ]}].
 
 init_per_suite(Config) ->
@@ -283,6 +284,17 @@ do_effect(Lc, L) ->
     F = fun(V) -> put(?MODULE, [V|get(?MODULE)]) end,
     ok = Lc(F, L),
     lists:reverse(erase(?MODULE)).
+
+strict(_Config) ->
+    [{a,b,c}] = strict_pat_1([{a,{b,c}}], [c]),
+
+    ok.
+
+strict_pat_1(G1, G2) ->
+    Res = [{X,Y,Z} || {X,{Y,Z}} <- G1, Z <:- G2],
+    Res = [{X,Y,Z} || Z <:- G2, {X,{Y,Z}} <- G1],
+    Res.
+
 
 id(I) -> I.
 
