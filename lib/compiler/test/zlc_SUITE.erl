@@ -488,20 +488,25 @@ strict_pat(Config) when is_list(Config) ->
     #{1:= 2} = strict_pat_3(#{1=>2}, #{1=>3}),
     {'EXIT',{{bad_generators,{{1,2,none},{2,3,none}}},_}} =
         catch strict_pat_3(#{1=>2}, #{2=>3}),
+
+    [{a,b,c}] = strict_pat_4([{a,{b,c}}], [c]),
     ok.
 
 strict_pat_1(G1, G2, G3) ->
-    Res1 = [Y || Y <- G1 && Y <:- G2 && Y <- G3],
-    Res2 = [Y || Y <- G1 && Y <- G2 && Y <:- G3],
-    Res3 = [Y || Y <:- G1 && Y <- G2 && Y <- G3],
-    Res1 = Res2 = Res3,
-    Res1.
+    Res = [Y || Y <- G1 && Y <:- G2 && Y <- G3],
+    Res = [Y || Y <- G1 && Y <- G2 && Y <:- G3],
+    Res = [Y || Y <:- G1 && Y <- G2 && Y <- G3].
 
 strict_pat_2(G1, G2, G3) ->
     [{X,Y} || {X,Y} <- G1 && Y <:- G2 && X <- G3].
 
 strict_pat_3(G1, G2) ->
     Res1 = #{K => V || K := V <- G1 && K := _ <:- G2}.
+
+strict_pat_4(G1, G2) ->
+    Res = [{X,Y,Z} || {X,{Y,Z}} <- G1 && Z <:- G2],
+    Res = [{X,Y,Z} || Z <:- G2 && {X,{Y,Z}} <- G1],
+    Res.
 
 -file("bad_zlc.erl", 1).
 bad_generators(L1,L2) ->                        %Line 2

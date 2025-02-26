@@ -2182,14 +2182,16 @@ generator(Line, {Generate,Lg,P0,E}, Gs, StrictPats, St0) when Generate =:= gener
                  _ ->
                      ann_c_cons(LA, Head, Tail)
              end,
-    {NomatchPat, St4} = case Generate of
-        generate ->
+    {NomatchPat, St4} = case {StrictPats, Generate} of
+        {[], _} ->
+            {ann_c_cons(LA, Nomatch, Tail), St3};
+        {_, generate} ->
             {Head1, St} = replace_vars(Head, StrictPats, St3),
             case lists:all(fun (V) -> is_integer(V) orelse V =:= '_' end, lit_vars(Head1)) of
                 true -> {ann_c_cons(LA, Nomatch, Tail), St};
                 false -> {ann_c_cons(LA, Head1, Tail), St}
             end;
-        generate_strict ->
+        {_, generate_strict} ->
             {AccPat, St3}
     end,
     NomatchMode = case Generate of
