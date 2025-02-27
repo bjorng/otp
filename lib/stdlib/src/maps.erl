@@ -1170,10 +1170,10 @@ list.
 ## Examples
 
 ```erlang
-> EvenOdd = fun(X) -> case X rem 2 of 0 -> even; 1 -> odd end end,
-  maps:groups_from_list(EvenOdd, [1, 2, 3]).
+> EvenOdd = fun(X) -> case X rem 2 of 0 -> even; 1 -> odd end end.
+> maps:groups_from_list(EvenOdd, [1, 2, 3]).
 #{even => [2], odd => [1, 3]}
-> maps:groups_from_list(fun erlang:length/1, ["ant", "buffalo", "cat", "dingo"]).
+> maps:groups_from_list(fun length/1, ["ant", "buffalo", "cat", "dingo"]).
 #{3 => ["ant", "cat"], 5 => ["dingo"], 7 => ["buffalo"]}
 ```
 """.
@@ -1220,12 +1220,12 @@ list.
 ## Examples
 
 ```erlang
-> EvenOdd = fun(X) -> case X rem 2 of 0 -> even; 1 -> odd end end,
-  Square = fun(X) -> X * X end,
-  maps:groups_from_list(EvenOdd, Square, [1, 2, 3]).
+> EvenOdd = fun(X) -> case X rem 2 of 0 -> even; 1 -> odd end end.
+> Square = fun(X) -> X * X end.
+> maps:groups_from_list(EvenOdd, Square, [1, 2, 3]).
 #{even => [4], odd => [1, 9]}
 > maps:groups_from_list(
-    fun erlang:length/1,
+    fun length/1,
     fun lists:reverse/1,
     ["ant", "buffalo", "cat", "dingo"]).
 #{3 => ["tna", "tac"],5 => ["ognid"],7 => ["olaffub"]}
