@@ -884,9 +884,10 @@ fold_1(_Fun, Acc, none, _ErrorTag) ->
 
 -doc """
 Produces a new map `Map` by calling function `fun Fun(Key, Value1)` for every
-`Key` to value `Value1` association in `MapOrIter` in any order. Function
-`fun Fun/2` must return value `Value2` to be associated with key `Key` for the
-new map `Map`.
+`Key` to value `Value1` association in `MapOrIter`.
+
+Function `fun Fun/2` must return value `Value2` to be associated with
+key `Key` for the new map `Map`.
 
 The call fails with a `{badmap,Map}` exception if `MapOrIter` is not a map or
 valid iterator, or with `badarg` if `Fun` is not a function of arity 2.
@@ -894,14 +895,14 @@ valid iterator, or with `badarg` if `Fun` is not a function of arity 2.
 ## Examples
 
 ```erlang
-> Fun = fun(K,V1) when is_list(K) -> V1*2 end,
-  Map = #{"k1" => 1, "k2" => 2, "k3" => 3},
-  maps:map(Fun,Map).
+> Fun = fun(K, V) when is_list(K) -> 2 * V end.
+> Map = #{"k1" => 1, "k2" => 2, "k3" => 3}.
+> maps:map(Fun, Map).
 #{"k1" => 2,"k2" => 4,"k3" => 6}
 ```
 """.
 -doc(#{since => <<"OTP 17.0">>}).
--spec map(Fun,MapOrIter) -> Map when
+-spec map(Fun, MapOrIter) -> Map when
     Fun :: fun((Key, Value1) -> Value2),
     MapOrIter :: #{Key => Value1} | iterator(Key, Value1),
     Map :: #{Key => Value2}.
@@ -927,14 +928,15 @@ map_1(_Fun, none, _ErrorTag) ->
     [].
 
 -doc """
-Returns the number of key-value associations in `Map`. This operation occurs in
-constant time.
+Returns the number of key-value associations in `Map`.
+
+This operation occurs in constant time.
 
 ## Examples
 
 ```erlang
-> Map = #{42 => value_two,1337 => "value one","a" => 1},
-  maps:size(Map).
+> Map = #{42 => value_two,1337 => "value one","a" => 1}.
+> maps:size(Map).
 3
 ```
 """.
