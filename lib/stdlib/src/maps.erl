@@ -954,9 +954,11 @@ size(Map) ->
 
 -doc """
 Returns a map iterator `Iterator` that can be used by [`maps:next/1`](`next/1`)
-to traverse the key-value associations in a map. The order of iteration is
-undefined. When iterating over a map, the memory usage is guaranteed to be
-bounded no matter the size of the map.
+to traverse the key-value associations in a map.
+
+The order of iteration is undefined. When iterating over a map, the
+memory usage is guaranteed to be bounded no matter the size of the
+map.
 
 The call fails with a `{badmap,Map}` exception if `Map` is not a map.
 
@@ -1016,11 +1018,11 @@ Iterator ordered in reverse:
 {a,1}
 > maps:next(RevI3).
 none
-> maps:to_list(RevI),
-[{a,1},{b,2}]
+> maps:to_list(RevI).
+[{b,2},{a,1}]
 ```
 
-_Example (when _`Order`_ is an arithmetic sorting function):_
+`Order` is an arithmetic sorting function:
 
 ```erlang
 > M = #{ -1 => a, -1.0 => b, 0 => c, 0.0 => d }.
@@ -1059,7 +1061,7 @@ iterator(M, Order) ->
 Returns the next key-value association in `Iterator` and a new iterator for the
 remaining associations in the iterator.
 
-If there are no more associations in the iterator, `none` is returned.
+If there are no more associations left, `none` is returned.
 
 ## Examples
 
@@ -1098,19 +1100,21 @@ next(Iter) ->
 
 -doc """
 Returns a new map `Map2` without keys `K1` through `Kn` and their associated
-values from map `Map1`. Any key in `Ks` that does not exist in `Map1` is ignored
+values from map `Map1`.
+
+Any key in `Ks` that does not exist in `Map1` is ignored.
 
 ## Examples
 
 ```erlang
-> Map = #{42 => value_three,1337 => "value two","a" => 1},
-  Ks = ["a",42,"other key"],
-  maps:without(Ks,Map).
+> Map = #{42 => value_three,1337 => "value two","a" => 1}.
+> Ks = ["a",42,"other key"].
+> maps:without(Ks, Map).
 #{1337 => "value two"}
 ```
 """.
 -doc(#{since => <<"OTP 17.0">>}).
--spec without(Ks,Map1) -> Map2 when
+-spec without(Ks, Map1) -> Map2 when
     Ks :: [K],
     Map1 :: map(),
     Map2 :: map(),
@@ -1123,15 +1127,16 @@ without(Ks,M) ->
 
 -doc """
 Returns a new map `Map2` with the keys `K1` through `Kn` and their associated
-values from map `Map1`. Any key in `Ks` that does not exist in `Map1` is
-ignored.
+values from map `Map1`.
+
+Any key in `Ks` that does not exist in `Map1` is ignored.
 
 ## Examples
 
 ```erlang
-> Map = #{42 => value_three,1337 => "value two","a" => 1},
-  Ks = ["a",42,"other key"],
-  maps:with(Ks,Map).
+> Map = #{42 => value_three,1337 => "value two","a" => 1}.
+> Ks = ["a",42,"other key"].
+> maps:with(Ks, Map).
 #{42 => value_three,"a" => 1}
 ```
 """.
@@ -1141,7 +1146,7 @@ ignored.
     Map1 :: #{K => V, _ => _},
     Map2 :: #{K => V}.
 
-with(Ks,Map1) when is_list(Ks), is_map(Map1) ->
+with(Ks, Map1) when is_list(Ks), is_map(Map1) ->
     maps:from_list(with_1(Ks, Map1));
 with(Ks,M) ->
     error_with_info(error_type(M), [Ks,M]).
@@ -1152,8 +1157,6 @@ with_1([K|Ks], Map) ->
         #{} -> with_1(Ks, Map)
     end;
 with_1([], _Map) -> [].
-
-%% groups_from_list/2 & groups_from_list/3
 
 -doc """
 Partitions the given `List` into a map of groups.

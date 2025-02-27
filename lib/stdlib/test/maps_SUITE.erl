@@ -556,7 +556,7 @@ t_iterator_2(Config) when is_list(Config) ->
 
     M4 = #{-1.0 => a, 0.0 => b, -1 => c, 0 => d},
     OrdIter4 = maps:iterator(M4, ordered),
-    [{-1, c}, {0, d}, {-1.0, a}, {0.0, b}] = maps:to_list(OrdIter4),
+    [{-1, c}, {0, d}, {-1.0, a}, {+0.0, b}] = maps:to_list(OrdIter4),
     ok = iterator_2_check_order(M4, ordered, reversed),
 
     ok.
