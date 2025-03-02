@@ -106,7 +106,7 @@ Returns the number of elements in `Ordset`.
 ```erlang
 > ordsets:size(ordsets:new()).
 0
-> ordsets:size(ordsets:from_list([1,2,3])).
+> ordsets:size(ordsets:from_list([4,5,6])).
 3
 ```
 """.
