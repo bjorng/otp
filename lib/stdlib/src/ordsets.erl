@@ -351,6 +351,8 @@ intersection(_, []) ->
 -doc """
 Returns the intersection of the non-empty list of sets.
 
+## Examples
+
 ```erlang
 > S0 = ordsets:from_list([a,b,c,d]).
 > S1 = ordsets:from_list([d,e,f]).
@@ -374,12 +376,24 @@ intersection1(S1, [S2|Ss]) ->
     intersection1(intersection(S1, S2), Ss);
 intersection1(S1, []) -> S1.
 
-%% is_disjoint(OrdSet1, OrdSet2) -> boolean().
-%%  Check whether OrdSet1 and OrdSet2 are disjoint.
-
 -doc """
-Returns `true` if `Ordset1` and `Ordset2` are disjoint (have no elements in
-common), otherwise `false`.
+Returns `true` if `Ordset1` and `Ordset2` are disjoint; otherwise,
+returns `false`.
+
+Two sets are disjoint if they have no elements in common.
+
+This function is equivalent to `ordsets:intersection(Ordset1, Ordset2)
+=:= []`, but faster.
+
+```erlang
+> S0 = ordsets:from_list([a,b,c,d]).
+> S1 = ordsets:from_list([d,e,f]).
+> S2 = ordsets:from_list([q,r])
+> ordsets:is_disjoint(S0, S1).
+false
+> ordsets:is_disjoint(S1, S2).
+true
+```
 """.
 -spec is_disjoint(Ordset1, Ordset2) -> boolean() when
       Ordset1 :: ordset(_),
