@@ -212,23 +212,44 @@ is_element(E, [H|_]) when E < H -> false;
 is_element(_E, [_H|_]) -> true;			%E == H
 is_element(_, []) -> false.
 
--doc "Returns a new ordered set formed from `Ordset1` with `Element` inserted.".
+-doc """
+Returns a new ordered set formed from `Ordset1` with `Element` inserted.
+
+## Examples
+
+```erlang
+> S0 = ordsets:new().
+[]
+> S1 = ordsets:add_element(7, S0).
+[7]
+> S2 = ordsets:add_element(42, S1).
+[7,42]
+> ordsets:add_element(42, S2).
+[7,42]
+```
+""".
 -spec add_element(Element, Ordset1) -> Ordset2 when
       Element :: E,
       Ordset1 :: ordset(T),
       Ordset2 :: ordset(T | E).
-
-%-spec add_element(E, ordset(T)) -> [T | E,...].
 
 add_element(E, [H|Es]) when E > H -> [H|add_element(E, Es)];
 add_element(E, [H|_]=Set) when E < H -> [E|Set];
 add_element(_E, [_H|_]=Set) -> Set;		%E == H
 add_element(E, []) -> [E].
 
-%% del_element(Element, OrdSet) -> OrdSet.
-%%  Return OrdSet but with Element removed.
+-doc """
+Returns a copy of `Ordset1` with `Element` removed.
 
--doc "Returns `Ordset1`, but with `Element` removed.".
+## Examples
+
+```erlang
+> S = ordsets:from_list([a,b,c]).
+> ordsets:del_element(c, S).
+[a,b]
+> ordsets:del_element(x, S).
+[a,b,c]
+""".
 -spec del_element(Element, Ordset1) -> Ordset2 when
       Element :: term(),
       Ordset1 :: ordset(T),
