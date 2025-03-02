@@ -385,6 +385,8 @@ Two sets are disjoint if they have no elements in common.
 This function is equivalent to `ordsets:intersection(Ordset1, Ordset2)
 =:= []`, but faster.
 
+## Examples
+
 ```erlang
 > S0 = ordsets:from_list([a,b,c,d]).
 > S1 = ordsets:from_list([d,e,f]).
@@ -410,11 +412,20 @@ is_disjoint([], _) ->
 is_disjoint(_, []) ->
     true.
 
-%% subtract(OrdSet1, OrdSet2) -> OrdSet.
-%%  Return all and only the elements of OrdSet1 which are not also in
-%%  OrdSet2.
+-doc """
+Returns the elements of `Ordset1` that are not elements in `Ordset2`.
 
--doc "Returns only the elements of `Ordset1` that are not also elements of `Ordset2`.".
+## Examples
+
+```erlang
+> S0 = ordsets:from_list([a,b,c,d]).
+> S1 = ordsets:from_list([c,d,e,f]).
+> ordsets:subtract(S0, S1).
+[a,b]
+> ordsets:subtract(S1, S0).
+[e,f]
+```
+""".
 -spec subtract(Ordset1, Ordset2) -> Ordset3 when
       Ordset1 :: ordset(_),
       Ordset2 :: ordset(_),
@@ -429,13 +440,22 @@ subtract([_E1|Es1], [_E2|Es2]) ->		%E1 == E2
 subtract([], _) -> [];
 subtract(Es1, []) -> Es1.
 
-%% is_subset(OrdSet1, OrdSet2) -> boolean().
-%%  Return 'true' when every element of OrdSet1 is also a member of
-%%  OrdSet2, else 'false'.
-
 -doc """
-Returns `true` when every element of `Ordset1` is also a member of `Ordset2`,
-otherwise `false`.
+Returns `true` when every element of `Ordset1` is also a member of `Ordset2`;
+otherwise, returns `false`.
+
+## Examples
+
+```erlang
+> S0 = ordsets:from_list([a,b,c,d]).
+> S1 = ordsets:from_list([c,d]).
+> ordsets:is_subset(S1, S0).
+true
+> ordsets:is_subset(S0, S1).
+false
+> ordsets:is_subset(S0, S0).
+true
+```
 """.
 -spec is_subset(Ordset1, Ordset2) -> boolean() when
       Ordset1 :: ordset(_),
@@ -450,12 +470,18 @@ is_subset([_E1|Es1], [_E2|Es2]) ->		%E1 == E2
 is_subset([], _) -> true;
 is_subset(_, []) -> false.
 
-%% fold(Fun, Accumulator, OrdSet) -> Accumulator.
-%%  Fold function Fun over all elements in OrdSet and return Accumulator.
-
 -doc """
 Folds `Function` over every element in `Ordset` and returns the final value of
 the accumulator.
+
+## Examples
+
+```erlang
+> S = ordsets:from_list([1,2,3,4]).
+> Plus = fun erlang:'+'/2.
+> ordsets:fold(Plus, 0, S).
+10
+```
 """.
 -spec fold(Function, Acc0, Ordset) -> Acc1 when
       Function :: fun((Element :: T, AccIn :: term()) -> AccOut :: term()),
@@ -466,10 +492,18 @@ the accumulator.
 fold(F, Acc, Set) ->
     lists:foldl(F, Acc, Set).
 
-%% filter(Fun, OrdSet) -> OrdSet.
-%%  Filter OrdSet with Fun.
+-doc """
+Filters elements in `Ordset1` with boolean function `Pred`.
 
--doc "Filters elements in `Ordset1` with boolean function `Pred`.".
+## Examples
+
+```erlang
+> S = ordsets:from_list([1,2,3,4,5,6,7]).
+> IsEven = fun(N) -> N rem 2 =:= 0 end.
+> ordsets:filter(IsEven, S).
+[2,4,6]
+```
+""".
 -spec filter(Pred, Ordset1) -> Ordset2 when
       Pred :: fun((Element :: T) -> boolean()),
       Ordset1 :: ordset(T),
@@ -481,7 +515,18 @@ filter(F, Set) ->
 %% map(Fun, OrdSet) -> OrdSet.
 %%  Map OrdSet with Fun.
 
--doc "Maps elements in `Ordset1` with mapping function `Fun`.".
+-doc """
+Maps elements in `Ordset1` with mapping function `Fun`.
+
+## Examples
+
+```erlang
+> S = ordsets:from_list([1,2,3,4,5,6,7]).
+> F = fun(N) -> N div 2 end.
+> ordsets:map(F, S).
+[0,1,2,3]
+```
+""".
 -doc(#{since => <<"OTP 27.0">>}).
 -spec map(Fun, Ordset1) -> Ordset2 when
     Fun :: fun((Element1 :: T1) -> Element2 :: T2),
