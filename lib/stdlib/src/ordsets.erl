@@ -262,7 +262,7 @@ del_element(_E, [_H|Es]) -> Es;			%E == H
 del_element(_, []) -> [].
 
 -doc """
-Returns the union of of `Ordset1` and `Ordset2`.
+Returns the union of `Ordset1` and `Ordset2`.
 
 The union of two sets is a new set that contains all the elements from
 both sets, without duplicates.
@@ -290,10 +290,20 @@ union([E1|Es1], [_E2|Es2]) ->			%E1 == E2
 union([], Es2) -> Es2;
 union(Es1, []) -> Es1.
 
-%% union([OrdSet]) -> OrdSet
-%%  Return the union of the list of ordered sets.
+-doc """
+Returns the merged (union) set of the list of sets.
 
--doc "Returns the merged (union) set of the list of sets.".
+## Examples
+
+```erlang
+> S0 = ordsets:from_list([a,b,c,d]).
+> S1 = ordsets:from_list([d,e,f]).
+> S2 = ordsets:from_list([q,r])
+> Sets = [S0, S1, S2].
+> ordsets:union(Sets).
+[a,b,c,d,e,f,q,r]
+```
+""".
 -spec union(OrdsetList) -> Ordset when
       OrdsetList :: [ordset(T)],
       Ordset :: ordset(T).
