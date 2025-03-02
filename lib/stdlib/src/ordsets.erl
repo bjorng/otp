@@ -314,7 +314,24 @@ union(OrdsetList) ->
 %% intersection(OrdSet1, OrdSet2) -> OrdSet.
 %%  Return the intersection of OrdSet1 and OrdSet2.
 
--doc "Returns the intersection of `Ordset1` and `Ordset2`.".
+-doc """
+Returns the intersection of `Ordset1` and `Ordset2`.
+
+The intersection of two sets is a new set that contains only the
+elements that are present in both sets.
+
+## Examples
+
+```erlang
+> S0 = ordsets:from_list([a,b,c,d]).
+> S1 = ordsets:from_list([c,d,e,f]).
+> S2 = ordsets:from_list([q,r]).
+> ordsets:intersection(S0, S1).
+[c,d]
+> ordsets:intersection(S1, S2).
+[]
+```
+""".
 -spec intersection(Ordset1, Ordset2) -> Ordset3 when
       Ordset1 :: ordset(_),
       Ordset2 :: ordset(_),
@@ -331,10 +348,20 @@ intersection([], _) ->
 intersection(_, []) ->
     [].
 
-%% intersection([OrdSet]) -> OrdSet.
-%%  Return the intersection of the list of ordered sets.
+-doc """
+Returns the intersection of the non-empty list of sets.
 
--doc "Returns the intersection of the non-empty list of sets.".
+```erlang
+> S0 = ordsets:from_list([a,b,c,d]).
+> S1 = ordsets:from_list([d,e,f]).
+> S2 = ordsets:from_list([q,r])
+> Sets = [S0, S1, S2].
+> ordsets:intersection([S0, S1, S2]).
+[]
+> ordsets:intersection([S0, S1]).
+[d]
+```
+""".
 -spec intersection(OrdsetList) -> Ordset when
       OrdsetList :: [ordset(_),...],
       Ordset :: ordset(_).
