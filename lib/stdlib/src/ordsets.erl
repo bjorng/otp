@@ -249,6 +249,7 @@ Returns a copy of `Ordset1` with `Element` removed.
 [a,b]
 > ordsets:del_element(x, S).
 [a,b,c]
+```
 """.
 -spec del_element(Element, Ordset1) -> Ordset2 when
       Element :: term(),
@@ -260,10 +261,21 @@ del_element(E, [H|_]=Set) when E < H -> Set;
 del_element(_E, [_H|Es]) -> Es;			%E == H
 del_element(_, []) -> [].
 
-%% union(OrdSet1, OrdSet2) -> OrdSet
-%%  Return the union of OrdSet1 and OrdSet2.
+-doc """
+Returns the union of of `Ordset1` and `Ordset2`.
 
--doc "Returns the merged (union) set of `Ordset1` and `Ordset2`.".
+The union of two sets is a new set that contains all the elements from
+both sets, without duplicates.
+
+## Examples
+
+```erlang
+> S0 = ordsets:from_list([a,b,c,d]).
+> S1 = ordsets:from_list([c,d,e,f]).
+> ordsets:union(S0, S1).
+[a,b,c,d,e,f]
+```
+""".
 -spec union(Ordset1, Ordset2) -> Ordset3 when
       Ordset1 :: ordset(T1),
       Ordset2 :: ordset(T2),
