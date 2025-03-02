@@ -52,21 +52,39 @@ sets in the Standard Library.
 -doc "As returned by `new/0`.".
 -type ordset(T) :: [T].
 
-%% new() -> Set.
-%%  Return a new empty ordered set.
+-doc """
+Returns a new empty ordered set.
 
--doc "Returns a new empty ordered set.".
+## Examples
+
+```erlang
+> ordsets:new()
+[]
+```
+""".
 -spec new() -> [].
 
 new() -> [].
 
-%% is_set(Term) -> boolean().
-%%  Return 'true' if Set is an ordered set of elements, else 'false'.
-
 -doc """
-Returns `true` if `Ordset` is an ordered set of elements, otherwise `false`.
-This function will return `true` for any ordered list, even when not constructed
-by the functions in this module.
+Returns `true` if `Ordset` is an ordered set of elements; otherwise,
+returns `false`.
+
+This function returns true for any ordered list, even if it was not
+constructed using the functions in this module.
+
+## Examples
+
+```erlang
+> ordsets:is_set(ordsets:from_list([a,x,13,{p,q}])).
+true
+> ordsets:is_set([a,b,c]).
+true
+> ordsets:is_set([z,a]).
+false
+> ordsets:is_set({a,b}).
+false
+```
 """.
 -spec is_set(Ordset) -> boolean() when
       Ordset :: term().
@@ -80,30 +98,55 @@ is_set([E2|Es], E1) when E1 < E2 ->
 is_set([_|_], _) -> false;
 is_set([], _) -> true.
 
-%% size(OrdSet) -> int().
-%%  Return the number of elements in OrdSet.
+-doc """
+Returns the number of elements in `Ordset`.
 
--doc "Returns the number of elements in `Ordset`.".
+## Examples
+
+```erlang
+> ordsets:size(ordsets:new()).
+0
+> ordsets:size(ordsets:from_list([1,2,3])).
+3
+```
+""".
 -spec size(Ordset) -> non_neg_integer() when
       Ordset :: ordset(_).
 
 size(S) -> length(S).
 
-%% is_empty(OrdSet) -> boolean().
-%%  Return 'true' if OrdSet is an empty set, otherwise 'false'.
--doc "Returns `true` if `Ordset` is an empty set, otherwise `false`.".
+-doc """
+Returns `true` if `Ordset` is an empty set; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+> ordsets:is_empty(ordsets:new()).
+true
+> ordsets:is_empty(ordsets:from_list([1])).
+false
+```
+""".
 -doc(#{since => <<"OTP 21.0">>}).
 -spec is_empty(Ordset) -> boolean() when
       Ordset :: ordset(_).
 
-is_empty(S) -> S=:=[].
+is_empty(S) -> S =:= [].
 
-%% is_equal(OrdSet1, OrdSet2) -> boolean().
-%%  Return 'true' if OrdSet1 and OrdSet2 contain the same elements,
-%%  otherwise 'false'.
 -doc """
-Returns `true` if `Ordset1` and `Ordset2` are equal, that is when every element
-of one set is also a member of the respective other set, otherwise `false`.
+Returns `true` if `Ordset1` and `Ordset2` are equal, that is, if every element
+of one set is also a member of the other set; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+> Empty = ordsets:new().
+> S = ordsets:from_list([a,b]).
+> ordsets:is_equal(S, S)
+true
+> ordsets:is_equal(S, Empty)
+false
+```
 """.
 -doc(#{since => <<"OTP 27.0">>}).
 -spec is_equal(Ordset1, Ordset2) -> boolean() when
@@ -113,20 +156,33 @@ of one set is also a member of the respective other set, otherwise `false`.
 is_equal(S1, S2) when is_list(S1), is_list(S2) ->
     S1 == S2.
 
-%% to_list(OrdSet) -> [Elem].
-%%  Return the elements in OrdSet as a list.
+-doc """
+Returns the elements of `Ordset` as a list.
 
--doc "Returns the elements of `Ordset` as a list.".
+## Examples
+
+```erlang
+> S = ordsets:from_list([a,b]).
+> ordsets:to_list(S).
+[a,b]
+```
+""".
 -spec to_list(Ordset) -> List when
       Ordset :: ordset(T),
       List :: [T].
 
 to_list(S) -> S.
 
-%% from_list([Elem]) -> Set.
-%%  Build an ordered set from the elements in List.
+-doc """
+Returns an ordered set of the elements in `List`.
 
--doc "Returns an ordered set of the elements in `List`.".
+## Examples
+
+```erlang
+> ordsets:from_list([a,b,a,b,b,c]).
+[a,b,c]
+```
+""".
 -spec from_list(List) -> Ordset when
       List :: [T],
       Ordset :: ordset(T).
@@ -134,10 +190,19 @@ to_list(S) -> S.
 from_list(L) ->
     lists:usort(L).
 
-%% is_element(Element, OrdSet) -> boolean().
-%%  Return 'true' if Element is an element of OrdSet, else 'false'.
+-doc """
+Returns `true` if `Element` is an element of `Ordset`; otherwise, returns `false`.
 
--doc "Returns `true` if `Element` is an element of `Ordset`, otherwise `false`.".
+## Examples
+
+```erlang
+> S = ordsets:from_list([a,b,c]).
+> ordsets:is_element(42, S).
+false
+> ordsets:is_element(b, S).
+true
+```
+""".
 -spec is_element(Element, Ordset) -> boolean() when
       Element :: term(),
       Ordset :: ordset(_).
@@ -146,9 +211,6 @@ is_element(E, [H|Es]) when E > H -> is_element(E, Es);
 is_element(E, [H|_]) when E < H -> false;
 is_element(_E, [_H|_]) -> true;			%E == H
 is_element(_, []) -> false.
-
-%% add_element(Element, OrdSet) -> OrdSet.
-%%  Return OrdSet with Element inserted in it.
 
 -doc "Returns a new ordered set formed from `Ordset1` with `Element` inserted.".
 -spec add_element(Element, Ordset1) -> Ordset2 when

@@ -96,7 +96,7 @@ representations.
 > do not match (`=:=`), while both `m:ordsets` and `m:gb_sets` consider elements
 > as different if and only if they do not compare equal (`==`).
 >
-> _Example:_
+> ### Examples
 >
 > ```erlang
 > 1> sets:is_element(1.0, sets:from_list([1])).
@@ -163,7 +163,16 @@ representations.
 %%------------------------------------------------------------------------------
 
 %% new() -> Set
--doc "Returns a new empty set.".
+-doc """
+Returns a new empty set.
+
+## Examples
+
+```erlang
+> sets:new()
+#{}
+```
+""".
 -spec new() -> set(none()).
 new() -> #{}.
 
