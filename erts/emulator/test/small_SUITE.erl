@@ -595,6 +595,17 @@ gen_mul_add_function({Name,{A,B,C}}) ->
            Res = id(Z + X * Y),
            Res = id(Z + Y * X),
            Res;
+        '@Name@'(int_vii_plus_z, X, fixed, fixed)
+          when is_integer(X), -_@APlusOne@ < X, X < _@APlusOne@ ->
+           Y = _@B@,
+           Z = _@C@,
+           Res = id(X * Y + Z),
+           Res = id(Y * X + Z),
+           Res = id(Z + X * Y),
+           Res = id(Z + Y * X),
+           Res = '@Name@'(any_vvi_plus_z, X, id(Y), fixed),
+           Res = '@Name@'(any_vvv_minus_z, X, id(Y), id(-Z)),
+           Res;
         '@Name@'(any_vvv_plus_z, X, Y, Z) ->
            Res = id(X * Y + Z),
            Res = id(Y * X + Z),
@@ -656,6 +667,7 @@ test_mul_add([{Name,{A,B,C}}|T], Mod) ->
         Res0 = A * B + C,
         Res0 = F(any_vii_plus_z, A, fixed, fixed),
         Res0 = F(pos_int_vvv_plus_z, A, B, C),
+        Res0 = F(int_vii_plus_z, A, fixed, fixed),
         ok = F({guard_plus_z,Res0}, A, B, C),
         ok = F({guard_plus_z,Res0}, -A, -B, C),
 
