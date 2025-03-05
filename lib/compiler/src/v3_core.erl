@@ -2102,6 +2102,7 @@ get_strict_patterns([{b_generate_strict,_Lg,P,_E}|Gs], {Line, St0}, Acc) ->
             get_strict_patterns(Gs, {Line, St1}, Vars++Acc)
     catch
         throw:nomatch ->
+            %% FIXME: Not covered.
             get_strict_patterns(Gs, {Line, St0}, Acc)
     end;
 get_strict_patterns([{m_generate_strict,Lg,{map_field_exact,_,K0,V0},_E}|Gs],
@@ -2117,6 +2118,7 @@ get_strict_patterns([], _, Acc) ->
 %% First replace all named variables in the pattern with free variables, unless
 %% they appear in the list of strict patterns. Then collapse all structures
 %% with no named variables to '_'.
+
 replace_vars(#c_cons{hd=H,tl=T}, Vars, St0) ->
     {T1, St1} = replace_vars(T, Vars, St0),
     {H1, St2} = replace_vars(H, Vars, St1),
@@ -2135,7 +2137,10 @@ replace_vars(#c_var{name='_'}=V, _, St) ->
 replace_vars(#c_var{name=Var}=V, Vars, St0) ->
     case lists:member(Var, Vars) of
         true -> {V, St0};
-        false -> new_var(St0)
+        %% FIXME: It is easier to replace the variable with '_'.
+        %% That also means that you no longer need to pass around
+        %% and update the St variable.
+        false -> {V#c_var{name='_'}, St0}
     end;
 replace_vars(V, _, St) -> {V, St}.
 
@@ -2146,9 +2151,12 @@ replace_list_vars(Vs, Vars, St0) ->
                    end, St0, Vs).
 
 %% If the literal contains no bound variables, collapse it to '_'.
+%% FIXME: This is a pattern, not a literal.
 no_vars(Literal, St0, St1) ->
     Vars = lit_vars(Literal),
-    case lists:all(fun (V) -> is_integer(V) orelse V =:= '_' end, Vars) of
+    %% FIXME: In the compiler, we usually import functions from
+    %% `lists` so we don't have to write the `lists` prefix.
+    case all(fun (V) -> V =:= '_' end, Vars) of
         true -> {#c_var{name='_'}, St0};
         false -> {Literal, St1}
     end.
@@ -2202,6 +2210,7 @@ generator(Line, {Generate,Lg,P0,E}, Gs, StrictPats, St0)
             {[], _, _} ->
                 {ann_c_cons(LA, Nomatch, Tail), St3};
             {_, nomatch, _} ->
+                %% FIXME: Not covered.
                 {ann_c_cons(LA, Nomatch, Tail), St3};
             {_, _, generate} ->
                 {Head1, St} = replace_vars(Head, StrictPats, St3),
@@ -2359,6 +2368,7 @@ generator(Line, {Generate,Lg,{map_field_exact,_,K0,V0},E}, Gs, StrictPats, St0)
             {[], _, _} ->
                 {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
             {_, nomatch, _} ->
+                %% FIXME: Not covered.
                 {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
             {_, _, m_generate} ->
                 {Pat1, St} = replace_vars(Pat, StrictPats, St3),
