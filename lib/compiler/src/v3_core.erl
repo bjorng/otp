@@ -2140,8 +2140,10 @@ replace_vars(#c_var{name=Var}=V, Vars, St0) ->
 replace_vars(V, _, St) -> {V, St}.
 
 replace_list_vars(Vs, Vars, St0) ->
-    lists:mapfoldl(fun (V, St) -> {V1, St1} = replace_vars(V, Vars, St),
-                                        {V1,St1} end, St0, Vs).
+    lists:mapfoldl(fun (V, St) ->
+                           {V1, St1} = replace_vars(V, Vars, St),
+                           {V1,St1}
+                   end, St0, Vs).
 
 %% If the literal contains no bound variables, collapse it to '_'.
 no_vars(Literal, St0, St1) ->
@@ -2195,17 +2197,18 @@ generator(Line, {Generate,Lg,P0,E}, Gs, StrictPats, St0)
                  _ ->
                      ann_c_cons(LA, Head, Tail)
              end,
-    {NomatchPat, St4} = case {StrictPats, AccPat, Generate} of
-        {[], _, _} ->
-            {ann_c_cons(LA, Nomatch, Tail), St3};
-        {_, nomatch, _} ->
-            {ann_c_cons(LA, Nomatch, Tail), St3};
-        {_, _, generate} ->
-            {Head1, St} = replace_vars(Head, StrictPats, St3),
-            {ann_c_cons(LA, Head1, Tail), St};
-        {_, _, generate_strict} ->
-            {AccPat, St3}
-    end,
+    {NomatchPat, St4} =
+        case {StrictPats, AccPat, Generate} of
+            {[], _, _} ->
+                {ann_c_cons(LA, Nomatch, Tail), St3};
+            {_, nomatch, _} ->
+                {ann_c_cons(LA, Nomatch, Tail), St3};
+            {_, _, generate} ->
+                {Head1, St} = replace_vars(Head, StrictPats, St3),
+                {ann_c_cons(LA, Head1, Tail), St};
+            {_, _, generate_strict} ->
+                {AccPat, St3}
+        end,
     NomatchMode = case Generate of
                       generate ->
                           skip;
@@ -2351,19 +2354,22 @@ generator(Line, {Generate,Lg,{map_field_exact,_,K0,V0},E}, Gs, StrictPats, St0)
                      V = cons_tl(Pat),
                      #c_tuple{es=[K,V,IterVar]}
              end,
-    {NomatchPat, St5} = case {StrictPats, Pat, Generate} of
-        {[], _, _} ->
-            {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
-        {_, nomatch, _} ->
-            {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
-        {_, _, m_generate} ->
-            {Pat1, St} = replace_vars(Pat, StrictPats, St3),
-            case Pat1 of
-                {c_var,_,'_'} -> {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
-                _ -> {#c_tuple{es=[cons_hd(Pat1),cons_tl(Pat1),IterVar]}, St}
-            end;
-        {_, _, m_generate_strict} ->
-            {AccPat, St4}
+    {NomatchPat, St5} =
+        case {StrictPats, Pat, Generate} of
+            {[], _, _} ->
+                {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
+            {_, nomatch, _} ->
+                {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
+            {_, _, m_generate} ->
+                {Pat1, St} = replace_vars(Pat, StrictPats, St3),
+                case Pat1 of
+                    {c_var,_,'_'} ->
+                        {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
+                    _ ->
+                        {#c_tuple{es=[cons_hd(Pat1),cons_tl(Pat1),IterVar]}, St}
+                end;
+            {_, _, m_generate_strict} ->
+                {AccPat, St4}
         end,
     NomatchMode = case Generate of
                       m_generate ->
