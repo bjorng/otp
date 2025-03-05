@@ -394,6 +394,8 @@ nomatch(Config) when is_list(Config) ->
     ok.
 
 do_nomatch_1(L1, L2) ->
+    catch [{X, Y} || Y <- L2 && a=b=X <- L1],
+    catch [{X, Y} || a=b=X <- L1 && Y <:- L2],
     catch [{X, Y} || a=b=X <- L1 && Y <- L2].
 
 do_nomatch_2(L, Bin) ->
@@ -510,6 +512,7 @@ strict_pat_2(G1, G2, G3) ->
     [{X,Y} || {X,Y} <- G1 && Y <:- G2 && X <- G3].
 
 strict_pat_3(G1, G2) ->
+    catch #{K => V || a=b=K := V <- G1 && K := _ <:- G2},
     #{K => V || K := V <- G1 && K := _ <:- G2}.
 
 strict_pat_4(G1, G2) ->

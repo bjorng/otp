@@ -1950,7 +1950,13 @@ make_clause(Anno, [Pat|PatExtra], Guard, Body) ->
 make_clause(_Anno, nomatch, _PatExtra, _Guard, _Body) ->
     nomatch;
 make_clause(Anno, Pat, PatExtra, Guard, Body) ->
-    #iclause{anno=#a{anno=Anno},pats=[Pat|PatExtra],guard=Guard,body=Body}.
+    case any(fun(X)-> X =:= nomatch end, [Pat|PatExtra]) of
+        true ->
+            nomatch;
+        false ->
+            #iclause{anno=#a{anno=Anno},pats=[Pat|PatExtra],
+                     guard=Guard,body=Body}
+    end.
 
 %% filter_tq(Line, Expr, Filter, Mc, State, [Qualifier], TqFun) ->
 %%     {Case,[PreExpr],State}.
@@ -2096,15 +2102,9 @@ get_strict_patterns([{generate_strict,_Lg,P0,_E}|Gs], {Line, St0}, Acc) ->
     Vars = lit_vars(Pat),
     get_strict_patterns(Gs, {Line, St1}, Vars++Acc);
 get_strict_patterns([{b_generate_strict,_Lg,P,_E}|Gs], {Line, St0}, Acc) ->
-    try pattern(P, St0) of
-        {#ibinary{segments=Segs},St1} ->
-            Vars = ibitstr_vars(Segs),
-            get_strict_patterns(Gs, {Line, St1}, Vars++Acc)
-    catch
-        throw:nomatch ->
-            %% FIXME: Not covered.
-            get_strict_patterns(Gs, {Line, St0}, Acc)
-    end;
+    {#ibinary{segments=Segs},St1} = pattern(P, St0),
+    Vars = ibitstr_vars(Segs),
+    get_strict_patterns(Gs, {Line, St1}, Vars++Acc);
 get_strict_patterns([{m_generate_strict,Lg,{map_field_exact,_,K0,V0},_E}|Gs],
                     {Line, St0}, Acc) ->
     {Pat,St1} = list_gen_pattern({cons,Lg,K0,V0}, Line, St0),
@@ -2115,50 +2115,43 @@ get_strict_patterns([_G|Gs], {Line, St0}, Acc) ->
 get_strict_patterns([], _, Acc) ->
     sets:to_list(sets:from_list(Acc)).
 
-%% First replace all named variables in the pattern with free variables, unless
-%% they appear in the list of strict patterns. Then collapse all structures
-%% with no named variables to '_'.
-
-replace_vars(#c_cons{hd=H,tl=T}, Vars, St0) ->
-    {T1, St1} = replace_vars(T, Vars, St0),
-    {H1, St2} = replace_vars(H, Vars, St1),
-    no_vars(#c_cons{hd=H1,tl=T1}, St0, St2);
-replace_vars(#c_tuple{es=Es0}, Vars, St0) ->
-    {Es1, St1} = replace_list_vars(Es0, Vars, St0),
-    no_vars(#c_tuple{es=Es1}, St0, St1);
-replace_vars(#imap{es=Es0}=M, Vars, St0) ->
-    {Es1, St1} = replace_list_vars(Es0, Vars, St0),
-    no_vars(M#imap{es=Es1}, St0, St1);
-replace_vars(#imappair{val=V}=M, Vars, St0) ->
-    {V1, St1} = replace_vars(V, Vars, St0),
-    no_vars(M#imappair{val=V1}, St0, St1);
-replace_vars(#c_var{name='_'}=V, _, St) ->
-    {V, St};
-replace_vars(#c_var{name=Var}=V, Vars, St0) ->
+%% First replace all named variables in the pattern with `_`, unless they
+%% appear in the list of strict patterns. Then collapse all structures with no
+%% named variables to '_'.
+replace_vars(#c_cons{hd=H,tl=T}, Vars) ->
+    T1 = replace_vars(T, Vars),
+    H1 = replace_vars(H, Vars),
+    no_vars(#c_cons{hd=H1,tl=T1});
+replace_vars(#c_tuple{es=Es0}, Vars) ->
+    Es1 = replace_list_vars(Es0, Vars),
+    no_vars(#c_tuple{es=Es1});
+replace_vars(#imap{es=Es0}=M, Vars) ->
+    Es1 = replace_list_vars(Es0, Vars),
+    no_vars(M#imap{es=Es1});
+replace_vars(#imappair{val=V}=M, Vars) ->
+    V1 = replace_vars(V, Vars),
+    no_vars(M#imappair{val=V1});
+replace_vars(#c_var{name='_'}=V, _) ->
+    V;
+replace_vars(#c_var{name=Var}=V, Vars) ->
     case lists:member(Var, Vars) of
-        true -> {V, St0};
-        %% FIXME: It is easier to replace the variable with '_'.
-        %% That also means that you no longer need to pass around
-        %% and update the St variable.
-        false -> {V#c_var{name='_'}, St0}
+        true -> V;
+        false -> V#c_var{name='_'}
     end;
-replace_vars(V, _, St) -> {V, St}.
+replace_vars(V, _) -> V.
 
-replace_list_vars(Vs, Vars, St0) ->
-    lists:mapfoldl(fun (V, St) ->
-                           {V1, St1} = replace_vars(V, Vars, St),
-                           {V1,St1}
-                   end, St0, Vs).
+replace_list_vars(Vs, Vars) ->
+    L1 = foldl(fun (V, Acc) ->
+                        [replace_vars(V, Vars)|Acc]
+                   end, [], Vs),
+    reverse(L1).
 
-%% If the literal contains no bound variables, collapse it to '_'.
-%% FIXME: This is a pattern, not a literal.
-no_vars(Literal, St0, St1) ->
-    Vars = lit_vars(Literal),
-    %% FIXME: In the compiler, we usually import functions from
-    %% `lists` so we don't have to write the `lists` prefix.
+%% If the pattern contains no named variables, collapse it to '_'.
+no_vars(Pat) ->
+    Vars = lit_vars(Pat),
     case all(fun (V) -> V =:= '_' end, Vars) of
-        true -> {#c_var{name='_'}, St0};
-        false -> {Literal, St1}
+        true -> #c_var{name='_'};
+        false -> Pat
     end.
 
 %% Retrieve the annotation from an Erlang AST form.
@@ -2205,18 +2198,17 @@ generator(Line, {Generate,Lg,P0,E}, Gs, StrictPats, St0)
                  _ ->
                      ann_c_cons(LA, Head, Tail)
              end,
-    {NomatchPat, St4} =
+    NomatchPat =
         case {StrictPats, AccPat, Generate} of
             {[], _, _} ->
-                {ann_c_cons(LA, Nomatch, Tail), St3};
+                ann_c_cons(LA, Nomatch, Tail);
             {_, nomatch, _} ->
-                %% FIXME: Not covered.
-                {ann_c_cons(LA, Nomatch, Tail), St3};
+                ann_c_cons(LA, Nomatch, Tail);
             {_, _, generate} ->
-                {Head1, St} = replace_vars(Head, StrictPats, St3),
-                {ann_c_cons(LA, Head1, Tail), St};
+                Head1 = replace_vars(Head, StrictPats),
+                ann_c_cons(LA, Head1, Tail);
             {_, _, generate_strict} ->
-                {AccPat, St3}
+                AccPat
         end,
     NomatchMode = case Generate of
                       generate ->
@@ -2224,11 +2216,11 @@ generator(Line, {Generate,Lg,P0,E}, Gs, StrictPats, St0)
                       generate_strict ->
                           Nomatch
                   end,
-    {Ce,Pre,St5} = safe(E, St4),
+    {Ce,Pre,St4} = safe(E, St3),
     Gen = #igen{anno=#a{anno=GA},acc_pat=AccPat,acc_guard=Cg,
                 nomatch_pat=NomatchPat,nomatch_mode=NomatchMode,
                 tail=Tail,tail_pat=#c_literal{anno=LA,val=[]},arg={Pre,Ce}},
-    {Gen,St5};
+    {Gen,St4};
 generator(Line, {Generate,Lg,P,E}, Gs, _StrictPats, St0)
   when Generate =:= b_generate;
        Generate =:= b_generate_strict ->
@@ -2363,23 +2355,22 @@ generator(Line, {Generate,Lg,{map_field_exact,_,K0,V0},E}, Gs, StrictPats, St0)
                      V = cons_tl(Pat),
                      #c_tuple{es=[K,V,IterVar]}
              end,
-    {NomatchPat, St5} =
+    NomatchPat =
         case {StrictPats, Pat, Generate} of
             {[], _, _} ->
-                {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
+                #c_tuple{es=[NomatchK,NomatchV,IterVar]};
             {_, nomatch, _} ->
-                %% FIXME: Not covered.
-                {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
+                #c_tuple{es=[NomatchK,NomatchV,IterVar]};
             {_, _, m_generate} ->
-                {Pat1, St} = replace_vars(Pat, StrictPats, St3),
+                Pat1 = replace_vars(Pat, StrictPats),
                 case Pat1 of
                     {c_var,_,'_'} ->
-                        {#c_tuple{es=[NomatchK,NomatchV,IterVar]}, St4};
+                        #c_tuple{es=[NomatchK,NomatchV,IterVar]};
                     _ ->
-                        {#c_tuple{es=[cons_hd(Pat1),cons_tl(Pat1),IterVar]}, St}
+                        #c_tuple{es=[cons_hd(Pat1),cons_tl(Pat1),IterVar]}
                 end;
             {_, _, m_generate_strict} ->
-                {AccPat, St4}
+                AccPat
         end,
     NomatchMode = case Generate of
                       m_generate ->
@@ -2418,7 +2409,7 @@ generator(Line, {Generate,Lg,{map_field_exact,_,K0,V0},E}, Gs, StrictPats, St0)
                 tail=IterVar,tail_pat=#c_literal{anno=LA,val=none},
                 refill=Refill,
                 arg={Pre,OuterIterVar}},
-    {Gen,St5}.
+    {Gen,St4}.
 
 append_tail_segment(Segs, St0) ->
     {Var,St} = new_var(St0),
