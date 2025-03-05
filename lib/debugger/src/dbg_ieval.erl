@@ -1165,15 +1165,16 @@ convert_gen_values([{generator,{Generate, Line, P, Map0}}|Qs], Acc, Bs0, Ieval0)
                            exception(error,{bad_generator,Map}, Bs0, Ieval)
                    end
            end,
-    convert_gen_values(Qs, [{Generate, Line, {tuple, Line, [K, V]}, Iter}|Acc], Bs0, Ieval);
+    convert_gen_values(Qs, [{Generate, Line, {tuple, Line, [K, V]}, Iter}|Acc],
+                       Bs0, Ieval);
 convert_gen_values([], Acc, Bs0, _Ieval) ->
     {lists:reverse(Acc), Bs0}.
 
 bind_all_generators(Gens, Bs0, Ieval, StrictPats) ->
     Bs1 = erl_eval:new_bindings(Bs0),
     Bs2 = case is_map(Bs1) of
-        true -> Bs1#{strict_pats => StrictPats};
-        false -> orddict:store(strict_pats, StrictPats, Bs1)
+              true -> Bs1#{strict_pats => StrictPats};
+              false -> orddict:store(strict_pats, StrictPats, Bs1)
     end,
     bind_all_generators1(Gens, [], Bs2, Ieval, continue).
 
@@ -1183,7 +1184,9 @@ bind_all_generators1([{Generate, Anno, P, <<_/bitstring>>=Bin}|Qs],
        Generate =:= b_generate_strict ->
     Mfun = match_fun(Bs0),
     Efun = fun(Exp, Bs) -> expr(Exp, Bs, #ieval{}) end,
-    case {eval_bits:bin_gen(P, Bin, erl_eval:new_bindings(Bs0), Bs0, Mfun, Efun), Generate} of
+    case {eval_bits:bin_gen(P, Bin, erl_eval:new_bindings(Bs0), Bs0,
+                            Mfun, Efun),
+          Generate} of
         {{match, Rest, Bs1}, _} ->
             Bs2 = zip_add_bindings(Bs1, Bs0),
             case {Bs2, Generate, ContinueSkip} of
@@ -2092,14 +2095,16 @@ zip_add_bindings(Bs1, Bs2) when is_list(Bs1), is_list(Bs2) ->
 
 zip_add_bindings_map([Key | Keys], Bs1, Bs2) ->
     case {Bs1, Bs2} of
-        {#{Key := Same}, #{Key := Same}} -> zip_add_bindings_map(Keys, Bs1, Bs2);
+        {#{Key := Same}, #{Key := Same}} ->
+            zip_add_bindings_map(Keys, Bs1, Bs2);
         {_, #{Key := _}} ->
             #{strict_pats := StrictPats} = Bs2,
             case lists:member(Key, StrictPats) of
                 true -> nomatch_strict;
                 false -> nomatch
             end;
-        {#{Key := Value},_} -> zip_add_bindings_map(Keys, Bs1, Bs2#{Key => Value})
+        {#{Key := Value},_} ->
+            zip_add_bindings_map(Keys, Bs1, Bs2#{Key => Value})
     end;
 zip_add_bindings_map([], _, Bs2) ->
     Bs2.

@@ -985,8 +985,8 @@ convert_gen_values([], Acc, Bs0, _Lf, _Ef, _FUVs) ->
 bind_all_generators(Gens, Bs0, Lf, Ef, FUVs, StrictPats) ->
     Bs1 = new_bindings(Bs0),
     Bs2 = case is_map(Bs1) of
-        true -> Bs1#{strict_pats => StrictPats};
-        false -> orddict:store(strict_pats, StrictPats, Bs1)
+              true -> Bs1#{strict_pats => StrictPats};
+              false -> orddict:store(strict_pats, StrictPats, Bs1)
     end,
     bind_all_generators1(Gens, [], Bs2, Lf, Ef, FUVs, continue).
 
@@ -997,7 +997,9 @@ bind_all_generators1([{Generate, Anno, P, <<_/bitstring>>=Bin}|Qs],
     Mfun = match_fun(Bs0, Ef),
     Efun = fun(Exp, Bs) -> expr(Exp, Bs, Lf, Ef, none) end,
     ErrorFun = fun(A, R, S) -> apply_error(R, S, A, Bs0, Ef, none) end,
-    case {eval_bits:bin_gen(P, Bin, new_bindings(Bs0), Bs0, Mfun, Efun, ErrorFun), Generate} of
+    case {eval_bits:bin_gen(P, Bin, new_bindings(Bs0), Bs0, Mfun,
+                            Efun, ErrorFun),
+          Generate} of
         {{match, Rest, Bs1}, _} ->
             Bs2 = zip_add_bindings(Bs1, Bs0),
             case {Bs2, Generate, ContinueSkip} of
@@ -1030,7 +1032,8 @@ bind_all_generators1([{Generate, Anno, P, <<_/bitstring>>=Bin}|Qs],
                 skip -> {[], skip}
             end
     end;
-bind_all_generators1([{Generate, Anno, P, [H|T]}|Qs], Acc, Bs0, Lf, Ef, FUVs, ContinueSkip)
+bind_all_generators1([{Generate, Anno, P, [H|T]}|Qs],
+                     Acc, Bs0, Lf, Ef, FUVs, ContinueSkip)
   when Generate =:= generate;
        Generate =:= generate_strict ->
     case {match(P, H, Anno, new_bindings(Bs0), Bs0, Ef), Generate} of
@@ -1053,11 +1056,13 @@ bind_all_generators1([{Generate, Anno, P, [H|T]}|Qs], Acc, Bs0, Lf, Ef, FUVs, Co
             end;
         {nomatch, generate} ->
             %% match/6 returns nomatch. Skip this value
-            bind_all_generators1(Qs,[{generate, Anno, P, T}|Acc], Bs0, Lf, Ef, FUVs, skip);
+            bind_all_generators1(Qs, [{generate, Anno, P, T}|Acc],
+                                 Bs0, Lf, Ef, FUVs, skip);
         {nomatch, generate_strict} ->
             {Acc, error}
     end;
-bind_all_generators1([{Generate, Anno, P, Iter0}|Qs], Acc, Bs0, Lf, Ef, FUVs, ContinueSkip)
+bind_all_generators1([{Generate, Anno, P, Iter0}|Qs],
+                     Acc, Bs0, Lf, Ef, FUVs, ContinueSkip)
   when Generate =:= m_generate;
        Generate =:= m_generate_strict->
     case maps:next(Iter0) of
