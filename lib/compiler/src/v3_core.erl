@@ -2140,11 +2140,8 @@ replace_vars(#c_var{name=Var}=V, Vars) ->
     end;
 replace_vars(V, _) -> V.
 
-replace_list_vars(Vs, Vars) ->
-    L1 = foldl(fun (V, Acc) ->
-                        [replace_vars(V, Vars)|Acc]
-                   end, [], Vs),
-    reverse(L1).
+replace_list_vars(Es, Vars) ->
+    [replace_vars(E, Vars) || E <- Es].
 
 %% If the pattern contains no named variables, collapse it to '_'.
 no_vars(Pat) ->
