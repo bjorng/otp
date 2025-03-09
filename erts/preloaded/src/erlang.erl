@@ -855,28 +855,29 @@ binary_to_atom(Binary) ->
 
 %% binary_to_atom/2
 -doc """
-Returns the atom whose text representation is `Binary`. If `Encoding` is `utf8`
-or `unicode`, the binary must contain valid UTF-8 sequences.
+Returns the atom whose text representation is `Binary`, creating a new
+atom if necessary.
+
+If `Encoding` is `utf8` or `unicode`, the binary must contain valid
+UTF-8 sequences.
+
+> #### Note {: .info }
+>
+> Note that once an atom is created, it cannot be deleted.
+> There is a [configurable limit](`e:system:system_limits.md#atoms`)
+> on how many atoms that can exist in an Erlang system.
+> To avoid reaching the limit, it is recommended to consider whether
+> [`binary_to_existing_atom/2`](`binary_to_existing_atom/2`) is a better choice
+> than [`binary_to_atom/2`](`binary_to_atom/2`).
+>
+> The number of characters that are permitted in an atom name is
+> [limited](`e:system:system_limits.md#atom_name_limit`).
 
 > #### Change {: .info }
 >
 > As from Erlang/OTP 20, [`binary_to_atom(Binary, utf8)`](`binary_to_atom/2`) is
 > capable of decoding any Unicode character. Earlier versions would fail if the
 > binary contained Unicode characters > 255.
-
-> #### Note {: .info }
->
-> The number of characters that are permitted in an atom name is limited; see
-> [Efficiency Guide
-> (section System Limits)](`e:system:system_limits.md#atom_name_limit`).
->
-> Note that once an atom is created, it cannot be deleted.
-> There is configurable limit on how many atoms that can exist.
-> To avoid reaching the limit, it is recommended to consider whether
-> [`binary_to_existing_atom/2`](`binary_to_existing_atom/2`) is a better choice
-> than [`binary_to_atom/2`](`binary_to_atom/2`). The default limit for the number of
-> atoms is found in
-> [Efficiency Guide (section System Limits)](`e:system:system_limits.md#atoms`).
 
 ## Examples
 
