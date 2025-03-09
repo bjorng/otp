@@ -866,17 +866,17 @@ or `unicode`, the binary must contain valid UTF-8 sequences.
 
 > #### Note {: .info }
 >
-> The number of characters that are permitted in an atom name is limited. The
-> default limits can be found in the
-> [Efficiency Guide (section System Limits)](`e:system:system_limits.md`).
-
-> #### Note {: .info }
+> The number of characters that are permitted in an atom name is limited; see
+> [Efficiency Guide
+> (section System Limits)](`e:system:system_limits.md#atom_name_limit`).
 >
-> There is configurable limit on how many atoms that can exist and atoms are not
-> garbage collected. Therefore, it is recommended to consider whether
-> [`binary_to_existing_atom/2`](`binary_to_existing_atom/2`) is a better option
-> than [`binary_to_atom/2`](`binary_to_atom/2`). The default limits can be found
-> in [Efficiency Guide (section System Limits)](`e:system:system_limits.md#atoms`).
+> Note that once an atom is created, it cannot be deleted.
+> There is configurable limit on how many atoms that can exist.
+> To avoid reaching the limit, it is recommended to consider whether
+> [`binary_to_existing_atom/2`](`binary_to_existing_atom/2`) is a better choice
+> than [`binary_to_atom/2`](`binary_to_atom/2`). The default limit for the number of
+> atoms is found in
+> [Efficiency Guide (section System Limits)](`e:system:system_limits.md#atoms`).
 
 ## Examples
 
