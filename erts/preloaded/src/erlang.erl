@@ -865,7 +865,7 @@ UTF-8 sequences.
 >
 > Note that once an atom is created, it cannot be deleted.
 > There is a [configurable limit](`e:system:system_limits.md#atoms`)
-> on how many atoms that can exist in an Erlang system.
+a> on how many atoms that can exist in an Erlang system.
 > To avoid reaching the limit, it is recommended to consider whether
 > [`binary_to_existing_atom/2`](`binary_to_existing_atom/2`) is a better choice
 > than [`binary_to_atom/2`](`binary_to_atom/2`).
@@ -983,17 +983,21 @@ binary_to_float(_Binary) ->
 -doc """
 Returns an integer whose text representation is `Binary`.
 
-For example:
-
-```erlang
-> binary_to_integer(<<"123">>).
-123
-```
-
 [`binary_to_integer/1`](`binary_to_integer/1`) accepts the same string formats
 as `list_to_integer/1`.
 
 Failure: `badarg` if `Binary` contains a bad representation of an integer.
+
+## Examples
+
+```erlang
+1> binary_to_integer(<<"123">>).
+123
+2> binary_to_integer(<<"-99">>).
+-99
+3> binary_to_integer(<<"+33">>).
+33
+```
 """.
 -doc(#{since => <<"OTP R16B">>}).
 -doc #{ category => terms }.
