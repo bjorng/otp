@@ -773,7 +773,6 @@ multiple bytes.
 atom_to_binary(_Atom, _Encoding) ->
     erlang:nif_error(undefined).
 
-%% atom_to_list/1
 -doc """
 Returns a list of unicode code points corresponding to the text representation
 of `Atom`.
@@ -787,7 +786,8 @@ of `Atom`.
 [20320,22909]
 ```
 
-See `m:unicode` for how to convert the resulting list to different formats.
+See the `m:unicode` module for how to convert the resulting list into
+different formats.
 """.
 -doc #{ category => terms }.
 -spec atom_to_list(Atom) -> string() when
@@ -796,16 +796,28 @@ atom_to_list(_Atom) ->
     erlang:nif_error(undefined).
 
 %% Shadowed by erl_bif_types: erlang:binary_part/2
+-doc #{ equiv => binary_part(Subject, Start, Length) }.
+-doc #{ category => terms }.
+-doc(#{since => <<"OTP R14B">>}).
+-spec binary_part(Subject, PosLen) -> binary() when
+      Subject :: binary(),
+      PosLen :: {Start :: non_neg_integer(), Length :: integer()}.
+binary_part(_Subject, _PosLen) ->
+    erlang:nif_error(undefined).
+
+%% Shadowed by erl_bif_types: erlang:binary_part/3
 -doc """
-Extracts the part of the binary described by `Pos` and `Len`.
+Extracts the part of the binary described by `Start` and `Length`.
 
 A negative length can be used to extract bytes at the end of a binary.
 
 `Start` is zero-based.
 
-Failure: `badarg` if `PosLen` in any way references outside the binary.
+Failure: `badarg` if `Start` and `Length` in any way reference
+outside the binary.
 
-For details about the `PosLen` semantics, see `binary:part/3`.
+For details about the semantics of `Start` and `Length`, see
+`binary:part/3`.
 
 ## Examples
 
@@ -819,17 +831,6 @@ For details about the `PosLen` semantics, see `binary:part/3`.
 <<6,7,8,9,10>>
 ```
 """.
--doc #{ category => terms }.
--doc(#{since => <<"OTP R14B">>}).
--spec binary_part(Subject, PosLen) -> binary() when
-      Subject :: binary(),
-      PosLen :: {Start :: non_neg_integer(), Length :: integer()}.
-binary_part(_Subject, _PosLen) ->
-    erlang:nif_error(undefined).
-
-%% binary_part/3
-%% Shadowed by erl_bif_types: erlang:binary_part/3
--doc( #{ equiv =>  binary_part(Subject, {Start, Length}) }).
 -doc(#{since => <<"OTP R14B">>}).
 -doc #{ category => terms }.
 -spec binary_part(Subject, Start, Length) -> binary() when
