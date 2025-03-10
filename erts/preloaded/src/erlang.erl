@@ -2782,8 +2782,12 @@ For any fun, `Item` can be any of the atoms `module`, `name`, `arity`, `env`, or
 `type`.
 
 For a local fun, `Item` can also be any of the atoms `index`, `new_index`,
-`new_uniq`, `uniq`, and `pid`. For an external fun, the value of any of these
+`new_uniq`, and `uniq`. For an external fun, the value of any of these
 items is always the atom `undefined`.
+
+> #### Change {: .info }
+>
+> As from Erlang/OTP 28, `pid` is no longer a valid `Item`.
 
 See [`erlang:fun_info/1`](`fun_info/1`).
 """.
@@ -11189,17 +11193,6 @@ external funs:
 
 The following elements are only present in the list if `Fun` is local:
 
-- **`{pid, Pid}`** - `Pid` is the process identifier of `init` process on
-  the local node.
-
-  > #### Change {: .info }
-  >
-  > Starting in Erlang/OTP 27, `Pid` always points to the local `init` process,
-  > regardless of which process or node the fun was originally created on.
-  >
-  > See
-  > [Upcoming Potential Incompatibilities ](`e:general_info:upcoming_incompatibilities.md#fun-creator-pid-will-always-be-local-init-process`).
-
 - **`{index, Index}`** - `Index` (an integer) is an index into the module fun
   table.
 
@@ -11213,6 +11206,10 @@ The following elements are only present in the list if `Fun` is local:
   from Erlang/OTP R15, this integer is calculated from the compiled code for the
   entire module. Before Erlang/OTP R15, this integer was based on only the body
   of the fun.
+
+> #### Change {: .info }
+>
+> As from Erlang/OTP 28, `pid` is no longer a valid `Item`.
 """.
 -doc #{ category => terms }.
 -spec fun_info(Fun) -> [{Item, Info}] when
@@ -11221,7 +11218,7 @@ The following elements are only present in the list if `Fun` is local:
             | module | new_index | new_uniq | pid | type | uniq,
       Info :: term().
 fun_info(Fun) when erlang:is_function(Fun) ->
-    Keys = [type,env,arity,name,uniq,index,new_uniq,new_index,module,pid],
+    Keys = [type,env,arity,name,uniq,index,new_uniq,new_index,module],
     fun_info_1(Keys, Fun, []);
 fun_info(Fun) ->
     badarg_with_info([Fun]).
