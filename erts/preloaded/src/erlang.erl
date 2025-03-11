@@ -1348,9 +1348,9 @@ Returns an integer that is the size in bits of `Bitstring`.
 ## Examples
 
 ```erlang
-> bit_size(<<433:16,3:3>>).
+1> bit_size(<<433:16,3:3>>).
 19
-> bit_size(<<1,2,3>>).
+2> bit_size(<<1,2,3>>).
 24
 ```
 """.
@@ -4864,18 +4864,34 @@ phash2(_Term) ->
 
 %% phash2/2
 -doc """
-Portable hash function that gives the same hash for the same Erlang term
+Returns a hash value for `Term`.
+
+The hash value for the same Erlang term is guaranteed to be the same
 regardless of machine architecture and ERTS version.
 
 The function returns a hash value for `Term` within the range
 `0..Range-1`. The maximum value for `Range` is 2^32. When without argument
 `Range`, a value in the range 0..2^27-1 is returned.
 
-This BIF is always to be used for hashing terms. It distributes small integers
-better than [`phash/2`](`phash/2`), and it is faster for bignums and binaries.
+This BIF is always to be used for hashing terms. It distributes small
+integers better than [`phash/2`](`phash/2`), and it is faster for
+large integers and binaries.
 
 Notice that the range `0..Range-1` is different from the range of
 [`phash/2`](`phash/2`), which is `1..Range`.
+
+## Examples
+
+```erlang
+1> erlang:phash2({a,b,c}, 1_000).
+870
+2> erlang:phash2(41, 1_000).
+297
+3> erlang:phash2(42, 1_000).
+368
+4> erlang:phash2(43, 1_000).
+725
+```
 """.
 -doc(#{ category => terms }).
 -spec phash2(Term, Range) -> Hash when
@@ -5774,30 +5790,20 @@ Failures:
 resume_process(_Suspendee) ->
     erlang:nif_error(undefined).
 
-%% round/1
 %% Shadowed by erl_bif_types: erlang:round/1
 -doc """
-Returns an integer by rounding `Number`.
+Returns an integer by rounding `Number` to the nearest integer.
 
-For example:
+Example:
 
 ```erlang
-round(42.1).
+1> round(42.1).
 42
-```
-
-```erlang
-round(5.5).
+2> round(5.5).
 6
-```
-
-```erlang
-round(-5.5).
+3> round(-5.5).
 -6
-```
-
-```erlang
-round(36028797018963969.0).
+4> round(36028797018963969.0).
 36028797018963968
 ```
 
