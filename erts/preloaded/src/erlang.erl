@@ -2834,7 +2834,6 @@ fun_info(_Fun, _Item) ->
 fun_info_mfa(_Fun) ->
     erlang:nif_error(undefined).
 
-%% fun_to_list/1
 -doc """
 Returns `String` that represents the code that created `Fun`.
 
@@ -2896,7 +2895,7 @@ Explanation: `test:add(1)` and `test:add(42)` has the same string representation
 as the environment is not taken into account.
 
 ```erlang
->test:fun_tuple().
+> test:fun_tuple().
 {#Fun<test.2.107738983>,#Fun<test.3.107738983>}
 ```
 
@@ -3464,10 +3463,10 @@ Returns a new tuple with element `Term` inserted at position `Index` in tuple
 `Tuple1`. All elements from position `Index` and upwards are pushed one step
 higher in the new tuple `Tuple2`.
 
-For example:
+## Examples
 
 ```erlang
-> erlang:insert_element(2, {one, two, three}, new).
+1> erlang:insert_element(2, {one, two, three}, new).
 {one,new,two,three}
 ```
 """.
@@ -6800,19 +6799,21 @@ Returns the head of `List`, that is, the first element.
 
 It works with improper lists.
 
-Examples:
-
-```erlang
-> hd([1,2,3,4,5]).
-1
-```
-
-```erlang
-> hd([first, second, third, so_on | improper_end]).
-first
-```
-
 Failure: `badarg` if `List` is an empty list `[]`.
+
+## Examples
+
+```erlang
+1> hd([1,2,3,4,5]).
+1
+2> hd([first, second, third, so_on | improper_end]).
+first
+3> hd([]).
+** exception error: bad argument
+     in function  hd/1
+        called as hd([])
+        *** argument 1: not a nonempty list
+```
 """.
 -doc #{ category => terms }.
 -spec hd(List) -> Head when
@@ -6821,11 +6822,18 @@ Failure: `badarg` if `List` is an empty list `[]`.
 hd(_List) ->
     erlang:nif_error(undefined).
 
-%% erlang:info/1 no longer exists!
-
 %% Shadowed by erl_bif_types: erlang:is_atom/1
 -doc """
 Returns `true` if `Term` is an atom, otherwise `false`.
+
+## Examples
+
+```erlang
+1> is_atom(42).
+false
+2> is_atom(ok).
+true
+```
 """.
 -doc #{ category => terms }.
 -spec is_atom(Term) -> boolean() when
@@ -9750,26 +9758,22 @@ Returns the tail of `List`, that is, the list minus the first element
 
 It works with improper lists.
 
-Examples:
+## Examples
 
 ```erlang
-> tl([geesties, guilies, beasties]).
+1> tl([geesties, guilies, beasties]).
 [guilies, beasties]
-```
-
-```erlang
-> tl([geesties]).
+2> tl([geesties]).
 []
-```
-
-```erlang
-> tl([geesties, guilies, beasties | improper_end]).
+3> tl([geesties, guilies, beasties | improper_end]).
 [guilies, beasties | improper_end]
-```
-
-```erlang
-> tl([geesties | improper_end]).
+4> tl([geesties | improper_end]).
 improper_end
+5> tl([]).
+** exception error: bad argument
+     in function  tl/1
+        called as tl([])
+        *** argument 1: not a nonempty list
 ```
 
 Failure: `badarg` if `List` is an empty list `[]`.
