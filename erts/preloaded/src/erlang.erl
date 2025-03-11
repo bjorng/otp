@@ -3636,16 +3636,16 @@ is_builtin(_Module, _Function, _Arity) ->
 Returns `true` if map `Map` contains `Key` and returns `false` if it does not
 contain the `Key`.
 
-The call fails with a `{badmap,Map}` exception if `Map` is not a map.
+Failure: A `{badmap,Map}` exception is raised if `Map` is not a map.
 
-_Example:_
+## Examples
 
 ```erlang
 > Map = #{"42" => value}.
 #{"42" => value}
-> is_map_key("42",Map).
+1> is_map_key("42", Map).
 true
-> is_map_key(value,Map).
+2> is_map_key(value, Map).
 false
 ```
 """.
@@ -6976,6 +6976,7 @@ false
      in function  is_function/2
         called as is_function(fun lists:sum/1,bad_arity)
         *** argument 2: not an integer
+```
 """.
 -doc #{ category => terms }.
 -spec is_function(Term, Arity) -> boolean() when
@@ -6986,7 +6987,18 @@ is_function(_Term, _Arity) ->
 
 %% Shadowed by erl_bif_types: erlang:is_integer/1
 -doc """
-Returns `true` if `Term` is an integer, otherwise `false`.
+Returns `true` if `Term` is an integer; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_integer(1).
+true
+2> is_integer(-1234567890123456789012345678901234567890).
+true
+3> is_integer(1.0).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_integer(Term) -> boolean() when
@@ -6996,8 +7008,23 @@ is_integer(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_list/1
 -doc """
-Returns `true` if `Term` is a list with zero or more elements, otherwise
-`false`.
+Returns `true` if `Term` is a list with zero or more elements; otherwise,
+returns `false`.
+
+## Examples
+
+```erlang
+1> is_list({a,b,c}).
+false
+2> is_list([]).
+true
+3> is_list([1]).
+true
+4> is_list([1,2]).
+true
+5> is_list([1,2|3]).
+true
+```
 """.
 -doc #{ category => terms }.
 -spec is_list(Term) -> boolean() when
@@ -7007,8 +7034,19 @@ is_list(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_number/1
 -doc """
-Returns `true` if `Term` is an integer or a floating point number. Otherwise
+Returns `true` if `Term` is an integer or a floating point number; otherwise,
 returns `false`.
+
+## Examples
+
+```erlang
+1> is_number(10.0).
+true
+2> is_number(7).
+true
+3> is_number(zero).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_number(Term) -> boolean() when
@@ -7018,7 +7056,16 @@ is_number(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_pid/1
 -doc """
-Returns `true` if `Term` is a process identifier, otherwise `false`.
+Returns `true` if `Term` is a process identifier; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_pid(self()).
+true
+2> is_pid(ok).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_pid(Term) -> boolean() when
@@ -7028,7 +7075,18 @@ is_pid(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_map/1
 -doc """
-Returns `true` if `Term` is a map, otherwise `false`.
+Returns `true` if `Term` is a map; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_map(#{}).
+true
+2> is_map(#{key => value}).
+true
+3> is_map([]).
+false
+```
 """.
 -doc(#{since => <<"OTP 17.0">>}).
 -doc #{ category => terms }.
