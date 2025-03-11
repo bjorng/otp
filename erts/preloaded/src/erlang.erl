@@ -2806,6 +2806,15 @@ For a local fun, `Item` can also be any of the atoms `index`, `new_index`,
 items is always the atom `undefined`.
 
 See [`erlang:fun_info/1`](`fun_info/1`).
+
+## Examples
+
+```erlang
+1> erlang:fun_info(fun() -> ok end, type).
+{type,local}
+2> erlang:fun_info(fun lists:sum/1, type).
+{type,external}
+```
 """.
 -doc #{ category => terms }.
 -spec fun_info(Fun, Item) -> {Item, Info} when
