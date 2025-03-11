@@ -5922,20 +5922,34 @@ setnode(Node, DistCtrlr, Opts) ->
 Returns the number of elements in a tuple or the number of bytes in a binary or
 bitstring.
 
-For example:
-
-```erlang
-> size({morni, mulle, bwange}).
-3
-> size(<<11, 22, 33>>).
-3
-```
-
 For bitstrings, the number of whole bytes is returned. That is, if the number of
 bits in the bitstring is not divisible by 8, the resulting number of bytes is
 rounded _down_.
 
 See also `tuple_size/1`, `byte_size/1`, and `bit_size/1`.
+
+> #### Note {: .info }
+>
+> It is recommended to avoid `size/1` in new code.
+
+## Examples
+
+```erlang
+1> size({a, b, c}).
+3
+2> tuple_size({a, b, c}).
+3
+3> size(<<11, 22, 33>>).
+3
+4> byte_size(<<11, 22, 33>>).
+3
+5> size(<<11, 7:4>>).
+1
+6> byte_size(<<11, 7:4>>).
+2
+7> bit_size(<<11, 7:4>>).
+12
+```
 """.
 -doc #{ category => terms }.
 -spec size(Item) -> non_neg_integer() when
@@ -7371,10 +7385,10 @@ make_fun(_Module,_Function, _Arity) ->
 Creates a new tuple of the specified `Arity`, where all elements are
 `InitialValue`.
 
-For example:
+## Examples
 
 ```erlang
-> erlang:make_tuple(4, []).
+1> erlang:make_tuple(4, []).
 {[],[],[],[]}
 ```
 """.
@@ -7395,10 +7409,10 @@ a position in the newly created tuple and the second element is any term. If a
 position occurs more than once in the list, the term corresponding to the last
 occurrence is used.
 
-For example:
+## Examples
 
 ```erlang
-> erlang:make_tuple(5, [], [{2,ignored},{5,zz},{2,aa}]).
+1> erlang:make_tuple(5, [], [{2,ignored},{5,zz},{2,aa}]).
 {[],aa,[],[],zz}
 ```
 """.
@@ -12524,37 +12538,29 @@ rvrs([X|Xs],Ys) -> rvrs(Xs, [X|Ys]).
 
 %% Shadowed by erl_bif_types: erlang:min/2
 -doc """
-Returns the smallest of `Term1` and `Term2`. If the terms compare equal with the
-`==` operator, `Term1` is returned.
+Returns the smallest of `Term1` and `Term2`.
+
+If the terms compare equal with the `==` operator, `Term1` is returned.
 
 The [Expressions section](`e:system:expressions.md#term-comparisons`) contains
 descriptions of the `==` operator and how terms are ordered.
 
-Examples:
+> #### Change {: .info }
+>
+> Allowed in guards tests from Erlang/OTP 26.
+
+## Examples
 
 ```erlang
 > min(1, 2).
 1
-```
-
-```erlang
 > min(1.0, 1).
 1.0
-```
-
-```erlang
 > min(1, 1.0).
 1
-```
-
-```erlang
 > min("abc", "b").
 "abc"
 ```
-
-> #### Change {: .info }
->
-> Allowed in guards tests from Erlang/OTP 26.
 """.
 -doc #{ category => terms }.
 -spec min(Term1, Term2) -> Minimum when
@@ -12568,37 +12574,29 @@ min(A, _) -> A.
 
 %% Shadowed by erl_bif_types: erlang:max/2
 -doc """
-Returns the largest of `Term1` and `Term2`. If the terms compare equal with the
-`==` operator, `Term1` is returned.
+Returns the largest of `Term1` and `Term2`.
+
+If the terms compare equal with the `==` operator, `Term1` is returned.
 
 The [Expressions section](`e:system:expressions.md#term-comparisons`) contains
 descriptions of the `==` operator and how terms are ordered.
 
-Examples:
-
-```erlang
-> max(1, 2).
-2
-```
-
-```erlang
-> max(1.0, 1).
-1.0
-```
-
-```erlang
-> max(1, 1.0).
-1
-```
-
-```erlang
-> max("abc", "b").
-"b"
-```
-
 > #### Change {: .info }
 >
 > Allowed in guards tests from Erlang/OTP 26.
+
+## Examples:
+
+```erlang
+1> max(1, 2).
+2
+2> max(1.0, 1).
+1.0
+3> max(1, 1.0).
+1
+4> max("abc", "b").
+"b"
+```
 """.
 -doc #{ category => terms }.
 -spec max(Term1, Term2) -> Maximum when
