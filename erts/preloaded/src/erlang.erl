@@ -3480,14 +3480,13 @@ higher in the new tuple `Tuple2`.
 insert_element(_Index, _Tuple1, _Term) ->
     erlang:nif_error(undefined).
 
-%% integer_to_binary/1
 -doc """
 Returns a binary corresponding to the text representation of `Integer`.
 
-For example:
+## Examples
 
 ```erlang
-> integer_to_binary(77).
+1> integer_to_binary(77).
 <<"77">>
 ```
 """.
@@ -3498,14 +3497,13 @@ For example:
 integer_to_binary(_Integer) ->
     erlang:nif_error(undefined).
 
-%% integer_to_list/1
 -doc """
 Returns a string corresponding to the text representation of `Integer`.
 
-For example:
+## Examples
 
 ```erlang
-> integer_to_list(77).
+1> integer_to_list(77).
 "77"
 ```
 """.
@@ -3515,15 +3513,14 @@ For example:
 integer_to_list(_Integer) ->
     erlang:nif_error(undefined).
 
-%% iolist_size/1
 -doc """
-Returns an integer, that is the size in bytes, of the binary that would be the
-result of [`iolist_to_binary(Item)`](`iolist_to_binary/1`).
+Returns the size in bytes of the binary that would result from
+[`iolist_to_binary(Item)`](`iolist_to_binary/1`).
 
-For example:
+## Examples
 
 ```erlang
-> iolist_size([1,2|<<3,4>>]).
+1> iolist_size([1,2|<<3,4>>]).
 4
 ```
 """.
@@ -3533,21 +3530,20 @@ For example:
 iolist_size(_Item) ->
     erlang:nif_error(undefined).
 
-%% iolist_to_binary/1
 -doc """
 Returns a binary that is made from the integers and binaries in
 `IoListOrBinary`.
 
-For example:
+## Examples
 
 ```erlang
-> Bin1 = <<1,2,3>>.
+1> Bin1 = <<1,2,3>>.
 <<1,2,3>>
-> Bin2 = <<4,5>>.
+2> Bin2 = <<4,5>>.
 <<4,5>>
-> Bin3 = <<6>>.
+3> Bin3 = <<6>>.
 <<6>>
-> iolist_to_binary([Bin1,1,[2,3,Bin2],4|Bin3]).
+4> iolist_to_binary([Bin1,1,[2,3,Bin2],4|Bin3]).
 <<1,2,3,1,2,3,4,5,4,6>>
 ```
 """.
@@ -3560,27 +3556,35 @@ iolist_to_binary(_IoListOrBinary) ->
 %% iolist_to_iovec/1
 -doc """
 Returns an [iovec](`t:iovec/0`) that is made from the integers and binaries in
-`IoListOrBinary`. This function is useful when you want to flatten an iolist but
-you do not need a single binary. This can be useful for passing the data to nif
-functions such as [`enif_inspect_iovec`](erl_nif.md#enif_inspect_iovec) or do
-more efficient message passing. The advantage of using this function over
-`iolist_to_binary/1` is that it does not have to copy
-[off-heap binaries](`e:system:binaryhandling.md#refc_binary`).
+`IoListOrBinary`.
 
-For example:
+**FIXME**: Rewrite for clarity.
+
+This function is useful when you want to flatten an iolist but you do
+not need a single binary. This can be useful for passing the data to
+nif functions such as
+[`enif_inspect_iovec`](erl_nif.md#enif_inspect_iovec) or do more
+efficient message passing. The advantage of using this function over
+`iolist_to_binary/1` is that it does not have to copy [off-heap
+binaries](`e:system:binaryhandling.md#refc_binary`).
+
+## Examples
 
 ```erlang
-> Bin1 = <<1,2,3>>.
+1> Bin1 = <<1,2,3>>.
 <<1,2,3>>
-> Bin2 = <<4,5>>.
+2> Bin2 = <<4,5>>.
 <<4,5>>
-> Bin3 = <<6>>.
+3> Bin3 = <<6>>.
 <<6>>
 %% If you pass small binaries and integers it works as iolist_to_binary
-> erlang:iolist_to_iovec([Bin1,1,[2,3,Bin2],4|Bin3]).
+4> erlang:iolist_to_iovec([Bin1,1,[2,3,Bin2],4|Bin3]).
 [<<1,2,3,1,2,3,4,5,4,6>>]
-%% If you pass larger binaries, they are split and returned in a form
-%% optimized for calling the C function writev.
+```
+
+If you pass larger binaries, they are split and returned in a form
+optimized for calling the C function writev.
+```erlang
 > erlang:iolist_to_iovec([<<1>>,<<2:8096>>,<<3:8096>>]).
 [<<1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
    0,...>>,
@@ -6846,6 +6850,17 @@ is_atom(_Term) ->
 Returns `true` if `Term` is a binary, otherwise `false`.
 
 A binary always contains a complete number of bytes.
+
+## Examples
+
+```erlang
+1> is_binary(42).
+false
+2> is_binary(<<1,2,3>>).
+true
+3> is_binary(<<7:12>>).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_binary(Term) -> boolean() when
@@ -6856,6 +6871,17 @@ is_binary(_Term) ->
 %% Shadowed by erl_bif_types: erlang:is_bitstring/1
 -doc """
 Returns `true` if `Term` is a bitstring (including a binary), otherwise `false`.
+
+## Examples
+
+```erlang
+1> is_bitstring(42).
+false
+2> is_bitstring(<<1,2,3>>).
+true
+3> is_bitstring(<<7:12>>).
+true
+```
 """.
 -doc #{ category => terms }.
 -spec is_bitstring(Term) -> boolean() when
@@ -12157,10 +12183,10 @@ get_cookie(Node) ->
 Returns a string corresponding to the text representation of `Integer` in base
 `Base`.
 
-For example:
+## Examples
 
 ```erlang
-> integer_to_list(1023, 16).
+1> integer_to_list(1023, 16).
 "3FF"
 ```
 """.
@@ -12175,10 +12201,10 @@ integer_to_list(_I, _Base) ->
 Returns a binary corresponding to the text representation of `Integer` in base
 `Base`.
 
-For example:
+## Examples
 
 ```erlang
-> integer_to_binary(1023, 16).
+1> integer_to_binary(1023, 16).
 <<"3FF">>
 ```
 """.
