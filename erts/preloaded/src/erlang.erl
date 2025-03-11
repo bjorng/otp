@@ -853,7 +853,6 @@ binary_to_atom(Binary) ->
 	error:Error -> error_with_info(Error, [Binary])
     end.
 
-%% binary_to_atom/2
 -doc """
 Returns the atom whose text representation is `Binary`, creating a new
 atom if necessary.
@@ -896,7 +895,6 @@ UTF-8 sequences.
 binary_to_atom(_Binary, _Encoding) ->
     erlang:nif_error(undefined).
 
-%% binary_to_existing_atom/1
 -doc(#{ equiv => binary_to_existing_atom(Binary, utf8) }).
 -doc(#{since => <<"OTP 23.0">>}).
 -doc #{ category => terms }.
@@ -909,7 +907,6 @@ binary_to_existing_atom(Binary) ->
 	error:Error -> error_with_info(Error, [Binary])
     end.
 
-%% binary_to_existing_atom/2
 -doc """
 Returns the atom whose text representation is `Binary` provided that such
 atom already exists.
@@ -946,6 +943,20 @@ Failure: `badarg` if the atom does not exist.
 > The number of characters that are permitted in an atom name is limited. The
 > default limits can be found in the
 > [Efficiency Guide (section System Limits)](`e:system:system_limits.md`).
+
+## Examples
+
+```erlang
+1> binary_to_existing_atom(~"definitely_not_existing_at_all", utf8).
+** exception error: bad argument
+     in function  binary_to_existing_atom/2
+        called as binary_to_existing_atom(<<"definitely_not_existing_at_all">>,utf8)
+        *** argument 1: not an already existing atom
+2> hello.
+hello
+3> binary_to_existing_atom(~"hello", utf8).
+hello
+```
 """.
 -doc #{ category => terms }.
 -spec binary_to_existing_atom(Binary, Encoding) -> atom() when
@@ -973,7 +984,6 @@ Failure: `badarg` if `Binary` contains a bad representation of a float.
 3> binary_to_float(<<"2.2017764e+1">>).
 22.017764
 ```
-
 """.
 -doc(#{since => <<"OTP R16B">>}).
 -doc #{ category => terms }.
@@ -3817,9 +3827,9 @@ Currently available options:
 link(_PidOrPort, _OptList) ->
     erlang:nif_error(undefined).
 
-%% list_to_atom/1
 -doc """
-Returns the atom whose text representation is `String`.
+Returns the atom whose text representation is `String`, creating a new
+atom if necessary.
 
 As from Erlang/OTP 20, `String` may contain any Unicode character. Earlier
 versions allowed only ISO-latin-1 characters as the implementation did not allow
@@ -3827,24 +3837,24 @@ Unicode characters above 255.
 
 > #### Note {: .info }
 >
-> The number of characters that are permitted in an atom name is limited. The
-> default limits can be found in the
-> [efficiency guide (section System Limits)](`e:system:system_limits.md`).
-
-> #### Note {: .info }
+> Note that once an atom is created, it cannot be deleted.
+> The Erlang system has a
+> [configurable limit](`e:system:system_limits.md#atoms`)
+> on the number of atoms that can exist.
+> To avoid reaching this limit, consider whether
+> [`list_to_existing_atom/1`](`list_to_existing_atom/1`) is a better choice
+> than [`list_to_atom/1`](`list_to_atom/1`).
 >
-> There is a [configurable limit](`e:system:system_limits.md#atoms`)
-> on how many atoms that can exist and atoms are not
-> garbage collected. Therefore, it is recommended to consider if
-> `list_to_existing_atom/1` is a better option than
-> [`list_to_atom/1`](`list_to_atom/1`). The default limits can be found in the
-> [Efficiency Guide (section System Limits)](`e:system:system_limits.md`).
+> The number of characters that are permitted in an atom name is
+> [limited](`e:system:system_limits.md#atom_name_limit`).
 
-Example:
+## Examples
 
 ```erlang
-> list_to_atom("Erlang").
+1> list_to_atom("Erlang").
 'Erlang'
+2> list_to_atom([960]).
+'π'
 ```
 """.
 -doc #{ category => terms }.
@@ -3853,20 +3863,19 @@ Example:
 list_to_atom(_String) ->
     erlang:nif_error(undefined).
 
-%% list_to_binary/1
 -doc """
-Returns a binary that is made from the integers and binaries in `IoList`.
+Returns a binary made from the integers and binaries in `IoList`.
 
-For example:
+## Examples
 
 ```erlang
-> Bin1 = <<1,2,3>>.
+1> Bin1 = <<1,2,3>>.
 <<1,2,3>>
-> Bin2 = <<4,5>>.
+2> Bin2 = <<4,5>>.
 <<4,5>>
-> Bin3 = <<6>>.
+3> Bin3 = <<6>>.
 <<6>>
-> list_to_binary([Bin1,1,[2,3,Bin2],4|Bin3]).
+4> list_to_binary([Bin1,1,[2,3,Bin2],4|Bin3]).
 <<1,2,3,1,2,3,4,5,4,6>>
 ```
 """.
@@ -3876,22 +3885,22 @@ For example:
 list_to_binary(_IoList) ->
     erlang:nif_error(undefined).
 
-%% list_to_bitstring/1
 -doc """
-Returns a bitstring that is made from the integers and bitstrings in
-`BitstringList`. (The last tail in `BitstringList` is allowed to be a
-bitstring.)
+Returns a bitstring made from the integers and bitstrings in
+`BitstringList`.
 
-For example:
+The last tail in `BitstringList` is allowed to be a bitstring.
+
+## Examples
 
 ```erlang
-> Bin1 = <<1,2,3>>.
+1> Bin1 = <<1,2,3>>.
 <<1,2,3>>
-> Bin2 = <<4,5>>.
+2> Bin2 = <<4,5>>.
 <<4,5>>
-> Bin3 = <<6,7:4>>.
+3> Bin3 = <<6,7:4>>.
 <<6,7:4>>
-> list_to_bitstring([Bin1,1,[2,3,Bin2],4|Bin3]).
+4> list_to_bitstring([Bin1,1,[2,3,Bin2],4|Bin3]).
 <<1,2,3,1,2,3,4,5,4,6,7:4>>
 ```
 """.
@@ -3901,11 +3910,12 @@ For example:
 list_to_bitstring(_BitstringList) ->
     erlang:nif_error(undefined).
 
-%% list_to_existing_atom/1
 -doc """
 Returns the atom whose text representation is `String`, but only if there
-already exists such atom. An atom exists if it has been created by the run-time
-system by either loading code or creating a term in which the atom is part.
+already exists such atom.
+
+An atom exists if it has been created by the run-time system by either
+loading code or creating a term in which the atom is part.
 
 Failure: `badarg` if there does not already exist an atom whose text
 representation is `String`.
@@ -3918,6 +3928,18 @@ representation is `String`.
 > module, the atom will not be created when the module is loaded, and a
 > subsequent call to
 > [`list_to_existing_atom("some_atom")`](`list_to_existing_atom/1`) will fail.
+
+```erlang
+1> list_to_existing_atom("a_blatal_DOS_attack").
+** exception error: bad argument
+     in function  list_to_existing_atom/1
+        called as list_to_existing_atom("a_blatal_DOS_attack")
+        *** argument 1: not an already existing atom
+2> hello.
+hello
+3> list_to_existing_atom("hello").
+hello
+```
 """.
 -doc #{ category => terms }.
 -spec list_to_existing_atom(String) -> atom() when
@@ -3927,12 +3949,12 @@ list_to_existing_atom(_String) ->
 
 %% list_to_float/1
 -doc """
-Returns the float whose text representation is `String`. 
+Returns the float whose text representation is `String`.
 
-For example:
+## Examples
 
 ```erlang
-> list_to_float("2.2017764e+0").
+1> list_to_float("2.2017764e+0").
 2.2017764
 ```
 
@@ -3952,28 +3974,22 @@ list_to_float(_String) ->
 -doc """
 Returns an integer whose text representation is `String`.
 
-For example:
-
-```erlang
-> list_to_integer("123").
-123
-```
-
-```erlang
-> list_to_integer("-123").
--123
-```
-
-```erlang
-> list_to_integer("+123234982304982309482093833234234").
-123234982304982309482093833234234
-```
-
 `String` must contain at least one digit character and can have an optional
 prefix consisting of a single "`+`" or "`-`" character (that is, `String` must
 match the regular expression `"^[+-]?[0-9]+$"`).
 
 Failure: `badarg` if `String` contains a bad representation of an integer.
+
+## Examples
+
+```erlang
+1> list_to_integer("123").
+123
+2> list_to_integer("-123").
+-123
+3> list_to_integer("+123234982304982309482093833234234").
+123234982304982309482093833234234
+```
 """.
 -doc #{ category => terms }.
 -spec list_to_integer(String) -> integer() when
