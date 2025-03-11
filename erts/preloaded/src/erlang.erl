@@ -3696,11 +3696,16 @@ is_process_alive(_Pid) ->
 -doc """
 Returns the length of `List`.
 
-For example:
+## Examples
 
 ```erlang
-> length([1,2,3,4,5,6,7,8,9]).
+1> length([1,2,3,4,5,6,7,8,9]).
 9
+2> length([a,b|c]).
+** exception error: bad argument
+     in function  length/1
+        called as length([a,b|c])
+        *** argument 1: not a list
 ```
 """.
 -doc #{ category => terms }.
@@ -7097,7 +7102,17 @@ is_map(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_port/1
 -doc """
-Returns `true` if `Term` is a port identifier, otherwise `false`.
+Returns `true` if `Term` is a port identifier; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> APort = hd(erlang:ports()).
+2> is_port(APort).
+true
+3> is_port(self()).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_port(Term) -> boolean() when
@@ -7107,21 +7122,21 @@ is_port(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_record/2
 -doc """
-Returns `true` if `Term` is a tuple and its first element is `RecordTag`.
-Otherwise returns `false`.
+Returns `true` if `Term` is a tuple and its first element is `RecordTag`;
+otherwise, returns `false`.
 
 > #### Note {: .info }
 >
-> Normally the compiler treats calls to [`is_record/2`](`is_record/2`)
-> especially. It emits code to verify that `Term` is a tuple, that its first
-> element is `RecordTag`, and that the size is correct. However, if `RecordTag`
+> Normally, the compiler treats calls to [`is_record/2`](`is_record/2`)
+> specially. It emits code to verify that `Term` is a tuple, its first
+> element is `RecordTag`, and its the size is correct. However, if `RecordTag`
 > is not a literal atom, the BIF [`is_record/2`](`is_record/2`) is called
 > instead and the size of the tuple is not verified.
 
 Allowed in guard tests, if `RecordTag` is a literal atom.
 """.
 -doc #{ category => terms }.
--spec is_record(Term,RecordTag) -> boolean() when
+-spec is_record(Term, RecordTag) -> boolean() when
       Term :: term(),
       RecordTag :: atom().
 is_record(_Term,_RecordTag) ->
@@ -7129,10 +7144,8 @@ is_record(_Term,_RecordTag) ->
 
 %% Shadowed by erl_bif_types: erlang:is_record/3
 -doc """
-`RecordTag` must be an atom.
-
 Returns `true` if `Term` is a tuple, its first element is `RecordTag`, and its
-size is `Size`. Otherwise returns `false`.
+size is `Size`; Otherwise, returns `false`.
 
 Allowed in guard tests if `RecordTag` is a literal atom and `Size` is a literal
 integer.
@@ -7143,7 +7156,7 @@ integer.
 > [`is_record/2`](`is_record/2`) is to be used.
 """.
 -doc #{ category => terms }.
--spec is_record(Term,RecordTag,Size) -> boolean() when
+-spec is_record(Term, RecordTag, Size) -> boolean() when
       Term :: term(),
       RecordTag :: atom(),
       Size :: non_neg_integer().
@@ -7152,7 +7165,16 @@ is_record(_Term,_RecordTag,_Size) ->
 
 %% Shadowed by erl_bif_types: erlang:is_reference/1
 -doc """
-Returns `true` if `Term` is a reference, otherwise `false`.
+Returns `true` if `Term` is a reference; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_reference(make_ref()).
+true
+2> is_reference(self()).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_reference(Term) -> boolean() when
@@ -7162,7 +7184,16 @@ is_reference(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_tuple/1
 -doc """
-Returns `true` if `Term` is a tuple, otherwise `false`.
+Returns `true` if `Term` is a tuple; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_tuple({a, b, c}).
+true
+2> is_tuple([a, b, c]).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_tuple(Term) -> boolean() when
