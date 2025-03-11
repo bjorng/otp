@@ -6891,8 +6891,18 @@ is_bitstring(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_boolean/1
 -doc """
-Returns `true` if `Term` is the atom `true` or the atom `false` (that is, a
-boolean). Otherwise returns `false`.
+Returns `true` if `Term` is the atom `true` or `false`; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_boolean(true).
+true
+2> is_boolean(false).
+true
+3> is_boolean(ok).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_boolean(Term) -> boolean() when
@@ -6902,7 +6912,18 @@ is_boolean(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_float/1
 -doc """
-Returns `true` if `Term` is a floating point number, otherwise `false`.
+Returns `true` if `Term` is a floating point number; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_float(42).
+false
+2> is_float(42.0).
+true
+3> is_float(zero).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_float(Term) -> boolean() when
@@ -6912,7 +6933,18 @@ is_float(_Term) ->
 
 %% Shadowed by erl_bif_types: erlang:is_function/1
 -doc """
-Returns `true` if `Term` is a fun, otherwise `false`.
+Returns `true` if `Term` is a fun; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_function(fun() -> ok end).
+true
+2> is_function(fun lists:sum/1).
+true
+3> is_function({lists,sum}).
+false
+```
 """.
 -doc #{ category => terms }.
 -spec is_function(Term) -> boolean() when
@@ -6923,7 +6955,27 @@ is_function(_Term) ->
 %% Shadowed by erl_bif_types: erlang:is_function/2
 -doc """
 Returns `true` if `Term` is a fun that can be applied with `Arity` number of
-arguments, otherwise `false`.
+arguments; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_function(fun() -> ok end, 0).
+true
+2> is_function(fun lists:sum/1, 1).
+true
+3> is_function({lists,sum}, 1).
+false
+4> is_function(fun lists:sum/1, -1).
+** exception error: bad argument
+     in function  is_function/2
+        called as is_function(fun lists:sum/1,-1)
+        *** argument 2: out of range
+5> is_function(fun lists:sum/1, bad_arity).
+** exception error: bad argument
+     in function  is_function/2
+        called as is_function(fun lists:sum/1,bad_arity)
+        *** argument 2: not an integer
 """.
 -doc #{ category => terms }.
 -spec is_function(Term, Arity) -> boolean() when
