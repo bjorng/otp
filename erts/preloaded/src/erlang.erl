@@ -4020,37 +4020,30 @@ list_to_integer(String) ->
 -doc """
 Returns an integer whose text representation in base `Base` is `String`.
 
-For example:
+`String` must contain at least one digit character and can have an optional
+prefix consisting of a single "`+`" or "`-`" character.
+
+Failure: `badarg` if `String` contains an invalid integer representation.
+
+## Examples
 
 ```erlang
-> list_to_integer("3FF", 16).
+1> list_to_integer("3FF", 16).
 1023
-```
-
-```erlang
-> list_to_integer("+3FF", 16).
+2> list_to_integer("+3FF", 16).
 1023
-```
-
-```erlang
-> list_to_integer("3ff", 16).
+3> list_to_integer("3ff", 16).
 1023
-```
-
-```erlang
-> list_to_integer("3fF", 16).
-1023
-```
-
-```erlang
-> list_to_integer("-3FF", 16).
+4> list_to_integer("-3FF", 16).
 -1023
+5> list_to_integer("Base36IsFun", 36).
+41313437507787071
+6> list_to_integer("102", 2).
+** exception error: bad argument
+     in function  list_to_integer/2
+        called as list_to_integer("102",2)
+        *** argument 1: not a textual representation of an integer
 ```
-
-For example, when `Base` is 16, `String` must match the regular expression
-`"^[+-]?([0-9]|[A-F]|[a-f])+$"`.
-
-Failure: `badarg` if `String` contains a bad representation of an integer.
 """.
 -doc #{ category => terms }.
 -spec list_to_integer(String, Base) -> integer() when
@@ -4077,24 +4070,23 @@ list_to_integer(String, Base) ->
             badarg_with_info([String,Base])
     end.
 
-%% list_to_pid/1
 -doc """
 Returns a process identifier whose text representation is a `String`.
 
-For example:
-
-```erlang
-> list_to_pid("<0.4.1>").
-<0.4.1>
-```
-
-Failure: `badarg` if `String` contains a bad representation of a process
+Failure: `badarg` if `String` contains an invalid representation of a process
 identifier.
 
 > #### Warning {: .warning }
 >
 > This BIF is intended for debugging and is not to be used in application
 > programs.
+
+## Examples
+
+```erlang
+> list_to_pid("<0.4.1>").
+<0.4.1>
+```
 """.
 -doc #{ category => terms }.
 -spec list_to_pid(String) -> pid() when
@@ -4102,16 +4094,8 @@ identifier.
 list_to_pid(_String) ->
     erlang:nif_error(undefined).
 
-%% list_to_port/1
 -doc """
 Returns a port identifier whose text representation is a `String`.
-
-For example:
-
-```erlang
-> list_to_port("#Port<0.4>").
-#Port<0.4>
-```
 
 Failure: `badarg` if `String` contains a bad representation of a port
 identifier.
@@ -4120,6 +4104,14 @@ identifier.
 >
 > This BIF is intended for debugging and is not to be used in application
 > programs.
+
+## Examples
+
+```erlang
+> list_to_port("#Port<0.4>").
+#Port<0.4>
+```
+
 """.
 -doc(#{since => <<"OTP 20.0">>}).
 -doc #{ category => terms }.
@@ -4127,17 +4119,9 @@ identifier.
       String :: string().
 list_to_port(_String) ->
     erlang:nif_error(undefined).
- 
-%% list_to_ref/1
+
 -doc """
 Returns a reference whose text representation is a `String`.
-
-For example:
-
-```erlang
-> list_to_ref("#Ref<0.4192537678.4073193475.71181>").
-#Ref<0.4192537678.4073193475.71181>
-```
 
 Failure: `badarg` if `String` contains a bad representation of a reference.
 
@@ -4145,6 +4129,13 @@ Failure: `badarg` if `String` contains a bad representation of a reference.
 >
 > This BIF is intended for debugging and is not to be used in application
 > programs.
+
+## Examples
+
+```erlang
+> list_to_ref("#Ref<0.4192537678.4073193475.71181>").
+#Ref<0.4192537678.4073193475.71181>
+```
 """.
 -doc(#{since => <<"OTP 20.0">>}).
 -doc #{ category => terms }.
@@ -4155,14 +4146,14 @@ list_to_ref(_String) ->
 
 %% list_to_tuple/1
 -doc """
-Returns a tuple corresponding to `List`, for example
+Returns a tuple whose are the elements of `List`.
+
+## Examples
 
 ```erlang
-> list_to_tuple([share, ['Ericsson_B', 163]]).
+1> list_to_tuple([share, ['Ericsson_B', 163]]).
 {share, ['Ericsson_B', 163]}
 ```
-
-`List` can contain any Erlang terms.
 """.
 -doc #{ category => terms }.
 -spec list_to_tuple(List) -> tuple() when
@@ -4205,16 +4196,23 @@ The return value is based on the
 localtime() ->
     erlang:nif_error(undefined).
 
-%% make_ref/0
 -doc """
-Returns a [unique reference](`e:system:system_limits.md#unique_references`). The
-reference is unique among connected nodes.
+Returns a [unique reference](`e:system:system_limits.md#unique_references`).
+
+The reference is unique among connected nodes.
 
 > #### Warning {: .warning }
 >
-> Before OTP 23 when a node is restarted multiple times with the same node name,
-> references created on a newer node can be mistaken for a reference created on
-> an older node with the same node name.
+> Before OTP 23, if a node was restarted multiple times with the same
+> node name, references created on a newer instance could be mistaken
+> for those created on an older instance with the same name.
+
+## Examples
+
+```erlang
+1> is_reference(make_ref()).
+true
+```
 """.
 -doc #{ category => terms }.
 -spec make_ref() -> reference().
@@ -4223,12 +4221,12 @@ make_ref() ->
 
 %% Shadowed by erl_bif_types: erlang:map_size/1
 -doc """
-Returns an integer, which is the number of key-value pairs in `Map`.
+Returns the number of key-value pairs in `Map`.
 
-For example:
+## Examples
 
 ```erlang
-> map_size(#{a=>1, b=>2, c=>3}).
+1> map_size(#{a=>1, b=>2, c=>3}).
 3
 ```
 """.
@@ -4246,13 +4244,18 @@ Returns value `Value` associated with `Key` if `Map` contains `Key`.
 The call fails with a `{badmap,Map}` exception if `Map` is not a map, or with a
 `{badkey,Key}` exception if no value is associated with `Key`.
 
-_Example:_
+## Examples
 
 ```erlang
-> Key = 1337,
-  Map = #{42 => value_two,1337 => "value one","a" => 1},
-  map_get(Key,Map).
+1> Key = 1337.
+2> Map = #{42 => value_two,Key => "value one","a" => 1}.
+3> map_get(Key, Map).
 "value one"
+4> map_get(unknown_key, Map).
+** exception error: bad key: unknown_key
+     in function  map_get/2
+        called as map_get(unknown_key,#{42 => value_two,1337 => "value one","a" => 1})
+        *** argument 1: not present in map
 ```
 """.
 -doc(#{since => <<"OTP 21.0">>}).
