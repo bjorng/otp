@@ -863,6 +863,12 @@ glb(#t_bs_matchable{tail_unit=UnitA},
 glb(#t_bs_matchable{tail_unit=UnitA}, #t_bs_context{tail_unit=UnitB}=T) ->
     Unit = UnitA * UnitB div gcd(UnitA, UnitB),
     T#t_bs_context{tail_unit=Unit};
+glb(#t_bitstring{size_unit=UnitA}, #t_bs_context{tail_unit=UnitB}) ->
+    Unit = UnitA * UnitB div gcd(UnitA, UnitB),
+    #t_bs_context{tail_unit=Unit};
+glb(#t_bs_context{tail_unit=UnitA}, #t_bitstring{size_unit=UnitB}) ->
+    Unit = UnitA * UnitB div gcd(UnitA, UnitB),
+    #t_bs_context{tail_unit=Unit};
 glb(#t_cons{type=TypeA,terminator=TermA},
     #t_cons{type=TypeB,terminator=TermB}) ->
     %% Note the use of meet/2; elements don't need to be normal types.
@@ -1046,7 +1052,9 @@ lub(#t_bitstring{size_unit=UnitA}, #t_bs_matchable{tail_unit=UnitB}) ->
 lub(#t_bs_context{tail_unit=UnitA}, #t_bs_context{tail_unit=UnitB}) ->
     #t_bs_context{tail_unit=gcd(UnitA, UnitB)};
 lub(#t_bs_context{tail_unit=U1}, #t_bitstring{size_unit=U2}) ->
-    #t_bs_matchable{tail_unit=gcd(U1, U2)};
+    #t_bitstring{size_unit=gcd(U1, U2)};
+lub(#t_bitstring{size_unit=U1}, #t_bs_context{tail_unit=U2}) ->
+    #t_bitstring{size_unit=gcd(U1, U2)};
 lub(#t_bs_context{tail_unit=UnitA}, #t_bs_matchable{tail_unit=UnitB}) ->
     lub_bs_matchable(UnitA, UnitB);
 lub(#t_bs_matchable{tail_unit=UnitA}, #t_bs_matchable{tail_unit=UnitB}) ->
