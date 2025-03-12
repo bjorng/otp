@@ -2583,35 +2583,47 @@ ssa_opt_bsm_ctx_calls_fixup(StMap, FuncDb) ->
 
 ssa_opt_bsm_ctx_calls_fixup_funs([F|Funs], StMap, FuncDb) ->
     #{F:=#opt_st{ssa=Linear0,cnt=Cnt0}=OptSt0} = StMap,
-    {Linear,Cnt} = ssa_opt_bsm_ctx_calls_fixup_bs(Linear0, Cnt0, []),
+    {Linear,Cnt} = ssa_opt_bsm_ctx_calls_fixup_bs(Linear0, Cnt0, [], FuncDb),
     OptSt = OptSt0#opt_st{ssa=Linear,cnt=Cnt},
     ssa_opt_bsm_ctx_calls_fixup_funs(Funs, StMap#{F=>OptSt}, FuncDb);
 ssa_opt_bsm_ctx_calls_fixup_funs([], StMap, FuncDb) ->
     {StMap, FuncDb}.
 
-ssa_opt_bsm_ctx_calls_fixup_bs([{L,#b_blk{is=Is0}=Blk}|Rest], Cnt0, Acc) ->
-    {Is,Cnt} = ssa_opt_bsm_ctx_calls_fixup_is(Is0, Cnt0, []),
-    ssa_opt_bsm_ctx_calls_fixup_bs(Rest, Cnt, [{L,Blk#b_blk{is=Is}}|Acc]);
-ssa_opt_bsm_ctx_calls_fixup_bs([], Cnt, Acc) ->
+ssa_opt_bsm_ctx_calls_fixup_bs([{L,#b_blk{is=Is0}=Blk}|Rest],
+                               Cnt0, Acc, FuncDb) ->
+    {Is,Cnt} = ssa_opt_bsm_ctx_calls_fixup_is(Is0, Cnt0, [], FuncDb),
+    ssa_opt_bsm_ctx_calls_fixup_bs(Rest, Cnt,
+                                   [{L,Blk#b_blk{is=Is}}|Acc], FuncDb);
+ssa_opt_bsm_ctx_calls_fixup_bs([], Cnt, Acc, _FuncDb) ->
     {reverse(Acc), Cnt}.
 
 ssa_opt_bsm_ctx_calls_fixup_is(
   [#b_set{op=call,
           args=[Callee|Args0],
           anno=#{arg_types:=ArgTypes0}=Anno0}=I0|Is],
-  Cnt0, Acc0) ->
+  Cnt0, Acc0, FuncDb) ->
     %% TODO: Whatever should we do if there is no type info?
     Aliased0 = maps:get(aliased, Anno0, []),
     Unique0 = maps:get(unique, Anno0, []),
+
     IsLocalCall = case Callee of
-                      #b_local{} -> true;
-                      _ -> false
+                      #b_local{} ->
+                          %% If the function we call is local and
+                          %% exported, we can treat it as a remote
+                          %% call as it must be able to handle both
+                          %% match contexts and bit strings.
+                          case FuncDb of
+                              #{Callee:=#func_info{exported=E}} -> not E;
+                              #{} -> false
+                          end;
+                      _ ->
+                          false
                   end,
     case ssa_opt_bsm_ctx_calls_fixup_args(Args0, IsLocalCall,
                                           ArgTypes0, Aliased0, Unique0,
                                           Cnt0, 1, [], [], #{}) of
         {[],_,_,_,Cnt0} ->
-            ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt0, [I0|Acc0]);
+            ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt0, [I0|Acc0], FuncDb);
         {ExtraIs,Args,ArgTypes,Aliased,Unique,Cnt} ->
             Acc = ExtraIs ++ Acc0,
             Anno1 = Anno0#{arg_types=>ArgTypes},
@@ -2628,11 +2640,11 @@ ssa_opt_bsm_ctx_calls_fixup_is(
                            Anno2#{unique=>Unique}
                    end,
             I = I0#b_set{args=[Callee|Args],anno=Anno},
-            ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt, [I|Acc])
+            ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt, [I|Acc], FuncDb)
     end;
-ssa_opt_bsm_ctx_calls_fixup_is([I|Is], Cnt, Acc) ->
-    ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt, [I|Acc]);
-ssa_opt_bsm_ctx_calls_fixup_is([], Cnt, Acc) ->
+ssa_opt_bsm_ctx_calls_fixup_is([I|Is], Cnt, Acc, FuncDb) ->
+    ssa_opt_bsm_ctx_calls_fixup_is(Is, Cnt, [I|Acc], FuncDb);
+ssa_opt_bsm_ctx_calls_fixup_is([], Cnt, Acc, _FuncDb) ->
     {reverse(Acc), Cnt}.
 
 %% TODO: refactor to avoid the duplicated handling of local calls.
