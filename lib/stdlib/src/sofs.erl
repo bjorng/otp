@@ -119,22 +119,31 @@
 
 -doc "Any kind of set (also included are the atomic sets).".
 -type(anyset() :: ordset() | a_set()).
+
 -doc "A [binary relation](`m:sofs#binary_relation`).".
 -type(binary_relation() :: relation()).
+
 -doc "An [external set](`m:sofs#external_set`).".
 -type(external_set() :: term()).
+
 -doc "A [function](`m:sofs#function`).".
 -type(a_function() :: relation()).
+
 -doc "A [family](`m:sofs#family`) (of subsets).".
 -type(family() :: a_function()).
+
 -doc "An [ordered set](`m:sofs#sets_definition`).".
 -opaque(ordset() :: #?ORDTAG{}).
+
 -doc "An [n-ary relation](`m:sofs#n_ary_relation`).".
 -type(relation() :: a_set()).
+
 -doc "An [unordered set](`m:sofs#sets_definition`).".
 -opaque(a_set() :: #?TAG{}).
+
 -doc "An [unordered set](`m:sofs#sets_definition`) of unordered sets.".
 -type(set_of_sets() :: a_set()).
+
 -doc "A [SetFun](`m:sofs#set_fun`).".
 -type(set_fun() :: pos_integer()
                  | {external, fun((external_set()) -> external_set())}
@@ -184,7 +193,7 @@ following example where `"foo"` and `{"foo"}` are left unmodified:
 [{{"foo"},[1]},{"foo",[2]}]
 ```
 
-`from_term` can be used for creating atomic or ordered sets. The only purpose of
+`from_term/1` can be used for creating atomic or ordered sets. The only purpose of
 such a set is that of later building unordered sets, as all functions in this
 module that _do_ anything operate on unordered sets. Creating unordered sets
 from a collection of ordered sets can be the way to go if the ordered sets are
