@@ -1551,9 +1551,9 @@ If `SetFun` is a number i >= 1 and `Set1` is a relation, then the returned set
 is the [projection](`m:sofs#projection`) of `Set1` onto coordinate i.
 
 ```erlang
-1> S1 = sofs:from_term([{1,a},{2,b},{3,a}]),
-S2 = sofs:projection(2, S1),
-sofs:to_external(S2).
+1> S1 = sofs:from_term([{1,a},{2,b},{3,a}]).
+2> S2 = sofs:projection(2, S1).
+3> sofs:to_external(S2).
 [a,b]
 ```
 """.
@@ -1583,20 +1583,20 @@ the domain is the result of applying `SetFun` to the element.
 ```erlang
 1> L = [{a,1},{b,2}].
 [{a,1},{b,2}]
-2> sofs:to_external(sofs:projection(1,sofs:relation(L))).
+2> sofs:to_external(sofs:projection(1, sofs:relation(L))).
 [a,b]
-3> sofs:to_external(sofs:substitution(1,sofs:relation(L))).
+3> sofs:to_external(sofs:substitution(1, sofs:relation(L))).
 [{{a,1},a},{{b,2},b}]
 4> SetFun = {external, fun({A,_}=E) -> {E,A} end},
-sofs:to_external(sofs:projection(SetFun,sofs:relation(L))).
+sofs:to_external(sofs:projection(SetFun, sofs:relation(L))).
 [{{a,1},a},{{b,2},b}]
 ```
 
 The relation of equality between the elements of \{a,b,c\}:
 
 ```erlang
-1> I = sofs:substitution(fun(A) -> A end, sofs:set([a,b,c])),
-sofs:to_external(I).
+1> I = sofs:substitution(fun(A) -> A end, sofs:set([a,b,c])).
+2> sofs:to_external(I).
 [{a,a},{b,b},{c,c}]
 ```
 
@@ -1673,10 +1673,10 @@ Returns the [partition](`m:sofs#partition`) of the union of the set of sets
 same elements of `SetOfSets`.
 
 ```erlang
-1> Sets1 = sofs:from_term([[a,b,c],[d,e,f],[g,h,i]]),
-Sets2 = sofs:from_term([[b,c,d],[e,f,g],[h,i,j]]),
-P = sofs:partition(sofs:union(Sets1, Sets2)),
-sofs:to_external(P).
+1> Sets1 = sofs:from_term([[a,b,c],[d,e,f],[g,h,i]]).
+2> Sets2 = sofs:from_term([[b,c,d],[e,f,g],[h,i,j]]).
+3> P = sofs:partition(sofs:union(Sets1, Sets2)).
+4> sofs:to_external(P).
 [[a],[b,c],[d],[e,f],[g],[h,i],[j]]
 ```
 """.
@@ -1693,10 +1693,10 @@ Returns the [partition](`m:sofs#partition`) of `Set` such that two elements are
 considered equal if the results of applying `SetFun` are equal.
 
 ```erlang
-1> Ss = sofs:from_term([[a],[b],[c,d],[e,f]]),
-SetFun = fun(S) -> sofs:from_term(sofs:no_elements(S)) end,
-P = sofs:partition(SetFun, Ss),
-sofs:to_external(P).
+1> Ss = sofs:from_term([[a],[b],[c,d],[e,f]]).
+2> SetFun = fun(S) -> sofs:from_term(sofs:no_elements(S)) end.
+3> P = sofs:partition(SetFun, Ss).
+4> sofs:to_external(P).
 [[[a],[b]],[[c,d],[e,f]]]
 ```
 """.
@@ -2189,10 +2189,10 @@ the family such that the index set is equal to the index set of `Family1`, and
 `Family2` maps i, otherwise `Family1[i]`.
 
 ```erlang
-1> F1 = sofs:family([{a,[1,2]},{b,[3,4]}]),
-F2 = sofs:family([{b,[4,5]},{c,[6,7]}]),
-F3 = sofs:family_difference(F1, F2),
-sofs:to_external(F3).
+1> F1 = sofs:family([{a,[1,2]},{b,[3,4]}]).
+2> F2 = sofs:family([{b,[4,5]},{c,[6,7]}]).
+3> F3 = sofs:family_difference(F1, F2).
+4> sofs:to_external(F3).
 [{a,[1,2]},{b,[3]}]
 ```
 """.
@@ -2218,15 +2218,16 @@ fam_binop(F1, F2, FF) when ?IS_SET(F1), ?IS_SET(F2) ->
 -doc """
 Returns [family](`m:sofs#family`) `Family` where the indexed set is a
 [partition](`m:sofs#partition`) of `Set` such that two elements are considered
-equal if the results of applying `SetFun` are the same value i. This i is the
-index that `Family` maps onto the
-[equivalence class](`m:sofs#equivalence_class`).
+equal if the results of applying `SetFun` are the same value i.
+
+This is the index that `Family` maps onto the [equivalence
+class](`m:sofs#equivalence_class`).
 
 ```erlang
-1> S = sofs:relation([{a,a,a,a},{a,a,b,b},{a,b,b,b}]),
-SetFun = {external, fun({A,_,C,_}) -> {A,C} end},
-F = sofs:partition_family(SetFun, S),
-sofs:to_external(F).
+1> S = sofs:relation([{a,a,a,a},{a,a,b,b},{a,b,b,b}]).
+2> SetFun = {external, fun({A,_,C,_}) -> {A,C} end}.
+3> F = sofs:partition_family(SetFun, S).
+4> sofs:to_external(F).
 [{{a,a},[{a,a,a,a}]},{{a,b},[{a,a,b,b},{a,b,b,b}]}]
 ```
 """.
@@ -2375,10 +2376,12 @@ digraph_to_family(G) ->
     end.
 
 -doc """
-Creates a [family](`m:sofs#family`) from the directed graph `Graph`. Each vertex
-a of `Graph` is represented by a pair (a, \{b\[1], ..., b\[n]\}), where the
-b\[i]:s are the out-neighbors of a. It is assumed that `Type` is
-a [valid type](`m:sofs#valid_type`) of the external set of the family.
+Creates a [family](`m:sofs#family`) from the directed graph `Graph`.
+
+Each vertex a of `Graph` is represented by a pair
+(a, \{b\[1], ..., b\[n]\}), where the b\[i]:s are the out-neighbors of
+a. It is assumed that `Type` is a [valid type](`m:sofs#valid_type`) of
+the external set of the family.
 
 If G is a directed graph, it holds that the vertices and edges of G are the same
 as the vertices and edges of
