@@ -1472,11 +1472,29 @@ composite(Fn1, Fn2) when ?IS_SET(Fn1), ?IS_SET(Fn2) ->
 -doc """
 Returns the [inverse](`m:sofs#inverse`) of function `Function1`.
 
+A `bad_function` exception is raised if `Function1` is not invertible.
+
+See `converse/1` for a similar function that handles any binary relation.
+
+## Examples
+
 ```erlang
-1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
-2> R2 = sofs:inverse(R1).
-3> sofs:to_external(R2).
+1> F1 = sofs:relation([{1,a},{2,b},{3,c}]).
+2> F2 = sofs:inverse(F1).
+3> sofs:to_external(F2).
 [{a,1},{b,2},{c,3}]
+```
+
+Trying to inverse a non-invertible function.
+
+```erlang
+1> R1 = sofs:relation([{1,a},{2,a}]).
+2> sofs:inverse(R1).
+** exception error: bad_function
+     in function  sofs:inverse/1
+3> R2 = sofs:converse(R1).
+4> sofs:to_external(R2).
+[{a,1},{a,2}]
 ```
 """.
 -spec(inverse(Function1) -> Function2 when
