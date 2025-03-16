@@ -353,6 +353,8 @@ Creating an unordered set.
 3> S = sofs:from_sets([S1,S2]).
 4> sofs:to_external(S).
 [[{a,1},{b,2}],[{x,3},{y,4}]]
+5> sofs:type(S).
+[[{atom,atom}]]
 ```
 
 Creating an ordered set.
@@ -363,6 +365,8 @@ Creating an ordered set.
 3> S = sofs:from_sets({S1,S2}).
 4> sofs:to_external(S).
 {a,b}
+5> sofs:type(S).
+{atom,atom}
 ```
 """.
 -spec(from_sets(ListOfSets) -> Set when
@@ -632,7 +636,19 @@ specification(Fun, S) when ?IS_SET(S) ->
 	    erlang:error(Bad)
     end.
 
--doc "Returns the [union](`m:sofs#union`) of `Set1` and `Set2`.".
+-doc """
+Returns the [union](`m:sofs#union`) of `Set1` and `Set2`.
+
+## Examples
+
+```erlang
+1> S1 = sofs:set([a,b,c]).
+2> S2 = sofs:set([c,d,1,2,3]).
+3> S3 = sofs:union(S1, S2).
+4> sofs:to_external(S3).
+[1,2,3,a,b,c,d]
+```
+""".
 -spec(union(Set1, Set2) -> Set3 when
       Set1 :: a_set(),
       Set2 :: a_set(),
@@ -987,7 +1003,21 @@ is_disjoint(S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
 %%% Functions on set-of-sets.
 %%%
 
--doc "Returns the [union](`m:sofs#union_n`) of the set of sets `SetOfSets`.".
+-doc """
+Returns the [union](`m:sofs#union_n`) of the set of sets `SetOfSets`.
+
+## Examples
+
+```erlang
+1> S1 = sofs:set([a,b,c]).
+2> S2 = sofs:set([b,1,2]).
+3> S3 = sofs:set([a,d,e])
+4> S4 = sofs:from_sets([S1,S2,S3]).
+5> S5 = sofs:union(S4).
+6> sofs:to_external(S5).
+[1,2,a,b,c,d,e]
+```
+""".
 -spec(union(SetOfSets) -> Set when
       Set :: a_set(),
       SetOfSets :: set_of_sets()).
