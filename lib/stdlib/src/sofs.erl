@@ -527,7 +527,33 @@ to_external(S) when ?IS_SET(S) ->
 to_external(S) when ?IS_ORDSET(S) ->
     ?ORDDATA(S).
 
--doc "Returns the [type](`m:sofs#type`) of an atomic, ordered, or unordered set.".
+-doc """
+Returns the [type](`m:sofs#type`) of an atomic, ordered, or unordered set.
+
+## Examples
+
+```erlang
+%% Unordered sets.
+1> sofs:type(sofs:empty_set()).
+['_']
+2> sofs:type(sofs:set([], [color])).
+[color]
+3> sofs:type(sofs:set([red,green,blue], [color])).
+[color]
+
+%% Unordered sets.
+4> sofs:type(sofs:from_term({a,b,c})).
+{atom,atom,atom}
+5> sofs:type(sofs:from_term({1.0,2.5,-1.0}, {x,y,z})).
+{x,y,z}
+
+%% Atomic sets.
+6> sofs:type(sofs:from_term(a)).
+atom
+7> sofs:type(sofs:from_term(1, index)).
+index
+```
+""".
 -spec(type(AnySet) -> Type when
       AnySet :: anyset(),
       Type :: type()).
