@@ -902,7 +902,7 @@ Returns the [domain](`m:sofs#domain`) of the binary relation `BinRel`.
 ```erlang
 1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
 2> S = sofs:domain(R),
-sofs:to_external(S).
+3> sofs:to_external(S).
 [1,2]
 ```
 """.
@@ -1204,11 +1204,11 @@ element E in `Set` that does not belong to the [domain](`m:sofs#domain`) of
 `BinRel1`, `BinRel2` contains the pair (E, `AnySet`).
 
 ```erlang
-1> S = sofs:set([b,c]),
-A = sofs:empty_set(),
-R = sofs:family([{a,[1,2]},{b,[3]}]),
-X = sofs:extension(R, S, A),
-sofs:to_external(X).
+1> S = sofs:set([b,c]).
+2> A = sofs:empty_set().
+3> R = sofs:family([{a,[1,2]},{b,[3]}]).
+4> X = sofs:extension(R, S, A).
+5> sofs:to_external(X).
 [{a,[1,2]},{b,[3]},{c,[]}]
 ```
 """.
@@ -1268,10 +1268,10 @@ Returns the [restriction](`m:sofs#restriction`) of the binary relation `BinRel1`
 to `Set`.
 
 ```erlang
-1> R1 = sofs:relation([{1,a},{2,b},{3,c}]),
-S = sofs:set([1,2,4]),
-R2 = sofs:restriction(R1, S),
-sofs:to_external(R2).
+1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
+2> S = sofs:set([1,2,4]).
+3> R2 = sofs:restriction(R1, S).
+4> sofs:to_external(R2).
 [{1,a},{2,b}]
 ```
 """.
@@ -1287,10 +1287,10 @@ Returns the difference between the binary relation `BinRel1` and the
 [restriction](`m:sofs#restriction`) of `BinRel1` to `Set`.
 
 ```erlang
-1> R1 = sofs:relation([{1,a},{2,b},{3,c}]),
-S = sofs:set([2,4,6]),
-R2 = sofs:drestriction(R1, S),
-sofs:to_external(R2).
+1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
+2> S = sofs:set([2,4,6]).
+3> R2 = sofs:drestriction(R1, S).
+4> sofs:to_external(R2).
 [{1,a},{3,c}]
 ```
 
@@ -1313,10 +1313,10 @@ Returns the [composite](`m:sofs#composite`) of the functions `Function1` and
 `Function2`.
 
 ```erlang
-1> F1 = sofs:a_function([{a,1},{b,2},{c,2}]),
-F2 = sofs:a_function([{1,x},{2,y},{3,z}]),
-F = sofs:composite(F1, F2),
-sofs:to_external(F).
+1> F1 = sofs:a_function([{a,1},{b,2},{c,2}]).
+2> F2 = sofs:a_function([{1,x},{2,y},{3,z}]).
+3> F = sofs:composite(F1, F2).
+4> sofs:to_external(F).
 [{a,x},{b,y},{c,y}]
 ```
 """.
@@ -1352,9 +1352,9 @@ composite(Fn1, Fn2) when ?IS_SET(Fn1), ?IS_SET(Fn2) ->
 Returns the [inverse](`m:sofs#inverse`) of function `Function1`.
 
 ```erlang
-1> R1 = sofs:relation([{1,a},{2,b},{3,c}]),
-R2 = sofs:inverse(R1),
-sofs:to_external(R2).
+1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
+2> R2 = sofs:inverse(R1).
+3> sofs:to_external(R2).
 [{a,1},{b,2},{c,3}]
 ```
 """.
@@ -1383,10 +1383,10 @@ Returns a subset of `Set1` containing those elements that gives an element in
 `Set2` as the result of applying `SetFun`.
 
 ```erlang
-1> S1 = sofs:relation([{1,a},{2,b},{3,c}]),
-S2 = sofs:set([b,c,d]),
-S3 = sofs:restriction(2, S1, S2),
-sofs:to_external(S3).
+1> S1 = sofs:relation([{1,a},{2,b},{3,c}]).
+3> S2 = sofs:set([b,c,d]).
+4> S3 = sofs:restriction(2, S1, S2).
+5> sofs:to_external(S3).
 [{2,b},{3,c}]
 ```
 """.
@@ -1463,10 +1463,10 @@ Returns a subset of `Set1` containing those elements that do not give an element
 in `Set2` as the result of applying `SetFun`.
 
 ```erlang
-1> SetFun = {external, fun({_A,B,C}) -> {B,C} end},
-R1 = sofs:relation([{a,aa,1},{b,bb,2},{c,cc,3}]),
-R2 = sofs:relation([{bb,2},{cc,3},{dd,4}]),
-R3 = sofs:drestriction(SetFun, R1, R2),
+1> SetFun = {external, fun({_A,B,C}) -> {B,C} end}.
+2> R1 = sofs:relation([{a,aa,1},{b,bb,2},{c,cc,3}]).
+3> R2 = sofs:relation([{bb,2},{cc,3},{dd,4}]).
+4> R3 = sofs:drestriction(SetFun, R1, R2).
 sofs:to_external(R3).
 [{a,aa,1}]
 ```
