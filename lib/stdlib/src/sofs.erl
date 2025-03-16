@@ -297,7 +297,7 @@ list `ListOfSets`.
 1> S1 = sofs:relation([{a,1},{b,2}]).
 2> S2 = sofs:relation([{x,3},{y,4}]).
 3> S = sofs:from_sets([S1,S2]).
-sofs:to_external(S).
+4> sofs:to_external(S).
 [[{a,1},{b,2}],[{x,3},{y,4}]]
 ```
 
@@ -497,7 +497,7 @@ applied to each element.
 2> R2 = sofs:relation([{x,1},{x,2},{y,3}]).
 3> S1 = sofs:from_sets([R1,R2]).
 4> S2 = sofs:specification(fun sofs:is_a_function/1, S1).
-sofs:to_external(S2).
+5> sofs:to_external(S2).
 [[{a,1},{b,2}]]
 ```
 """.
@@ -561,7 +561,7 @@ Boolean sum) of `Set1` and `Set2`.
 1> S1 = sofs:set([1,2,3]).
 2> S2 = sofs:set([2,3,4]).
 3> P = sofs:symdiff(S1, S2).
-sofs:to_external(P).
+4> sofs:to_external(P).
 [1,4]
 ```
 """.
@@ -602,7 +602,7 @@ Returns the [Cartesian product](`m:sofs#Cartesian_product`) of `Set1` and
 1> S1 = sofs:set([1,2]).
 2> S2 = sofs:set([a,b]).
 3> R = sofs:product(S1, S2).
-sofs:to_external(R).
+4> sofs:to_external(R).
 [{1,a},{1,b},{2,a},{2,b}]
 ```
 
@@ -635,7 +635,7 @@ then x\[i] is drawn from element i of `TupleOfSets`.
 2> S2 = sofs:set([1,2]).
 3> S3 = sofs:set([x,y]).
 4> P3 = sofs:product({S1,S2,S3}).
-sofs:to_external(P3).
+5> sofs:to_external(P3).
 [{a,1,x},{a,1,y},{a,2,x},{a,2,y},{b,1,x},{b,1,y},{b,2,x},{b,2,y}]
 ```
 """.
@@ -668,7 +668,7 @@ onto `AnySet`.
 1> S = sofs:set([a,b]).
 2> E = sofs:from_term(1).
 3> R = sofs:constant_function(S, E).
-sofs:to_external(R).
+4> sofs:to_external(R).
 [{a,1},{b,1}]
 ```
 """.
@@ -843,7 +843,7 @@ respect to R.
 
 ```erlang
 1> Ss = sofs:from_term([[a,b],[b,c]]).
-2> CR = sofs:canonical_relation(Ss),
+2> CR = sofs:canonical_relation(Ss).
 3> sofs:to_external(CR).
 [{a,[a,b]},{b,[a,b]},{b,[b,c]},{c,[b,c]}]
 ```
@@ -901,7 +901,7 @@ Returns the [domain](`m:sofs#domain`) of the binary relation `BinRel`.
 
 ```erlang
 1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
-2> S = sofs:domain(R),
+2> S = sofs:domain(R).
 3> sofs:to_external(S).
 [1,2]
 ```
@@ -941,7 +941,7 @@ Returns the [field](`m:sofs#field`) of the binary relation `BinRel`.
 
 ```erlang
 1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
-2> S = sofs:field(R),
+2> S = sofs:field(R).
 3> sofs:to_external(S).
 [1,2,a,b,c]
 ```
@@ -990,7 +990,7 @@ range R\[1] × ... × range R\[n], is used instead (intuitively, nothing i
 1> TR = sofs:relation([{1,a},{1,aa},{2,b}]).
 2> R1 = sofs:relation([{1,u},{2,v},{3,c}]).
 3> R2 = sofs:relative_product([TR, R1]).
-sofs:to_external(R2).
+4> sofs:to_external(R2).
 [{1,{a,u}},{1,{aa,u}},{2,{b,v}}]
 ```
 
@@ -1384,9 +1384,9 @@ Returns a subset of `Set1` containing those elements that gives an element in
 
 ```erlang
 1> S1 = sofs:relation([{1,a},{2,b},{3,c}]).
-3> S2 = sofs:set([b,c,d]).
-4> S3 = sofs:restriction(2, S1, S2).
-5> sofs:to_external(S3).
+2> S2 = sofs:set([b,c,d]).
+3> S3 = sofs:restriction(2, S1, S2).
+4> sofs:to_external(S3).
 [{2,b},{3,c}]
 ```
 """.
@@ -1467,7 +1467,7 @@ in `Set2` as the result of applying `SetFun`.
 2> R1 = sofs:relation([{a,aa,1},{b,bb,2},{c,cc,3}]).
 3> R2 = sofs:relation([{bb,2},{cc,3},{dd,4}]).
 4> R3 = sofs:drestriction(SetFun, R1, R2).
-sofs:to_external(R3).
+5> sofs:to_external(R3).
 [{a,aa,1}]
 ```
 
@@ -1587,8 +1587,8 @@ the domain is the result of applying `SetFun` to the element.
 [a,b]
 3> sofs:to_external(sofs:substitution(1, sofs:relation(L))).
 [{{a,1},a},{{b,2},b}]
-4> SetFun = {external, fun({A,_}=E) -> {E,A} end},
-sofs:to_external(sofs:projection(SetFun, sofs:relation(L))).
+4> SetFun = {external, fun({A,_}=E) -> {E,A} end}.
+5> sofs:to_external(sofs:projection(SetFun, sofs:relation(L))).
 [{{a,1},a},{{b,2},b}]
 ```
 
@@ -1727,8 +1727,8 @@ otherwise the element belongs to `Set4`.
 
 ```erlang
 1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
-2> S = sofs:set([2,4,6]),
-3> {R2,R3} = sofs:partition(1, R1, S),
+2> S = sofs:set([2,4,6]).
+3> {R2,R3} = sofs:partition(1, R1, S).
 4> {sofs:to_external(R2),sofs:to_external(R3)}.
 {[{2,b}],[{1,a},{3,c}]}
 ```
@@ -2101,7 +2101,7 @@ with the same index set as `Family1` such that `Family2`\[i] is the
 
 ```erlang
 1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]).
-2> F = sofs:family_range(FR),
+2> F = sofs:family_range(FR).
 3> sofs:to_external(F).
 [{a,[a,b,c]},{b,[]},{c,[d,e]}]
 ```
@@ -2168,9 +2168,9 @@ the family such that the index set is the intersection of `Family1`:s and
 and `Family2`\[i].
 
 ```erlang
-1> F1 = sofs:family([{a,[1,2]},{b,[3,4]},{c,[5,6]}]),
+1> F1 = sofs:family([{a,[1,2]},{b,[3,4]},{c,[5,6]}]).
 2> F2 = sofs:family([{b,[4,5]},{c,[7,8]},{d,[9,10]}]).
-3> F3 = sofs:family_intersection(F1, F2)
+3> F3 = sofs:family_intersection(F1, F2).
 4> sofs:to_external(F3).
 [{b,[4]},{c,[]}]
 ```
