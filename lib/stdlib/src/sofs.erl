@@ -234,6 +234,9 @@ It is assumed that `Type` is a [valid type](`m:sofs#valid_type`) of
 1> S0 = sofs:from_external([{1,[a,b]},{2,[c]}], [{x,[y]}]).
 2> sofs:to_external(sofs:family_to_relation(S0)).
 [{1,a},{1,b},{2,c}]
+3> S1 = sofs:from_external({a,b,c}, {x,x,x}).
+4> sofs:no_elements(S1).
+3
 ```
 """.
 -spec(from_external(ExternalSet, Type) -> AnySet when
@@ -264,7 +267,22 @@ true
 empty_set() ->
     ?SET([], ?ANYTYPE).
 
--doc "Returns `true` if term `Term` is a [type](`m:sofs#type`).".
+-doc """
+Returns `true` if term `Term` is a [type](`m:sofs#type`).
+
+## Examples
+
+```erlang
+1> sofs:is_type(atom).
+true
+2> sofs:is_type([atom]).
+true
+3> sofs:is_type({a,b}).
+true
+4> sofs:is_type(42).
+false
+```
+""".
 -spec(is_type(Term) -> Bool when
       Bool :: boolean(),
       Term :: term()).
