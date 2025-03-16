@@ -239,6 +239,15 @@ from_external(T, Type) ->
 Returns the [untyped empty set](`m:sofs#sets_definition`).
 
 `empty_set/0` is equivalent to [`from_term([], ['_'])`](`from_term/2`).
+
+## Examples
+
+```erlang
+1> sofs:to_external(sofs:empty_set()).
+[]
+2> sofs:is_empty_set(sofs:empty_set()).
+true
+```
 """.
 -spec(empty_set() -> Set when
       Set :: a_set()).
@@ -383,6 +392,16 @@ Creates a [function](`m:sofs#function`).
 
 [`a_function(F, T)`](`a_function/2`) is equivalent to
 [`from_term(F, T)`](`from_term/2`) if the result is a function.
+
+## Examples
+
+```erlang
+1> sofs:is_a_function(sofs:a_function([{1,a},{2,b},{3,c}])).
+true
+2> sofs:a_function([{1,a},{1,b}]).
+** exception error: bad_function
+     in function  sofs:a_function/1
+```
 """.
 -spec(a_function(Tuples, Type) -> Function when
       Function :: a_function(),
@@ -770,7 +789,19 @@ is_set(S) when ?IS_SET(S) ->
 is_set(S) when ?IS_ORDSET(S) ->
     false.
 
--doc "Returns `true` if `AnySet` is an empty unordered set, otherwise `false`.".
+-doc """
+Returns `true` if `AnySet` is an empty unordered set; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> sofs:is_empty_set(sofs:empty_set()).
+true
+2> sofs:is_empty_set(sofs:set([a,b])).
+false
+```
+
+""".
 -spec(is_empty_set(AnySet) -> Bool when
       AnySet :: anyset(),
       Bool :: boolean()).
