@@ -193,12 +193,12 @@ unordered set. The following example shows that a set can be built "layer by
 layer":
 
 ```erlang
-1> A = sofs:from_term(a),
-S = sofs:set([1,2,3]),
-P1 = sofs:from_sets({A,S}),
-P2 = sofs:from_term({b,[6,5,4]}),
-Ss = sofs:from_sets([P1,P2]),
-sofs:to_external(Ss).
+1> A = sofs:from_term(a).
+2> S = sofs:set([1,2,3]),
+3> P1 = sofs:from_sets({A,S}),
+4> P2 = sofs:from_term({b,[6,5,4]}),
+5> Ss = sofs:from_sets([P1,P2]),
+6> sofs:to_external(Ss).
 [{a,[1,2,3]},{b,[4,5,6]}]
 ```
 
@@ -1715,10 +1715,10 @@ an element of `Set1` gives an element in `Set2`, the element belongs to `Set3`,
 otherwise the element belongs to `Set4`.
 
 ```erlang
-1> R1 = sofs:relation([{1,a},{2,b},{3,c}]),
-S = sofs:set([2,4,6]),
-{R2,R3} = sofs:partition(1, R1, S),
-{sofs:to_external(R2),sofs:to_external(R3)}.
+1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
+2> S = sofs:set([2,4,6]),
+3> {R2,R3} = sofs:partition(1, R1, S),
+4> {sofs:to_external(R2),sofs:to_external(R3)}.
 {[{2,b}],[{1,a},{3,c}]}
 ```
 
@@ -1804,10 +1804,10 @@ relations and `BinRel1` is a binary relation, then `BinRel2` is the
 set (R\[i], ..., R\[n]) and `BinRel1`.
 
 ```erlang
-1> Ri = sofs:relation([{a,1},{b,2},{c,3}]),
-R = sofs:relation([{a,b},{b,c},{c,a}]),
-MP = sofs:multiple_relative_product({Ri, Ri}, R),
-sofs:to_external(sofs:range(MP)).
+1> Ri = sofs:relation([{a,1},{b,2},{c,3}]).
+2> R = sofs:relation([{a,b},{b,c},{c,a}]).
+3> MP = sofs:multiple_relative_product({Ri, Ri}, R).
+4> sofs:to_external(sofs:range(MP)).
 [{1,2},{2,3},{3,1}]
 ```
 """.
@@ -1832,10 +1832,10 @@ Returns the [natural join](`m:sofs#natural_join`) of the relations `Relation1`
 and `Relation2` on coordinates `I` and `J`.
 
 ```erlang
-1> R1 = sofs:relation([{a,x,1},{b,y,2}]),
-R2 = sofs:relation([{1,f,g},{1,h,i},{2,3,4}]),
-J = sofs:join(R1, 3, R2, 1),
-sofs:to_external(J).
+1> R1 = sofs:relation([{a,x,1},{b,y,2}]).
+2> R2 = sofs:relation([{1,f,g},{1,h,i},{2,3,4}]).
+3> J = sofs:join(R1, 3, R2, 1).
+4> sofs:to_external(J).
 [{a,x,1,f,g},{a,x,1,h,i},{b,y,2,3,4}]
 ```
 """.
@@ -1893,9 +1893,9 @@ containing all pairs (i, x) such that i belongs to the index set of `Family` an
 x belongs to `Family`\[i].
 
 ```erlang
-1> F = sofs:family([{a,[]}, {b,[1]}, {c,[2,3]}]),
-R = sofs:family_to_relation(F),
-sofs:to_external(R).
+1> F = sofs:family([{a,[]}, {b,[1]}, {c,[2,3]}]).
+2> R = sofs:family_to_relation(F).
+3> sofs:to_external(R).
 [{b,1},{c,2},{c,3}]
 ```
 """.
@@ -1920,10 +1920,10 @@ tuple `{external, Fun2}`, then `Fun2` is applied to the
 applied to `Family1`\[i].
 
 ```erlang
-1> F1 = sofs:family([{a,[1,2,3]},{b,[1,2]},{c,[1]}]),
-SpecFun = fun(S) -> sofs:no_elements(S) =:= 2 end,
-F2 = sofs:family_specification(SpecFun, F1),
-sofs:to_external(F2).
+1> F1 = sofs:family([{a,[1,2,3]},{b,[1,2]},{c,[1]}]).
+2> SpecFun = fun(S) -> sofs:no_elements(S) =:= 2 end.
+3> F2 = sofs:family_specification(SpecFun, F1).
+4> sofs:to_external(F2).
 [{b,[1,2]}]
 ```
 """.
@@ -1954,9 +1954,9 @@ family_specification(Fun, F) when ?IS_SET(F) ->
 Returns the union of [family](`m:sofs#family`) `Family`.
 
 ```erlang
-1> F = sofs:family([{a,[0,2,4]},{b,[0,1,2]},{c,[2,3]}]),
-S = sofs:union_of_family(F),
-sofs:to_external(S).
+1> F = sofs:family([{a,[0,2,4]},{b,[0,1,2]},{c,[2,3]}]).
+2> S = sofs:union_of_family(F).
+3> sofs:to_external(S).
 [0,1,2,3,4]
 ```
 """.
@@ -1977,9 +1977,9 @@ Returns the intersection of [family](`m:sofs#family`) `Family`.
 Intersecting an empty family exits the process with a `badarg` message.
 
 ```erlang
-1> F = sofs:family([{a,[0,2,4]},{b,[0,1,2]},{c,[2,3]}]),
-S = sofs:intersection_of_family(F),
-sofs:to_external(S).
+1> F = sofs:family([{a,[0,2,4]},{b,[0,1,2]},{c,[2,3]}]).
+2> S = sofs:intersection_of_family(F).
+3> sofs:to_external(S).
 [2]
 ```
 """.
@@ -2005,9 +2005,9 @@ same index set as `Family1` such that `Family2`\[i] is the
 [union](`m:sofs#union_n`) of `Family1`\[i].
 
 ```erlang
-1> F1 = sofs:from_term([{a,[[1,2],[2,3]]},{b,[[]]}]),
-F2 = sofs:family_union(F1),
-sofs:to_external(F2).
+1> F1 = sofs:from_term([{a,[[1,2],[2,3]]},{b,[[]]}]).
+2> F2 = sofs:family_union(F1).
+3> sofs:to_external(F2).
 [{a,[1,2,3]},{b,[]}]
 ```
 
@@ -2035,9 +2035,9 @@ If `Family1`\[i] is an empty set for some i, the process exits with a `badarg`
 message.
 
 ```erlang
-1> F1 = sofs:from_term([{a,[[1,2,3],[2,3,4]]},{b,[[x,y,z],[x,y]]}]),
-F2 = sofs:family_intersection(F1),
-sofs:to_external(F2).
+1> F1 = sofs:from_term([{a,[[1,2,3],[2,3,4]]},{b,[[x,y,z],[x,y]]}]).
+2> F2 = sofs:family_intersection(F1).
+3> sofs:to_external(F2).
 [{a,[2,3]},{b,[x,y]}]
 ```
 """.
@@ -2272,9 +2272,9 @@ the same index set as `Family1` such that `Family2`\[i] is the result of calling
 `SetFun` with `Family1`\[i] as argument.
 
 ```erlang
-1> F1 = sofs:from_term([{a,[[1,2],[2,3]]},{b,[[]]}]),
-F2 = sofs:family_projection(fun sofs:union/1, F1),
-sofs:to_external(F2).
+1> F1 = sofs:from_term([{a,[[1,2],[2,3]]},{b,[[]]}]).
++2> F2 = sofs:family_projection(fun sofs:union/1, F1).
+3> sofs:to_external(F2).
 [{a,[1,2,3]},{b,[]}]
 ```
 """.
