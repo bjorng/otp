@@ -901,6 +901,21 @@ is_empty_set(S) when ?IS_ORDSET(S) ->
 -doc """
 Returns `true` if `Set1` and `Set2` are [disjoint](`m:sofs#disjoint`); otherwise,
 returns `false`.
+
+## Examples
+
+```erlang
+1> S1 = sofs:set([a,b,c]).
+2> S2 = sofs:set([c,d,e]).
+3> S3 = sofs:set([1,2,3]).
+4> sofs:is_disjoint(S1, S2).
+false
+5> sofs:is_disjoint(S1, S3).
+true
+6> sofs:is_disjoint(S1, sofs:relation([{a,b}])).
+** exception error: type_mismatch
+     in function  sofs:is_disjoint/2
+```
 """.
 -spec(is_disjoint(Set1, Set2) -> Bool when
       Bool :: boolean(),
