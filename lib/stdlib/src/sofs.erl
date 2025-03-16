@@ -998,6 +998,8 @@ Returns [family](`m:sofs#family`) `Family` such that the index set is equal to
 the [domain](`m:sofs#domain`) of the binary relation `BinRel`, and `Family`\[i]
 is the [image](`m:sofs#image`) of the set of i under `BinRel`.
 
+## Examples
+
 ```erlang
 1> R = sofs:relation([{b,1},{c,2},{c,3}]).
 2> F = sofs:relation_to_family(R).
@@ -1020,6 +1022,8 @@ relation_to_family(R) when ?IS_SET(R) ->
 -doc """
 Returns the [domain](`m:sofs#domain`) of the binary relation `BinRel`.
 
+## Examples
+
 ```erlang
 1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
 2> S = sofs:domain(R).
@@ -1039,6 +1043,8 @@ domain(R) when ?IS_SET(R) ->
 
 -doc """
 Returns the [range](`m:sofs#range`) of the binary relation `BinRel`.
+
+## Examples
 
 ```erlang
 1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
@@ -1060,6 +1066,8 @@ range(R) when ?IS_SET(R) ->
 -doc """
 Returns the [field](`m:sofs#field`) of the binary relation `BinRel`.
 
+## Examples
+
 ```erlang
 1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
 2> S = sofs:field(R).
@@ -1079,7 +1087,27 @@ Returns the [field](`m:sofs#field`) of the binary relation `BinRel`.
 field(R) ->
     union(domain(R), range(R)).
 
--doc(#{equiv => relative_product/2}).
+-doc """
+If `ListOfBinRels` is a non-empty list \[R[1], ..., R\[n]] of binary relations
+and `BinRel1` is a binary relation, then `BinRel2` is the
+[relative product](`m:sofs#tuple_relative_product`) of the ordered set
+(R\[i], ..., R\[n]) and `BinRel1`.
+
+If `BinRel1` is omitted, the relation of equality between the elements of the
+[Cartesian product](`m:sofs#Cartesian_product_tuple`) of the ranges of R\[i],
+range R\[1] × ... × range R\[n], is used instead (intuitively, nothing is
+"lost").
+
+## Examples
+
+```erlang
+1> TR = sofs:relation([{1,a},{1,aa},{2,b},{4,x}]).
+2> R1 = sofs:relation([{1,u},{2,v},{3,c}]).
+3> R2 = sofs:relative_product([TR, R1]).
+4> sofs:to_external(R2).
+[{1,{a,u}},{1,{aa,u}},{2,{b,v}}]
+```
+""".
 -spec(relative_product(ListOfBinRels) -> BinRel2 when
       ListOfBinRels :: [BinRel, ...],
       BinRel :: binary_relation(),
@@ -1097,6 +1125,8 @@ relative_product(RL) when is_list(RL) ->
     end.
 
 -doc """
+relative_product(ListOrRel, BinRel2)
+
 If `ListOfBinRels` is a non-empty list \[R[1], ..., R\[n]] of binary relations
 and `BinRel1` is a binary relation, then `BinRel2` is the
 [relative product](`m:sofs#tuple_relative_product`) of the ordered set
@@ -1107,13 +1137,18 @@ If `BinRel1` is omitted, the relation of equality between the elements of the
 range R\[1] × ... × range R\[n], is used instead (intuitively, nothing is
 "lost").
 
+## Examples
+
 ```erlang
-1> TR = sofs:relation([{1,a},{1,aa},{2,b}]).
-2> R1 = sofs:relation([{1,u},{2,v},{3,c}]).
-3> R2 = sofs:relative_product([TR, R1]).
-4> sofs:to_external(R2).
-[{1,{a,u}},{1,{aa,u}},{2,{b,v}}]
+1> R1 = sofs:relation([{a,b},{c,a}]).
+2> R2 = sofs:relation([{a,1},{a,2}]).
+3> S = sofs:from_term([{{b,1},b1},{{b,2},b2}]).
+4> R3 = sofs:relative_product([R1,R2], S).
+5> sofs:to_external(R3).
+[{a,b1},{a,b2}]
 ```
+
+FIXME: WIP.
 
 Notice that [`relative_product([R1], R2)`](`relative_product/2`) is different
 from [`relative_product(R1, R2)`](`relative_product/2`); the list of one element
@@ -1121,6 +1156,14 @@ is not identified with the element itself.
 
 Returns the [relative product](`m:sofs#relative_product`) of the binary
 relations `BinRel1` and `BinRel2`.
+
+```erlang
+1> R1 = sofs:relation([{a,b},{c,a}]).
+2> R2 = sofs:relation([{a,1},{a,2}]).
+3> R3 = sofs:relative_product(R1, R2).
+4> sofs:to_external(R3).
+[{c,1},{c,2}]
+```
 """.
 -spec(relative_product(ListOfBinRels, BinRel1) -> BinRel2 when
       ListOfBinRels :: [BinRel, ...],
@@ -1388,6 +1431,8 @@ is_a_function(R) when ?IS_SET(R) ->
 Returns the [restriction](`m:sofs#restriction`) of the binary relation `BinRel1`
 to `Set`.
 
+## Examples
+
 ```erlang
 1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
 2> S = sofs:set([1,2,4]).
@@ -1525,6 +1570,8 @@ inverse(Fn) when ?IS_SET(Fn) ->
 -doc """
 Returns a subset of `Set1` containing those elements that gives an element in
 `Set2` as the result of applying `SetFun`.
+
+## Examples
 
 ```erlang
 1> S1 = sofs:relation([{1,a},{2,b},{3,c}]).
