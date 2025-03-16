@@ -2064,9 +2064,9 @@ with the same index set as `Family1` such that `Family2`\[i] is the
 [domain](`m:sofs#domain`) of `Family1[i]`.
 
 ```erlang
-1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]),
-F = sofs:family_domain(FR),
-sofs:to_external(F).
+1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]).
+2> F = sofs:family_domain(FR).
+3> sofs:to_external(F).
 [{a,[1,2,3]},{b,[]},{c,[4,5]}]
 ```
 """.
@@ -2089,9 +2089,9 @@ with the same index set as `Family1` such that `Family2`\[i] is the
 [range](`m:sofs#range`) of `Family1`\[i].
 
 ```erlang
-1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]),
-F = sofs:family_range(FR),
-sofs:to_external(F).
+1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]).
+2> F = sofs:family_range(FR),
+3> sofs:to_external(F).
 [{a,[a,b,c]},{b,[]},{c,[d,e]}]
 ```
 """.
@@ -2114,9 +2114,9 @@ with the same index set as `Family1` such that `Family2`\[i] is the
 [field](`m:sofs#field`) of `Family1`\[i].
 
 ```erlang
-1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]),
-F = sofs:family_field(FR),
-sofs:to_external(F).
+1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]).
+2> F = sofs:family_field(FR).
+3> sofs:to_external(F).
 [{a,[1,2,3,a,b,c]},{b,[]},{c,[4,5,d,e]}]
 ```
 
@@ -2136,10 +2136,10 @@ index sets, and `Family3`\[i] is the union of `Family1`\[i] and `Family2`\[i] if
 both map i, otherwise `Family1`\[i] or `Family2`\[i].
 
 ```erlang
-1> F1 = sofs:family([{a,[1,2]},{b,[3,4]},{c,[5,6]}]),
-F2 = sofs:family([{b,[4,5]},{c,[7,8]},{d,[9,10]}]),
-F3 = sofs:family_union(F1, F2),
-sofs:to_external(F3).
+1> F1 = sofs:family([{a,[1,2]},{b,[3,4]},{c,[5,6]}]).
+2> F2 = sofs:family([{b,[4,5]},{c,[7,8]},{d,[9,10]}]).
+3> F3 = sofs:family_union(F1, F2).
+4> sofs:to_external(F3).
 [{a,[1,2]},{b,[3,4,5]},{c,[5,6,7,8]},{d,[9,10]}]
 ```
 """.
@@ -2158,9 +2158,9 @@ and `Family2`\[i].
 
 ```erlang
 1> F1 = sofs:family([{a,[1,2]},{b,[3,4]},{c,[5,6]}]),
-F2 = sofs:family([{b,[4,5]},{c,[7,8]},{d,[9,10]}]),
-F3 = sofs:family_intersection(F1, F2),
-sofs:to_external(F3).
+2> F2 = sofs:family([{b,[4,5]},{c,[7,8]},{d,[9,10]}]).
+3> F3 = sofs:family_intersection(F1, F2)
+4> sofs:to_external(F3).
 [{b,[4]},{c,[]}]
 ```
 """.
