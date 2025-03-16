@@ -434,6 +434,17 @@ Creates a [family of subsets](`m:sofs#family`).
 
 [`family(F, T)`](`family/2`) is equivalent to
 [`from_term(F, T)`](`from_term/2`) if the result is a family.
+
+## Examples
+
+```erlang
+1> S = sofs:family([{1,[a,b]},{2,[c]}], [{index,[value]}]).
+2> sofs:to_external(sofs:family_to_relation(S)).
+[{1,a},{1,b},{2,c}]
+3> S = sofs:family([{1,[a,b]},{1,[c]}], [{index,[value]}]).
+** exception error: bad_function
+     in function  sofs:family/2
+```
 """.
 -spec(family(Tuples, Type) -> Family when
       Family :: family(),
