@@ -843,12 +843,25 @@ is_subset(S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
 
 -doc """
 Returns `true` if `Term` appears to be an
-[unordered set](`m:sofs#sets_definition`), an ordered set, or an atomic set,
-otherwise `false`.
+[unordered set](`m:sofs#sets_definition`), an ordered set, or an atomic set;
+otherwise, returns `false`.
 
 Note that this function will return `true` for any term that
 coincides with the representation of a `sofs` set. See also note on
 [data types](`e:system:data_types.md#no_user_types`).
+
+## Examples
+
+```erlang
+1> sofs:is_sofs_set(sofs:set([a,b,c])).
+true
+2> sofs:is_sofs_set(sofs:from_term(a)).
+true
+3> sofs:is_sofs_set(sofs:from_term({a,b,c})).
+true
+4> sofs:is_sofs_set(42).
+false
+```
 """.
 -spec(is_sofs_set(Term) -> Bool when
       Bool :: boolean(),
@@ -868,6 +881,17 @@ set or an atomic set or any other term.
 Note that the test is shallow and this function will return `true` for any term
 that coincides with the representation of an unordered set. See also note on
 [data types](`e:system:data_types.md#no_user_types`).
+
+## Examples
+
+```erlang
+1> sofs:is_set(sofs:set([1,2,3])).
+true
+2> sofs:is_set(sofs:from_term({a,b,c})).
+false
+3> sofs:is_set(42).
+** exception error: no function clause matching sofs:is_set(42)
+```
 """.
 -spec(is_set(AnySet) -> Bool when
       AnySet :: anyset(),
@@ -912,7 +936,7 @@ returns `false`.
 false
 5> sofs:is_disjoint(S1, S3).
 true
-6> sofs:is_disjoint(S1, sofs:relation([{a,b}])).
+6> sofs:is_disjoint(sofs:set([1,2,3]), sofs:relation([{a,b}])).
 ** exception error: type_mismatch
      in function  sofs:is_disjoint/2
 ```
