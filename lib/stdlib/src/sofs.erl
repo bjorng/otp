@@ -223,8 +223,18 @@ from_term(L, T) ->
 
 -doc """
 Creates a set from the [external set](`m:sofs#external_set`) `ExternalSet` and
-the [type](`m:sofs#type`) `Type`. It is assumed that `Type` is a
-[valid type](`m:sofs#valid_type`) of `ExternalSet`.
+the [type](`m:sofs#type`) `Type`.
+
+It is assumed that `Type` is a [valid type](`m:sofs#valid_type`) of
+`ExternalSet`.
+
+## Examples
+
+```erlang
+1> S0 = sofs:from_external([{1,[a,b]},{2,[c]}], [{x,[y]}]).
+2> sofs:to_external(sofs:family_to_relation(S0)).
+[{1,a},{1,b},{2,c}]
+```
 """.
 -spec(from_external(ExternalSet, Type) -> AnySet when
       ExternalSet :: external_set(),
