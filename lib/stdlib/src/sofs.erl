@@ -486,7 +486,9 @@ no_elements(S) when ?IS_ORDSET(S) ->
 
 -doc """
 Returns the set containing every element of `Set1` for which `Fun` returns
-`true`. If `Fun` is a tuple `{external, Fun2}`, `Fun2` is applied to the
+`true`.
+
+If `Fun` is a tuple `{external, Fun2}`, `Fun2` is applied to the
 [external set](`m:sofs#external_set`) of each element, otherwise `Fun` is
 applied to each element.
 
@@ -556,9 +558,9 @@ Returns the [symmetric difference](`m:sofs#symmetric_difference`) (or the
 Boolean sum) of `Set1` and `Set2`.
 
 ```erlang
-1> S1 = sofs:set([1,2,3]),
-S2 = sofs:set([2,3,4]),
-P = sofs:symdiff(S1, S2),
+1> S1 = sofs:set([1,2,3]).
+2> S2 = sofs:set([2,3,4]).
+3> P = sofs:symdiff(S1, S2).
 sofs:to_external(P).
 [1,4]
 ```
@@ -597,9 +599,9 @@ Returns the [Cartesian product](`m:sofs#Cartesian_product`) of `Set1` and
 `Set2`.
 
 ```erlang
-1> S1 = sofs:set([1,2]),
-S2 = sofs:set([a,b]),
-R = sofs:product(S1, S2),
+1> S1 = sofs:set([1,2]).
+2> S2 = sofs:set([a,b]).
+3> R = sofs:product(S1, S2).
 sofs:to_external(R).
 [{1,a},{1,b},{2,a},{2,b}]
 ```
@@ -623,15 +625,16 @@ product(S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
 
 -doc """
 Returns the [Cartesian product](`m:sofs#Cartesian_product_tuple`) of the
-non-empty tuple of sets `TupleOfSets`. If (x\[1], ..., x\[n]) is an element of
-the n-ary relation `Relation`, then x\[i] is drawn from element i of
-`TupleOfSets`.
+non-empty tuple of sets `TupleOfSets`.
+
+If (x\[1], ..., x\[n]) is an element of the n-ary relation `Relation`,
+then x\[i] is drawn from element i of `TupleOfSets`.
 
 ```erlang
-1> S1 = sofs:set([a,b]),
-S2 = sofs:set([1,2]),
-S3 = sofs:set([x,y]),
-P3 = sofs:product({S1,S2,S3}),
+1> S1 = sofs:set([a,b]).
+2> S2 = sofs:set([1,2]).
+3> S3 = sofs:set([x,y]).
+4> P3 = sofs:product({S1,S2,S3}).
 sofs:to_external(P3).
 [{a,1,x},{a,1,y},{a,2,x},{a,2,y},{b,1,x},{b,1,y},{b,2,x},{b,2,y}]
 ```
@@ -662,9 +665,9 @@ Creates the [function](`m:sofs#function`) that maps each element of set `Set`
 onto `AnySet`.
 
 ```erlang
-1> S = sofs:set([a,b]),
-E = sofs:from_term(1),
-R = sofs:constant_function(S, E),
+1> S = sofs:set([a,b]).
+2> E = sofs:from_term(1).
+3> R = sofs:constant_function(S, E).
 sofs:to_external(R).
 [{a,1},{b,1}]
 ```
@@ -686,13 +689,15 @@ constant_function(S, _) when ?IS_ORDSET(S) ->
 
 -doc """
 Returns `true` if `AnySet1` and `AnySet2` are [equal](`m:sofs#equal`), otherwise
-`false`. The following example shows that `==/2` is used when comparing sets for
+`false`.
+
+The following example shows that `==/2` is used when comparing sets for
 equality:
 
 ```erlang
-1> S1 = sofs:set([1.0]),
-S2 = sofs:set([1]),
-sofs:is_equal(S1, S2).
+1> S1 = sofs:set([1.0]).
+2> S2 = sofs:set([1]).
+3> sofs:is_equal(S1, S2).
 true
 ```
 """.
@@ -837,9 +842,9 @@ equivalence relation in X induced by `SetOfSets`, then the returned relation is 
 respect to R.
 
 ```erlang
-1> Ss = sofs:from_term([[a,b],[b,c]]),
-CR = sofs:canonical_relation(Ss),
-sofs:to_external(CR).
+1> Ss = sofs:from_term([[a,b],[b,c]]).
+2> CR = sofs:canonical_relation(Ss),
+3> sofs:to_external(CR).
 [{a,[a,b]},{b,[a,b]},{b,[b,c]},{c,[b,c]}]
 ```
 """.
@@ -873,9 +878,9 @@ the [domain](`m:sofs#domain`) of the binary relation `BinRel`, and `Family`\[i]
 is the [image](`m:sofs#image`) of the set of i under `BinRel`.
 
 ```erlang
-1> R = sofs:relation([{b,1},{c,2},{c,3}]),
-F = sofs:relation_to_family(R),
-sofs:to_external(F).
+1> R = sofs:relation([{b,1},{c,2},{c,3}]).
+2> F = sofs:relation_to_family(R).
+3> sofs:to_external(F).
 [{b,[1]},{c,[2,3]}]
 ```
 """.
@@ -895,8 +900,8 @@ relation_to_family(R) when ?IS_SET(R) ->
 Returns the [domain](`m:sofs#domain`) of the binary relation `BinRel`.
 
 ```erlang
-1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]),
-S = sofs:domain(R),
+1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
+2> S = sofs:domain(R),
 sofs:to_external(S).
 [1,2]
 ```
@@ -915,9 +920,9 @@ domain(R) when ?IS_SET(R) ->
 Returns the [range](`m:sofs#range`) of the binary relation `BinRel`.
 
 ```erlang
-1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]),
-S = sofs:range(R),
-sofs:to_external(S).
+1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
+2> S = sofs:range(R).
+3> sofs:to_external(S).
 [a,b,c]
 ```
 """.
@@ -935,9 +940,9 @@ range(R) when ?IS_SET(R) ->
 Returns the [field](`m:sofs#field`) of the binary relation `BinRel`.
 
 ```erlang
-1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]),
-S = sofs:field(R),
-sofs:to_external(S).
+1> R = sofs:relation([{1,a},{1,b},{2,b},{2,c}]).
+2> S = sofs:field(R),
+3> sofs:to_external(S).
 [1,2,a,b,c]
 ```
 
@@ -982,9 +987,9 @@ range R\[1] × ... × range R\[n], is used instead (intuitively, nothing i
 "lost").
 
 ```erlang
-1> TR = sofs:relation([{1,a},{1,aa},{2,b}]),
-R1 = sofs:relation([{1,u},{2,v},{3,c}]),
-R2 = sofs:relative_product([TR, R1]),
+1> TR = sofs:relation([{1,a},{1,aa},{2,b}]).
+2> R1 = sofs:relation([{1,u},{2,v},{3,c}]).
+3> R2 = sofs:relative_product([TR, R1]).
 sofs:to_external(R2).
 [{1,{a,u}},{1,{aa,u}},{2,{b,v}}]
 ```
@@ -1030,10 +1035,10 @@ Returns the [relative product](`m:sofs#relative_product`) of the
 relation `BinRel2`.
 
 ```erlang
-1> R1 = sofs:relation([{1,a},{1,aa},{2,b}]),
-R2 = sofs:relation([{1,u},{2,v},{3,c}]),
-R3 = sofs:relative_product1(R1, R2),
-sofs:to_external(R3).
+1> R1 = sofs:relation([{1,a},{1,aa},{2,b}]).
+2> R2 = sofs:relation([{1,u},{2,v},{3,c}]).
+3> R3 = sofs:relative_product1(R1, R2).
+4> sofs:to_external(R3).
 [{a,u},{aa,u},{b,v}]
 ```
 
@@ -1066,9 +1071,9 @@ relative_product1(R1, R2) when ?IS_SET(R1), ?IS_SET(R2) ->
 Returns the [converse](`m:sofs#converse`) of the binary relation `BinRel1`.
 
 ```erlang
-1> R1 = sofs:relation([{1,a},{2,b},{3,a}]),
-R2 = sofs:converse(R1),
-sofs:to_external(R2).
+1> R1 = sofs:relation([{1,a},{2,b},{3,a}]).
+2> R2 = sofs:converse(R1).
+3> sofs:to_external(R2).
 [{a,1},{a,3},{b,2}]
 ```
 """.
@@ -1087,10 +1092,10 @@ Returns the [image](`m:sofs#image`) of set `Set1` under the binary relation
 `BinRel`.
 
 ```erlang
-1> R = sofs:relation([{1,a},{2,b},{2,c},{3,d}]),
-S1 = sofs:set([1,2]),
-S2 = sofs:image(R, S1),
-sofs:to_external(S2).
+1> R = sofs:relation([{1,a},{2,b},{2,c},{3,d}]).
+2> S1 = sofs:set([1,2]).
+3> S2 = sofs:image(R, S1).
+4> sofs:to_external(S2).
 [a,b,c]
 ```
 """.
@@ -1116,10 +1121,10 @@ Returns the [inverse image](`m:sofs#inverse_image`) of `Set1` under the binary
 relation `BinRel`.
 
 ```erlang
-1> R = sofs:relation([{1,a},{2,b},{2,c},{3,d}]),
-S1 = sofs:set([c,d,e]),
-S2 = sofs:inverse_image(R, S1),
-sofs:to_external(S2).
+1> R = sofs:relation([{1,a},{2,b},{2,c},{3,d}]).
+2> S1 = sofs:set([c,d,e]).
+3> S2 = sofs:inverse_image(R, S1).
+4> sofs:to_external(S2).
 [2,3]
 ```
 """.
@@ -1146,9 +1151,9 @@ Returns the [strict relation](`m:sofs#strict_relation`) corresponding to the
 binary relation `BinRel1`.
 
 ```erlang
-1> R1 = sofs:relation([{1,1},{1,2},{2,1},{2,2}]),
-R2 = sofs:strict_relation(R1),
-sofs:to_external(R2).
+1> R1 = sofs:relation([{1,1},{1,2},{2,1},{2,2}]).
+2> R2 = sofs:strict_relation(R1).
+3> sofs:to_external(R2).
 [{1,2},{2,1}]
 ```
 """.
@@ -1165,14 +1170,15 @@ strict_relation(R) when ?IS_SET(R) ->
 
 -doc """
 Returns a subset S of the [weak relation](`m:sofs#weak_relation`) W
-corresponding to the binary relation `BinRel1`. Let F be the
-[field](`m:sofs#field`) of `BinRel1`. The subset S is defined so that x S y if x
-W y for some x in F and for some y in F.
+corresponding to the binary relation `BinRel1`.
+
+Let F be the [field](`m:sofs#field`) of `BinRel1`. The subset S is
+defined so that x S y if x W y for some x in F and for some y in F.
 
 ```erlang
-1> R1 = sofs:relation([{1,1},{1,2},{3,1}]),
-R2 = sofs:weak_relation(R1),
-sofs:to_external(R2).
+1> R1 = sofs:relation([{1,1},{1,2},{3,1}]).
+2> R2 = sofs:weak_relation(R1).
+3> sofs:to_external(R2).
 [{1,1},{1,2},{2,2},{3,1},{3,3}]
 ```
 """.
