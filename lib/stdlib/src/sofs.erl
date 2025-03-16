@@ -1482,6 +1482,8 @@ restriction(Relation, Set) ->
 Returns the difference between the binary relation `BinRel1` and the
 [restriction](`m:sofs#restriction`) of `BinRel1` to `Set`.
 
+## Examples
+
 ```erlang
 1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
 2> S = sofs:set([2,4,6]).
@@ -1683,6 +1685,8 @@ restriction(SetFun, S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
 Returns a subset of `Set1` containing those elements that do not give an element
 in `Set2` as the result of applying `SetFun`.
 
+## Examples
+
 ```erlang
 1> SetFun = {external, fun({_A,B,C}) -> {B,C} end}.
 2> R1 = sofs:relation([{a,aa,1},{b,bb,2},{c,cc,3}]).
@@ -1771,6 +1775,8 @@ applying `SetFun` to the element.
 If `SetFun` is a number i >= 1 and `Set1` is a relation, then the returned set
 is the [projection](`m:sofs#projection`) of `Set1` onto coordinate i.
 
+## Examples
+
 ```erlang
 1> S1 = sofs:from_term([{1,a},{2,b},{3,a}]).
 2> S2 = sofs:projection(2, S1).
@@ -1798,22 +1804,23 @@ projection(Fun, Set) ->
     range(substitution(Fun, Set)).
 
 -doc """
-Returns a function, the domain of which is `Set1`. The value of an element of
-the domain is the result of applying `SetFun` to the element.
+Returns a function with the domain `Set1`, where each element maps to
+the result of applying `SetFun` to it.
+
+## Examples
 
 ```erlang
-1> L = [{a,1},{b,2}].
-[{a,1},{b,2}]
-2> sofs:to_external(sofs:projection(1, sofs:relation(L))).
+1> R = sofs:relation([{a,1},{b,2}]).
+2> sofs:to_external(sofs:projection(1, R)).
 [a,b]
-3> sofs:to_external(sofs:substitution(1, sofs:relation(L))).
+3> sofs:to_external(sofs:substitution(1, R)).
 [{{a,1},a},{{b,2},b}]
 4> SetFun = {external, fun({A,_}=E) -> {E,A} end}.
-5> sofs:to_external(sofs:projection(SetFun, sofs:relation(L))).
+5> sofs:to_external(sofs:projection(SetFun, R)).
 [{{a,1},a},{{b,2},b}]
 ```
 
-The relation of equality between the elements of \{a,b,c\}:
+The relation of equality between the elements of {a,b,c}:
 
 ```erlang
 1> I = sofs:substitution(fun(A) -> A end, sofs:set([a,b,c])).
@@ -1824,6 +1831,8 @@ The relation of equality between the elements of \{a,b,c\}:
 Let `SetOfSets` be a set of sets and `BinRel` a binary relation. The function
 that maps each element `Set` of `SetOfSets` onto the [image](`m:sofs#image`) of
 `Set` under `BinRel` is returned by the following function:
+
+FIXME: Rewrite to funs.
 
 ```erlang
 images(SetOfSets, BinRel) ->
@@ -1893,6 +1902,8 @@ Returns the [partition](`m:sofs#partition`) of the union of the set of sets
 `SetOfSets` such that two elements are considered equal if they belong to the
 same elements of `SetOfSets`.
 
+## Examples
+
 ```erlang
 1> Sets1 = sofs:from_term([[a,b,c],[d,e,f],[g,h,i]]).
 2> Sets2 = sofs:from_term([[b,c,d],[e,f,g],[h,i,j]]).
@@ -1912,6 +1923,8 @@ partition(Sets) ->
 -doc """
 Returns the [partition](`m:sofs#partition`) of `Set` such that two elements are
 considered equal if the results of applying `SetFun` are equal.
+
+## Examples
 
 ```erlang
 1> Ss = sofs:from_term([[a],[b],[c,d],[e,f]]).
@@ -1946,6 +1959,11 @@ Returns a pair of sets that, regarded as constituting a set, forms a
 an element of `Set1` gives an element in `Set2`, the element belongs to `Set3`,
 otherwise the element belongs to `Set4`.
 
+[`partition(F, S1, S2)`](`partition/3`) is equivalent to
+`{restriction(F, S1, S2), drestriction(F, S1, S2)}`.
+
+## Examples
+
 ```erlang
 1> R1 = sofs:relation([{1,a},{2,b},{3,c}]).
 2> S = sofs:set([2,4,6]).
@@ -1953,9 +1971,6 @@ otherwise the element belongs to `Set4`.
 4> {sofs:to_external(R2),sofs:to_external(R3)}.
 {[{2,b}],[{1,a},{3,c}]}
 ```
-
-[`partition(F, S1, S2)`](`partition/3`) is equivalent to
-`{restriction(F, S1, S2), drestriction(F, S1, S2)}`.
 """.
 -spec(partition(SetFun, Set1, Set2) -> {Set3, Set4} when
       SetFun :: set_fun(),
@@ -2035,6 +2050,8 @@ relations and `BinRel1` is a binary relation, then `BinRel2` is the
 [multiple relative product](`m:sofs#multiple_relative_product`) of the ordered
 set (R\[i], ..., R\[n]) and `BinRel1`.
 
+## Examples
+
 ```erlang
 1> Ri = sofs:relation([{a,1},{b,2},{c,3}]).
 2> R = sofs:relation([{a,b},{b,c},{c,a}]).
@@ -2062,6 +2079,8 @@ multiple_relative_product(T, R) when is_tuple(T), ?IS_SET(R) ->
 -doc """
 Returns the [natural join](`m:sofs#natural_join`) of the relations `Relation1`
 and `Relation2` on coordinates `I` and `J`.
+
+## Examples
 
 ```erlang
 1> R1 = sofs:relation([{a,x,1},{b,y,2}]).
@@ -2124,6 +2143,8 @@ If `Family` is a [family](`m:sofs#family`), then `BinRel` is the binary relation
 containing all pairs (i, x) such that i belongs to the index set of `Family` and
 x belongs to `Family`\[i].
 
+## Examples
+
 ```erlang
 1> F = sofs:family([{a,[]}, {b,[1]}, {c,[2,3]}]).
 2> R = sofs:family_to_relation(F).
@@ -2146,10 +2167,13 @@ family_to_relation(F) when ?IS_SET(F) ->
 -doc """
 If `Family1` is a [family](`m:sofs#family`), then `Family2` is the
 [restriction](`m:sofs#restriction`) of `Family1` to those elements i of the
-index set for which `Fun` applied to `Family1`\[i] returns `true`. If `Fun` is a
-tuple `{external, Fun2}`, then `Fun2` is applied to the
-[external set](`m:sofs#external_set`) of `Family1`\[i], otherwise `Fun` is
-applied to `Family1`\[i].
+index set for which `Fun` applied to `Family1`\[i] returns `true`.
+
+If `Fun` is a tuple `{external, Fun2}`, then `Fun2` is applied to the
+[external set](`m:sofs#external_set`) of `Family1`\[i]; otherwise
+`Fun` is applied to `Family1`\[i].
+
+## Examples
 
 ```erlang
 1> F1 = sofs:family([{a,[1,2,3]},{b,[1,2]},{c,[1]}]).
@@ -2185,6 +2209,8 @@ family_specification(Fun, F) when ?IS_SET(F) ->
 -doc """
 Returns the union of [family](`m:sofs#family`) `Family`.
 
+## Examples
+
 ```erlang
 1> F = sofs:family([{a,[0,2,4]},{b,[0,1,2]},{c,[2,3]}]).
 2> S = sofs:union_of_family(F).
@@ -2207,6 +2233,8 @@ union_of_family(F) when ?IS_SET(F) ->
 Returns the intersection of [family](`m:sofs#family`) `Family`.
 
 Intersecting an empty family exits the process with a `badarg` message.
+
+## Examples
 
 ```erlang
 1> F = sofs:family([{a,[0,2,4]},{b,[0,1,2]},{c,[2,3]}]).
@@ -2236,6 +2264,8 @@ for each i in the index set of `Family1`, then `Family2` is the family with the
 same index set as `Family1` such that `Family2`\[i] is the
 [union](`m:sofs#union_n`) of `Family1`\[i].
 
+## Examples
+
 ```erlang
 1> F1 = sofs:from_term([{a,[[1,2],[2,3]]},{b,[[]]}]).
 2> F2 = sofs:family_union(F1).
@@ -2258,19 +2288,24 @@ family_union(F) when ?IS_SET(F) ->
     end.
 
 -doc """
-If `Family1` is a [family](`m:sofs#family`) and `Family1`\[i] is a set of sets
+If `Family1` is a [family](`m:sofs#family`) and `Family1`[i] is a set of sets
 for every i in the index set of `Family1`, then `Family2` is the family with the
-same index set as `Family1` such that `Family2`\[i] is the
-[intersection](`m:sofs#intersection_n`) of `Family1`\[i].
+same index set as `Family1` such that `Family2`[i] is the
+[intersection](`m:sofs#intersection_n`) of `Family1`[i].
 
-If `Family1`\[i] is an empty set for some i, the process exits with a `badarg`
-message.
+If `Family1`[i] is an empty set for some i, a `badarg` exception is raised.
+
+## Examples
 
 ```erlang
 1> F1 = sofs:from_term([{a,[[1,2,3],[2,3,4]]},{b,[[x,y,z],[x,y]]}]).
 2> F2 = sofs:family_intersection(F1).
 3> sofs:to_external(F2).
 [{a,[2,3]},{b,[x,y]}]
+4> F3 = sofs:from_term([{a,[[1,2]]},{b,[]}]).
+5> sofs:family_intersection(F3).
+** exception error: bad argument
+     in function  sofs:family_intersection/1
 ```
 """.
 -spec(family_intersection(Family1) -> Family2 when
@@ -2294,6 +2329,8 @@ If `Family1` is a [family](`m:sofs#family`) and `Family1`\[i] is a binary
 relation for every i in the index set of `Family1`, then `Family2` is the family
 with the same index set as `Family1` such that `Family2`\[i] is the
 [domain](`m:sofs#domain`) of `Family1[i]`.
+
+## Examples
 
 ```erlang
 1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]).
@@ -2320,6 +2357,8 @@ relation for every i in the index set of `Family1`, then `Family2` is the family
 with the same index set as `Family1` such that `Family2`\[i] is the
 [range](`m:sofs#range`) of `Family1`\[i].
 
+## Examples
+
 ```erlang
 1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]).
 2> F = sofs:family_range(FR).
@@ -2345,6 +2384,8 @@ relation for every i in the index set of `Family1`, then `Family2` is the family
 with the same index set as `Family1` such that `Family2`\[i] is the
 [field](`m:sofs#field`) of `Family1`\[i].
 
+## Examples
+
 ```erlang
 1> FR = sofs:from_term([{a,[{1,a},{2,b},{3,c}]},{b,[]},{c,[{4,d},{5,e}]}]).
 2> F = sofs:family_field(FR).
@@ -2367,6 +2408,8 @@ the family such that the index set is the union of `Family1`:s and `Family2`:s
 index sets, and `Family3`\[i] is the union of `Family1`\[i] and `Family2`\[i] if
 both map i, otherwise `Family1`\[i] or `Family2`\[i].
 
+## Examples
+
 ```erlang
 1> F1 = sofs:family([{a,[1,2]},{b,[3,4]},{c,[5,6]}]).
 2> F2 = sofs:family([{b,[4,5]},{c,[7,8]},{d,[9,10]}]).
@@ -2388,6 +2431,8 @@ the family such that the index set is the intersection of `Family1`:s and
 `Family2`:s index sets, and `Family3`\[i] is the intersection of `Family1`\[i]
 and `Family2`\[i].
 
+## Examples
+
 ```erlang
 1> F1 = sofs:family([{a,[1,2]},{b,[3,4]},{c,[5,6]}]).
 2> F2 = sofs:family([{b,[4,5]},{c,[7,8]},{d,[9,10]}]).
@@ -2408,6 +2453,8 @@ If `Family1` and `Family2` are [families](`m:sofs#family`), then `Family3` is
 the family such that the index set is equal to the index set of `Family1`, and
 `Family3`\[i] is the difference between `Family1`\[i] and `Family2`\[i] if
 `Family2` maps i, otherwise `Family1[i]`.
+
+## Examples
 
 ```erlang
 1> F1 = sofs:family([{a,[1,2]},{b,[3,4]}]).
@@ -2443,6 +2490,8 @@ equal if the results of applying `SetFun` are the same value i.
 
 This is the index that `Family` maps onto the [equivalence
 class](`m:sofs#equivalence_class`).
+
+## Examples
 
 ```erlang
 1> S = sofs:relation([{a,a,a,a},{a,a,b,b},{a,b,b,b}]).
@@ -2503,6 +2552,8 @@ partition_family(SetFun, Set) when ?IS_SET(Set) ->
 If `Family1` is a [family](`m:sofs#family`), then `Family2` is the family with
 the same index set as `Family1` such that `Family2`\[i] is the result of calling
 `SetFun` with `Family1`\[i] as argument.
+
+## Examples
 
 ```erlang
 1> F1 = sofs:from_term([{a,[[1,2],[2,3]]},{b,[[]]}]).
