@@ -574,6 +574,8 @@ If `Fun` is a tuple `{external, Fun2}`, `Fun2` is applied to the
 [external set](`m:sofs#external_set`) of each element, otherwise `Fun` is
 applied to each element.
 
+## Examples
+
 ```erlang
 1> R1 = sofs:relation([{a,1},{b,2}]).
 2> R2 = sofs:relation([{x,1},{x,2},{y,3}]).
@@ -652,6 +654,8 @@ difference(S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
 Returns the [symmetric difference](`m:sofs#symmetric_difference`) (or the
 Boolean sum) of `Set1` and `Set2`.
 
+## Examples
+
 ```erlang
 1> S1 = sofs:set([1,2,3]).
 2> S2 = sofs:set([2,3,4]).
@@ -693,6 +697,8 @@ symmetric_partition(S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
 Returns the [Cartesian product](`m:sofs#Cartesian_product`) of `Set1` and
 `Set2`.
 
+## Examples
+
 ```erlang
 1> S1 = sofs:set([1,2]).
 2> S2 = sofs:set([a,b]).
@@ -724,6 +730,8 @@ non-empty tuple of sets `TupleOfSets`.
 
 If (x\[1], ..., x\[n]) is an element of the n-ary relation `Relation`,
 then x\[i] is drawn from element i of `TupleOfSets`.
+
+## Examples
 
 ```erlang
 1> S1 = sofs:set([a,b]).
@@ -759,6 +767,8 @@ product(T) when is_tuple(T) ->
 Creates the [function](`m:sofs#function`) that maps each element of set `Set`
 onto `AnySet`.
 
+## Examples
+
 ```erlang
 1> S = sofs:set([a,b]).
 2> E = sofs:from_term(1).
@@ -785,6 +795,8 @@ constant_function(S, _) when ?IS_ORDSET(S) ->
 -doc """
 Returns `true` if `AnySet1` and `AnySet2` are [equal](`m:sofs#equal`), otherwise
 `false`.
+
+## Examples
 
 The following example shows that `==/2` is used when comparing sets for
 equality:
@@ -887,8 +899,8 @@ is_empty_set(S) when ?IS_ORDSET(S) ->
     false.
 
 -doc """
-Returns `true` if `Set1` and `Set2` are [disjoint](`m:sofs#disjoint`), otherwise
-`false`.
+Returns `true` if `Set1` and `Set2` are [disjoint](`m:sofs#disjoint`); otherwise,
+returns `false`.
 """.
 -spec(is_disjoint(Set1, Set2) -> Bool when
       Bool :: boolean(),
@@ -947,6 +959,8 @@ If `SetOfSets` is a [partition](`m:sofs#partition`) of a set X and R is the
 equivalence relation in X induced by `SetOfSets`, then the returned relation is the
 [canonical map](`m:sofs#canonical_map`) from X onto the equivalence classes with
 respect to R.
+
+## Examples
 
 ```erlang
 1> Ss = sofs:from_term([[a,b],[b,c]]).
