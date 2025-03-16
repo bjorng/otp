@@ -572,7 +572,20 @@ intersection(S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
         Type ->  ?SET(intersection(?LIST(S1), ?LIST(S2), []), Type)
     end.
 
--doc "Returns the [difference](`m:sofs#difference`) of the sets `Set1` and `Set2`.".
+-doc """
+Returns the [difference](`m:sofs#difference`) of the sets `Set1` and `Set2`.
+
+## Examples
+
+```erlang
+1> S0 = sofs:set([a,b,c,d]).
+2> S1 = sofs:set([c,d,e,f]).
+3> sofs:to_external(sofs:difference(S0, S1)).
+[a,b]
+4> sofs:to_external(sofs:difference(S1, S0)).
+[e,f]
+```
+""".
 -spec(difference(Set1, Set2) -> Set3 when
       Set1 :: a_set(),
       Set2 :: a_set(),
