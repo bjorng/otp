@@ -540,17 +540,19 @@ Returns the [type](`m:sofs#type`) of an atomic, ordered, or unordered set.
 [color]
 3> sofs:type(sofs:set([red,green,blue], [color])).
 [color]
+4> sofs:type(sofs:set([1,2,3])).
+[atom]
 
-%% Unordered sets.
-4> sofs:type(sofs:from_term({a,b,c})).
+%% Ordered sets.
+5> sofs:type(sofs:from_term({a,b,c})).
 {atom,atom,atom}
-5> sofs:type(sofs:from_term({1.0,2.5,-1.0}, {x,y,z})).
+6> sofs:type(sofs:from_term({1.0,2.5,-1.0}, {x,y,z})).
 {x,y,z}
 
 %% Atomic sets.
-6> sofs:type(sofs:from_term(a)).
+7> sofs:type(sofs:from_term(a)).
 atom
-7> sofs:type(sofs:from_term(1, index)).
+8> sofs:type(sofs:from_term(1, index)).
 index
 ```
 """.
