@@ -1433,12 +1433,17 @@ drestriction(Relation, Set) ->
 Returns the [composite](`m:sofs#composite`) of the functions `Function1` and
 `Function2`.
 
+## Examples
+
 ```erlang
 1> F1 = sofs:a_function([{a,1},{b,2},{c,2}]).
 2> F2 = sofs:a_function([{1,x},{2,y},{3,z}]).
 3> F = sofs:composite(F1, F2).
 4> sofs:to_external(F).
 [{a,x},{b,y},{c,y}]
+5> sofs:composite(F2, F1).
+** exception error: bad_function
+     in function  sofs:composite/2
 ```
 """.
 -spec(composite(Function1, Function2) -> Function3 when
