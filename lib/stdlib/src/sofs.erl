@@ -336,8 +336,16 @@ set(_, _) ->
     erlang:error(badarg).
 
 -doc """
-Returns the [unordered set](`m:sofs#sets_definition`) containing the sets of
-list `ListOfSets`.
+from_sets(AnySet)
+
+Returns the [unordered set](`m:sofs#sets_definition`) containing the
+sets of list `ListOfSets`, or returns the [ordered
+set](`m:sofs#sets_definition`) containing the sets of the non-empty
+tuple `TupleOfSets`.
+
+## Examples
+
+Creating an unordered set.
 
 ```erlang
 1> S1 = sofs:relation([{a,1},{b,2}]).
@@ -347,8 +355,15 @@ list `ListOfSets`.
 [[{a,1},{b,2}],[{x,3},{y,4}]]
 ```
 
-Returns the [ordered set](`m:sofs#sets_definition`) containing the sets of the
-non-empty tuple `TupleOfSets`.
+Creating an ordered set.
+
+```erlang
+1> S1 = sofs:from_term(a).
+2> S2 = sofs:from_term(b).
+3> S = sofs:from_sets({S1,S2}).
+4> sofs:to_external(S).
+{a,b}
+```
 """.
 -spec(from_sets(ListOfSets) -> Set when
       Set :: a_set(),
