@@ -1198,6 +1198,8 @@ Returns the [relative product](`m:sofs#relative_product`) of the
 [converse](`m:sofs#converse`) of the binary relation `BinRel1` and the binary
 relation `BinRel2`.
 
+## Examples
+
 ```erlang
 1> R1 = sofs:relation([{1,a},{1,aa},{2,b}]).
 2> R2 = sofs:relation([{1,u},{2,v},{3,c}]).
@@ -1234,6 +1236,11 @@ relative_product1(R1, R2) when ?IS_SET(R1), ?IS_SET(R2) ->
 -doc """
 Returns the [converse](`m:sofs#converse`) of the binary relation `BinRel1`.
 
+See `inverse/1` for a similar function that applies onl to invertible
+functions.
+
+## Examples
+
 ```erlang
 1> R1 = sofs:relation([{1,a},{2,b},{3,a}]).
 2> R2 = sofs:converse(R1).
@@ -1254,6 +1261,8 @@ converse(R) when ?IS_SET(R) ->
 -doc """
 Returns the [image](`m:sofs#image`) of set `Set1` under the binary relation
 `BinRel`.
+
+## Examples
 
 ```erlang
 1> R = sofs:relation([{1,a},{2,b},{2,c},{3,d}]).
@@ -1283,6 +1292,8 @@ image(R, S) when ?IS_SET(R), ?IS_SET(S) ->
 -doc """
 Returns the [inverse image](`m:sofs#inverse_image`) of `Set1` under the binary
 relation `BinRel`.
+
+## Examples
 
 ```erlang
 1> R = sofs:relation([{1,a},{2,b},{2,c},{3,d}]).
@@ -1314,6 +1325,8 @@ inverse_image(R, S) when ?IS_SET(R), ?IS_SET(S) ->
 Returns the [strict relation](`m:sofs#strict_relation`) corresponding to the
 binary relation `BinRel1`.
 
+## Examples
+
 ```erlang
 1> R1 = sofs:relation([{1,1},{1,2},{2,1},{2,2}]).
 2> R2 = sofs:strict_relation(R1).
@@ -1338,6 +1351,8 @@ corresponding to the binary relation `BinRel1`.
 
 Let F be the [field](`m:sofs#field`) of `BinRel1`. The subset S is
 defined so that x S y if x W y for some x in F and for some y in F.
+
+## Examples
 
 ```erlang
 1> R1 = sofs:relation([{1,1},{1,2},{3,1}]).
@@ -1366,6 +1381,8 @@ weak_relation(R) when ?IS_SET(R) ->
 Returns the [extension](`m:sofs#extension`) of `BinRel1` such that for each
 element E in `Set` that does not belong to the [domain](`m:sofs#domain`) of
 `BinRel1`, `BinRel2` contains the pair (E, `AnySet`).
+
+## Examples
 
 ```erlang
 1> S = sofs:set([b,c]).
@@ -1411,7 +1428,20 @@ extension(R, S, E) when ?IS_SET(R), ?IS_SET(S) ->
 
 -doc """
 Returns `true` if the binary relation `BinRel` is a
-[function](`m:sofs#function`) or the untyped empty set, otherwise `false`.
+[function](`m:sofs#function`) or the untyped empty set; otherwise,
+returns `false`.
+
+## Examples
+
+```erlang
+1> sofs:is_a_function(sofs:relation([{1,a},{2,b},{3,c}])).
+true
+2> sofs:is_a_function(sofs:relation([{1,a},{1,b},{3,c}])).
+false
+3> sofs:is_a_function(sofs:set([a,b,c])).
+** exception error: bad argument
+     in function  sofs:is_a_function/1
+```
 """.
 -spec(is_a_function(BinRel) -> Bool when
       Bool :: boolean(),
