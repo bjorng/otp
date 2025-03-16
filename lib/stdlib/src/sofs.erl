@@ -194,10 +194,10 @@ layer":
 
 ```erlang
 1> A = sofs:from_term(a).
-2> S = sofs:set([1,2,3]),
-3> P1 = sofs:from_sets({A,S}),
-4> P2 = sofs:from_term({b,[6,5,4]}),
-5> Ss = sofs:from_sets([P1,P2]),
+2> S = sofs:set([1,2,3]).
+3> P1 = sofs:from_sets({A,S}).
+4> P2 = sofs:from_term({b,[6,5,4]}).
+5> Ss = sofs:from_sets([P1,P2]).
 6> sofs:to_external(Ss).
 [{a,[1,2,3]},{b,[4,5,6]}]
 ```
@@ -236,8 +236,9 @@ from_external(T, Type) ->
     ?ORDSET(T, Type).
 
 -doc """
-Returns the [untyped empty set](`m:sofs#sets_definition`). `empty_set/0` is
-equivalent to [`from_term([], ['_'])`](`from_term/2`).
+Returns the [untyped empty set](`m:sofs#sets_definition`).
+
+`empty_set/0` is equivalent to [`from_term([], ['_'])`](`from_term/2`).
 """.
 -spec(empty_set() -> Set when
       Set :: a_set()).
@@ -293,9 +294,9 @@ Returns the [unordered set](`m:sofs#sets_definition`) containing the sets of
 list `ListOfSets`.
 
 ```erlang
-1> S1 = sofs:relation([{a,1},{b,2}]),
-S2 = sofs:relation([{x,3},{y,4}]),
-S = sofs:from_sets([S1,S2]),
+1> S1 = sofs:relation([{a,1},{b,2}]).
+2> S2 = sofs:relation([{x,3},{y,4}]).
+3> S = sofs:from_sets([S1,S2]).
 sofs:to_external(S).
 [[{a,1},{b,2}],[{x,3},{y,4}]]
 ```
@@ -345,9 +346,11 @@ relation(_) ->
     erlang:error(badarg).
 
 -doc """
-Creates a [relation](`m:sofs#relation`). [`relation(R, T)`](`relation/2`) is
-equivalent to [`from_term(R, T)`](`from_term/2`), if T is a
-[type](`m:sofs#type`) and the result is a relation.
+Creates a [relation](`m:sofs#relation`).
+
+[`relation(R, T)`](`relation/2`) is equivalent to
+[`from_term(R, T)`](`from_term/2`), if T is a [type](`m:sofs#type`)
+and the result is a relation.
 
 If `Type` is an integer N, then `[{atom, ..., atom}])`, where the tuple size is N,
 is used as type of the relation.
@@ -408,8 +411,10 @@ family(Ts) ->
     end.
 
 -doc """
-Creates a [family of subsets](`m:sofs#family`). [`family(F, T)`](`family/2`) is
-equivalent to [`from_term(F, T)`](`from_term/2`) if the result is a family.
+Creates a [family of subsets](`m:sofs#family`).
+
+[`family(F, T)`](`family/2`) is equivalent to
+[`from_term(F, T)`](`from_term/2`) if the result is a family.
 """.
 -spec(family(Tuples, Type) -> Family when
       Family :: family(),
@@ -486,10 +491,10 @@ Returns the set containing every element of `Set1` for which `Fun` returns
 applied to each element.
 
 ```erlang
-1> R1 = sofs:relation([{a,1},{b,2}]),
-R2 = sofs:relation([{x,1},{x,2},{y,3}]),
-S1 = sofs:from_sets([R1,R2]),
-S2 = sofs:specification(fun sofs:is_a_function/1, S1),
+1> R1 = sofs:relation([{a,1},{b,2}]).
+2> R2 = sofs:relation([{x,1},{x,2},{y,3}]).
+3> S1 = sofs:from_sets([R1,R2]).
+4> S2 = sofs:specification(fun sofs:is_a_function/1, S1).
 sofs:to_external(S2).
 [[{a,1},{b,2}]]
 ```
@@ -2273,7 +2278,7 @@ the same index set as `Family1` such that `Family2`\[i] is the result of calling
 
 ```erlang
 1> F1 = sofs:from_term([{a,[[1,2],[2,3]]},{b,[[]]}]).
-+2> F2 = sofs:family_projection(fun sofs:union/1, F1).
+2> F2 = sofs:family_projection(fun sofs:union/1, F1).
 3> sofs:to_external(F2).
 [{a,[1,2,3]},{b,[]}]
 ```
