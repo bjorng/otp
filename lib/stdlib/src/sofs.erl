@@ -794,11 +794,21 @@ symdiff(S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
     end.
 
 -doc """
+Returns the symmetric partition of `Set1` and `Set2`.
+
 Returns a triple of sets:
 
 - `Set3` contains the elements of `Set1` that do not belong to `Set2`.
 - `Set4` contains the elements of `Set1` that belong to `Set2`.
 - `Set5` contains the elements of `Set2` that do not belong to `Set1`.
+
+```erlang
+1> S1 = sofs:set([a,b,c]).
+2> S2 = sofs:set([c,d,e]).
+3> {S3,S4,S5} = sofs:symmetric_partition(S1, S2).
+4> {sofs:to_external(S3),sofs:to_external(S4),sofs:to_external(S5)}
+{[a,b],[c],[d,e]}
+```
 """.
 -spec(symmetric_partition(Set1, Set2) -> {Set3, Set4, Set5} when
       Set1 :: a_set(),
