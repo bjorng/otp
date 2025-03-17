@@ -315,9 +315,10 @@ set(L) ->
     end.
 
 -doc """
-Creates an [unordered set](`m:sofs#sets_definition`). [`set(L, T)`](`set/2`) is
-equivalent to [`from_term(L, T)`](`from_term/2`), if the result is an unordered
-set.
+Creates an [unordered set](`m:sofs#sets_definition`).
+
+[`set(L, T)`](`set/2`) is equivalent to
+[`from_term(L, T)`](`from_term/2`) if the result is an unordered set.
 
 ## Examples
 
@@ -587,12 +588,12 @@ duplicates.
 ## Examples
 
 ```erlang
-1> [S1,S2,S3] = sofs:to_sets(sofs:set([1,2,3])).
+1> [S1,S2,S3] = sofs:to_sets(sofs:set([3,2,1])).
 2> {sofs:to_external(S1),sofs:to_external(S2),sofs:to_external(S3)}.
 {1,2,3}
-3> {S4,S5,S6} = sofs:to_sets(sofs:from_term({a,b,c})).
+3> {S4,S5,S6} = sofs:to_sets(sofs:from_term({c,a,b})).
 4> {sofs:to_external(S4),sofs:to_external(S5),sofs:to_external(S6)}.
-{a,b,c}
+{c,a,b}
 ```
 """.
 -spec(to_sets(ASet) -> Sets when
