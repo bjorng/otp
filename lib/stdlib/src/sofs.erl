@@ -2829,9 +2829,11 @@ family_to_digraph(F) when ?IS_SET(F) ->
     end.
 
 -doc """
-Creates a directed graph from [family](`m:sofs#family`) `Family`. For each pair
-(a, \{b\[1], ..., b\[n]\}) of `Family`, vertex a and the edges (a, b\[i]) for
-1 <= i <= n are added to a newly created directed graph.
+Creates a directed graph from [family](`m:sofs#family`) `Family`.
+
+For each pair (a, \{b\[1], ..., b\[n]\}) of `Family`, vertex a and the
+edges (a, b\[i]) for 1 <= i <= n are added to a newly created directed
+graph.
 
 `GraphType` is passed on to `digraph:new/1`.
 
@@ -2841,6 +2843,19 @@ Equality holds if [`union_of_family(F)`](`union_of_family/1`) is a subset of
 [`domain(F)`](`domain/1`).
 
 Creating a cycle in an acyclic graph exits the process with a `cyclic` message.
+
+## Examples
+
+```erlang
+1> F1 = sofs:family([{1,[a,b]}, {2,[c,d]}, {3,[d]}, {a,[b]}]).
+2> G = sofs:family_to_digraph(F1, []).
+3> digraph_utils:topsort(G).
+[1,a,b,2,c,3,d]
+4> F2 = sofs:family([{1,[1]}, {2,[1]}]).
+5> sofs:family_to_digraph(F2, [acyclic]).
+** exception error: cyclic
+     in function  sofs:family_to_digraph/2
+```
 """.
 -spec(family_to_digraph(Family, GraphType) -> Graph when
       Graph :: digraph:graph(),
