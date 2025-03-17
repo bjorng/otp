@@ -2897,8 +2897,8 @@ Each vertex a of `Graph` is represented by a pair
 a. It is assumed that `Type` is a [valid type](`m:sofs#valid_type`) of
 the external set of the family.
 
-If G is a directed graph, it holds that the vertices and edges of G are the same
-as the vertices and edges of
+If G is a directed graph, it holds that the vertices and edges of G
+are the same as the vertices and edges of
 [`family_to_digraph(digraph_to_family(G))`](`family_to_digraph/1`).
 
 ## Examples
