@@ -659,7 +659,19 @@ union(S1, S2) when ?IS_SET(S1), ?IS_SET(S2) ->
         Type ->  ?SET(umerge(?LIST(S1), ?LIST(S2)), Type)
     end.
 
--doc "Returns the [intersection](`m:sofs#intersection`) of `Set1` and `Set2`.".
+-doc """
+Returns the [intersection](`m:sofs#intersection`) of `Set1` and `Set2`.
+
+## Examples
+
+```erlang
+1> S1 = sofs:set([a,b,c]).
+2> S2 = sofs:set([b,c,d]).
+3> S3 = sofs:intersection(S1, S2).
+4> sofs:to_external(S3).
+[b,c]
+```
+""".
 -spec(intersection(Set1, Set2) -> Set3 when
       Set1 :: a_set(),
       Set2 :: a_set(),
@@ -1033,6 +1045,22 @@ Returns the [intersection](`m:sofs#intersection_n`) of the set of sets
 `SetOfSets`.
 
 Intersecting an empty set of sets exits the process with a `badarg` message.
+
+## Examples
+
+```erlang
+1> S1 = sofs:set([a,b,c]).
+2> S2 = sofs:set([b,c,d,e]).
+3> S3 = sofs:set([a,b,c,d]).
+4> S4 = sofs:from_sets([S1,S2,S3]).
+5> S5 = sofs:intersection(S4).
+6> sofs:to_external(S5).
+[b,c]
+7> S6 = sofs:from_sets([]).
+8> sofs:intersection(S6).
+** exception error: bad argument
+     in function  sofs:intersection/1
+```
 """.
 -spec(intersection(SetOfSets) -> Set when
       Set :: a_set(),
