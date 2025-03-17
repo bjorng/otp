@@ -884,8 +884,26 @@ is_equal(S1, S2) when ?IS_ORDSET(S1), ?IS_SET(S2) ->
     erlang:error(type_mismatch).
 
 -doc """
-Returns `true` if `Set1` is a [subset](`m:sofs#subset`) of `Set2`, otherwise
-`false`.
+Returns `true` if `Set1` is a [subset](`m:sofs#subset`) of `Set2`; otherwise,
+returns `false`.
+
+```erlang
+1> S1 = sofs:set([2,4,6]).
+2> S2 = sofs:set([1,2,3,4,5,6]).
+3> sofs:is_subset(S1, S2).
+true
+4> sofs:is_subset(S2, S1).
+false
+5> sofs:is_subset(S1, S1).
+true
+6> S3 = sofs:relation([{1,a},{2,b}]).
+7> S4 = sofs:relation([{1,a}]).
+8> sofs:is_subset(S4, S3).
+true
+9> sofs:is_subset(S3, S1).
+** exception error: type_mismatch
+     in function  sofs:is_subset/2
+```
 """.
 -spec(is_subset(Set1, Set2) -> Bool when
       Bool :: boolean(),
