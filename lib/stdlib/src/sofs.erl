@@ -318,6 +318,17 @@ set(L) ->
 Creates an [unordered set](`m:sofs#sets_definition`). [`set(L, T)`](`set/2`) is
 equivalent to [`from_term(L, T)`](`from_term/2`), if the result is an unordered
 set.
+
+## Examples
+
+```erlang
+1> S1 = sofs:set([3,1,2,3,4], [digit]).
+2> sofs:to_external(S1).
+[1,2,3,4]
+3> S2 = sofs:from_term([1,2,3,4], [digit]).
+4> sofs:is_equal(S1, S2).
+true
+```
 """.
 -spec(set(Terms, Type) -> Set when
       Set :: a_set(),
@@ -582,6 +593,7 @@ duplicates.
 3> {S4,S5,S6} = sofs:to_sets(sofs:from_term({a,b,c})).
 4> {sofs:to_external(S4),sofs:to_external(S5),sofs:to_external(S6)}.
 {a,b,c}
+```
 """.
 -spec(to_sets(ASet) -> Sets when
       ASet :: a_set() | ordset(),
