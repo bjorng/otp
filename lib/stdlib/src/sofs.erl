@@ -572,6 +572,16 @@ type(S) when ?IS_ORDSET(S) ->
 Returns the elements of the ordered set `ASet` as a tuple of sets, and the
 elements of the unordered set `ASet` as a sorted list of sets without
 duplicates.
+
+## Examples
+
+```erlang
+1> [S1,S2,S3] = sofs:to_sets(sofs:set([1,2,3])).
+2> {sofs:to_external(S1),sofs:to_external(S2),sofs:to_external(S3)}.
+{1,2,3}
+3> {S4,S5,S6} = sofs:to_sets(sofs:from_term({a,b,c})).
+4> {sofs:to_external(S4),sofs:to_external(S5),sofs:to_external(S6)}.
+{a,b,c}
 """.
 -spec(to_sets(ASet) -> Sets when
       ASet :: a_set() | ordset(),
@@ -587,7 +597,23 @@ to_sets(S) when ?IS_ORDSET(S), is_tuple(?ORDTYPE(S)) ->
 to_sets(S) when ?IS_ORDSET(S) ->
     erlang:error(badarg).
 
--doc "Returns the number of elements of the ordered or unordered set `ASet`.".
+-doc """
+Returns the number of elements of the ordered or unordered set `ASet`.
+
+## Examples
+
+```erlang
+1> sofs:no_elements(sofs:set([a,b,c])).
+3
+2> sofs:no_elements(sofs:relation([{1,a}])).
+1
+3> sofs:no_elements(sofs:from_term({1,2,3,4})).
+4
+4> sofs:no_elements(sofs:from_term(a)).
+** exception error: bad argument
+     in function  sofs:no_elements/1
+```
+""".
 -spec(no_elements(ASet) -> NoElements when
       ASet :: a_set() | ordset(),
       NoElements :: non_neg_integer()).
