@@ -558,6 +558,15 @@ family(Ts, T) ->
 -doc """
 Returns the [external set](`m:sofs#external_set`) of an atomic, ordered, or
 unordered set.
+
+```erlang
+1> sofs:to_external(sofs:set([2,3,1])).
+[1,2,3]
+2> sofs:to_external(sofs:from_term({2,3,1})).
+{2,3,1}
+3> sofs:to_external(sofs:from_term(a)).
+a
+```
 """.
 -spec(to_external(AnySet) -> ExternalSet when
       ExternalSet :: external_set(),
@@ -801,6 +810,8 @@ Returns a triple of sets:
 - `Set3` contains the elements of `Set1` that do not belong to `Set2`.
 - `Set4` contains the elements of `Set1` that belong to `Set2`.
 - `Set5` contains the elements of `Set2` that do not belong to `Set1`.
+
+## Examples
 
 ```erlang
 1> S1 = sofs:set([a,b,c]).
