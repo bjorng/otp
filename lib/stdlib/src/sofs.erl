@@ -2851,7 +2851,7 @@ Creating a cycle in an acyclic graph exits the process with a `cyclic` message.
 2> G = sofs:family_to_digraph(F1, []).
 3> digraph_utils:topsort(G).
 [1,a,b,2,c,3,d]
-4> F2 = sofs:family([{1,[1]}, {2,[1]}]).
+4> F2 = sofs:family([{1,[1]}]).
 5> sofs:family_to_digraph(F2, [acyclic]).
 ** exception error: cyclic
      in function  sofs:family_to_digraph/2
