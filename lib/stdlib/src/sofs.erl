@@ -405,10 +405,24 @@ from_sets(_) ->
     erlang:error(badarg).
 
 -doc """
-Equivalent to [`relation(Tuples, Type)`](`relation/2`) where `Type` is the size
-of the first tuple of `Tuples` is used if there is such a tuple.
+Equivalent to [`relation(Tuples, Type)`](`relation/2`), where `Type` is the size
+of the first tuple of `Tuples`, if such a tuple exists.
 
 If tuples is `[]`, then `Type` is `2`.
+
+## Examples
+
+```erlang
+1> sofs:type(sofs:relation([{1,a},{1,b}])).
+[{atom,atom}]
+2> sofs:type(sofs:relation([])).
+[{atom,atom}]
+3> sofs:type(sofs:relation([], 3)).
+[{atom,atom,atom}]
+4> sofs:relation([a,b,c]).
+** exception error: bad argument
+     in function  sofs:relation/1
+```
 """.
 -spec(relation(Tuples) -> Relation when
       Relation :: relation(),
@@ -431,6 +445,16 @@ and the result is a relation.
 
 If `Type` is an integer N, then `[{atom, ..., atom}])`, where the tuple size is N,
 is used as type of the relation.
+
+## Examples
+
+```erlang
+1> sofs:relation([{1,red},{2,green},{3,blue}], [{index,color}]).
+2> sofs:type(sofs:relation([{1,a},{1,b}], 2)).
+[{atom,atom}]
+3> sofs:type(sofs:relation([], 3)).
+[{atom,atom,atom}]
+```
 """.
 -spec(relation(Tuples, Type) -> Relation when
       N :: integer(),
