@@ -2900,6 +2900,20 @@ the external set of the family.
 If G is a directed graph, it holds that the vertices and edges of G are the same
 as the vertices and edges of
 [`family_to_digraph(digraph_to_family(G))`](`family_to_digraph/1`).
+
+## Examples
+
+```erlang
+1> G = digraph:new().
+2> digraph:add_vertex(G, 1).
+3> digraph:add_vertex(G, a).
+4> digraph:add_vertex(G, b).
+5> digraph:add_edge(G, 1, a).
+6> digraph:add_edge(G, 1, b).
+7> F = sofs:digraph_to_family(G).
+8> sofs:to_external(F).
+[{1,[a,b]},{a,[]},{b,[]}]
+```
 """.
 -spec(digraph_to_family(Graph, Type) -> Family when
       Graph :: digraph:graph(),
