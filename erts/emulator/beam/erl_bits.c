@@ -1207,6 +1207,32 @@ erts_bs_put_binary_all(ErlBitsState *EBS, Process *c_p, Eterm arg, Uint unit)
     return 1;
 }
 
+static void f32_to_f16(float fp, Uint16 *res_p)
+{
+    union {
+        float f32;
+        Uint32 u32;
+    } u;
+    Uint32 u32;
+    Uint32 exp;
+    Uint16 res;
+
+    u.f32 = fp;
+    u32 = u.u32;
+
+    exp = (u32 >> 23) & ((1 << 8) - 1);
+    if (exp == 0) {
+        res = (u32 >> 31) << 15;
+    } else {
+        exp -= (127 - 15);
+        res = exp << 10;
+        res |= (u32 >> 31) << 15;
+        res |= (u32 >> (23 - 10)) & 0x3ff;
+    }
+
+    *res_p = res;
+}
+
 /*
  * Returns THE_NON_VALUE on success.
  *
@@ -1292,6 +1318,7 @@ erts_bs_put_float(ErlBitsState *EBS, Process *c_p, Eterm arg, Uint num_bits, int
 		return arg;
 	    }
 	} else if (num_bits == 16) {
+            Uint16 f16;
 	    union {
 		erlfp16 f16;
 		Uint16 i16;
@@ -1303,8 +1330,8 @@ erts_bs_put_float(ErlBitsState *EBS, Process *c_p, Eterm arg, Uint num_bits, int
 		GET_DOUBLE(arg, f);
 		ERTS_FP_CHECK_INIT(c_p);
 		ERTS_FP_ERROR(c_p,f.fd,;);
-		u.f16 = FP16_FROM_FP64(f.fd);
-		a = u.i16;
+                f32_to_f16((float)f.fd, &f16);
+		a = f16;
 	    } else if (is_small(arg)) {
 		u.f16 = FP16_FROM_FP64(signed_val(arg));
 		a = u.i16;
@@ -1464,13 +1491,15 @@ erts_bs_put_float(ErlBitsState *EBS, Process *c_p, Eterm arg, Uint num_bits, int
 		return arg;
 	    }
 	} else if (num_bits == 16) {
+            Uint16 u16;
+
 	    if (is_float(arg)) {
 		FloatDef f;
 		GET_DOUBLE(arg, f);
 		ERTS_FP_CHECK_INIT(c_p);
 		ERTS_FP_ERROR(c_p,f.fd,;);
-		f16 = FP16_FROM_FP64(f.fd);
-		bptr = (byte *) &f16;
+                f32_to_f16((float)f.fd, &u16);
+		bptr = (byte *) &u16;
 	    } else if (is_small(arg)) {
 		f16 = FP16_FROM_FP64(signed_val(arg));
 		bptr = (byte *) &f16;
