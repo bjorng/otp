@@ -162,7 +162,7 @@ module(#docs_v1{ docs = Docs, module_doc = MD }, Bindings) ->
                {KFA, _Anno, _Sig, EntryDocs, _Meta} <- Docs,
                is_map(EntryDocs)] ++ MDRes,
     Res = lists:append(Res0),
-    Errors = [{{F,A},E} || {{function,F,A},[{error,E}]} <- Res],
+    Errors = [{Item,E} || {Item,[{error,E}]} <- Res],
     _ = [print_error(E) || E <- Errors],
     case length(Errors) of
         0 ->
@@ -181,8 +181,14 @@ module(#docs_v1{ docs = Docs, module_doc = MD }, Bindings) ->
             error({N,errors})
     end.
 
-print_error({{Name,Arity},{Message,Context}}) ->
-    io:format("~p/~p: ~ts~n~ts~n", [Name,Arity,Context,Message]).
+print_error({Item,{Message,Context}}) ->
+    Prefix = case Item of
+                 {function,Name,Arity} ->
+                     io_lib:format("~p/~p", [Name,Arity]);
+                 module_doc ->
+                     "module_doc"
+             end,
+    io:format("~ts: ~ts~n~ts~n", [Prefix,Context,Message]).
 
 parse_and_run(_, hidden, _) -> [];
 parse_and_run(_, none, _) -> [];
