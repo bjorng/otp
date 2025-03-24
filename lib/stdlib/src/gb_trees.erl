@@ -329,6 +329,14 @@ is_defined_1(_, nil) ->
 -doc """
 Retrieves the value stored with `Key` in `Tree`. Assumes that the key is present
 in the tree, crashes otherwise.
+
+## Examples
+
+```erlang
+1> Tree = gb_trees:from_orddict([{a,1},{b,2}]).
+2> gb_trees:get(b, Tree).
+2
+```
 """.
 -spec get(Key, Tree) -> Value when
       Tree :: tree(Key, Value).
@@ -348,6 +356,15 @@ get_1(_, {_, Value, _, _}) ->
 -doc """
 Updates `Key` to value `Value` in `Tree1` and returns the new tree. Assumes that
 the key is present in the tree.
+
+## Examples
+
+```erlang
+1> Tree1 = gb_trees:from_orddict([{a,1},{b,2}]).
+2> Tree2 = gb_trees:update(a, 99, Tree1).
+3> gb_trees:to_list(Tree2).
+[{a,99},{b,2}]
+```
 """.
 -spec update(Key, Value, Tree1) -> Tree2 when
       Tree1 :: tree(Key, Value),
