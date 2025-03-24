@@ -492,15 +492,16 @@ count(nil) ->
 -doc """
 Rebalances `Tree1`.
 
-Notice that this is rarely necessary, but can be motivated
+Note that this is rarely necessary, but can be motivated
 when many nodes have been deleted from the tree without further insertions.
 Rebalancing can then be forced to minimize lookup times, as deletion does not
 rebalance the tree.
 
 ## Examples
 
-1> Tree1 = gb_trees:from_orddict([{I,2*I} || I <- lists:seq(1, 100)).
-2> Delete = fun gb_trees:delete/2,
+```erlang
+1> Tree1 = gb_trees:from_orddict([{I,2*I} || I <- lists:seq(1, 100)]).
+2> Delete = fun gb_trees:delete/2.
 3> Tree2 = lists:foldl(Delete, Tree1, lists:seq(1, 50)).
 4> gb_sets:size(Tree2).
 50
@@ -584,11 +585,17 @@ delete_any(Key, T) ->
 	    T
     end.
 
-%%% delete. Assumes that key is present.
-
 -doc """
 Removes the node with key `Key` from `Tree1` and returns the new tree. Assumes
 that the key is present in the tree, crashes otherwise.
+
+## Examples
+
+```erlang
+1> Tree1 = gb_trees:from_orddict([{a,1},{b,2}]).
+2> Tree2 = gb_trees:delete(a, Tree1).
+3> gb_trees:to_list(Tree2).
+[{b,2}]
 """.
 -spec delete(Key, Tree1) -> Tree2 when
       Tree1 :: tree(Key, Value),
@@ -622,6 +629,17 @@ merge(Smaller, Larger) ->
 Returns a value `Value` from node with key `Key` and new `Tree2` without the
 node with this value. Returns `error` if the node with the key is not present in
 the tree.
+
+## Examples
+
+```erlang
+1> Tree0 = gb_trees:from_orddict([{a,1},{b,2},{c,3}]).
+2> {Value,Tree1} = gb_trees:take_any(b, Tree0).
+3> Value.
+2
+4> gb_trees:to_list(Tree1).
+[{a,1},{c,3}]
+```
 """.
 -doc(#{since => <<"OTP 20.0">>}).
 -spec take_any(Key, Tree1) -> {Value, Tree2} | 'error' when
@@ -669,6 +687,17 @@ take_1(_, {_Key, Value, Smaller, Larger}) ->
 Returns `{Key, Value, Tree2}`, where `Key` is the smallest key in `Tree1`,
 `Value` is the value associated with this key, and `Tree2` is this tree with the
 corresponding node deleted. Assumes that the tree is not empty.
+
+```erlang
+1> Tree0 = gb_trees:from_orddict([{a,1},{b,2},{c,3}]).
+2> {Key,Value,Tree1} = gb_trees:take_smallest(Tree0).
+3> Key.
+a
+4> Value.
+1
+5> gb_trees:to_list(Tree1).
+[{b,2},{c,3}]
+```
 """.
 -spec take_smallest(Tree1) -> {Key, Value, Tree2} when
       Tree1 :: tree(Key, Value),
