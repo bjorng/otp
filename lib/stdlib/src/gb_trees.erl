@@ -596,6 +596,7 @@ that the key is present in the tree, crashes otherwise.
 2> Tree2 = gb_trees:delete(a, Tree1).
 3> gb_trees:to_list(Tree2).
 [{b,2}]
+```
 """.
 -spec delete(Key, Tree1) -> Tree2 when
       Tree1 :: tree(Key, Value),
