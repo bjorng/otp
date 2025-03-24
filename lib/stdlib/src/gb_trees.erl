@@ -496,6 +496,16 @@ Notice that this is rarely necessary, but can be motivated
 when many nodes have been deleted from the tree without further insertions.
 Rebalancing can then be forced to minimize lookup times, as deletion does not
 rebalance the tree.
+
+## Examples
+
+1> Tree1 = gb_trees:from_orddict([{I,2*I} || I <- lists:seq(1, 100)).
+2> Delete = fun gb_trees:delete/2,
+3> Tree2 = lists:foldl(Delete, Tree1, lists:seq(1, 50)).
+4> gb_sets:size(Tree2).
+50
+5> Tree3 = gb_trees:balance(Tree2).
+```
 """.
 -spec balance(Tree1) -> Tree2 when
       Tree1 :: tree(Key, Value),
@@ -527,6 +537,14 @@ balance_list_1(L, 0) ->
 -doc """
 Turns an ordered list `List` of key-value tuples into a tree. The list must not
 contain duplicate keys.
+
+## Examples
+
+```erlang
+1> Tree = gb_trees:from_orddict([{a,1},{b,2}]).
+2> gb_trees:to_list(Tree).
+[{a,1},{b,2}]
+```
 """.
 -spec from_orddict(List) -> Tree when
       List :: [{Key, Value}],
@@ -541,6 +559,18 @@ from_orddict(L) ->
 -doc """
 Removes the node with key `Key` from `Tree1` if the key is present in the tree,
 otherwise does nothing. Returns the new tree.
+
+## Examples
+
+```erlang
+1> Tree1 = gb_trees:from_orddict([{a,1},{b,2}]).
+2> Tree2 = gb_trees:delete_any(a, Tree1).
+3> gb_trees:to_list(Tree2).
+[{b,2}]
+4> Tree3 = gb_trees:delete_any(z, Tree2).
+5> Tree2 == Tree3.
+true
+```
 """.
 -spec delete_any(Key, Tree1) -> Tree2 when
       Tree1 :: tree(Key, Value),
