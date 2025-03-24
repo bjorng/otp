@@ -388,6 +388,15 @@ update_1(Key, Value, {_, _, Smaller, Bigger}) ->
 -doc """
 Inserts `Key` with value `Value` into `Tree1` and returns the new tree. Assumes
 that the key is not present in the tree, crashes otherwise.
+
+## Examples
+
+```erlang
+1> Tree1 = gb_trees:from_orddict([{a,1},{b,2}]).
+2> Tree2 = gb_trees:insert(c, 10, Tree1).
+3> gb_trees:to_list(Tree2).
+[{a,1},{b,2},{c,10}]
+```
 """.
 -spec insert(Key, Value, Tree1) -> Tree2 when
       Tree1 :: tree(Key, Value),
@@ -443,6 +452,17 @@ insert_1(Key, _, _, _) ->
 -doc """
 Inserts `Key` with value `Value` into `Tree1` if the key is not present in the
 tree, otherwise updates `Key` to value `Value` in `Tree1`. Returns the new tree.
+
+## Examples
+
+```erlang
+1> Tree1 = gb_trees:from_orddict([{a,1},{b,2}]).
+2> Tree2 = gb_trees:enter(c, 10, Tree1).
+3> Tree3 = gb_trees:enter(a, 100, Tree2).
+4> gb_trees:to_list(Tree3).
+[{a,100},{b,2},{c,10}]
+```
+
 """.
 -spec enter(Key, Value, Tree1) -> Tree2 when
       Tree1 :: tree(Key, Value),
