@@ -124,9 +124,9 @@ validate_0([{function, Name, Arity, Entry, Code} | Fs], Module, Level, Ft) ->
         _ ->
             validate_0(Fs, Module, Level, Ft)
     catch
-        %% throw:Error ->
-        %%     %% Controlled error.
-        %%     [Error | validate_0(Fs, Module, Level, Ft)];
+        throw:Error ->
+            %% Controlled error.
+            [Error | validate_0(Fs, Module, Level, Ft)];
         Class:Error:Stack ->
             %% Crash.
             io:fwrite("Function: ~w/~w\n", [Name,Arity]),
