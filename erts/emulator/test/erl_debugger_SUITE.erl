@@ -140,6 +140,10 @@ init_per_group(_Group, Config) ->
     Config.
 
 end_per_group(_Group, _Config) ->
+    %% Do a smoke test by collecting information about all existing
+    %% processes. If any of the previous test cases has left a
+    %% process in an inconsistent state, this call can cause a crash.
+    true = is_binary(erlang:system_info(procs)),
     ok.
 
 init_per_testcase(test_bps_work_with_inlined_functions, _Config) ->
