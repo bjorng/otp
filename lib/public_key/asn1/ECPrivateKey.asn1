@@ -59,7 +59,9 @@
    ECPrivateKey ::= SEQUENCE {
      version        INTEGER { ecPrivkeyVer1(1) } (ecPrivkeyVer1),
      privateKey     OCTET STRING,
-     parameters [0] ECParameters {{ NamedCurve }} OPTIONAL,
+-- FIXME: Remove this ugly workaround
+     parameters [0] CHOICE { namedCurve OBJECT IDENTIFIER } OPTIONAL,
+--     parameters [0] ECParameters {{ NamedCurve }} OPTIONAL,
      publicKey  [1] BIT STRING OPTIONAL
    }
 
