@@ -24,6 +24,19 @@
 -module(pubkey_pbe).
 -moduledoc false.
 
+-include("CryptographicMessageSyntax-2009.hrl").
+%% -include("DSS.hrl").
+%% -include("OCSP-2009.hrl").
+%% -include("PKCS-1.hrl").
+%% -include("PKCS-10.hrl").
+%% -include("PKCS-3.hrl").
+%% -include("PKCS-FRAME.hrl").
+%% -include("PKIX1-PSS-OAEP-Algorithms-2009.hrl").
+%% -include("PKIX1Explicit-2009.hrl").
+%% -include("PKIX1Implicit-2009.hrl").
+%% -include("PKIXAlgs-2009.hrl").
+
+%%-define(_PKCS_FRAME_HRL_, true).
 -include("public_key.hrl").
 
 -export([encode/4, decode/4, decrypt_parameters/1, encrypt_parameters/1]). 

@@ -47,10 +47,29 @@ RELSYSDIR = $(RELEASE_PATH)/lib/public_key-$(VSN)
 INCLUDE = ../include
 EBIN = ../ebin
 
-ASN_TOP = OTP-PUB-KEY PKCS-FRAME
-ASN_MODULES = PKIX1Explicit88 PKIX1Implicit88 PKIX1Algorithms88 \
-	PKIXAttributeCertificate PKCS-1 PKCS-3 PKCS-7 PKCS-8 PKCS-10 PKCS5v2-0 OTP-PKIX \
-	InformationFramework RFC5639 CMSAesRsaesOaep
+ASN_TOP = PKCS-FRAME \
+          AlgorithmInformation-2009 \
+          CryptographicMessageSyntax-2009 \
+          DSS \
+          ECPrivateKey \
+          OCSP-2009 \
+          OTP-PKIX \
+          PKCS-1 PKCS-3 PKCS-10 \
+          PKIX-CommonTypes-2009 \
+          PKIX1-PSS-OAEP-Algorithms-2009 \
+          PKIX1Explicit-2009 \
+          PKIX1Implicit-2009 \
+          PKIXAlgs-2009 \
+          Safecurves-pkix-18
+
+ASN_MODULES = PKIX-CommonTypes-2009 PKIXAlgs-2009 AlgorithmInformation-2009 \
+	PKIX1Implicit-2009 PKIXEplicit-2009 PKIXAttributeCertificate-2009 \
+	PKIX1-PSS-OAEP-Algorithms-2009 \
+	OCSP-2009 PKCS-1 PKCS-3 \
+	AsymmetricKeyPackageModuleV1 PKCS-10 PKCS5v2-0 CryptographicMessageSyntax-2009 \
+	CryptographicMessageSyntaxAlgorithms-2009 SecureMimeMessageV3dot1-2009 \
+	CMSAesRsaesOaep-2009 \
+	OTP-PKIX ECPrivateKey RFC5639 Safecurves-pkix-18
 ASN_ASNS = $(ASN_MODULES:%=%.asn1)
 ASN_ERLS = $(ASN_TOP:%=$(ESRC)/%.erl)
 ASN_HRLS = $(ASN_TOP:%=%.hrl)
@@ -91,6 +110,9 @@ docs:
 $(ESRC)/%.erl $(ESRC)/%.hrl: %.set.asn
 	$(asn_verbose)erlc $(ASN_FLAGS) -o $(ESRC) $<
 
+$(ESRC)/%.erl $(ESRC)/%.hrl: %.asn1
+	$(asn_verbose)erlc $(ASN_FLAGS) -o $(ESRC) $<
+
 $(INCLUDE)/%.hrl: $(ESRC)/%.hrl
 	$(gen_verbose)cp -p $< $@
 
@@ -114,22 +136,9 @@ release_docs_spec:
 
 #
 # Dependencies
-
-$(EBIN)/OTP-PUB-KEY.beam: 	$(ESRC)/OTP-PUB-KEY.erl $(INCLUDE)/OTP-PUB-KEY.hrl
-$(ESRC)/OTP-PUB-KEY.asn1db $(ESRC)/OTP-PUB-KEY.erl $(INCLUDE)/OTP-PUB-KEY.hrl: \
-	PKIX1Algorithms88.asn1 \
-	PKIX1Explicit88.asn1 \
-	PKIX1Implicit88.asn1 \
-	PKIXAttributeCertificate.asn1 \
-	PKCS-1.asn1 \
-	PKCS-3.asn1 \
-	PKCS-7.asn1 \
-	PKCS-10.asn1 \
-	InformationFramework.asn1 \
-	OTP-PKIX.asn1 \
-	RFC5639.asn1
+#
 
 $(EBIN)/PKCS-FRAME.beam: 	$(ESRC)/PKCS-FRAME.erl $(INCLUDE)/PKCS-FRAME.hrl
 $(ESRC)/PKCS-FRAME.erl $(INCLUDE)/PKCS-FRAME.hrl $(ESRC)/PKCS-FRAME.asn1db: \
-	PKCS5v2-0.asn1 \
-	PKCS-8.asn1
+        AsymmetricKeyPackageModuleV1.asn1 \
+        PKCS5v2-0.asn1

@@ -298,11 +298,10 @@ PKCS1Algorithms ALGORITHM-IDENTIFIER ::= {
 -- ===================
 -- Main structures
 -- ===================
-RSAPublicKey ::= SEQUENCE {
-	modulus INTEGER, -- n
-	publicExponent INTEGER -- e
-}
---
+
+-- The RSAPublicKey definition has been deleted because it is defined
+-- in PKIXAlgs-2009.
+
 -- Representation of RSA private key with information for the CRT algorithm.
 --
 RSAPrivateKey ::= SEQUENCE {

@@ -3,7 +3,7 @@
 %%
 %% SPDX-License-Identifier: Apache-2.0
 %%
-%% Copyright Ericsson AB 2008-2025. All Rights Reserved.
+%% Copyright Ericsson AB 2008-2023. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -54,8 +54,8 @@
 -include("PKCS-FRAME.hrl").
 
 -record('SubjectPublicKeyInfoAlgorithm', {
- 	  algorithm, 
- 	  parameters = asn1_NOVALUE}).
+	  algorithm,
+	  parameters = asn1_NOVALUE}).
 
 -define(DEFAULT_VERIFYFUN,
 	{fun(_,{bad_cert, _} = Reason, _) ->
