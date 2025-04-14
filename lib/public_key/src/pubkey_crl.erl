@@ -23,6 +23,18 @@
 -module(pubkey_crl).
 -moduledoc false.
 
+%% -include("CryptographicMessageSyntax-2009.hrl").
+%% -include("DSS.hrl").
+%% -include("OCSP-2009.hrl").
+%% -include("PKCS-1.hrl").
+%% -include("PKCS-10.hrl").
+%% -include("PKCS-3.hrl").
+%% -include("PKCS-FRAME.hrl").
+%% -include("PKIX1-PSS-OAEP-Algorithms-2009.hrl").
+%% -include("PKIX1Explicit-2009.hrl").
+%% -include("PKIX1Implicit-2009.hrl").
+-include("PKIXAlgs-2009.hrl").
+
 -include("public_key.hrl").
 
 -export([validate/7, init_revokation_state/0, fresh_crl/3, verify_crl_signature/4,
