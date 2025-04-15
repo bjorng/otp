@@ -305,24 +305,24 @@ extension({Id, Data, Critical}) ->
 publickey(#'RSAPrivateKey'{modulus=N, publicExponent=E}) ->
     Public = #'RSAPublicKey'{modulus=N, publicExponent=E},
     Algo = #'PublicKeyAlgorithm'{algorithm= ?rsaEncryption, parameters='NULL'},
-    #'OTPSubjectPublicKeyInfo'{algorithm = Algo,
-			       subjectPublicKey = Public};
+    #'SubjectPublicKeyInfo'{algorithm = Algo,
+                            subjectPublicKey = Public};
 publickey({#'RSAPrivateKey'{modulus=N, publicExponent=E},#'RSASSA-PSS-params'{}=P}) ->
     Public = #'RSAPublicKey'{modulus=N, publicExponent=E},
     Algo = #'PublicKeyAlgorithm'{algorithm= ?'id-RSASSA-PSS', parameters=P},
-    #'OTPSubjectPublicKeyInfo'{algorithm = Algo,
+    #'SubjectPublicKeyInfo'{algorithm = Algo,
 			       subjectPublicKey = Public};
 publickey(#'DSAPrivateKey'{p=P, q=Q, g=G, y=Y}) ->
     Algo = #'PublicKeyAlgorithm'{algorithm= ?'id-dsa', 
 				 parameters={params, #'Dss-Parms'{p=P, q=Q, g=G}}},
-    #'OTPSubjectPublicKeyInfo'{algorithm = Algo, subjectPublicKey = Y};
+    #'SubjectPublicKeyInfo'{algorithm = Algo, subjectPublicKey = Y};
 publickey(#'ECPrivateKey'{version = _Version,
 			  privateKey = _PrivKey,
 			  parameters = Params,
 			  publicKey = PubKey}) ->
     Algo = #'PublicKeyAlgorithm'{algorithm= ?'id-ecPublicKey', parameters=Params},
-    #'OTPSubjectPublicKeyInfo'{algorithm = Algo,
-			       subjectPublicKey = #'ECPoint'{point = PubKey}}.
+    #'SubjectPublicKeyInfo'{algorithm = Algo,
+                            subjectPublicKey = #'ECPoint'{point = PubKey}}.
 
 validity(Opts) ->
     DefFrom0 = calendar:gregorian_days_to_date(calendar:date_to_gregorian_days(date())-1),
