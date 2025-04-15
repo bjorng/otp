@@ -45,13 +45,14 @@ MODULES = \
 	public_key \
 	pubkey_pem \
 	pubkey_ssh \
+        pubkey_cert_records \
+	pubkey_crl \
+	pubkey_os_cacerts \
+	pubkey_translation \
 #	pubkey_pbe \
 	pubkey_cert \
 	pubkey_policy_tree \
-        pubkey_cert_records \
-	pubkey_crl\
 	pubkey_ocsp \
-	pubkey_os_cacerts
 
 HRL_FILES = $(INCLUDE)/public_key.hrl 
 

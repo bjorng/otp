@@ -24,20 +24,38 @@
 -module(pubkey_pbe).
 -moduledoc false.
 
--include("CryptographicMessageSyntax-2009.hrl").
-%% -include("DSS.hrl").
-%% -include("OCSP-2009.hrl").
-%% -include("PKCS-1.hrl").
-%% -include("PKCS-10.hrl").
-%% -include("PKCS-3.hrl").
-%% -include("PKCS-FRAME.hrl").
-%% -include("PKIX1-PSS-OAEP-Algorithms-2009.hrl").
-%% -include("PKIX1Explicit-2009.hrl").
-%% -include("PKIX1Implicit-2009.hrl").
-%% -include("PKIXAlgs-2009.hrl").
+-include("PKCS-FRAME.hrl").
 
-%%-define(_PKCS_FRAME_HRL_, true).
--include("public_key.hrl").
+%% -define(_PKCS_FRAME_HRL_, true).
+%% -include("public_key_internal.hrl").
+
+-include("PKCS-1.hrl").
+
+-define('id-aes128-CBC', {2,16,840,1,101,3,4,1,2}).
+-define('id-aes192-CBC', {2,16,840,1,101,3,4,1,22}).
+-define('id-aes256-CBC', {2,16,840,1,101,3,4,1,42}).
+
+%% From PKCS-FRAME.hrl
+%% -define('rc5-CBC-PAD', {1,2,840,113549,3,9}).
+%% -define('rc2CBC', {1,2,840,113549,3,2}).
+%% -define('des-EDE3-CBC', {1,2,840,113549,3,7}).
+%% -define('desCBC', {1,3,14,3,2,7}).
+%% -define('id-hmacWithSHA1', {1,2,840,113549,2,7}).
+%% -define('encryptionAlgorithm', {1,2,840,113549,3}).
+%% -define('digestAlgorithm', {1,2,840,113549,2}).
+%% -define('id-PBMAC1', {1,2,840,113549,1,5,14}).
+%% -define('id-PBES2', {1,2,840,113549,1,5,13}).
+%% -define('pbeWithSHA1AndRC2-CBC', {1,2,840,113549,1,5,11}).
+%% -define('pbeWithSHA1AndDES-CBC', {1,2,840,113549,1,5,10}).
+%% -define('pbeWithMD5AndRC2-CBC', {1,2,840,113549,1,5,6}).
+%% -define('pbeWithMD5AndDES-CBC', {1,2,840,113549,1,5,3}).
+%% -define('pbeWithMD2AndRC2-CBC', {1,2,840,113549,1,5,4}).
+%% -define('pbeWithMD2AndDES-CBC', {1,2,840,113549,1,5,1}).
+%% -define('id-PBKDF2', {1,2,840,113549,1,5,12}).
+%% -define('pkcs-5', {1,2,840,113549,1,5}).
+%% -define('pkcs', {1,2,840,113549,1}).
+%% -define('rsadsi', {1,2,840,113549}).
+%% -define('id-ct-KP-aKeyPackage', {2,16,840,1,101,2,1,2,78,5}).
 
 -export([encode/4, decode/4, decrypt_parameters/1, encrypt_parameters/1]). 
 -export([pbdkdf1/4, pbdkdf2/7]).
