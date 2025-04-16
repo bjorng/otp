@@ -1677,7 +1677,7 @@ select_hashsign({#hash_sign_algos{hash_sign_algos = ClientHashSigns},
     end;
 select_hashsign(_, Cert, _, _, Version) ->
     #'OTPCertificate'{tbsCertificate = TBSCert} = public_key:pkix_decode_cert(Cert, otp),
-    #'OTPSubjectPublicKeyInfo'{algorithm = {_,Algo, _}} = TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
+    #'SubjectPublicKeyInfo'{algorithm = {_,Algo, _}} = TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
     select_hashsign_algs(undefined, Algo, Version).
 %%--------------------------------------------------------------------
 -spec select_hashsign(#certificate_request{},  binary(), 
@@ -1779,8 +1779,8 @@ get_cert_params(Cert) ->
     #'OTPCertificate'{tbsCertificate = TBSCert,
 		      signatureAlgorithm =
                           {_,SignAlgo, Param}} = public_key:pkix_decode_cert(Cert, otp),
-    #'OTPSubjectPublicKeyInfo'{algorithm = {_, PublicKeyAlgo, _},
-                               subjectPublicKey = PublicKey} =
+    #'SubjectPublicKeyInfo'{algorithm = {_, PublicKeyAlgo, _},
+                            subjectPublicKey = PublicKey} =
         TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
     RSAKeySize =
         case PublicKey of
@@ -1793,37 +1793,37 @@ get_cert_params(Cert) ->
     Curve = get_ec_curve(TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo),
     {SignAlgo, Param, PublicKeyAlgo, RSAKeySize, Curve}.
 
-get_ec_curve(#'OTPSubjectPublicKeyInfo'{
+get_ec_curve(#'SubjectPublicKeyInfo'{
                 algorithm = #'PublicKeyAlgorithm'{
                                algorithm = ?'id-ecPublicKey',
                                parameters = {namedCurve, ?'secp256r1'}}}) ->
     secp256r1;
-get_ec_curve(#'OTPSubjectPublicKeyInfo'{
+get_ec_curve(#'SubjectPublicKeyInfo'{
                 algorithm = #'PublicKeyAlgorithm'{
                                algorithm = ?'id-ecPublicKey',
                                parameters = {namedCurve, ?'secp384r1'}}}) ->
     secp384r1;
-get_ec_curve(#'OTPSubjectPublicKeyInfo'{
+get_ec_curve(#'SubjectPublicKeyInfo'{
                 algorithm = #'PublicKeyAlgorithm'{
                                algorithm = ?'id-ecPublicKey',
                                parameters = {namedCurve, ?'secp521r1'}}}) ->
     secp521r1;
-get_ec_curve(#'OTPSubjectPublicKeyInfo'{
+get_ec_curve(#'SubjectPublicKeyInfo'{
                 algorithm = #'PublicKeyAlgorithm'{
                                algorithm = ?'id-ecPublicKey',
                                parameters = {namedCurve, ?'brainpoolP512r1'}}}) ->
     brainpoolP512r1;
-get_ec_curve(#'OTPSubjectPublicKeyInfo'{
+get_ec_curve(#'SubjectPublicKeyInfo'{
                 algorithm = #'PublicKeyAlgorithm'{
                                algorithm = ?'id-ecPublicKey',
                                parameters = {namedCurve, ?'brainpoolP384r1'}}}) ->
     brainpoolP384r1;
-get_ec_curve(#'OTPSubjectPublicKeyInfo'{
+get_ec_curve(#'SubjectPublicKeyInfo'{
                 algorithm = #'PublicKeyAlgorithm'{
                                algorithm = ?'id-ecPublicKey',
                                parameters = {namedCurve, ?'brainpoolP256r1'}}}) ->
     brainpoolP256r1;
-get_ec_curve(#'OTPSubjectPublicKeyInfo'{
+get_ec_curve(#'SubjectPublicKeyInfo'{
                 algorithm = #'PublicKeyAlgorithm'{
                                algorithm = ?'id-ecPublicKey',
                                parameters = {ecParameters,
@@ -3779,7 +3779,7 @@ cert_curve(Cert, ECCCurve0, CipherSuite) ->
                                     Kex == ecdh_rsa ->
             OtpCert = public_key:pkix_decode_cert(Cert, otp),
             TBSCert = OtpCert#'OTPCertificate'.tbsCertificate,
-            #'OTPSubjectPublicKeyInfo'{algorithm = AlgInfo} 
+            #'SubjectPublicKeyInfo'{algorithm = AlgInfo}
                 = TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
             {namedCurve, Oid}  = AlgInfo#'PublicKeyAlgorithm'.parameters,
             {{namedCurve, Oid}, CipherSuite};

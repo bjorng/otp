@@ -540,26 +540,26 @@ verify_cert_signer(BinCert, SignerTBSCert) ->
     PublicKey = public_key(SignerTBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo),
     public_key:pkix_verify(BinCert, PublicKey).
 
-public_key(#'OTPSubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-ecPublicKey',
-									parameters = Params},
-				      subjectPublicKey = Point}) ->
+public_key(#'SubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-ecPublicKey',
+                                                                     parameters = Params},
+                                   subjectPublicKey = Point}) ->
     {Point, Params};
-public_key(#'OTPSubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
-				      subjectPublicKey = Point}) ->
+public_key(#'SubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
+                                   subjectPublicKey = Point}) ->
     {Point, {namedCurve, ?'id-Ed25519'}};
-public_key(#'OTPSubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed448'},
-				      subjectPublicKey = Point}) ->
+public_key(#'SubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed448'},
+                                   subjectPublicKey = Point}) ->
     {Point, {namedCurve, ?'id-Ed448'}};
-public_key(#'OTPSubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'rsaEncryption'}, 
-				      subjectPublicKey = Key}) ->
+public_key(#'SubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'rsaEncryption'}, 
+                                   subjectPublicKey = Key}) ->
     Key;
-public_key(#'OTPSubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-RSASSA-PSS',
-                                                                        parameters = Params}, 
-				      subjectPublicKey = Key}) ->
+public_key(#'SubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-RSASSA-PSS',
+                                                                     parameters = Params}, 
+                                   subjectPublicKey = Key}) ->
     {Key, Params};
-public_key(#'OTPSubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-dsa',
-									parameters = {params, Params}},
-				      subjectPublicKey = Key}) ->
+public_key(#'SubjectPublicKeyInfo'{algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-dsa',
+                                                                     parameters = {params, Params}},
+                                   subjectPublicKey = Key}) ->
     {Key, Params}.
 
 other_issuer(#cert{otp=OtpCert}=Cert, CertDbHandle, CertDbRef) ->

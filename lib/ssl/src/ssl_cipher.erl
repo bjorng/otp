@@ -377,7 +377,7 @@ filter(DerCert, Ciphers0, Version) ->
     OtpCert = public_key:pkix_decode_cert(DerCert, otp),
     SigAlg = OtpCert#'OTPCertificate'.signatureAlgorithm,
     PubKeyInfo = OtpCert#'OTPCertificate'.tbsCertificate#'OTPTBSCertificate'.subjectPublicKeyInfo,
-    PubKeyAlg = PubKeyInfo#'OTPSubjectPublicKeyInfo'.algorithm,
+    PubKeyAlg = PubKeyInfo#'SubjectPublicKeyInfo'.algorithm,
     Type =  case ssl_certificate:public_key_type(PubKeyAlg#'PublicKeyAlgorithm'.algorithm) of
                 rsa_pss_pss ->
                     rsa;
