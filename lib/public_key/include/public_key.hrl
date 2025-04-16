@@ -151,8 +151,10 @@
         {
          version,    % pos_integer()
          fieldID,    % #'FieldID'{}
-         curve,      % #'Curve'{}   % pos_integer()
-         cofactor
+         curve,      % #'Curve'{}
+         base,       % binary()
+         order,      % pos_integer()
+         cofactor    % pos_integer()
         }).
 
 
@@ -302,11 +304,11 @@
 
 -record('SubjectPublicKeyInfo',
         {
-         algorithm,       % #AlgorithmIdentifier{}
+         algorithm,       % #'PublicKeyAlgorithm'{}
          subjectPublicKey % binary()
         }).
 
--record('SubjectPublicKeyInfoAlgorithm',
+-record('PublicKeyAlgorithm',
         {
          algorithm,  % id_public_key_algorithm()
          parameters  % public_key_params()
@@ -644,11 +646,6 @@
 %%% Undocumented but used by test suite.
 %%%
 
--record('PublicKeyAlgorithm', {
-  algorithm,
-  parameters = asn1_NOVALUE
-}).
-
 -record('DHParameter', {
   prime,
   base,
@@ -662,5 +659,26 @@
 
 -define('id-pkix-ocsp-nonce', {1,3,6,1,5,5,7,48,1,2}).
 
+%%%
+%%% Undocumented but used by ssl.
+%%%
+
+-define('id-X25519', {1,3,101,110}).
+-define('id-X448', {1,3,101,111}).
+-define('brainpoolP512r1', {1,3,36,3,3,2,8,1,1,13}).
+-define('brainpoolP384r1', {1,3,36,3,3,2,8,1,1,11}).
+-define('brainpoolP256r1', {1,3,36,3,3,2,8,1,1,7}).
+
+-record('PrivateKeyInfo', {   %% OneAsymmetricKey
+  version,
+  privateKeyAlgorithm,
+  privateKey,
+  attributes = asn1_NOVALUE
+}).
+
+-record('PrivateKeyInfo_privateKeyAlgorithm', {
+  algorithm,
+  parameters = asn1_NOVALUE
+}).
 
 -endif. % -ifdef(public_key).

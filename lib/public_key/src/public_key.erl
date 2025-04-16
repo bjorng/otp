@@ -420,13 +420,9 @@ pem_encode(PemEntries) when is_list(PemEntries) ->
 -spec pem_entry_decode(PemEntry) -> term() when PemEntry :: pem_entry() .
 
 pem_entry_decode({'SubjectPublicKeyInfo', Der, _}) ->
-    {_, {'AlgorithmIdentifier', AlgId, Params}, Key0} =
+    {_, {'PublicKeyAlgorithm', AlgId, Params}, Key0} =
         der_decode('SubjectPublicKeyInfo', Der),
 
-    %% #'SubjectPublicKeyInfo'{algorithm=AlgId0,subjectPublicKey=Key0} =
-    %%     der_decode('SubjectPublicKeyInfo', Der),
-    %% #'SubjectPublicKeyInfo_algorithm'{algorithm=AlgId,parameters=Params} =
-    %%     AlgId0,
     KeyType = pubkey_cert_records:supportedPublicKeyAlgorithms(AlgId),
     case KeyType of
         'RSAPublicKey' ->
