@@ -671,7 +671,7 @@
 -define('id-pkix-ocsp-nonce', {1,3,6,1,5,5,7,48,1,2}).
 
 %%%
-%%% Undocumented but used by ssl.
+%%% Undocumented but used by SSL.
 %%%
 
 -define('id-X25519', {1,3,101,110}).
@@ -690,6 +690,20 @@
 -record('PrivateKeyInfo_privateKeyAlgorithm', {
   algorithm,
   parameters = asn1_NOVALUE
+}).
+
+%%%
+%%% Undocumented but used by SSH.
+%%%
+
+-record('ECDSA-Sig-Value', {
+  r,
+  s
+}).
+
+-record('Dss-Sig-Value', {
+  r,
+  s
 }).
 
 -endif. % -ifdef(public_key).
