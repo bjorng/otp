@@ -91,8 +91,10 @@
 %%-------------------------------------------------------------------- 
 decode_cert(DerCert) ->
     {ok, Cert} = 'OTP-PKIX':decode('OTPCertificate', DerCert),
-    #'OTPCertificate'{tbsCertificate = TBS} = Cert,
-    {ok, Cert#'OTPCertificate'{tbsCertificate = decode_tbs(TBS)}}.
+    #'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert,
+    {ok, Cert#'OTPCertificate'{tbsCertificate = decode_tbs(TBS),
+                               signatureAlgorithm = setelement(1, SA, 'SignatureAlgorithm')
+                              }}.
 
 %%--------------------------------------------------------------------
 -spec transform(term(), encode | decode) ->term().
@@ -101,39 +103,49 @@ decode_cert(DerCert) ->
 %% certificate parts.
 %%-------------------------------------------------------------------- 
 
-transform(#'OTPCertificate'{tbsCertificate = TBS} = Cert, encode) ->
-    Cert#'OTPCertificate'{tbsCertificate=encode_tbs(TBS)};
-transform(#'OTPCertificate'{tbsCertificate = TBS} = Cert, decode) ->
-    Cert#'OTPCertificate'{tbsCertificate=decode_tbs(TBS)};
+transform(#'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert, encode) ->
+    Cert#'OTPCertificate'{tbsCertificate=encode_tbs(TBS),
+                          signatureAlgorithm = setelement(1, SA, 'OTPCertificate_SignatureAlgorithm')};
+transform(#'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert, decode) ->
+    Cert#'OTPCertificate'{tbsCertificate=decode_tbs(TBS),
+                          signatureAlgorithm = setelement(1, SA, 'SignatureAlgorithm')};
 transform(#'OTPTBSCertificate'{}= TBS, encode) ->
     encode_tbs(TBS);
 transform(#'OTPTBSCertificate'{}= TBS, decode) ->
     decode_tbs(TBS);
-transform(#'AttributeTypeAndValue'{type=Id,value=Value0} = ATAV, Func) ->
+transform(#'SingleAttribute'{type=Id,value=Value0}, decode) ->
     {ok, Value} =
         case attribute_type(Id) of
-	    'X520countryName'when Func == decode ->
+	    'X520countryName' ->
 		%% Workaround that some certificates break the ASN-1 spec
 		%% and encode countryname as utf8
-		case 'OTP-PUB-KEY':Func('OTP-X520countryname', Value0) of
-		    {ok, {utf8String, Utf8Value}} ->
+		case Value0 of
+		    {utf8String, Utf8Value} ->
 			{ok, unicode:characters_to_list(Utf8Value)};
-		    {ok, {printableString, ASCCI}} ->
-			{ok, ASCCI}
+		    {printableString, ASCCI} ->
+			{ok, ASCCI};
+                    List when is_list(List) ->
+                        {ok, List}
 		end;
-	    'EmailAddress' when Func == decode ->
+	    'EmailAddress' when is_binary(Value0) ->
 		%% Workaround that some certificates break the ASN-1 spec
 		%% and encode emailAddress as utf8
-		case 'OTP-PUB-KEY':Func('OTP-emailAddress', Value0) of
+		case 'OTP-PUB-KEY':decode('OTP-emailAddress', Value0) of
 		    {ok, {utf8String, Utf8Value}} ->
 			{ok, unicode:characters_to_list(Utf8Value)};
 		    {ok, {ia5String, Ia5Value}} ->
 			{ok, Ia5Value}
 		end;
-            Type when is_atom(Type) -> 'OTP-PUB-KEY':Func(Type, Value0);
+            Type when is_atom(Type), is_binary(Value0) -> 'OTP-PUB-KEY':decode(Type, Value0);
             _UnknownType            -> {ok, Value0}
         end,
-    ATAV#'AttributeTypeAndValue'{value=Value};
+    #'AttributeTypeAndValue'{type=Id, value=Value};
+transform(#'AttributeTypeAndValue'{type=Id, value=Value0}, encode) ->
+    {ok, Value} = case attribute_type(Id) of
+                      Type when is_atom(Type) -> 'OTP-PUB-KEY':encode(Type, Value0);
+                      _UnknownType            -> {ok, Value0}
+                  end,
+    #'SingleAttribute'{type=Id,value=Value};
 transform(AKI = #'AuthorityKeyIdentifier'{authorityCertIssuer=ACI},Func) ->
     AKI#'AuthorityKeyIdentifier'{authorityCertIssuer=transform(ACI,Func)};
 transform(List = [{directoryName, _}],Func) ->
@@ -285,7 +297,7 @@ namedCurves(brainpoolP512t1) -> ?'brainpoolP512t1'.
 
 decode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
                                                   subjectPublicKey=SPK0}) ->
-    #'SubjectPublicKeyInfo_algorithm'{algorithm=Algo,parameters=_Params0} = PA,
+    #'SubjectPublicKeyInfo_algorithm'{algorithm=Algo,parameters=Params} = PA,
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
               'ECPoint' ->
@@ -296,7 +308,9 @@ decode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
                   %% {ok, SPK1} = Mod:decode(Type, SPK0),
                   %% SPK1
           end,
-    #'SubjectPublicKeyInfo'{subjectPublicKey = SPK, algorithm=PA}.
+    #'SubjectPublicKeyInfo'{subjectPublicKey = SPK,
+                            algorithm=#'PublicKeyAlgorithm'{algorithm=Algo,
+                                                            parameters=Params}}.
 
 encode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm= PA =
                                                       #'PublicKeyAlgorithm'{algorithm=Algo},
@@ -440,4 +454,5 @@ get_asn1_module('BasicConstraints') -> 'PKIX1Implicit-2009';
 get_asn1_module('ExtKeyUsageSyntax') -> 'PKIX1Implicit-2009';
 get_asn1_module('KeyUsage') -> 'PKIX1Implicit-2009';
 get_asn1_module('RSAPublicKey') -> 'PKIXAlgs-2009';
-get_asn1_module('SubjectKeyIdentifier') -> 'CryptographicMessageSyntax-2009'.
+get_asn1_module('SubjectKeyIdentifier') -> 'CryptographicMessageSyntax-2009';
+get_asn1_module('CertificatePolicies') -> 'PKIX1Implicit-2009'.
