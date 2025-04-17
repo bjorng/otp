@@ -62,7 +62,8 @@
 -- FIXME: Remove this ugly workaround
      parameters [0] CHOICE { namedCurve OBJECT IDENTIFIER } OPTIONAL,
 --     parameters [0] ECParameters {{ NamedCurve }} OPTIONAL,
-     publicKey  [1] BIT STRING OPTIONAL
+     publicKey  [1] BIT STRING OPTIONAL,
+     attributes     ANY OPTIONAL
    }
 
    END

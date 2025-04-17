@@ -65,6 +65,24 @@ macros described here and in the User's Guide:
   encryptionScheme
 }).
 
+-record('OneAsymmetricKey', {
+  version,
+  privateKeyAlgorithm,
+  privateKey,
+  attributes = asn1_NOVALUE,
+  %% with extensions
+  publicKey = asn1_NOVALUE
+  %% end of extensions
+}).
+
+
+-record('PrivateKeyAlgorithmIdentifier', {
+  algorithm,
+  parameters = asn1_NOVALUE
+}).
+
+
+
 -define('ppBasis', {1,2,840,10045,1,2,3,3}).
 -define('tpBasis', {1,2,840,10045,1,2,3,2}).
 -define('gnBasis', {1,2,840,10045,1,2,3,1}).
@@ -631,61 +649,62 @@ handle_pkcs_frame_error(_, _, Error) ->
     erlang:error(Error).
 
 %% NOTE: No longer defined in modern ASN.1 specs.
-%% der_priv_key_decode(#'PrivateKeyInfo'{version = v1,
-%%                                       privateKeyAlgorithm =
-%%                                           #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-ecPublicKey',
-%%                                                                                 parameters = {asn1_OPENTYPE, Parameters}},
-%%                                       privateKey = PrivKey}) ->
-%%     EcPrivKey = der_decode('ECPrivateKey', PrivKey),
-%%     EcPrivKey#'ECPrivateKey'{parameters = der_decode('EcpkParameters', Parameters)};
-%% der_priv_key_decode(#'PrivateKeyInfo'{version = v1,
-%%                                       privateKeyAlgorithm =#'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = CurveOId},
-%%                                       privateKey = CurvePrivKey}) when
-%%       CurveOId == ?'id-Ed25519'orelse
-%%       CurveOId == ?'id-Ed448' ->
-%%     PrivKey = der_decode('CurvePrivateKey', CurvePrivKey),
-%%     #'ECPrivateKey'{version = 1, parameters = {namedCurve, CurveOId}, privateKey = PrivKey};
-%% der_priv_key_decode(#'OneAsymmetricKey'{
-%%                        privateKeyAlgorithm = #'OneAsymmetricKey_privateKeyAlgorithm'{algorithm = CurveOId},
-%%                        privateKey = CurvePrivKey,
-%%                        attributes = Attr,
-%%                        publicKey = PubKey}) when
-%%       CurveOId == ?'id-Ed25519'orelse
-%%       CurveOId == ?'id-Ed448' ->
-%%     PrivKey = der_decode('CurvePrivateKey', CurvePrivKey),
-%%     #'ECPrivateKey'{version = 2, parameters = {namedCurve, CurveOId}, privateKey = PrivKey,
-%%                     attributes = Attr,
-%%                     publicKey = PubKey};
-%% der_priv_key_decode(#'PrivateKeyInfo'{version = v1,
-%%                                       privateKeyAlgorithm =
-%%                                           #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'rsaEncryption'},
-%%                                       privateKey = PrivKey}) ->
-%%     der_decode('RSAPrivateKey', PrivKey);
-%% der_priv_key_decode(#'PrivateKeyInfo'{version = v1,
-%%                                       privateKeyAlgorithm =
-%%                                           #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-RSASSA-PSS',
-%%                                                                                 parameters = {asn1_OPENTYPE, Parameters}},
-%%                                       privateKey = PrivKey}) ->
-%%     Key = der_decode('RSAPrivateKey', PrivKey),
-%%     Params = der_decode('RSASSA-PSS-params', Parameters),
-%%     {Key, Params};
-%% der_priv_key_decode(#'PrivateKeyInfo'{version = v1,
-%%                                       privateKeyAlgorithm =
-%%                                           #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-RSASSA-PSS',
-%%                                                                                 parameters = asn1_NOVALUE},
-%%                                       privateKey = PrivKey}) ->
-%%     Key = der_decode('RSAPrivateKey', PrivKey),
-%%     #'RSASSA-AlgorithmIdentifier'{parameters = Params} = ?'rSASSA-PSS-Default-Identifier',
-%%     {Key, Params};
-%% der_priv_key_decode(#'PrivateKeyInfo'{version = v1,
-%%                                       privateKeyAlgorithm =
-%%                                           #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-dsa',
-%%                                                                                 parameters =
-%%                                                                                     {asn1_OPENTYPE, Parameters}},
-%%                                       privateKey = PrivKey}) ->
-%%     {params, #'DSA-Params'{p=P, q=Q, g=G}} = der_decode('DSAParams', Parameters),
-%%     X = der_decode('Prime-p', PrivKey),
-%%     #'DSAPrivateKey'{p=P, q=Q, g=G, x=X};
+der_priv_key_decode(#'OneAsymmetricKey'{version = v1,
+                                        privateKeyAlgorithm =
+                                            #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'id-ecPublicKey',
+                                                                             parameters = {asn1_OPENTYPE, Parameters}},
+                                        privateKey = PrivKey}) ->
+    EcPrivKey = der_decode('ECPrivateKey', PrivKey),
+    EcPrivKey#'ECPrivateKey'{parameters = der_decode('EcpkParameters', Parameters)};
+der_priv_key_decode(#'OneAsymmetricKey'{version = v1,
+                                        privateKeyAlgorithm =
+                                            #'PrivateKeyAlgorithmIdentifier'{algorithm = CurveOId},
+                                        privateKey = CurvePrivKey}) when
+      CurveOId == ?'id-Ed25519'orelse
+      CurveOId == ?'id-Ed448' ->
+    PrivKey = der_decode('CurvePrivateKey', CurvePrivKey),
+    #'ECPrivateKey'{version = 1, parameters = {namedCurve, CurveOId}, privateKey = PrivKey};
+der_priv_key_decode(#'OneAsymmetricKey'{
+                       privateKeyAlgorithm = #'PrivateKeyAlgorithmIdentifier'{algorithm = CurveOId},
+                       privateKey = CurvePrivKey,
+                       attributes = Attr,
+                       publicKey = PubKey}) when
+      CurveOId == ?'id-Ed25519'orelse
+      CurveOId == ?'id-Ed448' ->
+    PrivKey = der_decode('CurvePrivateKey', CurvePrivKey),
+    #'ECPrivateKey'{version = 2, parameters = {namedCurve, CurveOId}, privateKey = PrivKey,
+                    attributes = Attr,
+                    publicKey = PubKey};
+der_priv_key_decode(#'OneAsymmetricKey'{version = v1,
+                                        privateKeyAlgorithm =
+                                            #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'rsaEncryption'},
+                                        privateKey = PrivKey}) ->
+    der_decode('RSAPrivateKey', PrivKey);
+der_priv_key_decode(#'OneAsymmetricKey'{version = v1,
+                                        privateKeyAlgorithm =
+                                            #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'id-RSASSA-PSS',
+                                                                             parameters = {asn1_OPENTYPE, Parameters}},
+                                        privateKey = PrivKey}) ->
+    Key = der_decode('RSAPrivateKey', PrivKey),
+    Params = der_decode('RSASSA-PSS-params', Parameters),
+    {Key, Params};
+der_priv_key_decode(#'OneAsymmetricKey'{version = v1,
+                                        privateKeyAlgorithm =
+                                            #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'id-RSASSA-PSS',
+                                                                             parameters = asn1_NOVALUE},
+                                        privateKey = PrivKey}) ->
+    Key = der_decode('RSAPrivateKey', PrivKey),
+    #'RSASSA-AlgorithmIdentifier'{parameters = Params} = ?'rSASSA-PSS-Default-Identifier',
+    {Key, Params};
+der_priv_key_decode(#'OneAsymmetricKey'{version = v1,
+                                        privateKeyAlgorithm =
+                                            #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'id-dsa',
+                                                                             parameters =
+                                                                                 {asn1_OPENTYPE, Parameters}},
+                                        privateKey = PrivKey}) ->
+    {params, #'DSA-Params'{p=P, q=Q, g=G}} = der_decode('DSAParams', Parameters),
+    X = der_decode('Prime-p', PrivKey),
+    #'DSAPrivateKey'{p=P, q=Q, g=G, x=X};
 der_priv_key_decode(PKCS8Key) ->
     PKCS8Key.
 
@@ -697,82 +716,82 @@ der_priv_key_decode(PKCS8Key) ->
                                                Entity :: term(),
                                                Der :: binary() .
 %%--------------------------------------------------------------------
-%% der_encode('PrivateKeyInfo', #'DSAPrivateKey'{p=P, q=Q, g=G, x=X}) ->
-%%     Params = der_encode('DSA-Params', #'DSA-Params'{p=P, q=Q, g=G}),
-%%     Alg =  #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-dsa',
-%%                                                  parameters =
-%%                                                      {asn1_OPENTYPE, Params}},
-%%     Key = der_encode('Prime-p', X),
-%%     der_encode('PrivateKeyInfo',
-%%                #'PrivateKeyInfo'{version = v1,
-%%                                  privateKeyAlgorithm = Alg,
-%%                                  privateKey = Key});
-%% der_encode('PrivateKeyInfo', #'RSAPrivateKey'{} = PrivKey) ->
-%%     Parms = ?DER_NULL,
-%%     Alg = #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'rsaEncryption',
-%%                                                 parameters = {asn1_OPENTYPE, Parms}},
-%%     Key = der_encode('RSAPrivateKey', PrivKey),
-%%     der_encode('PrivateKeyInfo',
-%%                #'PrivateKeyInfo'{version = v1,
-%%                                  privateKeyAlgorithm = Alg,
-%%                                  privateKey = Key});
-%% der_encode('PrivateKeyInfo', {#'RSAPrivateKey'{} = PrivKey, Parameters}) ->
-%%     #'RSASSA-AlgorithmIdentifier'{parameters = DefaultParams} = ?'rSASSA-PSS-Default-Identifier',
-%%     Params = case Parameters of
-%%                  DefaultParams ->
-%%                      asn1_NOVALUE;
-%%                  _ ->
-%%                      {asn1_OPENTYPE, der_encode('RSASSA-PSS-params', Parameters)}
-%%              end,
-%%     Alg = #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-RSASSA-PSS',
-%%                                                 parameters = Params},
-%%     Key = der_encode('RSAPrivateKey', PrivKey),
-%%     der_encode('PrivateKeyInfo', #'PrivateKeyInfo'{version = v1,
-%%                                                    privateKeyAlgorithm = Alg,
-%%                                                    privateKey = Key});
-%% der_encode('PrivateKeyInfo', #'ECPrivateKey'{parameters = {namedCurve, CurveOId},
-%%                                              privateKey = Key}) when
-%%       CurveOId == ?'id-Ed25519' orelse
-%%       CurveOId == ?'id-Ed448' ->
-%%     CurvePrivKey = der_encode('CurvePrivateKey', Key),
-%%     Alg = #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = CurveOId},
-%%     der_encode('PrivateKeyInfo', #'PrivateKeyInfo'{version = v1,
-%%                                                    privateKeyAlgorithm = Alg,
-%%                                                    privateKey = CurvePrivKey});
-%% der_encode('PrivateKeyInfo', #'ECPrivateKey'{parameters = Parameters} = PrivKey) ->
-%%     Params = der_encode('EcpkParameters', Parameters),
-%%     Alg = #'PrivateKeyInfo_privateKeyAlgorithm'{algorithm = ?'id-ecPublicKey',
-%%                                                 parameters = {asn1_OPENTYPE, Params}},
-%%     Key = der_encode('ECPrivateKey', PrivKey#'ECPrivateKey'{parameters = asn1_NOVALUE}),
-%%     der_encode('PrivateKeyInfo',
-%%                #'PrivateKeyInfo'{version = v1,
-%%                                  privateKeyAlgorithm = Alg,
-%%                                  privateKey = Key});
-%% der_encode('OneAsymmetricKey', #'ECPrivateKey'{parameters = {namedCurve, CurveOId},
-%%                                                privateKey = Key,
-%%                                                attributes = Attr,
-%%                                                publicKey = PubKey}) when
-%%       CurveOId == ?'id-Ed25519' orelse
-%%       CurveOId == ?'id-Ed448' ->
-%%     CurvePrivKey = der_encode('CurvePrivateKey', Key),
-%%     Alg = #'OneAsymmetricKey_privateKeyAlgorithm'{algorithm = CurveOId},
-%%     der_encode('OneAsymmetricKey',
-%%                #'OneAsymmetricKey'{version = 1,
-%%                                    privateKeyAlgorithm = Alg,
-%%                                    privateKey = CurvePrivKey,
-%%                                    attributes = Attr,
-%%                                    publicKey = PubKey});
-%% der_encode('OneAsymmetricKey', #'ECPrivateKey'{parameters = {namedCurve, CurveOId},
-%%                                                privateKey = Key,
-%%                                                attributes = Attr,
-%%                                                publicKey = PubKey}) ->
-%%     Alg = #'OneAsymmetricKey_privateKeyAlgorithm'{algorithm = CurveOId},
-%%     der_encode('OneAsymmetricKey',
-%%                #'OneAsymmetricKey'{version = 1,
-%%                                    privateKeyAlgorithm = Alg,
-%%                                    privateKey = Key,
-%%                                    attributes = Attr,
-%%                                    publicKey = PubKey});
+der_encode('PrivateKeyInfo', #'DSAPrivateKey'{p=P, q=Q, g=G, x=X}) ->
+    Params = der_encode('DSA-Params', #'DSA-Params'{p=P, q=Q, g=G}),
+    Alg =  #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'id-dsa',
+                                            parameters =
+                                                {asn1_OPENTYPE, Params}},
+    Key = der_encode('Prime-p', X),
+    der_encode('OneAsymmetricKey',
+               #'OneAsymmetricKey'{version = 0,
+                                   privateKeyAlgorithm = Alg,
+                                   privateKey = Key});
+der_encode('PrivateKeyInfo', #'RSAPrivateKey'{} = PrivKey) ->
+    Parms = ?DER_NULL,
+    Alg = #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'rsaEncryption',
+                                           parameters = {asn1_OPENTYPE, Parms}},
+    Key = der_encode('RSAPrivateKey', PrivKey),
+    der_encode('OneAsymmetricKey',
+               #'OneAsymmetricKey'{version = 0,
+                                   privateKeyAlgorithm = Alg,
+                                   privateKey = Key});
+der_encode('PrivateKeyInfo', {#'RSAPrivateKey'{} = PrivKey, Parameters}) ->
+    #'RSASSA-AlgorithmIdentifier'{parameters = DefaultParams} = ?'rSASSA-PSS-Default-Identifier',
+    Params = case Parameters of
+                 DefaultParams ->
+                     asn1_NOVALUE;
+                 _ ->
+                     {asn1_OPENTYPE, der_encode('RSASSA-PSS-params', Parameters)}
+             end,
+    Alg = #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'id-RSASSA-PSS',
+                                                parameters = Params},
+    Key = der_encode('RSAPrivateKey', PrivKey),
+    der_encode('OneAsymmetricKey', #'OneAsymmetricKey'{version = 0,
+                                                       privateKeyAlgorithm = Alg,
+                                                       privateKey = Key});
+der_encode('PrivateKeyInfo', #'ECPrivateKey'{parameters = {namedCurve, CurveOId},
+                                             privateKey = Key}) when
+      CurveOId == ?'id-Ed25519' orelse
+      CurveOId == ?'id-Ed448' ->
+    CurvePrivKey = der_encode('CurvePrivateKey', Key),
+    Alg = #'PrivateKeyAlgorithmIdentifier'{algorithm = CurveOId},
+    der_encode('OneAsymmetricKey', #'OneAsymmetricKey'{version = 0,
+                                                       privateKeyAlgorithm = Alg,
+                                                       privateKey = CurvePrivKey});
+der_encode('PrivateKeyInfo', #'ECPrivateKey'{parameters = Parameters} = PrivKey) ->
+    Params = der_encode('EcpkParameters', Parameters),
+    Alg = #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'id-ecPublicKey',
+                                                parameters = {asn1_OPENTYPE, Params}},
+    Key = der_encode('ECPrivateKey', PrivKey#'ECPrivateKey'{parameters = asn1_NOVALUE}),
+    der_encode('OneAsymmetricKey',
+               #'OneAsymmetricKey'{version = 0,
+                                   privateKeyAlgorithm = Alg,
+                                   privateKey = Key});
+der_encode('OneAsymmetricKey', #'ECPrivateKey'{parameters = {namedCurve, CurveOId},
+                                               privateKey = Key,
+                                               attributes = Attr,
+                                               publicKey = PubKey}) when
+      CurveOId == ?'id-Ed25519' orelse
+      CurveOId == ?'id-Ed448' ->
+    CurvePrivKey = der_encode('CurvePrivateKey', Key),
+    Alg = #'PrivateKeyAlgorithmIdentifier'{algorithm = CurveOId},
+    der_encode('OneAsymmetricKey',
+               #'OneAsymmetricKey'{version = 1,
+                                   privateKeyAlgorithm = Alg,
+                                   privateKey = CurvePrivKey,
+                                   attributes = Attr,
+                                   publicKey = PubKey});
+der_encode('OneAsymmetricKey', #'ECPrivateKey'{parameters = {namedCurve, CurveOId},
+                                               privateKey = Key,
+                                               attributes = Attr,
+                                               publicKey = PubKey}) ->
+    Alg = #'PrivateKeyAlgorithmIdentifier'{algorithm = CurveOId},
+    der_encode('OneAsymmetricKey',
+               #'OneAsymmetricKey'{version = 1,
+                                   privateKeyAlgorithm = Alg,
+                                   privateKey = Key,
+                                   attributes = Attr,
+                                   publicKey = PubKey});
 der_encode(Asn1Type, Entity) when (Asn1Type == 'PrivateKeyInfo') orelse
                                   (Asn1Type == 'OneAsymmetricKey') orelse
 				  (Asn1Type == 'EncryptedPrivateKeyInfo') ->
