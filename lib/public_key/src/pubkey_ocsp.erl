@@ -23,19 +23,8 @@
 -module(pubkey_ocsp).
 -moduledoc false.
 
-%% -include("CryptographicMessageSyntax-2009.hrl").
-%% -include("DSS.hrl").
--include("OCSP-2009.hrl").
-%% -include("PKCS-1.hrl").
-%% -include("PKCS-10.hrl").
-%% -include("PKCS-3.hrl").
-%% -include("PKCS-FRAME.hrl").
-%% -include("PKIX1-PSS-OAEP-Algorithms-2009.hrl").
-%% -include("PKIX1Explicit-2009.hrl").
--include("PKIX1Implicit-2009.hrl").
--include("PKIXAlgs-2009.hrl").
-
--include("public_key.hrl").
+-define(_PKCS_FRAME_HRL_, true).
+-include("public_key_internal.hrl").
 
 -export([find_single_response/3,
          get_acceptable_response_types_extn/0,
@@ -272,8 +261,8 @@ do_verify_signature(ResponseDataDer, Signature, AlgorithmID,
 
 get_public_key_rec(#'OTPCertificate'{tbsCertificate = TbsCert}) ->
     PKInfo = TbsCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
-    Params = PKInfo#'OTPSubjectPublicKeyInfo'.algorithm#'PublicKeyAlgorithm'.parameters,
-    SubjectPublicKey = PKInfo#'OTPSubjectPublicKeyInfo'.subjectPublicKey,
+    Params = PKInfo#'SubjectPublicKeyInfo'.algorithm#'SubjectPublicKeyInfo_algorithm'.parameters,
+    SubjectPublicKey = PKInfo#'SubjectPublicKeyInfo'.subjectPublicKey,
     case {SubjectPublicKey, Params} of
         {#'RSAPublicKey'{}, 'NULL'} ->
             SubjectPublicKey;

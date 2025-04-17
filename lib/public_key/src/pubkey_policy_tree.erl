@@ -32,9 +32,10 @@
 %% -include("PKIX1-PSS-OAEP-Algorithms-2009.hrl").
 %% -include("PKIX1Explicit-2009.hrl").
 %%-include("PKIX1Implicit-2009.hrl").
--include("PKIXAlgs-2009.hrl").
+%% -include("PKIXAlgs-2009.hrl").
 
--include("../include/public_key.hrl").
+-include("OTP-PUB-KEY.hrl").
+-include("pubkey_defs.hrl").
 
 %% API
 -export([add_leaves/2,

@@ -23,8 +23,6 @@
 -module(pubkey_cert).
 -moduledoc false.
 
--include("public_key.hrl").
-
 %% path validation
 -export([init_validation_state/3,
          validate_extensions/4,
@@ -56,6 +54,9 @@
 -export([gen_test_certs/1,
          x509_pkix_sign_types/1,
          root_cert/2]).
+
+-include("OTP-PUB-KEY.hrl").
+-include("pubkey_defs.hrl").
 
 -define(NULL, 0).
 
@@ -1441,7 +1442,7 @@ is_dir_name([[{'AttributeTypeAndValue', Type, What1}]|Rest1],
     end;
 is_dir_name(_,[],false) ->
     true;
-is_dir_name(_,_,_) ->
+is_dir_name(_A,_B,_) ->
     false.
 
 %% attribute values in types other than PrintableString are case
@@ -1453,10 +1454,10 @@ is_dir_name(_,_,_) ->
 is_dir_name2(Str, Str) ->
     true;
 is_dir_name2({T1, Str1}, Str2)
-  when T1 == printableString; T1 == utf8String ->
+  when T1 == printableString; T1 == uTF8String ->
     is_dir_name2(Str1, Str2);
 is_dir_name2(Str1, {T2, Str2})
-  when T2 == printableString; T2 == utf8String ->
+  when T2 == printableString; T2 == uTF8String ->
     is_dir_name2(Str1, Str2);
 is_dir_name2(Str1, Str2)
   when (is_list(Str1) orelse is_binary(Str1)) andalso
@@ -1750,8 +1751,8 @@ public_key_info(PublicKeyInfo,
 				       WorkingAlgorithm,
 				       working_public_key_parameters =
 				       WorkingParams}) ->
-    PublicKey = PublicKeyInfo#'OTPSubjectPublicKeyInfo'.subjectPublicKey,
-    AlgInfo = PublicKeyInfo#'OTPSubjectPublicKeyInfo'.algorithm,
+    PublicKey = PublicKeyInfo#'SubjectPublicKeyInfo'.subjectPublicKey,
+    AlgInfo = PublicKeyInfo#'SubjectPublicKeyInfo'.algorithm,
 
     PublicKeyParams = AlgInfo#'PublicKeyAlgorithm'.parameters,
     Algorithm = AlgInfo#'PublicKeyAlgorithm'.algorithm,
