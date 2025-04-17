@@ -144,7 +144,8 @@
          parameters,    % {ecParameters, #'ECParameters'{}} |
                                                 % {namedCurve, Oid::tuple()} |
                                                 % {implicitlyCA, 'NULL'}
-         publicKey      % bitstring()
+         publicKey,      % bitstring()
+         attributes  %% Not documented
         }).
 
 -record('ECParameters',
@@ -673,7 +674,9 @@
   version,
   privateKeyAlgorithm,
   privateKey,
-  attributes = asn1_NOVALUE
+  attributes = asn1_NOVALUE,
+  %% Version 2 with extension
+  publicKey = asn1_NOVALUE
 }).
 
 -record('PrivateKeyInfo_privateKeyAlgorithm', {
