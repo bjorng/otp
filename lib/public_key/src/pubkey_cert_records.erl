@@ -455,4 +455,5 @@ get_asn1_module('ExtKeyUsageSyntax') -> 'PKIX1Implicit-2009';
 get_asn1_module('KeyUsage') -> 'PKIX1Implicit-2009';
 get_asn1_module('RSAPublicKey') -> 'PKIXAlgs-2009';
 get_asn1_module('SubjectKeyIdentifier') -> 'CryptographicMessageSyntax-2009';
-get_asn1_module('CertificatePolicies') -> 'PKIX1Implicit-2009'.
+get_asn1_module('CertificatePolicies') -> 'PKIX1Implicit-2009';
+get_asn1_module('FreshestCRL') ->  'OTP-PUB-KEY'.

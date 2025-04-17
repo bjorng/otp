@@ -635,7 +635,13 @@ get_asn1_module('DSAPrivateKey') -> 'DSS';
 get_asn1_module('DSAPublicKey') -> 'PKIXAlgs-2009';
 get_asn1_module('RSAPrivateKey') -> 'PKCS-1';
 get_asn1_module('RSASSA-PSS-params') -> 'PKIX1-PSS-OAEP-Algorithms-2009';
-get_asn1_module('SubjectPublicKeyInfo') -> 'PKIX1Explicit-2009'.
+get_asn1_module('SubjectPublicKeyInfo') -> 'PKIX1Explicit-2009';
+get_asn1_module('OTPCertificate') -> 'OTP-PUB-KEY';
+get_asn1_module('CRLDistributionPoints') -> 'OTP-PUB-KEY';
+get_asn1_module('CRLReason') ->  'OTP-PUB-KEY';
+get_asn1_module('CRLNumber') ->  'OTP-PUB-KEY';
+get_asn1_module('FreshestCRL') ->  'OTP-PUB-KEY';
+get_asn1_module('IssuingDistributionPoint') ->  'OTP-PUB-KEY'.
 
 handle_pkcs_frame_error('PrivateKeyInfo', Der, _) ->
     try
@@ -2658,34 +2664,32 @@ combine([{_, CRL} = Entry | CRLs], DeltaCRLs, DP, FreshCB, Acc) ->
 	    combine(CRLs, DeltaCRLs, DP, FreshCB, [{DP, Entry, NewDeltaCRL} | Acc])
     end.
 
-%% combine(CRL, DeltaCRLs) ->
-%%     Deltas = lists:filter(fun({_,DeltaCRL}) ->
-%% 				  pubkey_crl:combines(CRL, DeltaCRL)
-%% 			  end, DeltaCRLs),
-%%     case Deltas of
-%% 	[] ->
-%% 	    {undefined, undefined};
-%% 	[Delta] ->
-%% 	    Delta;
-%% 	[_,_|_] ->
-%% 	    Fun =
-%% 		fun({_, #'CertificateList'{tbsCertList = FirstTBSCRL}} = CRL1,
-%% 		    {_, #'CertificateList'{tbsCertList = SecondTBSCRL}} = CRL2) ->
-%% 			Time1 = pubkey_cert:time_str_2_gregorian_sec(
-%% 				  FirstTBSCRL#'TBSCertList'.thisUpdate),
-%% 			Time2 = pubkey_cert:time_str_2_gregorian_sec(
-%% 				  SecondTBSCRL#'TBSCertList'.thisUpdate),
-%% 			case Time1 > Time2 of
-%% 			      true ->
-%% 				CRL1;
-%% 			    false ->
-%% 				CRL2
-%% 			end
-%% 		end,
-%% 	    lists:foldl(Fun,  hd(Deltas), tl(Deltas))
-%%     end.
-combine(_, _) ->
-    error('NYI').
+combine(CRL, DeltaCRLs) ->
+    Deltas = lists:filter(fun({_,DeltaCRL}) ->
+				  pubkey_crl:combines(CRL, DeltaCRL)
+			  end, DeltaCRLs),
+    case Deltas of
+	[] ->
+	    {undefined, undefined};
+	[Delta] ->
+	    Delta;
+	[_,_|_] ->
+	    Fun =
+		fun({_, #'CertificateList'{toBeSigned = FirstTBSCRL}} = CRL1,
+		    {_, #'CertificateList'{toBeSigned = SecondTBSCRL}} = CRL2) ->
+			Time1 = pubkey_cert:time_str_2_gregorian_sec(
+				  FirstTBSCRL#'TBSCertList'.thisUpdate),
+			Time2 = pubkey_cert:time_str_2_gregorian_sec(
+				  SecondTBSCRL#'TBSCertList'.thisUpdate),
+			case Time1 > Time2 of
+			      true ->
+				CRL1;
+			    false ->
+				CRL2
+			end
+		end,
+	    lists:foldl(Fun,  hd(Deltas), tl(Deltas))
+    end.
 
 format_rsa_private_key(#'RSAPrivateKey'{modulus = N, publicExponent = E,
 					privateExponent = D,
