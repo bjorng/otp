@@ -81,7 +81,11 @@ macros described here and in the User's Guide:
   parameters = asn1_NOVALUE
 }).
 
-
+-record('OTPSubjectPublicKeyInfo',
+        {
+         algorithm,       % #'PublicKeyAlgorithm'{}
+         subjectPublicKey % binary()
+        }).
 
 -define('ppBasis', {1,2,840,10045,1,2,3,3}).
 -define('tpBasis', {1,2,840,10045,1,2,3,2}).
@@ -1496,11 +1500,12 @@ pkix_crl_verify(CRL, Cert) when is_binary(Cert) ->
 pkix_crl_verify(#'CertificateList'{} = CRL, #'OTPCertificate'{} = Cert) ->
     TBSCert = Cert#'OTPCertificate'.tbsCertificate,
     PublicKeyInfo = TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
-    AlgInfo = PublicKeyInfo#'SubjectPublicKeyInfo'.algorithm,
+    PublicKey = PublicKeyInfo#'OTPSubjectPublicKeyInfo'.subjectPublicKey,
+    AlgInfo = PublicKeyInfo#'OTPSubjectPublicKeyInfo'.algorithm,
     PublicKeyParams = AlgInfo#'SubjectPublicKeyInfo_algorithm'.parameters,
     pubkey_crl:verify_crl_signature(CRL,
                                     der_encode('CertificateList', CRL),
-                                    aPublicKey, PublicKeyParams).
+                                    PublicKey, PublicKeyParams).
 
 %%--------------------------------------------------------------------
 -doc "Checks if `IssuerCert` issued `Cert`.".
@@ -2986,7 +2991,7 @@ format_details(Details) ->
     Details.
 
 subject_public_key_info(Alg, PubKey) ->
-    #'SubjectPublicKeyInfo'{algorithm = Alg, subjectPublicKey = PubKey}.
+    #'OTPSubjectPublicKeyInfo'{algorithm = Alg, subjectPublicKey = PubKey}.
 
 %%%################################################################
 %%%#

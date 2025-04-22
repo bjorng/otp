@@ -26,6 +26,12 @@
 -define(_PKCS_FRAME_HRL_, true).
 -include("public_key_internal.hrl").
 
+-record('OTPSubjectPublicKeyInfo',
+        {
+         algorithm,       % #'PublicKeyAlgorithm'{}
+         subjectPublicKey % binary()
+        }).
+
 -export([find_single_response/3,
          get_acceptable_response_types_extn/0,
          get_nonce_extn/1,
@@ -261,7 +267,7 @@ do_verify_signature(ResponseDataDer, Signature, AlgorithmID,
 
 get_public_key_rec(#'OTPCertificate'{tbsCertificate = TbsCert}) ->
     PKInfo = TbsCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
-    Params = PKInfo#'SubjectPublicKeyInfo'.algorithm#'SubjectPublicKeyInfo_algorithm'.parameters,
+    Params = PKInfo#'OTPSubjectPublicKeyInfo'.algorithm#'SubjectPublicKeyInfo_algorithm'.parameters,
     SubjectPublicKey = PKInfo#'SubjectPublicKeyInfo'.subjectPublicKey,
     case {SubjectPublicKey, Params} of
         {#'RSAPublicKey'{}, 'NULL'} ->
