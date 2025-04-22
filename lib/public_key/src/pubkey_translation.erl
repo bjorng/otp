@@ -1,0 +1,80 @@
+%%
+%% %CopyrightBegin%
+%%
+%% SPDX-License-Identifier: Apache-2.0
+%%
+%% Copyright Ericsson AB 2008-2025. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%
+%% %CopyrightEnd%
+%%
+
+-module(pubkey_translation).
+-moduledoc false.
+
+-export([decode/1,encode/1]).
+
+-define(_PKCS_FRAME_HRL_, true).
+-include("public_key_internal.hrl").
+
+-record('AttributeTypeAndValue',
+        {
+         type,   % id_attributes()
+         value   % term()
+        }).
+
+decode(#'SubjectPublicKeyInfo'{algorithm=AlgId0,subjectPublicKey=Key}) ->
+    #'SubjectPublicKeyInfo_algorithm'{algorithm=AlgId1,parameters=Params1} = AlgId0,
+    AlgId = decode(AlgId1),
+    Params = decode(Params1),
+    {'SubjectPublicKeyInfo', {'PublicKeyAlgorithm', AlgId, Params}, Key};
+decode(#'DSA-Params'{p=P,q=Q,g=G}) ->
+    #'Dss-Parms'{p=P,q=Q,g=G};
+decode(#'SingleAttribute'{type=T,value=V}) ->
+    #'AttributeTypeAndValue'{type=T,value=V};
+decode({'OneAsymmetricKey', Vsn, KeyAlg, PrivKey, Attrs, PubKey} = Orig) ->   %% Defined In PKCS_FRAME
+    case Vsn of
+        v1 -> {'PrivateKeyInfo', Vsn, KeyAlg, PrivKey, Attrs, PubKey};
+        _  -> Orig
+    end;
+decode(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple(decode_list(tuple_to_list(Tuple)));
+decode(List) when is_list(List) ->
+    decode_list(List);
+decode(Other) ->
+    Other.
+
+decode_list(List) ->
+    [decode(E) || E <- List].
+
+encode({'SubjectPublicKeyInfo', {'PublicKeyAlgorithm', AlgId0, Params}, Key}) ->
+    AlgId1 = encode(AlgId0),
+    Params1 = encode(Params),
+    Alg = #'SubjectPublicKeyInfo_algorithm'{algorithm=AlgId1,parameters=Params1},
+    #'SubjectPublicKeyInfo'{algorithm=Alg,subjectPublicKey=Key};
+encode(#'AttributeTypeAndValue'{type=T,value=V}) ->
+    #'SingleAttribute'{type=T,value=V};
+encode({'PrivateKeyInfo', Vsn, KeyAlg, PrivKey, Attrs, PubKey}) ->
+    {'OneAsymmetricKey', Vsn, KeyAlg, PrivKey, Attrs, PubKey};
+encode(#'Dss-Parms'{p=P,q=Q,g=G}) ->
+    #'DSA-Params'{p=P,q=Q,g=G};
+encode(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple(encode_list(tuple_to_list(Tuple)));
+encode(List) when is_list(List) ->
+    encode_list(List);
+encode(Other) ->
+    Other.
+
+encode_list(List) ->
+    [encode(E) || E <- List].

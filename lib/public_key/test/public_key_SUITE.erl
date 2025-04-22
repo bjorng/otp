@@ -318,7 +318,9 @@ dsa_pem(Config) when is_list(Config) ->
     {ok, DSAPubPem} = file:read_file(filename:join(Datadir, "dsa_pub.pem")),
     [{'SubjectPublicKeyInfo', _, _} = PubEntry0] =
         public_key:pem_decode(DSAPubPem),
+    io:format("~p: ~p\n", [?LINE,PubEntry0]),
     DSAPubKey = public_key:pem_entry_decode(PubEntry0),
+    io:format("~p: ~p\n", [?LINE,DSAPubKey]),
     true = check_entry_type(DSAPubKey, 'DSAPublicKey'),
     PubEntry0 = public_key:pem_entry_encode('SubjectPublicKeyInfo', DSAPubKey),
     DSAPubPemNoEndNewLines = strip_superfluous_newlines(DSAPubPem),
@@ -332,6 +334,7 @@ dsa_priv_pkcs8(Config) when is_list(Config) ->
     [{'PrivateKeyInfo', DerDSAKey, not_encrypted} = Entry0 ] = public_key:pem_decode(DsaPem),
     DSAKey = public_key:der_decode('PrivateKeyInfo', DerDSAKey),
     DSAKey = public_key:pem_entry_decode(Entry0),
+    io:format("~p\n", [DSAKey]),
     true = check_entry_type(DSAKey, 'DSAPrivateKey'),
     PrivEntry0 = public_key:pem_entry_encode('PrivateKeyInfo', DSAKey),
     DSAPemNoEndNewLines = strip_superfluous_newlines(DsaPem),
@@ -1385,7 +1388,7 @@ pkix_crl(Config) when is_list(Config) ->
     Datadir = proplists:get_value(data_dir, Config),
     {ok, PemCRL} = file:read_file(filename:join(Datadir, "idp_crl.pem")),
     [{_, CRL, _}] = public_key:pem_decode(PemCRL),
-    
+
     {ok, IDPPemCert} = file:read_file(filename:join(Datadir, "idp_cert.pem")),
     [{_, IDPCert, _}] = public_key:pem_decode(IDPPemCert),
 
@@ -1398,7 +1401,7 @@ pkix_crl(Config) when is_list(Config) ->
 
     {rdnSequence,_} = public_key:pkix_crl_issuer(CRL),
     {rdnSequence,_} = public_key:pkix_crl_issuer(ERLCRL),
-    
+    io:format("~p\n", [CRL]),
     true = public_key:pkix_crl_verify(CRL, SignCert),
     true = public_key:pkix_crl_verify(ERLCRL, OTPSignCert),
 

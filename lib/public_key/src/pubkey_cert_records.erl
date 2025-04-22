@@ -25,19 +25,57 @@
 -module(pubkey_cert_records).
 -moduledoc false.
 
-%% -include("CryptographicMessageSyntax-2009.hrl").
-%% -include("DSS.hrl").
-%% -include("OCSP-2009.hrl").
-%% -include("PKCS-1.hrl").
-%% -include("PKCS-10.hrl").
-%% -include("PKCS-3.hrl").
-%% -include("PKCS-FRAME.hrl").
-%% -include("PKIX1-PSS-OAEP-Algorithms-2009.hrl").
--include("PKIX1Explicit-2009.hrl").
-%% -include("PKIX1Implicit-2009.hrl").
--include("PKIXAlgs-2009.hrl").
+-define(_PKCS_FRAME_HRL_, true).
+-include("public_key_internal.hrl").
 
--include("public_key.hrl").
+-record('PublicKeyAlgorithm', {
+  algorithm,
+  parameters = asn1_NOVALUE
+}).
+
+%% Superseded by SingleAttribute.
+-record('AttributeTypeAndValue', {
+  type,
+  value
+}).
+
+%% Identifiers not present in modern specs.
+
+-define('characteristic-two-field', {1,2,840,10045,1,2}).
+-define('prime-field', {1,2,840,10045,1,1}).
+
+-define('brainpoolP512t1', {1,3,36,3,3,2,8,1,1,14}).
+-define('brainpoolP512r1', {1,3,36,3,3,2,8,1,1,13}).
+-define('brainpoolP384t1', {1,3,36,3,3,2,8,1,1,12}).
+-define('brainpoolP384r1', {1,3,36,3,3,2,8,1,1,11}).
+-define('brainpoolP320t1', {1,3,36,3,3,2,8,1,1,10}).
+-define('brainpoolP320r1', {1,3,36,3,3,2,8,1,1,9}).
+-define('brainpoolP256t1', {1,3,36,3,3,2,8,1,1,8}).
+-define('brainpoolP256r1', {1,3,36,3,3,2,8,1,1,7}).
+-define('brainpoolP224t1', {1,3,36,3,3,2,8,1,1,6}).
+-define('brainpoolP224r1', {1,3,36,3,3,2,8,1,1,5}).
+-define('brainpoolP192t1', {1,3,36,3,3,2,8,1,1,4}).
+-define('brainpoolP192r1', {1,3,36,3,3,2,8,1,1,3}).
+-define('brainpoolP160t1', {1,3,36,3,3,2,8,1,1,2}).
+-define('brainpoolP160r1', {1,3,36,3,3,2,8,1,1,1}).
+-define('secp224k1', {1,3,132,0,32}).
+-define('secp192k1', {1,3,132,0,31}).
+-define('secp160r2', {1,3,132,0,30}).
+-define('secp128r2', {1,3,132,0,29}).
+-define('secp128r1', {1,3,132,0,28}).
+-define('sect193r2', {1,3,132,0,25}).
+-define('sect193r1', {1,3,132,0,24}).
+-define('sect131r2', {1,3,132,0,23}).
+-define('sect131r1', {1,3,132,0,22}).
+-define('secp256k1', {1,3,132,0,10}).
+-define('secp160k1', {1,3,132,0,9}).
+-define('secp160r1', {1,3,132,0,8}).
+-define('secp112r2', {1,3,132,0,7}).
+-define('secp112r1', {1,3,132,0,6}).
+-define('sect113r2', {1,3,132,0,5}).
+-define('sect113r1', {1,3,132,0,4}).
+-define('sect239k1', {1,3,132,0,3}).
+-define('sect163r1', {1,3,132,0,2}).
 
 -export([decode_cert/1, transform/2, supportedPublicKeyAlgorithms/1,
 	 supportedCurvesTypes/1, namedCurves/1]).
@@ -52,7 +90,7 @@
 %% Description: Recursively decodes a Certificate. 
 %%-------------------------------------------------------------------- 
 decode_cert(DerCert) ->
-    {ok, Cert} = 'OTP-PUB-KEY':decode('OTPCertificate', DerCert),
+    {ok, Cert} = 'OTP-PKIX':decode('OTPCertificate', DerCert),
     #'OTPCertificate'{tbsCertificate = TBS} = Cert,
     {ok, Cert#'OTPCertificate'{tbsCertificate = decode_tbs(TBS)}}.
 
@@ -245,29 +283,35 @@ namedCurves(brainpoolP512t1) -> ?'brainpoolP512t1'.
 
 %%% SubjectPublicKey
 
-decode_supportedPublicKey(#'OTPSubjectPublicKeyInfo'{algorithm= PA =
-							 #'PublicKeyAlgorithm'{algorithm=Algo},
-						     subjectPublicKey = SPK0}) ->
+decode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
+                                                  subjectPublicKey=SPK0}) ->
+    #'SubjectPublicKeyInfo_algorithm'{algorithm=Algo,parameters=_Params0} = PA,
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
-              'ECPoint' -> #'ECPoint'{point = SPK0};
-              _ -> {ok, SPK1} = 'OTP-PUB-KEY':decode(Type, SPK0),
-                   SPK1
+              'ECPoint' ->
+                  #'ECPoint'{point = SPK0};
+              _ ->
+                  public_key:der_decode(Type, SPK0)
+                  %% Mod = get_asn1_module(Type),
+                  %% {ok, SPK1} = Mod:decode(Type, SPK0),
+                  %% SPK1
           end,
-    #'OTPSubjectPublicKeyInfo'{subjectPublicKey = SPK, algorithm=PA}.
+    #'SubjectPublicKeyInfo'{subjectPublicKey = SPK, algorithm=PA}.
 
-encode_supportedPublicKey(#'OTPSubjectPublicKeyInfo'{algorithm= PA =
-						     #'PublicKeyAlgorithm'{algorithm=Algo},
-						     subjectPublicKey = SPK0}) ->
+encode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm= PA =
+                                                      #'PublicKeyAlgorithm'{algorithm=Algo},
+                                                  subjectPublicKey = SPK0}) ->
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
               'ECPoint' ->
                   SPK0#'ECPoint'.point;
               _ ->
-                  {ok, SPK1} = 'OTP-PUB-KEY':encode(Type, SPK0),
-                  SPK1
+                  public_key:der_encode(Type, SPK0)
+                  %% Mod = get_asn1_module(Type),
+                  %% {ok, SPK1} = Mod:encode(Type, SPK0),
+                  %% SPK1
           end,
-    #'OTPSubjectPublicKeyInfo'{subjectPublicKey = SPK, algorithm=PA}.
+    #'SubjectPublicKeyInfo'{subjectPublicKey = SPK, algorithm=PA}.
 
 %%% Extensions
 
@@ -306,10 +350,25 @@ decode_extensions(asn1_NOVALUE) ->
 decode_extensions(Exts) ->
     lists:map(fun(Ext = #'Extension'{extnID=Id, extnValue=Value0}) ->
 		      case extension_id(Id) of
-			  undefined -> Ext;
+			  undefined ->
+                              Ext;
 			  Type ->
-			      {ok, Value} = 'OTP-PUB-KEY':decode(Type, iolist_to_binary(Value0)),
-			      Ext#'Extension'{extnValue=transform(Value,decode)}
+                              case Type of
+                                  'SubjectAltName' ->
+                                      {ok, Value0} = 'PKIX1Implicit-2009':decode('GeneralNames',
+                                                                                 iolist_to_binary(Value0)),
+                                      Value = pubkey_translation:decode(Value0),
+                                      Ext#'Extension'{extnValue=transform(Value,decode)};
+                                  'IssuerAltName' ->
+                                      {ok, Value0} = 'PKIX1Implicit-2009':decode('GeneralNames',
+                                                                                 iolist_to_binary(Value0)),
+                                      Value = pubkey_translation:decode(Value0),
+                                      Ext#'Extension'{extnValue=transform(Value,decode)};
+                                  _ ->
+                                      Mod = get_asn1_module(Type),
+                                      {ok, Value} = Mod:decode(Type, iolist_to_binary(Value0)),
+                                      Ext#'Extension'{extnValue=transform(Value,decode)}
+                              end
 		      end
 	      end, Exts).
 
@@ -319,10 +378,12 @@ encode_extensions(asn1_NOVALUE) ->
 encode_extensions(Exts) ->
     lists:map(fun(Ext = #'Extension'{extnID=Id, extnValue=Value0}) ->
 		      case extension_id(Id) of
-			  undefined -> Ext;			  
+			  undefined ->
+                              Ext;
 			  Type ->
-			      Value1 = transform(Value0,encode),
-			      {ok, Value} = 'OTP-PUB-KEY':encode(Type, Value1),
+                              Mod = get_asn1_module(Type),
+			      Value1 = transform(Value0, encode),
+			      {ok, Value} = Mod:encode(Type, Value1),
 			      Ext#'Extension'{extnValue=Value}
 		      end
 	      end, Exts).
@@ -372,3 +433,11 @@ attribute_type(?'id-at-pseudonym') -> 'X520Pseudonym';
 attribute_type(?'id-domainComponent') -> 'DomainComponent';
 attribute_type(?'id-emailAddress') -> 'EmailAddress';
 attribute_type(Type) -> Type.
+
+get_asn1_module('AuthorityInfoAccessSyntax') -> 'PKIX1Implicit-2009';
+get_asn1_module('AuthorityKeyIdentifier') -> 'PKIX1Implicit-2009';
+get_asn1_module('BasicConstraints') -> 'PKIX1Implicit-2009';
+get_asn1_module('ExtKeyUsageSyntax') -> 'PKIX1Implicit-2009';
+get_asn1_module('KeyUsage') -> 'PKIX1Implicit-2009';
+get_asn1_module('RSAPublicKey') -> 'PKIXAlgs-2009';
+get_asn1_module('SubjectKeyIdentifier') -> 'CryptographicMessageSyntax-2009'.
