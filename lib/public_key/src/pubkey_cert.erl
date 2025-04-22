@@ -55,8 +55,40 @@
          x509_pkix_sign_types/1,
          root_cert/2]).
 
--include("OTP-PUB-KEY.hrl").
--include("pubkey_defs.hrl").
+-define(_PKCS_FRAME_HRL_, true).
+-include("public_key_internal.hrl").
+
+-define('id-dsa-with-sha1', {1,2,840,10040,4,3}).
+-define('anyPolicy', {2,5,29,32,0}).
+
+%% Superseded by SingleAttribute.
+-record('AttributeTypeAndValue', {
+  type,
+  value
+}).
+
+-record('SignatureAlgorithm',
+        {
+         algorithm,  % id_signature_algorithm()
+         parameters  % asn1_novalue | #'Dss-Parms'{}
+        }).
+
+-record('AnotherName', {
+  'type-id',
+  value
+}).
+
+-record('PublicKeyAlgorithm',
+        {
+         algorithm,  % id_public_key_algorithm()
+         parameters  % public_key_params()
+        }).
+
+-record('OTPSubjectPublicKeyInfo',
+        {
+         algorithm,       % #'PublicKeyAlgorithm'{}
+         subjectPublicKey % binary()
+        }).
 
 -define(NULL, 0).
 
