@@ -22,8 +22,8 @@
 
 %%
 
--ifndef(public_key).
--define(public_key, true).
+-ifndef(public_key_internal).
+-define(public_key_internal, true).
 
 -include("AlgorithmInformation-2009.hrl").
 -include("DSS.hrl").
@@ -96,4 +96,10 @@
          g          % pos_integer()
         }).
 
--endif. % -ifdef(public_key).
+-record('SignatureAlgorithm',
+        {
+         algorithm,
+         parameters = asn1_NOVALUE
+        }).
+
+-endif. % -ifdef(public_key_internal).
