@@ -50,11 +50,11 @@ MODULES = \
 	pubkey_os_cacerts \
 	pubkey_translation \
 	pubkey_pbe \
-	pubkey_cert \
-	pubkey_policy_tree \
-	pubkey_ocsp
+	pubkey_ocsp \
+#	pubkey_cert \
+	pubkey_policy_tree
 
-HRL_FILES = $(INCLUDE)/public_key.hrl 
+HRL_FILES = $(INCLUDE)/public_key.hrl
 
 INTERNAL_HRL_FILES = pubkey_moduli.hrl public_key_internal.hrl pubkey_defs.hrl
 
