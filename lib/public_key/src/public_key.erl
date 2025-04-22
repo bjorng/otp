@@ -640,12 +640,12 @@ get_asn1_module('DSAPublicKey') -> 'PKIXAlgs-2009';
 get_asn1_module('RSAPrivateKey') -> 'PKCS-1';
 get_asn1_module('RSASSA-PSS-params') -> 'PKIX1-PSS-OAEP-Algorithms-2009';
 get_asn1_module('SubjectPublicKeyInfo') -> 'PKIX1Explicit-2009';
-get_asn1_module('OTPCertificate') -> 'OTP-PUB-KEY';
-get_asn1_module('CRLDistributionPoints') -> 'OTP-PUB-KEY';
-get_asn1_module('CRLReason') ->  'OTP-PUB-KEY';
-get_asn1_module('CRLNumber') ->  'OTP-PUB-KEY';
-get_asn1_module('FreshestCRL') ->  'OTP-PUB-KEY';
-get_asn1_module('IssuingDistributionPoint') ->  'OTP-PUB-KEY'.
+get_asn1_module('OTPCertificate') -> 'OTP-PKIX';
+get_asn1_module('CRLDistributionPoints') -> 'PKIX1Implicit-2009';
+get_asn1_module('CRLReason') ->  'PKIX1Implicit-2009';
+get_asn1_module('CRLNumber') ->  'PKIX1Implicit-2009';
+get_asn1_module('FreshestCRL') ->  'PKIX1Implicit-2009';
+get_asn1_module('IssuingDistributionPoint') ->  'PKIX1Implicit-2009'.
 
 handle_pkcs_frame_error('PrivateKeyInfo', Der, _) ->
     try
