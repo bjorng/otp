@@ -39,6 +39,12 @@
   value
 }).
 
+-record('OTPSubjectPublicKeyInfo',
+        {
+         algorithm,       % #'PublicKeyAlgorithm'{}
+         subjectPublicKey % binary()
+        }).
+
 %% Identifiers not present in modern specs.
 
 -define('characteristic-two-field', {1,2,840,10045,1,2}).
@@ -90,7 +96,8 @@
 %% Description: Recursively decodes a Certificate. 
 %%-------------------------------------------------------------------- 
 decode_cert(DerCert) ->
-    {ok, Cert} = 'OTP-PKIX':decode('OTPCertificate', DerCert),
+    {ok, Cert0} = 'OTP-PKIX':decode('OTPCertificate', DerCert),
+    Cert = pubkey_translation:decode(Cert0),
     #'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert,
     {ok, Cert#'OTPCertificate'{tbsCertificate = decode_tbs(TBS),
                                signatureAlgorithm = setelement(1, SA, 'SignatureAlgorithm')
@@ -295,9 +302,9 @@ namedCurves(brainpoolP512t1) -> ?'brainpoolP512t1'.
 
 %%% SubjectPublicKey
 
-decode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
-                                                  subjectPublicKey=SPK0}) ->
-    #'SubjectPublicKeyInfo_algorithm'{algorithm=Algo,parameters=Params} = PA,
+decode_supportedPublicKey(#'OTPSubjectPublicKeyInfo'{algorithm=PA,
+                                                     subjectPublicKey=SPK0}) ->
+    Algo = PA#'PublicKeyAlgorithm'.algorithm,
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
               'ECPoint' ->
@@ -308,13 +315,11 @@ decode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
                   %% {ok, SPK1} = Mod:decode(Type, SPK0),
                   %% SPK1
           end,
-    #'SubjectPublicKeyInfo'{subjectPublicKey = SPK,
-                            algorithm=#'PublicKeyAlgorithm'{algorithm=Algo,
-                                                            parameters=Params}}.
+    #'OTPSubjectPublicKeyInfo'{subjectPublicKey=SPK,algorithm=PA}.
 
-encode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm= PA =
-                                                      #'PublicKeyAlgorithm'{algorithm=Algo},
+encode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
                                                   subjectPublicKey = SPK0}) ->
+    Algo = PA#'PublicKeyAlgorithm'.algorithm,
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
               'ECPoint' ->
@@ -325,7 +330,7 @@ encode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm= PA =
                   %% {ok, SPK1} = Mod:encode(Type, SPK0),
                   %% SPK1
           end,
-    #'SubjectPublicKeyInfo'{subjectPublicKey = SPK, algorithm=PA}.
+    #'OTPSubjectPublicKeyInfo'{subjectPublicKey=SPK,algorithm=PA}.
 
 %%% Extensions
 
@@ -380,7 +385,8 @@ decode_extensions(Exts) ->
                                       Ext#'Extension'{extnValue=transform(Value,decode)};
                                   _ ->
                                       Mod = get_asn1_module(Type),
-                                      {ok, Value} = Mod:decode(Type, iolist_to_binary(Value0)),
+                                      {ok, Value1} = Mod:decode(Type, iolist_to_binary(Value0)),
+                                      Value = pubkey_translation:decode(Value1),
                                       Ext#'Extension'{extnValue=transform(Value,decode)}
                               end
 		      end

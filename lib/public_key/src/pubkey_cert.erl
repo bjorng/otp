@@ -1783,8 +1783,8 @@ public_key_info(PublicKeyInfo,
 				       WorkingAlgorithm,
 				       working_public_key_parameters =
 				       WorkingParams}) ->
-    PublicKey = PublicKeyInfo#'SubjectPublicKeyInfo'.subjectPublicKey,
-    AlgInfo = PublicKeyInfo#'SubjectPublicKeyInfo'.algorithm,
+    #'OTPSubjectPublicKeyInfo'{subjectPublicKey=PublicKey,
+                               algorithm=AlgInfo} = PublicKeyInfo,
 
     PublicKeyParams = AlgInfo#'PublicKeyAlgorithm'.parameters,
     Algorithm = AlgInfo#'PublicKeyAlgorithm'.algorithm,
