@@ -34,18 +34,12 @@
          value   % term()
         }).
 
--record('OTPSubjectPublicKeyInfo',
-        {
-         algorithm,
-         subjectPublicKey
-        }).
-
 decode(#'SubjectPublicKeyInfo'{algorithm=AlgId0,subjectPublicKey=Key}) ->
     #'SubjectPublicKeyInfo_algorithm'{algorithm=AlgId1,parameters=Params1} = AlgId0,
     AlgId = decode(AlgId1),
     Params = decode(Params1),
-    #'OTPSubjectPublicKeyInfo'{algorithm={'PublicKeyAlgorithm', AlgId, Params},
-                               subjectPublicKey=Key};
+    #'SubjectPublicKeyInfo'{algorithm={'PublicKeyAlgorithm', AlgId, Params},
+                            subjectPublicKey=Key};
 decode(#'DSA-Params'{p=P,q=Q,g=G}) ->
     #'Dss-Parms'{p=P,q=Q,g=G};
 decode(#'SingleAttribute'{type=T,value=V}) ->
@@ -65,8 +59,8 @@ decode(Other) ->
 decode_list(List) ->
     [decode(E) || E <- List].
 
-encode(#'OTPSubjectPublicKeyInfo'{algorithm={'PublicKeyAlgorithm', AlgId0, Params},
-                                  subjectPublicKey=Key}) ->
+encode(#'SubjectPublicKeyInfo'{algorithm={'PublicKeyAlgorithm', AlgId0, Params},
+                               subjectPublicKey=Key}) ->
     AlgId1 = encode(AlgId0),
     Params1 = encode(Params),
     Alg = #'SubjectPublicKeyInfo_algorithm'{algorithm=AlgId1,parameters=Params1},
