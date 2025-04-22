@@ -148,4 +148,11 @@
            parameters    % Depending on fieldType
          }).
 
+-record('Dss-Parms',
+        {
+         p,         % pos_integer()
+         q,         % pos_integer()
+         g          % pos_integer()
+        }).
+
 -endif. % -ifdef(public_key).

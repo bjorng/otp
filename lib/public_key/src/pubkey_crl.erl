@@ -33,9 +33,10 @@
 %% -include("PKIX1-PSS-OAEP-Algorithms-2009.hrl").
 %% -include("PKIX1Explicit-2009.hrl").
 %% -include("PKIX1Implicit-2009.hrl").
--include("PKIXAlgs-2009.hrl").
+%%-include("PKIXAlgs-2009.hrl").
 
--include("public_key.hrl").
+-define(_PKCS_FRAME_HRL_, true).
+-include("public_key_internal.hrl").
 
 -export([validate/7, init_revokation_state/0, fresh_crl/3, verify_crl_signature/4,
 	 is_delta_crl/1, combines/2, match_one/2]).
@@ -53,7 +54,7 @@ validate(OtpCert, OtherDPCRLs, DP, {DerCRL, CRL}, {DerDeltaCRL, DeltaCRL},
 		TBSCert = OtpCert#'OTPCertificate'.tbsCertificate,
 		SerialNumber = TBSCert#'OTPTBSCertificate'.serialNumber,
 		CertIssuer = TBSCert#'OTPTBSCertificate'.issuer,
-		TBSCRL = CRL#'CertificateList'.tbsCertList,
+		TBSCRL = CRL#'CertificateList'.toBeSigned,
 		CRLIssuer =  TBSCRL#'TBSCertList'.issuer,
 		AltNames = case pubkey_cert:select_extension(?'id-ce-subjectAltName',
 							     TBSCert#'OTPTBSCertificate'.extensions) of
@@ -80,7 +81,7 @@ fresh_crl(_, {undefined, undefined}, _) ->
     %% Typically happens when there is no delta CRL that covers a CRL
     no_fresh_crl;
 
-fresh_crl(DP, {_, #'CertificateList'{tbsCertList = TBSCRL}} = CRL, CallBack) ->
+fresh_crl(DP, {_, #'CertificateList'{toBeSigned = TBSCRL}} = CRL, CallBack) ->
     Now = calendar:datetime_to_gregorian_seconds(calendar:universal_time()),
     UpdateTime =
 	pubkey_cert:time_str_2_gregorian_sec(TBSCRL#'TBSCertList'.nextUpdate),
@@ -96,7 +97,7 @@ fresh_crl(DP, {_, #'CertificateList'{tbsCertList = TBSCRL}} = CRL, CallBack) ->
 	    {fresh, CRL}
     end.
 
-is_delta_crl(#'CertificateList'{tbsCertList = TBSCRL}) ->
+is_delta_crl(#'CertificateList'{toBeSigned = TBSCRL}) ->
     Extensions = TBSCRL#'TBSCertList'.crlExtensions,
     case pubkey_cert:select_extension(?'id-ce-deltaCRLIndicator',
 				      Extensions) of
@@ -140,7 +141,7 @@ crl_status(#revoke_state{reasons_mask = Mask,
 
 verify_crl(OtpCert, DP, CRL, DerCRL, DeltaCRL, DerDeltaCRL, OtherDPCRLs,
 	   Options, State0) ->
-    #'CertificateList'{tbsCertList =
+    #'CertificateList'{toBeSigned =
 			   #'TBSCertList'{crlExtensions = Extensions,
 					  revokedCertificates = TmpRevoked}
 		      } = CRL,
@@ -266,7 +267,7 @@ validate_crl_signing_cert(OtpCert, IssuerFun, #userstate{dpcrls = CRLInfo} = Use
 
 delta_revoked(undefined)->
     [];
-delta_revoked(#'CertificateList'{tbsCertList =
+delta_revoked(#'CertificateList'{toBeSigned =
 				     #'TBSCertList'{revokedCertificates
 						    = DeltaRevoked}}) ->
     revoked(DeltaRevoked).
@@ -326,7 +327,7 @@ all_reasons() ->
 
 verify_issuer_and_scope(#'OTPCertificate'{tbsCertificate = TBSCert} = Cert,
 			#'DistributionPoint'{cRLIssuer = DPIssuer} = DP, IDP,
-			#'CertificateList'{tbsCertList = TBSCRL} = CRL)
+			#'CertificateList'{toBeSigned = TBSCRL} = CRL)
   when DPIssuer =/= asn1_NOVALUE ->
     CRLIssuer = pubkey_cert_records:transform(TBSCRL#'TBSCertList'.issuer, decode),
     Issuer = dp_crlissuer_to_issuer(DPIssuer),
@@ -343,7 +344,7 @@ verify_issuer_and_scope(#'OTPCertificate'{tbsCertificate = TBSCert} = Cert,
     end;
 verify_issuer_and_scope(#'OTPCertificate'{tbsCertificate = TBSCert}= Cert,
 			DP, IDP,
-			#'CertificateList'{tbsCertList = TBSCRL}) ->
+			#'CertificateList'{toBeSigned = TBSCRL}) ->
     CRLIssuer = pubkey_cert_records:transform(TBSCRL#'TBSCertList'.issuer, decode),
     CertIssuer = TBSCert#'OTPTBSCertificate'.issuer,
     case pubkey_cert:is_issuer(CertIssuer, CRLIssuer) of
@@ -475,8 +476,8 @@ verify_onlyContainsAttributeCerts(
   #'IssuingDistributionPoint'{onlyContainsAttributeCerts = Bool}) ->
     not Bool.
 
-check_crl_num(#'CertificateList'{tbsCertList = TBSCRL},
-	      #'CertificateList'{tbsCertList = TBSDeltaCRL})->
+check_crl_num(#'CertificateList'{toBeSigned = TBSCRL},
+	      #'CertificateList'{toBeSigned = TBSDeltaCRL})->
     Extensions = TBSCRL#'TBSCertList'.crlExtensions,
     DeltaExtensions = TBSDeltaCRL#'TBSCertList'.crlExtensions,
 
@@ -513,8 +514,8 @@ assert_extension_value(Extension, ExtType, Extensions) ->
 
 check_delta_issuer_and_scope(_, undefined) ->
     true;
-check_delta_issuer_and_scope(#'CertificateList'{tbsCertList = TBSCRL},
-			     #'CertificateList'{tbsCertList = TBSDeltaCRL}) ->
+check_delta_issuer_and_scope(#'CertificateList'{toBeSigned = TBSCRL},
+			     #'CertificateList'{toBeSigned = TBSDeltaCRL}) ->
     case pubkey_cert:is_issuer(TBSCRL#'TBSCertList'.issuer,
 			       TBSDeltaCRL#'TBSCertList'.issuer) of
 	true ->
@@ -590,17 +591,17 @@ verify_crl_signature(CRL, DerCRL, Key, KeyParams) ->
     end.
 extract_crl_verify_data(CRL, DerCRL) ->
     Signature = CRL#'CertificateList'.signature,
-    #'AlgorithmIdentifier'{algorithm = SigAlg} =
-	CRL#'CertificateList'.signatureAlgorithm,
+    #'CertificateList_algorithmIdentifier'{algorithm = SigAlg} =
+	CRL#'CertificateList'.algorithmIdentifier,
     PlainText = encoded_tbs_crl(DerCRL),
     {DigestType, _} = public_key:pkix_sign_types(SigAlg),
     {DigestType, PlainText, Signature}.
 
 encoded_tbs_crl(CRL) ->
     {ok, PKIXCRL} =
-	'OTP-PUB-KEY':decode_TBSCertList_exclusive(CRL),
+        'PKIX1Explicit-2009':decode_TBSCertList_exclusive(CRL),
     {'CertificateList',
-     {'CertificateList_tbsCertList', EncodedTBSCertList}, _, _} = PKIXCRL,
+     {'CertificateList_toBeSigned', EncodedTBSCertList}, _, _} = PKIXCRL,
     EncodedTBSCertList.
 
 check_revoked(_,_,_,_,_,[], State) ->
@@ -665,7 +666,7 @@ verify_crl_keybit(#'OTPCertificate'{tbsCertificate = TBS}, Bit) ->
 	    true
     end.
 
-issuer_id(Cert, #'CertificateList'{tbsCertList = TBSCRL}) ->
+issuer_id(Cert, #'CertificateList'{toBeSigned = TBSCRL}) ->
     Extensions =
 	pubkey_cert:extensions_list(TBSCRL#'TBSCertList'.crlExtensions),
     case authority_key_identifier(Extensions) of
