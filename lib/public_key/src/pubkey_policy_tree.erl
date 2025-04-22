@@ -150,7 +150,7 @@ collect_qualifiers({_, ChildNodes}, Policy) ->
                 end;
            (#'PolicyQualifierInfo'{policyQualifierId = ?'id-qt-cps',
                                    qualifier = Qualifier}) ->
-                {uri, public_key:der_decode('CPSuri', Qualifier)}
+                {uri, Qualifier}
         end,
     Collect = fun(#{qualifier_set := QSet}) ->
                       lists:map(FormatQualifier, QSet)

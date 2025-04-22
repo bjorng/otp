@@ -96,8 +96,7 @@
 %% Description: Recursively decodes a Certificate. 
 %%-------------------------------------------------------------------- 
 decode_cert(DerCert) ->
-    {ok, Cert0} = 'OTP-PKIX':decode('OTPCertificate', DerCert),
-    Cert = pubkey_translation:decode(Cert0),
+    {ok, Cert} = 'OTP-PKIX':decode('OTPCertificate', DerCert),
     #'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert,
     {ok, Cert#'OTPCertificate'{tbsCertificate = decode_tbs(TBS),
                                signatureAlgorithm = setelement(1, SA, 'SignatureAlgorithm')
@@ -108,7 +107,11 @@ decode_cert(DerCert) ->
 %%
 %% Description: Transforms between encoded and decode otp formatted
 %% certificate parts.
-%%-------------------------------------------------------------------- 
+%%
+%% Note that this function operates on raw data that has not gone
+%% through the pubkey_translation module. Thus does the same
+%% backwards compatibility translation done in pubkey_translation.
+%%--------------------------------------------------------------------
 
 transform(#'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert, encode) ->
     Cert#'OTPCertificate'{tbsCertificate=encode_tbs(TBS),
@@ -121,38 +124,12 @@ transform(#'OTPTBSCertificate'{}= TBS, encode) ->
 transform(#'OTPTBSCertificate'{}= TBS, decode) ->
     decode_tbs(TBS);
 transform(#'SingleAttribute'{type=Id,value=Value0}, decode) ->
-    {ok, Value} =
-        case attribute_type(Id) of
-	    'X520countryName' ->
-		%% Workaround that some certificates break the ASN-1 spec
-		%% and encode countryname as utf8
-		case Value0 of
-		    {utf8String, Utf8Value} ->
-			{ok, unicode:characters_to_list(Utf8Value)};
-		    {printableString, ASCCI} ->
-			{ok, ASCCI};
-                    List when is_list(List) ->
-                        {ok, List}
-		end;
-	    'EmailAddress' when is_binary(Value0) ->
-		%% Workaround that some certificates break the ASN-1 spec
-		%% and encode emailAddress as utf8
-		case 'OTP-PKIX':decode('OTP-emailAddress', Value0) of
-		    {ok, {utf8String, Utf8Value}} ->
-			{ok, unicode:characters_to_list(Utf8Value)};
-		    {ok, {ia5String, Ia5Value}} ->
-			{ok, Ia5Value}
-		end;
-            Type when is_atom(Type), is_binary(Value0) -> 'OTP-PKIX':decode(Type, Value0);
-            _UnknownType            -> {ok, Value0}
-        end,
-    #'AttributeTypeAndValue'{type=Id, value=Value};
+    %% Removed hack to:
+    %%     Workaround that some certificates break the ASN-1 spec
+    %%     and encode countryname and EmailAdress as utf8
+    #'AttributeTypeAndValue'{type=Id, value=Value0};
 transform(#'AttributeTypeAndValue'{type=Id, value=Value0}, encode) ->
-    {ok, Value} = case attribute_type(Id) of
-                      Type when is_atom(Type) -> 'OTP-PKIX':encode(Type, Value0);
-                      _UnknownType            -> {ok, Value0}
-                  end,
-    #'SingleAttribute'{type=Id,value=Value};
+    #'SingleAttribute'{type=Id,value=Value0};
 transform(AKI = #'AuthorityKeyIdentifier'{authorityCertIssuer=ACI},Func) ->
     AKI#'AuthorityKeyIdentifier'{authorityCertIssuer=transform(ACI,Func)};
 transform(List = [{directoryName, _}],Func) ->
@@ -302,9 +279,9 @@ namedCurves(brainpoolP512t1) -> ?'brainpoolP512t1'.
 
 %%% SubjectPublicKey
 
-decode_supportedPublicKey(#'OTPSubjectPublicKeyInfo'{algorithm=PA,
-                                                     subjectPublicKey=SPK0}) ->
-    Algo = PA#'PublicKeyAlgorithm'.algorithm,
+decode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
+                                                  subjectPublicKey=SPK0}) ->
+    #'SubjectPublicKeyInfo_algorithm'{algorithm=Algo,parameters=Params} = PA,
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
               'ECPoint' ->
@@ -315,11 +292,12 @@ decode_supportedPublicKey(#'OTPSubjectPublicKeyInfo'{algorithm=PA,
                   %% {ok, SPK1} = Mod:decode(Type, SPK0),
                   %% SPK1
           end,
-    #'OTPSubjectPublicKeyInfo'{subjectPublicKey=SPK,algorithm=PA}.
-
-encode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
-                                                  subjectPublicKey = SPK0}) ->
-    Algo = PA#'PublicKeyAlgorithm'.algorithm,
+    #'OTPSubjectPublicKeyInfo'{subjectPublicKey = SPK,
+                               algorithm=#'PublicKeyAlgorithm'{algorithm=Algo,
+                                                               parameters=Params}}.
+encode_supportedPublicKey(#'OTPSubjectPublicKeyInfo'{algorithm = PA =
+                                                         #'PublicKeyAlgorithm'{algorithm=Algo},
+                                                     subjectPublicKey = SPK0}) ->
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
               'ECPoint' ->
@@ -330,7 +308,7 @@ encode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
                   %% {ok, SPK1} = Mod:encode(Type, SPK0),
                   %% SPK1
           end,
-    #'OTPSubjectPublicKeyInfo'{subjectPublicKey=SPK,algorithm=PA}.
+    #'SubjectPublicKeyInfo'{subjectPublicKey = SPK, algorithm=PA}.
 
 %%% Extensions
 
@@ -361,34 +339,25 @@ extension_id(?'id-ce-holdInstructionCode') -> 	  'HoldInstructionCode';
 extension_id(?'id-ce-invalidityDate') -> 	  'InvalidityDate';
 extension_id(_) ->
     undefined.
-     
 
 decode_extensions(asn1_NOVALUE) ->
     asn1_NOVALUE;
 
 decode_extensions(Exts) ->
     lists:map(fun(Ext = #'Extension'{extnID=Id, extnValue=Value0}) ->
-		      case extension_id(Id) of
-			  undefined ->
+		      case extension_id(Id) =/= undefined andalso
+                          'PKIX1Implicit-2009':getdec_CertExtensions(Id)
+                      of
+			  false ->
                               Ext;
-			  Type ->
-                              case Type of
-                                  'SubjectAltName' ->
-                                      {ok, Value0} = 'PKIX1Implicit-2009':decode('GeneralNames',
-                                                                                 iolist_to_binary(Value0)),
-                                      Value = pubkey_translation:decode(Value0),
-                                      Ext#'Extension'{extnValue=transform(Value,decode)};
-                                  'IssuerAltName' ->
-                                      {ok, Value0} = 'PKIX1Implicit-2009':decode('GeneralNames',
-                                                                                 iolist_to_binary(Value0)),
-                                      Value = pubkey_translation:decode(Value0),
-                                      Ext#'Extension'{extnValue=transform(Value,decode)};
-                                  _ ->
-                                      Mod = get_asn1_module(Type),
-                                      {ok, Value1} = Mod:decode(Type, iolist_to_binary(Value0)),
-                                      Value = pubkey_translation:decode(Value1),
-                                      Ext#'Extension'{extnValue=transform(Value,decode)}
-                              end
+                          {asn1_OPENTYPE, _} ->
+                              Ext;
+			  DecodeExt when is_function(DecodeExt, 3) ->
+                              %% Undocumented asn1 usage, but
+                              %% currently the only way to decode
+                              %% extensions.
+                              Value = DecodeExt('ExtnType', iolist_to_binary(Value0), dummy),
+                              Ext#'Extension'{extnValue=transform(Value,decode)}
 		      end
 	      end, Exts).
 
@@ -397,14 +366,19 @@ encode_extensions(asn1_NOVALUE) ->
 
 encode_extensions(Exts) ->
     lists:map(fun(Ext = #'Extension'{extnID=Id, extnValue=Value0}) ->
-		      case extension_id(Id) of
-			  undefined ->
+		      case extension_id(Id) =/= undefined andalso
+                          'PKIX1Implicit-2009':getenc_CertExtensions(Id)
+                      of
+			  false ->
                               Ext;
-			  Type ->
-                              Mod = get_asn1_module(Type),
+                          {_,_} ->
+                              Ext;
+			  EncodeExt when is_function(EncodeExt, 3) ->
+                              %% Undocumented asn1 usage, but currently the only way
+                              %% to decode extensions.
 			      Value1 = transform(Value0, encode),
-			      {ok, Value} = Mod:encode(Type, Value1),
-			      Ext#'Extension'{extnValue=Value}
+                              Value = element(1,EncodeExt('ExtnType', Value1, dummy)),
+			      Ext#'Extension'{extnValue= iolist_to_binary(Value)}
 		      end
 	      end, Exts).
 
@@ -434,32 +408,3 @@ transform_sub_tree(asn1_NOVALUE,_) -> asn1_NOVALUE;
 transform_sub_tree(TreeList,Func) ->
     [Tree#'GeneralSubtree'{base=transform(Name,Func)} || 
 	Tree = #'GeneralSubtree'{base=Name} <- TreeList].
-
-attribute_type(?'id-at-name') -> 'X520name';
-attribute_type(?'id-at-surname') -> 'X520name';
-attribute_type(?'id-at-givenName') -> 'X520name';
-attribute_type(?'id-at-initials') -> 'X520name';
-attribute_type(?'id-at-generationQualifier') -> 'X520name';
-attribute_type(?'id-at-commonName') -> 'X520CommonName';
-attribute_type(?'id-at-localityName') -> 'X520LocalityName';
-attribute_type(?'id-at-stateOrProvinceName') -> 'X520StateOrProvinceName';
-attribute_type(?'id-at-organizationName') -> 'X520OrganizationName';
-attribute_type(?'id-at-organizationalUnitName') -> 'X520OrganizationalUnitName';
-attribute_type(?'id-at-title') -> 'X520Title';
-attribute_type(?'id-at-dnQualifier') -> 'X520dnQualifier';
-attribute_type(?'id-at-countryName') -> 'X520countryName';
-attribute_type(?'id-at-serialNumber') -> 'X520SerialNumber';
-attribute_type(?'id-at-pseudonym') -> 'X520Pseudonym';
-attribute_type(?'id-domainComponent') -> 'DomainComponent';
-attribute_type(?'id-emailAddress') -> 'EmailAddress';
-attribute_type(Type) -> Type.
-
-get_asn1_module('AuthorityInfoAccessSyntax') -> 'PKIX1Implicit-2009';
-get_asn1_module('AuthorityKeyIdentifier') -> 'PKIX1Implicit-2009';
-get_asn1_module('BasicConstraints') -> 'PKIX1Implicit-2009';
-get_asn1_module('ExtKeyUsageSyntax') -> 'PKIX1Implicit-2009';
-get_asn1_module('KeyUsage') -> 'PKIX1Implicit-2009';
-get_asn1_module('RSAPublicKey') -> 'PKIXAlgs-2009';
-get_asn1_module('SubjectKeyIdentifier') -> 'CryptographicMessageSyntax-2009';
-get_asn1_module('CertificatePolicies') -> 'PKIX1Implicit-2009';
-get_asn1_module('FreshestCRL') ->  'PKIX1Implicit-2009'.
