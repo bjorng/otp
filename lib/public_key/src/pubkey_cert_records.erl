@@ -137,19 +137,19 @@ transform(#'SingleAttribute'{type=Id,value=Value0}, decode) ->
 	    'EmailAddress' when is_binary(Value0) ->
 		%% Workaround that some certificates break the ASN-1 spec
 		%% and encode emailAddress as utf8
-		case 'OTP-PUB-KEY':decode('OTP-emailAddress', Value0) of
+		case 'OTP-PKIX':decode('OTP-emailAddress', Value0) of
 		    {ok, {utf8String, Utf8Value}} ->
 			{ok, unicode:characters_to_list(Utf8Value)};
 		    {ok, {ia5String, Ia5Value}} ->
 			{ok, Ia5Value}
 		end;
-            Type when is_atom(Type), is_binary(Value0) -> 'OTP-PUB-KEY':decode(Type, Value0);
+            Type when is_atom(Type), is_binary(Value0) -> 'OTP-PKIX':decode(Type, Value0);
             _UnknownType            -> {ok, Value0}
         end,
     #'AttributeTypeAndValue'{type=Id, value=Value};
 transform(#'AttributeTypeAndValue'{type=Id, value=Value0}, encode) ->
     {ok, Value} = case attribute_type(Id) of
-                      Type when is_atom(Type) -> 'OTP-PUB-KEY':encode(Type, Value0);
+                      Type when is_atom(Type) -> 'OTP-PKIX':encode(Type, Value0);
                       _UnknownType            -> {ok, Value0}
                   end,
     #'SingleAttribute'{type=Id,value=Value};
@@ -462,4 +462,4 @@ get_asn1_module('KeyUsage') -> 'PKIX1Implicit-2009';
 get_asn1_module('RSAPublicKey') -> 'PKIXAlgs-2009';
 get_asn1_module('SubjectKeyIdentifier') -> 'CryptographicMessageSyntax-2009';
 get_asn1_module('CertificatePolicies') -> 'PKIX1Implicit-2009';
-get_asn1_module('FreshestCRL') ->  'OTP-PUB-KEY'.
+get_asn1_module('FreshestCRL') ->  'PKIX1Implicit-2009'.
