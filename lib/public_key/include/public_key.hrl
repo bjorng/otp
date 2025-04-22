@@ -223,22 +223,22 @@
 
 -record('OTPTBSCertificate',
         {
-         version,              % v1 | v2 | v3
-         serialNumber,         % pos_integer()
-         signature,            % #'SignatureAlgorithm'
-         issuer,               % {rdnSequence, [#AttributeTypeAndValue'{}]}
-         validity,             % #'Validity'{}
-         subject,              % {rdnSequence, [#AttributeTypeAndValue'{}]}
-         subjectPublicKeyInfo, % #'OTPSubjectPublicKeyInfo'{}
-         issuerUniqueID,       % binary() | asn1_novalue
-         subjectUniqueID,      % binary() | asn1_novalue
-         extensions            % [#'Extension'{}]
+         version = asn1_DEFAULT,
+         serialNumber,
+         signature,
+         issuer,
+         validity,
+         subject,
+         subjectPublicKeyInfo,
+         issuerUniqueID = asn1_NOVALUE,
+         subjectUniqueID = asn1_NOVALUE,
+         extensions = asn1_NOVALUE
         }).
 
 -record('SignatureAlgorithm',
         {
-         algorithm,  % id_signature_algorithm()
-         parameters  % asn1_novalue | #'Dss-Parms'{}
+         algorithm,
+         parameters = asn1_NOVALUE
         }).
 
 -define('id-dsa-with-sha1', {1,2,840,10040,4,3}).
@@ -417,8 +417,8 @@
 
 -record('BasicConstraints',
         {
-         cA,               % boolean()
-         pathLenConstraint % pos_integer()
+         cA = asn1_DEFAULT,
+         pathLenConstraint = asn1_NOVALUE
         }).
 
 -record('NameConstraints',

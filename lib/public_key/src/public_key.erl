@@ -452,7 +452,6 @@ pem_entry_decode({'SubjectPublicKeyInfo', Der, _}) ->
         'DSAPublicKey' ->
             {der_decode(KeyType, Key0), Params};
         'ECPoint' ->
-            error('NYI'),
             ECCParams = ec_decode_params(AlgId, Params),
             {#'ECPoint'{point = Key0}, ECCParams}
     end;
@@ -542,7 +541,6 @@ pem_entry_encode('SubjectPublicKeyInfo',
                                    Key),
     pem_entry_encode('SubjectPublicKeyInfo', Spki);
 pem_entry_encode(Asn1Type, Entity)  when is_atom(Asn1Type) ->
-    io:format("~p\n", [Entity]),
     Der = der_encode(Asn1Type, Entity),
     {Asn1Type, Der, not_encrypted}.
 
@@ -632,6 +630,7 @@ get_asn1_module('Certificate') -> 'PKIX1Explicit-2009';
 get_asn1_module('CertificateList') -> 'PKIX1Explicit-2009';
 get_asn1_module('CertificationRequest') -> 'PKCS-10';
 get_asn1_module('ContentInfo') -> 'CryptographicMessageSyntax-2009';
+get_asn1_module('CurvePrivateKey') -> 'Safecurves-pkix-18';
 get_asn1_module('DHParameter') -> 'PKCS-3';
 get_asn1_module('ECPrivateKey') -> 'ECPrivateKey';
 get_asn1_module('DSA-Params') -> 'PKIXAlgs-2009';
@@ -640,6 +639,7 @@ get_asn1_module('DSAPublicKey') -> 'PKIXAlgs-2009';
 get_asn1_module('RSAPrivateKey') -> 'PKCS-1';
 get_asn1_module('RSASSA-PSS-params') -> 'PKIX1-PSS-OAEP-Algorithms-2009';
 get_asn1_module('SubjectPublicKeyInfo') -> 'PKIX1Explicit-2009';
+get_asn1_module('OTPTBSCertificate') -> 'OTP-PKIX';
 get_asn1_module('OTPCertificate') -> 'OTP-PKIX';
 get_asn1_module('CRLDistributionPoints') -> 'PKIX1Implicit-2009';
 get_asn1_module('CRLReason') ->  'PKIX1Implicit-2009';
@@ -1326,7 +1326,6 @@ verify(Digest, none, Signature, Key = {_, #'DSA-Params'{}}, Options) when is_bin
     %% Backwards compatible
     verify({digest, Digest}, sha, Signature, Key, Options);
 verify(DigestOrPlainText, DigestType, Signature, Key, Options) when is_binary(Signature) ->
-    io:format(":: ~p\n", [Key]),
     case format_verify_key(Key) of
 	badarg ->
 	    erlang:error(badarg, [DigestOrPlainText, DigestType, Signature, Key, Options]);
@@ -1434,19 +1433,20 @@ pkix_match_dist_point(CRL, DistPoint) when is_binary(CRL) ->
                                        Key :: private_key(),
                                        Der :: der_encoded().
 %%--------------------------------------------------------------------
-%% pkix_sign(#'OTPTBSCertificate'{signature =
-%% 				   #'SignatureAlgorithm'{}
-%% 			       = SigAlg} = TBSCert, Key) ->
-%%     Msg = pkix_encode('OTPTBSCertificate', TBSCert, otp),
-%%     {DigestType, _, Opts} = pubkey_cert:x509_pkix_sign_types(SigAlg),
-%%     Signature = sign(Msg, DigestType, format_pkix_sign_key(Key), Opts),
-%%     Cert = #'OTPCertificate'{tbsCertificate= TBSCert,
-%% 			     signatureAlgorithm = SigAlg,
-%% 			     signature = Signature
-%% 			    },
-%%     pkix_encode('OTPCertificate', Cert, otp).
-pkix_sign(#'OTPTBSCertificate'{}, _Key) ->
-    error('NYI').
+pkix_sign(#'OTPTBSCertificate'{signature =
+				   #'SignatureAlgorithm'{}
+			       = SigAlg} = TBSCert, Key) ->
+    io:format("~p\n", [TBSCert]),
+    Msg = pkix_encode('OTPTBSCertificate', TBSCert, otp),
+    {DigestType, _, Opts} = pubkey_cert:x509_pkix_sign_types(SigAlg),
+    Signature = sign(Msg, DigestType, format_pkix_sign_key(Key), Opts),
+    Cert = #'OTPCertificate'{tbsCertificate= TBSCert,
+			     signatureAlgorithm = SigAlg,
+			     signature = Signature
+			    },
+    pkix_encode('OTPCertificate', Cert, otp).
+%% pkix_sign(#'OTPTBSCertificate'{}, _Key) ->
+%%     error('NYI').
 
 %%--------------------------------------------------------------------
 -doc "Verifies PKIX x.509 certificate signature.".
@@ -2383,11 +2383,11 @@ set_padding(Pad, Opts) ->
                                    T =/= rsa_pad]
     ].
 
-%% format_pkix_sign_key({#'RSAPrivateKey'{} = Key, _}) ->
-%%     %% Params are handled in option arg
-%%     Key;
-%% format_pkix_sign_key(Key) ->
-%%     Key.
+format_pkix_sign_key({#'RSAPrivateKey'{} = Key, _}) ->
+    %% Params are handled in option arg
+    Key;
+format_pkix_sign_key(Key) ->
+    Key.
 
 format_sign_key(#{encrypt_fun := KeyFun}) ->
     {extern, KeyFun};
@@ -2786,7 +2786,6 @@ ec_key({PubKey, PrivateKey}, Params) ->
 
 encode_name_for_short_hash({rdnSequence, Attributes0}) ->
     Attributes = lists:map(fun normalise_attribute/1, Attributes0),
-    io:format("~p\n", [Attributes]),
     {ok,Encoded} = 'PKIX1Explicit-2009':encode('RDNSequence', Attributes),
     Encoded.
 

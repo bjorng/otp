@@ -67,12 +67,6 @@
   value
 }).
 
--record('SignatureAlgorithm',
-        {
-         algorithm,  % id_signature_algorithm()
-         parameters  % asn1_novalue | #'Dss-Parms'{}
-        }).
-
 -record('AnotherName', {
   'type-id',
   value
