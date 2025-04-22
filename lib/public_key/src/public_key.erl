@@ -645,7 +645,9 @@ get_asn1_module('CRLDistributionPoints') -> 'PKIX1Implicit-2009';
 get_asn1_module('CRLReason') ->  'PKIX1Implicit-2009';
 get_asn1_module('CRLNumber') ->  'PKIX1Implicit-2009';
 get_asn1_module('FreshestCRL') ->  'PKIX1Implicit-2009';
-get_asn1_module('IssuingDistributionPoint') ->  'PKIX1Implicit-2009'.
+get_asn1_module('IssuingDistributionPoint') ->  'PKIX1Implicit-2009';
+get_asn1_module('GeneralNames') -> 'PKIX1Implicit-2009'.
+
 
 handle_pkcs_frame_error('PrivateKeyInfo', Der, _) ->
     try
