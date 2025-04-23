@@ -1526,7 +1526,7 @@ pkix_crl_verify(#'CertificateList'{} = CRL, #'OTPCertificate'{} = Cert) ->
     PublicKeyInfo = TBSCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
     PublicKey = PublicKeyInfo#'OTPSubjectPublicKeyInfo'.subjectPublicKey,
     AlgInfo = PublicKeyInfo#'OTPSubjectPublicKeyInfo'.algorithm,
-    PublicKeyParams = AlgInfo#'SubjectPublicKeyInfo_algorithm'.parameters,
+    PublicKeyParams = AlgInfo#'PublicKeyAlgorithm'.parameters,
     pubkey_crl:verify_crl_signature(CRL,
                                     der_encode('CertificateList', CRL),
                                     PublicKey, PublicKeyParams).
