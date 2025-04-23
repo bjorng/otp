@@ -72,12 +72,6 @@
   value
 }).
 
--record('PublicKeyAlgorithm',
-        {
-         algorithm,  % id_public_key_algorithm()
-         parameters  % public_key_params()
-        }).
-
 -record('OTPSubjectPublicKeyInfo',
         {
          algorithm,       % #'PublicKeyAlgorithm'{}

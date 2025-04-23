@@ -32,12 +32,6 @@
          subjectPublicKey % binary()
         }).
 
--record('PublicKeyAlgorithm',
-        {
-         algorithm,  % id_public_key_algorithm()
-         parameters  % public_key_params()
-        }).
-
 -export([find_single_response/3,
          get_acceptable_response_types_extn/0,
          get_nonce_extn/1,

@@ -29,49 +29,49 @@
 
 -record('RSAPublicKey',
         {
-         modulus,       % pos_integer()
-         publicExponent % pos_integer()
+         modulus,
+         publicExponent
         }).
 
 -record('RSAPrivateKey',
         {
-         version,         % two-prime | multi
-         modulus,         % pos_integer()
-         publicExponent,  % pos_integer()
-         privateExponent, % pos_integer()
-         prime1,          % pos_integer()
-         prime2,          % pos_integer()
-         exponent1,       % pos_integer()
-         exponent2,       % pos_integer()
-         coefficient,     % pos_integer()
-         otherPrimeInfos  % [#OtherPrimeInfo{})] | asn1_NOVALUE
+         version,
+         modulus,
+         publicExponent,
+         privateExponent,
+         prime1,
+         prime2,
+         exponent1,
+         exponent2,
+         coefficient,
+         otherPrimeInfos = asn1_NOVALUE
   }).
 
 -record('OtherPrimeInfo',
         {
-         prime,           % pos_integer()
-         exponent,        % pos_integer()
-         coefficient      % pos_integer()
+         prime,
+         exponent,
+         coefficient
         }).
 
 -record('RSASSA-PSS-params',
         {
-         hashAlgorithm,     % #'HashAlgorithm'{})},
-         maskGenAlgorithm,  % #'MaskGenAlgorithm'{}},
-         saltLength,        % pos_integer(),
-         trailerField      % pos_integer()
+         hashAlgorithm = asn1_DEFAULT,
+         maskGenAlgorithm = asn1_DEFAULT,
+         saltLength = asn1_DEFAULT,
+         trailerField = asn1_DEFAULT
         }).
 
 -record('HashAlgorithm',
         {
-         algorithm,  % oid()
-         parameters  % defaults to asn1_NOVALUE
+         algorithm,
+         parameters = asn1_NOVALUE
         }).
 
 -record('MaskGenAlgorithm',
         {
-         algorithm,  % oid()
-         parameters  % defaults to asn1_NOVALUE
+         algorithm,
+         parameters = asn1_NOVALUE
         }).
 
 %%%
@@ -139,43 +139,40 @@
 
 -record('ECPrivateKey',
         {
-         version,       % pos_integer()
-         privateKey,    % binary()
-         parameters,    % {ecParameters, #'ECParameters'{}} |
-                                                % {namedCurve, Oid::tuple()} |
-                                                % {implicitlyCA, 'NULL'}
-         publicKey,      % bitstring()
-         attributes  %% Not documented
+         version,
+         privateKey,
+         parameters = asn1_NOVALUE,
+         publicKey = asn1_NOVALUE,
+         attributes = asn1_NOVALUE
         }).
 
 -record('ECParameters',
         {
-         version,    % pos_integer()
-         fieldID,    % #'FieldID'{}
-         curve,      % #'Curve'{}
-         base,       % binary()
-         order,      % pos_integer()
-         cofactor    % pos_integer()
+         version,
+         fieldID,
+         curve,
+         base,
+         order,
+         cofactor = asn1_NOVALUE
         }).
 
 
 -record('Curve',
         {
-         a,        % binary()
-         b,        % binary()
-         seed      % bitstring() - optional
-        }).        %
-
+         a,
+         b,
+         seed = asn1_NOVALUE
+        }).
 
 -record('FieldID',
         {
-         fieldType,    % oid()
-         parameters    % Depending on fieldType
+         fieldType,
+         parameters
         }).
 
 -record('ECPoint',
         {
-         point %  binary() - the public key
+         point
         }).
 
 %%%
@@ -184,31 +181,30 @@
 
 -record('Certificate',
         {
-         tbsCertificate,        % #'TBSCertificate'{}
-         signatureAlgorithm,    % #'AlgorithmIdentifier'{}
-         signature              % bitstring()
+         tbsCertificate,
+         signatureAlgorithm,
+         signature
         }).
 
 -record('TBSCertificate',
         {
-         version,              % v1 | v2 | v3
-         serialNumber,         % pos_integer()
-         signature,            % #'AlgorithmIdentifier'{}
-         issuer,               % {rdnSequence, [#AttributeTypeAndValue'{}]
-         validity,             % #'Validity'{}
-         subject,              % {rdnSequence, [#AttributeTypeAndValue'{}]}
-         subjectPublicKeyInfo, % #'SubjectPublicKeyInfo'{}
-         issuerUniqueID,       % binary() | asn1_novalue
-         subjectUniqueID,      % binary() | asn1_novalue
-         extensions            % [#'Extension'{}]
+         version = asn1_DEFAULT,
+         serialNumber,
+         signature,
+         issuer,
+         validity,
+         subject,
+         subjectPublicKeyInfo,
+         issuerUniqueID = asn1_NOVALUE,
+         subjectUniqueID = asn1_NOVALUE,
+         extensions = asn1_NOVALUE
         }).
 
 -record('AlgorithmIdentifier',
         {
-         algorithm,  % oid()
-         parameters  % der_encoded()
+         algorithm,
+         parameters = asn1_NOVALUE
         }).
-
 
 %%%
 %%% Erlang alternate representation of PKIX certificate
@@ -216,9 +212,9 @@
 
 -record('OTPCertificate',
         {
-         tbsCertificate,        % #'OTPTBSCertificate'{}
-         signatureAlgorithm,    % #'SignatureAlgorithm'
-         signature              % bitstring()
+         tbsCertificate,
+         signatureAlgorithm,
+         signature
         }).
 
 -record('OTPTBSCertificate',
@@ -270,8 +266,8 @@
 
 -record('AttributeTypeAndValue',
         {
-         type,   % id_attributes()
-         value   % term()
+         type,
+         value
         }).
 
 -define('id-at-name', {2,5,4,41}).
@@ -299,22 +295,21 @@
 
 -record('Validity',
         {
-         notBefore, % time()
-         notAfter   % time()
+         notBefore,
+         notAfter
         }).
 
 -record('SubjectPublicKeyInfo',
         {
-         algorithm,       % #'PublicKeyAlgorithm'{}
-         subjectPublicKey % binary()
+         algorithm,
+         subjectPublicKey
         }).
 
 -record('PublicKeyAlgorithm',
         {
-         algorithm,  % id_public_key_algorithm()
-         parameters  % public_key_params()
+         algorithm,
+         parameters = asn1_NOVALUE
         }).
-
 
 %%%
 %%% Public-key algorithms
@@ -327,9 +322,9 @@
 
 -record('Extension',
         {
-         extnID,    % id_extensions() | oid()
-         critical,  % boolean()
-         extnValue  % der_encoded()
+         extnID,
+         critical = asn1_DEFAULT,
+         extnValue
         }).
 
 %%%
@@ -368,51 +363,51 @@
 
 -record('AuthorityKeyIdentifier',
         {
-         keyIdentifier,            % oid()
-         authorityCertIssuer,      % general_name()
-         authorityCertSerialNumber % pos_integer()
+         keyIdentifier = asn1_NOVALUE,
+         authorityCertIssuer = asn1_NOVALUE,
+         authorityCertSerialNumber = asn1_NOVALUE
         }).
 
 -record('PrivateKeyUsagePeriod',
         {
-         notBefore,   % general_time()
-         notAfter     % general_time()
+         notBefore = asn1_NOVALUE,
+         notAfter = asn1_NOVALUE
         }).
 
 -record('PolicyInformation',
         {
-         policyIdentifier,  % oid()
-         policyQualifiers   % [#PolicyQualifierInfo{}]
+         policyIdentifier,
+         policyQualifiers = asn1_NOVALUE
         }).
 
 -record('PolicyQualifierInfo',
         {
-         policyQualifierId,   % oid()
-         qualifier            % string() | #'UserNotice'{}
+         policyQualifierId,
+         qualifier
         }).
 
 -record('UserNotice',
         {
-         noticeRef,   % #'NoticeReference'{}
-         explicitText % string()
+         noticeRef = asn1_NOVALUE,
+         explicitText = asn1_NOVALUE
         }).
 
 -record('NoticeReference',
         {
-         organization,    % string()
-         noticeNumbers    % [pos_integer()]
+         organization,
+         noticeNumbers
         }).
 
 -record('PolicyMappings_SEQOF',
         {
-         issuerDomainPolicy,  % oid()
-         subjectDomainPolicy  % oid()
+         issuerDomainPolicy,
+         subjectDomainPolicy
         }).
 
 -record('Attribute',
         {
-         type,  % oid()
-         values % [der_encoded()]
+         type,
+         values
         }).
 
 -record('BasicConstraints',
@@ -423,34 +418,34 @@
 
 -record('NameConstraints',
         {
-         permittedSubtrees, % [#'GeneralSubtree'{}]
-         excludedSubtrees   % [#'GeneralSubtree'{}]
+         permittedSubtrees = asn1_NOVALUE,
+         excludedSubtrees = asn1_NOVALUE
         }).
 
 -record('GeneralSubtree',
         {
-         base,    % general_name()
-         minimum, % pos_integer()
-         maximum  % pos_integer()
+         base,
+         minimum = asn1_DEFAULT,
+         maximum = asn1_NOVALUE
         }).
 
 -record('PolicyConstraints',
         {
-         requireExplicitPolicy, % pos_integer()
-         inhibitPolicyMapping   % pos_integer()
+         requireExplicitPolicy = asn1_NOVALUE,
+         inhibitPolicyMapping = asn1_NOVALUE
         }).
 
 -record('DistributionPoint',
         {
-         distributionPoint,
-         reasons,           % [dist_reason()]
-         cRLIssuer          % [general_name()]
+         distributionPoint = asn1_NOVALUE,
+         reasons = asn1_NOVALUE,
+         cRLIssuer = asn1_NOVALUE
         }).
 
 -record('AccessDescription',
         {
-         accessMethod,    % oid()
-         accessLocation   % general_name()
+         accessMethod,
+         accessLocation
         }).
 
 %%%
@@ -459,27 +454,27 @@
 
 -record('CertificateList',
         {
-         tbsCertList,        % #'TBSCertList{}
-         signatureAlgorithm, % #'AlgorithmIdentifier'{}
-         signature           % bitstring()
+         tbsCertList,
+         signatureAlgorithm,
+         signature
         }).
 
 -record('TBSCertList',
         {
-         version,             % v2 (if defined)
-         signature,           % #AlgorithmIdentifier{}
-         issuer,              % {rdnSequence, [#AttributeTypeAndValue'{}]}
-         thisUpdate,          % time()
-         nextUpdate,          % time()
-         revokedCertificates, % [#'TBSCertList_revokedCertificates_SEQOF'{}]
-         crlExtensions        % [#'Extension'{}]
+         version = asn1_NOVALUE,
+         signature,
+         issuer,
+         thisUpdate,
+         nextUpdate = asn1_NOVALUE,
+         revokedCertificates = asn1_NOVALUE,
+         crlExtensions = asn1_NOVALUE
         }).
 
 -record('TBSCertList_revokedCertificates_SEQOF',
         {
-         userCertificate,      % pos_integer()
-         revocationDate,       % timer()
-         crlEntryExtensions    % [#'Extension'{}]
+         userCertificate,
+         revocationDate,
+         crlEntryExtensions = asn1_NOVALUE
         }).
 
 %%%
@@ -488,12 +483,12 @@
 
 -record('IssuingDistributionPoint',
         {
-         distributionPoint,
-         onlyContainsUserCerts,     % boolean()
-         onlyContainsCACerts,       % boolean()
-         onlySomeReasons,           % [dist_reason()]
-         indirectCRL,               % boolean()
-         onlyContainsAttributeCerts % boolean()
+         distributionPoint = asn1_NOVALUE,
+         onlyContainsUserCerts = asn1_DEFAULT,
+         onlyContainsCACerts = asn1_DEFAULT,
+         onlySomeReasons = asn1_NOVALUE,
+         indirectCRL = asn1_DEFAULT,
+         onlyContainsAttributeCerts = asn1_DEFAULT
         }).
 
 %%%
@@ -502,41 +497,41 @@
 
 -record('CertificationRequest',
         {
-   certificationRequestInfo, % #'CertificationRequestInfo'{},
-   signatureAlgorithm,       % #'CertificationRequest_signatureAlgorithm'{}}.
-   signature                 % bitstring()
-  }).
+         certificationRequestInfo,
+         signatureAlgorithm,
+         signature
+        }).
 
 -record('CertificationRequestInfo',
         {
-         version,       % atom(),
-         subject,       % {rdnSequence, [#AttributeTypeAndValue'{}]} ,
-         subjectPKInfo, % #'CertificationRequestInfo_subjectPKInfo'{},
-         attributes     % [#'AttributePKCS-10' {}]
+         version,
+         subject,
+         subjectPKInfo,
+         attributes
         }).
 
 -record('CertificationRequestInfo_subjectPKInfo',
         {
-         algorithm,        % #'CertificationRequestInfo_subjectPKInfo_algorithm'{}
-         subjectPublicKey  %  bitstring()
+         algorithm,
+         subjectPublicKey
         }).
 
 -record('CertificationRequestInfo_subjectPKInfo_algorithm',
         {
-         algorithm,  % oid(),
-         parameters  % der_encoded()
+         algorithm,
+         parameters = asn1_NOVALUE
         }).
 
 -record('CertificationRequest_signatureAlgorithm',
         {
-         algorithm,  % oid(),
-         parameters  % der_encoded()
+         algorithm,
+         parameters = asn1_NOVALUE
         }).
 
 -record('AttributePKCS-10',
         {
-         type,   % oid(),
-         values  % [der_encoded()]
+         type,
+         values
         }).
 
 -define(DEFAULT_VERIFYFUN,
@@ -606,35 +601,39 @@
 %%% OCSP, undocumented, but used by test suite.
 %%%
 
--record('BasicOCSPResponse', {
-  tbsResponseData,
-  signatureAlgorithm,
-  signature,
-  certs = asn1_NOVALUE
-}).
+-record('BasicOCSPResponse',
+        {
+         tbsResponseData,
+         signatureAlgorithm,
+         signature,
+         certs = asn1_NOVALUE
+        }).
 
--record('SingleResponse', {
-  certID,
-  certStatus,
-  thisUpdate,
-  nextUpdate = asn1_NOVALUE,
-  singleExtensions = asn1_NOVALUE
-}).
+-record('SingleResponse',
+        {
+         certID,
+         certStatus,
+         thisUpdate,
+         nextUpdate = asn1_NOVALUE,
+         singleExtensions = asn1_NOVALUE
+        }).
 
--record('CertID', {
-  hashAlgorithm,
-  issuerNameHash,
-  issuerKeyHash,
-  serialNumber
-}).
+-record('CertID',
+        {
+         hashAlgorithm,
+         issuerNameHash,
+         issuerKeyHash,
+         serialNumber
+        }).
 
--record('ResponseData', {
-  version = asn1_DEFAULT,
-  responderID,
-  producedAt,
-  responses,
-  responseExtensions = asn1_NOVALUE
-}).
+-record('ResponseData',
+        {
+         version = asn1_DEFAULT,
+         responderID,
+         producedAt,
+         responses,
+         responseExtensions = asn1_NOVALUE
+        }).
 
 -define('id-kp-OCSPSigning', {1,3,6,1,5,5,7,3,9}).
 -define('id-kp-timeStamping', {1,3,6,1,5,5,7,3,8}).
@@ -649,25 +648,28 @@
 %%% Undocumented but used but used in many places.
 %%%
 
--record('OTPSubjectPublicKeyInfo', {
-  algorithm,
-  subjectPublicKey
-}).
+-record('OTPSubjectPublicKeyInfo',
+        {
+         algorithm,
+         subjectPublicKey
+        }).
 
 %%%
 %%% Undocumented but used by test suite.
 %%%
 
--record('DHParameter', {
-  prime,
-  base,
-  privateValueLength = asn1_NOVALUE
-}).
+-record('DHParameter',
+        {
+         prime,
+         base,
+         privateValueLength = asn1_NOVALUE
+        }).
 
--record('RSASSA-AlgorithmIdentifier', {
-  algorithm,
-  parameters = asn1_NOVALUE
-}).
+-record('RSASSA-AlgorithmIdentifier',
+        {
+         algorithm,
+         parameters = asn1_NOVALUE
+        }).
 
 -define('id-pkix-ocsp-nonce', {1,3,6,1,5,5,7,48,1,2}).
 
@@ -681,32 +683,36 @@
 -define('brainpoolP384r1', {1,3,36,3,3,2,8,1,1,11}).
 -define('brainpoolP256r1', {1,3,36,3,3,2,8,1,1,7}).
 
--record('PrivateKeyInfo', {   %% OneAsymmetricKey
-  version,
-  privateKeyAlgorithm,
-  privateKey,
-  attributes = asn1_NOVALUE,
-  %% Version 2 with extension
-  publicKey = asn1_NOVALUE
-}).
+-record('PrivateKeyInfo',
+        {   %% OneAsymmetricKey
+            version,
+            privateKeyAlgorithm,
+            privateKey,
+            attributes = asn1_NOVALUE,
+            %% Version 2 with extension
+            publicKey = asn1_NOVALUE
+        }).
 
--record('PrivateKeyInfo_privateKeyAlgorithm', {
-  algorithm,
-  parameters = asn1_NOVALUE
-}).
+-record('PrivateKeyInfo_privateKeyAlgorithm',
+        {
+         algorithm,
+         parameters = asn1_NOVALUE
+        }).
 
 %%%
 %%% Undocumented but used by SSH.
 %%%
 
--record('ECDSA-Sig-Value', {
-  r,
-  s
-}).
+-record('ECDSA-Sig-Value',
+        {
+         r,
+         s
+        }).
 
--record('Dss-Sig-Value', {
-  r,
-  s
-}).
+-record('Dss-Sig-Value',
+        {
+         r,
+         s
+        }).
 
 -endif. % -ifdef(public_key).
