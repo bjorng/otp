@@ -32,6 +32,12 @@
          subjectPublicKey % binary()
         }).
 
+-record('PublicKeyAlgorithm',
+        {
+         algorithm,  % id_public_key_algorithm()
+         parameters  % public_key_params()
+        }).
+
 -export([find_single_response/3,
          get_acceptable_response_types_extn/0,
          get_nonce_extn/1,
@@ -65,7 +71,7 @@ verify_response(#'BasicOCSPResponse'{
         ok ?= verify_past_timestamp(ProducedAt),
         ok ?= verify_signature(
                 public_key:der_encode('ResponseData', ResponseData),
-                SignatureAlgo#'AlgorithmIdentifier'.algorithm,
+                SignatureAlgo#'BasicOCSPResponse_signatureAlgorithm'.algorithm,
                 Signature, ResponderCerts,
                 ResponderID, IssuerCert, IsTrustedResponderFun),
         verify_nonce(ResponseData, Nonce)
@@ -119,7 +125,7 @@ match_single_response(IssuerName, IssuerKey, SerialNum,
                            SingleResponse | Tail]) ->
     #'SingleResponse'{thisUpdate = ThisUpdate,
                       nextUpdate = NextUpdate} = SingleResponse,
-    HashType = public_key:pkix_hash_type(Algo#'AlgorithmIdentifier'.algorithm),
+    HashType = public_key:pkix_hash_type(Algo#'CertID_hashAlgorithm'.algorithm),
     case (SerialNum == CertID#'CertID'.serialNumber) andalso
         (crypto:hash(HashType, IssuerName) == CertID#'CertID'.issuerNameHash) andalso
         (crypto:hash(HashType, IssuerKey) == CertID#'CertID'.issuerKeyHash) andalso
@@ -267,8 +273,8 @@ do_verify_signature(ResponseDataDer, Signature, AlgorithmID,
 
 get_public_key_rec(#'OTPCertificate'{tbsCertificate = TbsCert}) ->
     PKInfo = TbsCert#'OTPTBSCertificate'.subjectPublicKeyInfo,
-    Params = PKInfo#'OTPSubjectPublicKeyInfo'.algorithm#'SubjectPublicKeyInfo_algorithm'.parameters,
-    SubjectPublicKey = PKInfo#'SubjectPublicKeyInfo'.subjectPublicKey,
+    Params = PKInfo#'OTPSubjectPublicKeyInfo'.algorithm#'PublicKeyAlgorithm'.parameters,
+    SubjectPublicKey = PKInfo#'OTPSubjectPublicKeyInfo'.subjectPublicKey,
     case {SubjectPublicKey, Params} of
         {#'RSAPublicKey'{}, 'NULL'} ->
             SubjectPublicKey;
