@@ -448,7 +448,7 @@ pem_encode(PemEntries) when is_list(PemEntries) ->
 -spec pem_entry_decode(PemEntry) -> term() when PemEntry :: pem_entry() .
 
 pem_entry_decode({'SubjectPublicKeyInfo', Der, _}) ->
-    {_, {'PublicKeyAlgorithm', AlgId, Params}, Key0} =
+    {_, {'PublicKeyAlgorithm', AlgId, Params0}, Key0} =
         der_decode('SubjectPublicKeyInfo', Der),
 
     KeyType = pubkey_cert_records:supportedPublicKeyAlgorithms(AlgId),
@@ -456,9 +456,10 @@ pem_entry_decode({'SubjectPublicKeyInfo', Der, _}) ->
         'RSAPublicKey' ->
             der_decode(KeyType, Key0);
         'DSAPublicKey' ->
+            {params, Params} = Params0,
             {der_decode(KeyType, Key0), Params};
         'ECPoint' ->
-            ECCParams = ec_decode_params(AlgId, Params),
+            ECCParams = ec_decode_params(AlgId, Params0),
             {#'ECPoint'{point = Key0}, ECCParams}
     end;
 pem_entry_decode({Asn1Type, Der, not_encrypted}) when is_atom(Asn1Type),
@@ -1344,7 +1345,7 @@ The `Msg` is either the binary "plain text" data or it is the hashed value of
                                    Key :: public_key(),
                                    Options :: crypto:pk_sign_verify_opts().
 
-verify(Digest, none, Signature, Key = {_, #'DSA-Params'{}}, Options) when is_binary(Digest) ->
+verify(Digest, none, Signature, Key = {_, #'Dss-Parms'{}}, Options) when is_binary(Digest) ->
     %% Backwards compatible
     verify({digest, Digest}, sha, Signature, Key, Options);
 verify(DigestOrPlainText, DigestType, Signature, Key, Options) when is_binary(Signature) ->
@@ -1477,7 +1478,7 @@ pkix_sign(#'OTPTBSCertificate'{signature =
                                                Key :: public_key() .
 
 %%--------------------------------------------------------------------
-pkix_verify(DerCert, {Key, #'DSA-Params'{}} = DSAKey)
+pkix_verify(DerCert, {Key, #'Dss-Parms'{}} = DSAKey)
   when is_binary(DerCert), is_integer(Key) ->
     {DigestType, PlainText, Signature} = pubkey_cert:verify_data(DerCert),
     verify(PlainText, DigestType, Signature, DSAKey);
@@ -2443,7 +2444,7 @@ format_verify_key({#'ECPoint'{point = Point}, {namedCurve, Curve} = Param}) when
 format_verify_key({#'ECPoint'{point = Point}, Param}) ->
     ECCurve = ec_curve_spec(Param),
     {ecdsa, [Point, ECCurve]};
-format_verify_key({Key,  #'DSA-Params'{p = P, q = Q, g = G}}) ->
+format_verify_key({Key,  #'Dss-Parms'{p = P, q = Q, g = G}}) ->
     {dss, [P, Q, G, Key]};
 format_verify_key({ed_pub, Curve, Key}) ->
     {eddsa, [Key,Curve]};
