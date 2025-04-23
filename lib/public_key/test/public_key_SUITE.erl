@@ -1624,9 +1624,9 @@ pkix_ocsp_validate(_Config) ->
     Cert =
         {'OTPCertificate',{'OTPTBSCertificate',v3,9,
                            {'SignatureAlgorithm',{1,2,840,113549,1,1,11},'NULL'},
-                           {rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{utf8String,<<"otpCA">>}}],[{'AttributeTypeAndValue',{2,5,4,11},{utf8String,<<"Erlang OTP">>}}],[{'AttributeTypeAndValue',{2,5,4,10},{utf8String,<<"Ericsson AB">>}}],[{'AttributeTypeAndValue',{2,5,4,6},"SE"}],[{'AttributeTypeAndValue',{2,5,4,7},{utf8String,<<"Stockholm">>}}],[{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]},
+                           {rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{uTF8String,<<"otpCA">>}}],[{'AttributeTypeAndValue',{2,5,4,11},{uTF8String,<<"Erlang OTP">>}}],[{'AttributeTypeAndValue',{2,5,4,10},{uTF8String,<<"Ericsson AB">>}}],[{'AttributeTypeAndValue',{2,5,4,6},"SE"}],[{'AttributeTypeAndValue',{2,5,4,7},{uTF8String,<<"Stockholm">>}}],[{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]},
                            {'Validity',{utcTime,"230721110721Z"},{utcTime,"330529110721Z"}},
-                           {rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{utf8String,<<"a.server">>}}],[{'AttributeTypeAndValue',{2,5,4,11},{utf8String,<<"Erlang OTP">>}}],[{'AttributeTypeAndValue',{2,5,4,10},{utf8String,<<"Ericsson AB">>}}],[{'AttributeTypeAndValue',{2,5,4,6},"SE"}],[{'AttributeTypeAndValue',{2,5,4,7},{utf8String,<<"Stockholm">>}}],[{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]},
+                           {rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{uTF8String,<<"a.server">>}}],[{'AttributeTypeAndValue',{2,5,4,11},{uTF8String,<<"Erlang OTP">>}}],[{'AttributeTypeAndValue',{2,5,4,10},{uTF8String,<<"Ericsson AB">>}}],[{'AttributeTypeAndValue',{2,5,4,6},"SE"}],[{'AttributeTypeAndValue',{2,5,4,7},{uTF8String,<<"Stockholm">>}}],[{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]},
                            {'OTPSubjectPublicKeyInfo',{'PublicKeyAlgorithm',{1,2,840,113549,1,1,1},'NULL'},
                             {'RSAPublicKey',19254743747256260264207569423711759377779938665145630924415701722071839009286238971264967781043993434178803001083069740412920664146137571550852074547463946025114390093775800702438227109245066854329070921351832849321692114677809046259034306196616912261365770291322044071697789183279204771685063580949070504947864713748039312242300503875879444809664605423001542854874228001872895975468648787616073960661286876663709764410812833966560999459482926236332297043685455899393823175706646393051956438518613689798667608292659880957737510004003274559865311466147775473832468655042097383293967251824412697382839864114388741712057,
                              65537}},
@@ -1637,10 +1637,10 @@ pkix_ocsp_validate(_Config) ->
                             {'Extension',{2,5,29,35},
                              false,
                              {'AuthorityKeyIdentifier',<<123,93,133,100,41,175,227,134,140,47,217,84,132,181,89,186,102,41,30,255>>,
-                              [{directoryName,{rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{utf8String,<<"erlangCA">>}}],
-                                                            [{'AttributeTypeAndValue',{2,5,4,11},{utf8String,<<"Erlang OTP">>}}],
-                                                            [{'AttributeTypeAndValue',{2,5,4,10},{utf8String,<<"Ericsson AB">>}}],
-                                                            [{'AttributeTypeAndValue',{2,5,4,7},{utf8String,<<"Stockholm">>}}],
+                              [{directoryName,{rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{uTF8String,<<"erlangCA">>}}],
+                                                            [{'AttributeTypeAndValue',{2,5,4,11},{uTF8String,<<"Erlang OTP">>}}],
+                                                            [{'AttributeTypeAndValue',{2,5,4,10},{uTF8String,<<"Ericsson AB">>}}],
+                                                            [{'AttributeTypeAndValue',{2,5,4,7},{uTF8String,<<"Stockholm">>}}],
                                                             [{'AttributeTypeAndValue',{2,5,4,6},"SE"}],
                                                             [{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]}}],
                               1}},
@@ -1652,9 +1652,9 @@ pkix_ocsp_validate(_Config) ->
     IssuerCert =
         {'OTPCertificate',{'OTPTBSCertificate',v3,1,
                            {'SignatureAlgorithm',{1,2,840,113549,1,1,11},'NULL'},
-                           {rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{utf8String,<<"erlangCA">>}}],[{'AttributeTypeAndValue',{2,5,4,11},{utf8String,<<"Erlang OTP">>}}],[{'AttributeTypeAndValue',{2,5,4,10},{utf8String,<<"Ericsson AB">>}}],[{'AttributeTypeAndValue',{2,5,4,7},{utf8String,<<"Stockholm">>}}],[{'AttributeTypeAndValue',{2,5,4,6},"SE"}],[{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]},
+                           {rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{uTF8String,<<"erlangCA">>}}],[{'AttributeTypeAndValue',{2,5,4,11},{uTF8String,<<"Erlang OTP">>}}],[{'AttributeTypeAndValue',{2,5,4,10},{uTF8String,<<"Ericsson AB">>}}],[{'AttributeTypeAndValue',{2,5,4,7},{uTF8String,<<"Stockholm">>}}],[{'AttributeTypeAndValue',{2,5,4,6},"SE"}],[{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]},
                            {'Validity',{utcTime,"230721110720Z"},{utcTime,"330529110720Z"}},
-                           {rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{utf8String,<<"otpCA">>}}],[{'AttributeTypeAndValue',{2,5,4,11},{utf8String,<<"Erlang OTP">>}}],[{'AttributeTypeAndValue',{2,5,4,10},{utf8String,<<"Ericsson AB">>}}],[{'AttributeTypeAndValue',{2,5,4,6},"SE"}],[{'AttributeTypeAndValue',{2,5,4,7},{utf8String,<<"Stockholm">>}}],[{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]},
+                           {rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{uTF8String,<<"otpCA">>}}],[{'AttributeTypeAndValue',{2,5,4,11},{uTF8String,<<"Erlang OTP">>}}],[{'AttributeTypeAndValue',{2,5,4,10},{uTF8String,<<"Ericsson AB">>}}],[{'AttributeTypeAndValue',{2,5,4,6},"SE"}],[{'AttributeTypeAndValue',{2,5,4,7},{uTF8String,<<"Stockholm">>}}],[{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]},
                            {'OTPSubjectPublicKeyInfo',{'PublicKeyAlgorithm',{1,2,840,113549,1,1,1},'NULL'},
                             {'RSAPublicKey',21858379260819365313885475389172639523863567481982302063462584029790343874819317972475546206568963022785252583910194728269078148431804871680312638323851125861707159230343297343111968246731095811513561212201088276841624533346998017512000090901290490304174895932870845288899008429347052837949441312958652271962356020302617279856538736007013593572768976262766464136388094144122584736630529987720049486299302127652434926700165727330943325372510516379103006575448279898129379834740761468401572505064753618409945975591285059206889943804512145915054818226570266582909516966602868100682823910151957272535898084374557112395143,
                              65537}},
@@ -1665,10 +1665,10 @@ pkix_ocsp_validate(_Config) ->
                             {'Extension',{2,5,29,35},
                              false,
                              {'AuthorityKeyIdentifier',<<229,159,14,81,153,72,30,27,33,37,234,91,103,205,230,72,95,185,112,95>>,
-                              [{directoryName,{rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{utf8String,<<"erlangCA">>}}],
-                                                            [{'AttributeTypeAndValue',{2,5,4,11},{utf8String,<<"Erlang OTP">>}}],
-                                                            [{'AttributeTypeAndValue',{2,5,4,10},{utf8String,<<"Ericsson AB">>}}],
-                                                            [{'AttributeTypeAndValue',{2,5,4,7},{utf8String,<<"Stockholm">>}}],
+                              [{directoryName,{rdnSequence,[[{'AttributeTypeAndValue',{2,5,4,3},{uTF8String,<<"erlangCA">>}}],
+                                                            [{'AttributeTypeAndValue',{2,5,4,11},{uTF8String,<<"Erlang OTP">>}}],
+                                                            [{'AttributeTypeAndValue',{2,5,4,10},{uTF8String,<<"Ericsson AB">>}}],
+                                                            [{'AttributeTypeAndValue',{2,5,4,7},{uTF8String,<<"Stockholm">>}}],
                                                             [{'AttributeTypeAndValue',{2,5,4,6},"SE"}],
                                                             [{'AttributeTypeAndValue',{1,2,840,113549,1,9,1},"peter@erix.ericsson.se"}]]}}],
                               674805639123712796695508479052504582494838106155}},
@@ -1811,13 +1811,13 @@ subject({rdnSequence, Seq}, Def) ->
 subject([[{'AttributeTypeAndValue', ?'id-at-commonName', Name0}]|_], _Def) ->
     case Name0 of
         {printableString, Name} -> Name;
-        {utf8String, Name} -> unicode:characters_to_list(Name);
+        {uTF8String, Name} -> unicode:characters_to_list(Name);
         Name -> Name
     end;
 subject([[{'AttributeTypeAndValue', ?'id-at-organizationName', Name0}]|Rest], _Def) ->
     Name = case Name0 of
                {printableString, Name1} -> Name1;
-               {utf8String, Name1} -> unicode:characters_to_list(Name1);
+               {uTF8String, Name1} -> unicode:characters_to_list(Name1);
                Name1 -> Name1
            end,
     subject(Rest, Name);

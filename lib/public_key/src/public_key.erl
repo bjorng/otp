@@ -626,6 +626,7 @@ der_decode(Asn1Type, Der) when is_atom(Asn1Type), is_binary(Der) ->
 get_asn1_module('BasicOCSPResponse') -> 'OCSP-2009';
 get_asn1_module('OCSPResponse') -> 'OCSP-2009';
 get_asn1_module('ResponseData') -> 'OCSP-2009';
+get_asn1_module('Name') -> 'PKIX1Explicit-2009';
 
 get_asn1_module('AuthorityInfoAccessSyntax') -> 'PKIX1Implicit-2009';
 get_asn1_module('AuthorityKeyIdentifier') -> 'PKIX1Implicit-2009';
@@ -1539,18 +1540,18 @@ pkix_crl_verify(#'CertificateList'{} = CRL, #'OTPCertificate'{} = Cert) ->
 %%--------------------------------------------------------------------
 pkix_is_issuer(Cert, IssuerCert) when is_binary(Cert) ->
     OtpCert = pkix_decode_cert(Cert, otp),
-    pkix_is_issuer(OtpCert, IssuerCert).
-%% pkix_is_issuer(Cert, IssuerCert) when is_binary(IssuerCert) ->
-%%     OtpIssuerCert = pkix_decode_cert(IssuerCert, otp),
-%%     pkix_is_issuer(Cert, OtpIssuerCert);
-%% pkix_is_issuer(#'OTPCertificate'{tbsCertificate = TBSCert},
-%% 	       #'OTPCertificate'{tbsCertificate = Candidate}) ->
-%%     pubkey_cert:is_issuer(TBSCert#'OTPTBSCertificate'.issuer,
-%% 			  Candidate#'OTPTBSCertificate'.subject);
-%% pkix_is_issuer(#'CertificateList'{tbsCertList = TBSCRL},
-%% 	       #'OTPCertificate'{tbsCertificate = Candidate}) ->
-%%     pubkey_cert:is_issuer(Candidate#'OTPTBSCertificate'.subject,
-%% 			  pubkey_cert_records:transform(TBSCRL#'TBSCertList'.issuer, decode)).
+    pkix_is_issuer(OtpCert, IssuerCert);
+pkix_is_issuer(Cert, IssuerCert) when is_binary(IssuerCert) ->
+    OtpIssuerCert = pkix_decode_cert(IssuerCert, otp),
+    pkix_is_issuer(Cert, OtpIssuerCert);
+pkix_is_issuer(#'OTPCertificate'{tbsCertificate = TBSCert},
+	       #'OTPCertificate'{tbsCertificate = Candidate}) ->
+    pubkey_cert:is_issuer(TBSCert#'OTPTBSCertificate'.issuer,
+			  Candidate#'OTPTBSCertificate'.subject);
+pkix_is_issuer(#'CertificateList'{toBeSigned = TBSCRL},
+	       #'OTPCertificate'{tbsCertificate = Candidate}) ->
+    pubkey_cert:is_issuer(Candidate#'OTPTBSCertificate'.subject,
+			  pubkey_cert_records:transform(TBSCRL#'TBSCertList'.issuer, decode)).
 
 %%--------------------------------------------------------------------
 -doc "Checks if a certificate is self-signed.".
