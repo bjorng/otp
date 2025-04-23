@@ -281,33 +281,37 @@ namedCurves(brainpoolP512t1) -> ?'brainpoolP512t1'.
 
 decode_supportedPublicKey(#'SubjectPublicKeyInfo'{algorithm=PA,
                                                   subjectPublicKey=SPK0}) ->
-    #'SubjectPublicKeyInfo_algorithm'{algorithm=Algo,parameters=Params} = PA,
+    #'SubjectPublicKeyInfo_algorithm'{algorithm=Algo,parameters=Params0} = PA,
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
               'ECPoint' ->
                   #'ECPoint'{point = SPK0};
               _ ->
                   public_key:der_decode(Type, SPK0)
-                  %% Mod = get_asn1_module(Type),
-                  %% {ok, SPK1} = Mod:decode(Type, SPK0),
-                  %% SPK1
           end,
+    Params = case Params0 of
+                 #'DSA-Params'{p=P,q=Q,g=G} -> {params, #'Dss-Parms'{p=P,q=Q,g=G}};
+                 _ -> Params0
+             end,
     #'OTPSubjectPublicKeyInfo'{subjectPublicKey = SPK,
                                algorithm=#'PublicKeyAlgorithm'{algorithm=Algo,
                                                                parameters=Params}}.
-encode_supportedPublicKey(#'OTPSubjectPublicKeyInfo'{algorithm = PA =
-                                                         #'PublicKeyAlgorithm'{algorithm=Algo},
-                                                     subjectPublicKey = SPK0}) ->
+encode_supportedPublicKey(#'OTPSubjectPublicKeyInfo'{
+                             algorithm =
+                                 #'PublicKeyAlgorithm'{algorithm=Algo,parameters = Params0},
+                             subjectPublicKey = SPK0}) ->
     Type = supportedPublicKeyAlgorithms(Algo),
     SPK = case Type of
               'ECPoint' ->
                   SPK0#'ECPoint'.point;
               _ ->
                   public_key:der_encode(Type, SPK0)
-                  %% Mod = get_asn1_module(Type),
-                  %% {ok, SPK1} = Mod:encode(Type, SPK0),
-                  %% SPK1
           end,
+    Params = case Params0 of
+                 {params, #'Dss-Parms'{p=P,q=Q,g=G}} -> #'DSA-Params'{p=P,q=Q,g=G};
+                 _ -> Params0
+             end,
+    PA = #'SubjectPublicKeyInfo_algorithm'{algorithm=Algo,parameters=Params},
     #'SubjectPublicKeyInfo'{subjectPublicKey = SPK, algorithm=PA}.
 
 %%% Extensions
