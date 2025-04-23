@@ -660,6 +660,10 @@ handle_pkcs_frame_error('PrivateKeyInfo', Der, _) ->
 handle_pkcs_frame_error(_, _, Error) ->
     erlang:error(Error).
 
+%% The type for a DSA private key is not defined in any of our ASN.1 modules.
+%% However, we KNOW that it has the same type as the public key (an INTEGER).
+-define(dsa_private_key_type, 'DSAPublicKey').
+
 %% NOTE: No longer defined in modern ASN.1 specs.
 der_priv_key_decode(#'OneAsymmetricKey'{version = v1,
                                         privateKeyAlgorithm =
@@ -714,9 +718,9 @@ der_priv_key_decode(#'OneAsymmetricKey'{version = v1,
                                                                              parameters =
                                                                                  {asn1_OPENTYPE, Parameters}},
                                         privateKey = PrivKey}) ->
-    {params, #'DSA-Params'{p=P, q=Q, g=G}} = der_decode('DSAParams', Parameters),
-    X = der_decode('Prime-p', PrivKey),
-    #'DSAPrivateKey'{p=P, q=Q, g=G, x=X};
+    {ok, #'DSA-Params'{p=P, q=Q, g=G}} = 'PKIXAlgs-2009':decode('DSA-Params', Parameters),
+    X = der_decode(?dsa_private_key_type, PrivKey),
+    #'DSAPrivateKey'{version=1, p=P, q=Q, g=G, x=X};
 der_priv_key_decode(PKCS8Key) ->
     PKCS8Key.
 
@@ -733,7 +737,7 @@ der_encode('PrivateKeyInfo', #'DSAPrivateKey'{p=P, q=Q, g=G, x=X}) ->
     Alg =  #'PrivateKeyAlgorithmIdentifier'{algorithm = ?'id-dsa',
                                             parameters =
                                                 {asn1_OPENTYPE, Params}},
-    Key = der_encode('Prime-p', X),
+    Key = der_encode(?dsa_private_key_type, X),
     der_encode('OneAsymmetricKey',
                #'OneAsymmetricKey'{version = 0,
                                    privateKeyAlgorithm = Alg,
@@ -1436,7 +1440,6 @@ pkix_match_dist_point(CRL, DistPoint) when is_binary(CRL) ->
 pkix_sign(#'OTPTBSCertificate'{signature =
 				   #'SignatureAlgorithm'{}
 			       = SigAlg} = TBSCert, Key) ->
-    io:format("~p\n", [TBSCert]),
     Msg = pkix_encode('OTPTBSCertificate', TBSCert, otp),
     {DigestType, _, Opts} = pubkey_cert:x509_pkix_sign_types(SigAlg),
     Signature = sign(Msg, DigestType, format_pkix_sign_key(Key), Opts),
