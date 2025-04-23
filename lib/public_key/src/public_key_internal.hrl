@@ -68,26 +68,26 @@
 
 -record('ECParameters',
         {
-         version,    % pos_integer()
-         fieldID,    % #'FieldID'{}
-         curve,      % #'Curve'{}
-         base,       % binary()
-         order,      % pos_integer()
-         cofactor    % pos_integer()
+         version,
+         fieldID,
+         curve,
+         base,
+         order,
+         cofactor = asn1_NOVALUE
         }).
 
 -record('Curve',
         {
-          a,        % binary()
-          b,        % binary()
-          seed      % bitstring() - optional
+         a,
+         b,
+         seed = asn1_NOVALUE
         }).
 
 -record('FieldID',
-         {
-           fieldType,    % oid()
-           parameters    % Depending on fieldType
-         }).
+        {
+         fieldType,
+         parameters
+        }).
 
 -record('Dss-Parms',
         {
@@ -101,5 +101,12 @@
          algorithm,
          parameters = asn1_NOVALUE
         }).
+
+-record('PublicKeyAlgorithm',
+        {
+         algorithm,
+         parameters = asn1_NOVALUE
+        }).
+
 
 -endif. % -ifdef(public_key_internal).

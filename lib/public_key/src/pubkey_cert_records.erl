@@ -28,11 +28,6 @@
 -define(_PKCS_FRAME_HRL_, true).
 -include("public_key_internal.hrl").
 
--record('PublicKeyAlgorithm', {
-  algorithm,
-  parameters = asn1_NOVALUE
-}).
-
 %% Superseded by SingleAttribute.
 -record('AttributeTypeAndValue', {
   type,

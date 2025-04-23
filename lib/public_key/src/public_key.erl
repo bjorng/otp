@@ -75,16 +75,10 @@ macros described here and in the User's Guide:
   %% end of extensions
 }).
 
-
--record('PrivateKeyAlgorithmIdentifier', {
-  algorithm,
-  parameters = asn1_NOVALUE
-}).
-
--record('PublicKeyAlgorithm',
+-record('PrivateKeyAlgorithmIdentifier',
         {
-         algorithm,  % id_public_key_algorithm()
-         parameters  % public_key_params()
+         algorithm,
+         parameters = asn1_NOVALUE
         }).
 
 -record('OTPSubjectPublicKeyInfo',
