@@ -81,6 +81,12 @@ macros described here and in the User's Guide:
   parameters = asn1_NOVALUE
 }).
 
+-record('PublicKeyAlgorithm',
+        {
+         algorithm,  % id_public_key_algorithm()
+         parameters  % public_key_params()
+        }).
+
 -record('OTPSubjectPublicKeyInfo',
         {
          algorithm,       % #'PublicKeyAlgorithm'{}
@@ -526,18 +532,14 @@ pem_entry_encode('SubjectPublicKeyInfo',
     Spki = subject_public_key_info(AlgId, KeyDer),
     pem_entry_encode('SubjectPublicKeyInfo', Spki);
 pem_entry_encode('SubjectPublicKeyInfo',
-		 {#'ECPoint'{point = Key}, {namedCurve, ?'id-Ed25519' = ID}}) when is_binary(Key)->
-    Spki = subject_public_key_info(#'AlgorithmIdentifier'{algorithm = ID}, Key),
-    pem_entry_encode('SubjectPublicKeyInfo', Spki);
-pem_entry_encode('SubjectPublicKeyInfo',
-		 {#'ECPoint'{point = Key}, {namedCurve, ?'id-Ed448' = ID}}) when is_binary(Key)->
-    Spki = subject_public_key_info(#'AlgorithmIdentifier'{algorithm = ID}, Key),
+		 {#'ECPoint'{point = Key}, {namedCurve, ID}})
+  when is_binary(Key), ID =:= ?'id-Ed448' orelse ID =:= ?'id-Ed25519' ->
+    Spki = subject_public_key_info(#'PublicKeyAlgorithm'{algorithm = ID}, Key),
     pem_entry_encode('SubjectPublicKeyInfo', Spki);
 pem_entry_encode('SubjectPublicKeyInfo',
 		 {#'ECPoint'{point = Key}, ECParam}) when is_binary(Key)->
-    Params = der_encode('EcpkParameters',ECParam),
-    Spki = subject_public_key_info(#'AlgorithmIdentifier'{algorithm =?'id-ecPublicKey',
-                                                          parameters = Params},
+    Spki = subject_public_key_info(#'PublicKeyAlgorithm'{algorithm =?'id-ecPublicKey',
+                                                         parameters = ECParam},
                                    Key),
     pem_entry_encode('SubjectPublicKeyInfo', Spki);
 pem_entry_encode(Asn1Type, Entity)  when is_atom(Asn1Type) ->
@@ -603,7 +605,14 @@ der_decode(Asn1Type, Der) when (((Asn1Type == 'PrivateKeyInfo')
 	error:{badmatch, {error, _}} = Error ->
             handle_pkcs_frame_error(Asn1Type, Der, Error)
     end;
-
+der_decode('EcpkParameters', Der) ->
+    try
+	{ok, Decoded} = 'PKIXAlgs-2009':decode('ECParameters', Der),
+        pubkey_translation:decode(Decoded)
+    catch
+	error:{badmatch, {error, _}} = Error ->
+	    erlang:error(Error)
+    end;
 der_decode(Asn1Type, Der) when is_atom(Asn1Type), is_binary(Der) ->
     Asn1Module = get_asn1_module(Asn1Type),
     try
@@ -818,6 +827,14 @@ der_encode(Asn1Type, Entity) when (Asn1Type == 'PrivateKeyInfo') orelse
 	error:{badmatch, {error, _}} = Error ->
              erlang:error(Error)
      end;
+der_encode('EcpkParameters', {namedCurve,_}=Entity) ->
+    try
+	{ok, Encoded} = 'PKIXAlgs-2009':encode('ECParameters', Entity),
+	Encoded
+    catch
+	error:{badmatch, {error, _}} = Error ->
+	    erlang:error(Error)
+    end;
 der_encode(Asn1Type, Entity0) when is_atom(Asn1Type) ->
     Asn1Module = get_asn1_module(Asn1Type),
     try
@@ -2357,8 +2374,8 @@ cacerts_clear() ->
 ec_decode_params(AlgId, _) when AlgId == ?'id-Ed25519';
                                 AlgId == ?'id-Ed448' ->
     {namedCurve, AlgId};
-ec_decode_params(_, Params) ->
-    der_decode('EcpkParameters', Params).
+ec_decode_params(_AlgId, {namedCurve,_}=Entity) ->
+    Entity.
 
 default_options([]) ->
     [{rsa_padding, rsa_pkcs1_padding}];
@@ -2995,7 +3012,7 @@ format_details(Details) ->
     Details.
 
 subject_public_key_info(Alg, PubKey) ->
-    #'OTPSubjectPublicKeyInfo'{algorithm = Alg, subjectPublicKey = PubKey}.
+    #'SubjectPublicKeyInfo'{algorithm = Alg, subjectPublicKey = PubKey}.
 
 %%%################################################################
 %%%#
