@@ -1804,20 +1804,22 @@ cert_info([]) ->
 
 
 subject(S) ->
-    string:lowercase(subject(public_key:pkix_normalize_name(S), "unknown")).
+    unicode:characters_to_list(
+      string:lowercase(
+        subject(public_key:pkix_normalize_name(S), "unknown"))).
 
 subject({rdnSequence, Seq}, Def) ->
     subject(Seq, Def);
 subject([[{'AttributeTypeAndValue', ?'id-at-commonName', Name0}]|_], _Def) ->
     case Name0 of
         {printableString, Name} -> Name;
-        {uTF8String, Name} -> unicode:characters_to_list(Name);
+        {uTF8String, Name} -> Name;
         Name -> Name
     end;
 subject([[{'AttributeTypeAndValue', ?'id-at-organizationName', Name0}]|Rest], _Def) ->
     Name = case Name0 of
                {printableString, Name1} -> Name1;
-               {uTF8String, Name1} -> unicode:characters_to_list(Name1);
+               {uTF8String, Name1} -> Name1;
                Name1 -> Name1
            end,
     subject(Rest, Name);
