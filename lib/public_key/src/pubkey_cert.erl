@@ -1501,13 +1501,13 @@ strip_spaces(String0, KeepDeep) ->
     strip_many_spaces(string:split(Trimmed, "  ", all), KeepDeep).
 
 strip_many_spaces([OnlySingleSpace], _) ->
-    unicode:characters_to_binary(OnlySingleSpace);
+    OnlySingleSpace;
 strip_many_spaces(Strings, KeepDeep) ->
     Split = [string:trim(Str, leading, " ") || Str <- Strings, Str /= []],
     DeepList = lists:join(" ", Split),
     case KeepDeep of
         true -> DeepList;
-        false -> unicode:characters_to_binary(DeepList)
+        false -> unicode:characters_to_list(DeepList)
     end.
 
 decode_general_name([{directoryName, Issuer}]) ->
