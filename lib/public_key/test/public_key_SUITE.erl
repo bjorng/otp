@@ -336,9 +336,7 @@ dsa_pem(Config) when is_list(Config) ->
     {ok, DSAPubPem} = file:read_file(filename:join(Datadir, "dsa_pub.pem")),
     [{'SubjectPublicKeyInfo', _, _} = PubEntry0] =
         public_key:pem_decode(DSAPubPem),
-    io:format("~p: ~p\n", [?LINE,PubEntry0]),
     DSAPubKey = public_key:pem_entry_decode(PubEntry0),
-    io:format("~p: ~p\n", [?LINE,DSAPubKey]),
     true = check_entry_type(DSAPubKey, 'DSAPublicKey'),
     PubEntry0 = public_key:pem_entry_encode('SubjectPublicKeyInfo', DSAPubKey),
     DSAPubPemNoEndNewLines = strip_superfluous_newlines(DSAPubPem),
@@ -1421,7 +1419,6 @@ pkix_crl(Config) when is_list(Config) ->
 
     {rdnSequence,_} = public_key:pkix_crl_issuer(CRL),
     {rdnSequence,_} = public_key:pkix_crl_issuer(ERLCRL),
-    io:format("~p\n", [CRL]),
     true = public_key:pkix_crl_verify(CRL, SignCert),
     true = public_key:pkix_crl_verify(ERLCRL, OTPSignCert),
 
