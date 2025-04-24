@@ -29,7 +29,7 @@
 -include("DSS.hrl").
 -include("ECPrivateKey.hrl").
 
--include("OCSP-2009.hrl").
+-include("OCSP-2024-08.hrl").
 -undef('id-kp-OCSPSigning').
 
 -include("OTP-PKIX.hrl").

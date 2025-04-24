@@ -618,9 +618,10 @@ der_decode(Asn1Type, Der) when is_atom(Asn1Type), is_binary(Der) ->
 	    erlang:error(Error)
     end.
 
-get_asn1_module('BasicOCSPResponse') -> 'OCSP-2009';
-get_asn1_module('OCSPResponse') -> 'OCSP-2009';
-get_asn1_module('ResponseData') -> 'OCSP-2009';
+get_asn1_module('BasicOCSPResponse') -> 'OCSP-2024-08';
+get_asn1_module('Nonce') -> 'OCSP-2024-08';
+get_asn1_module('OCSPResponse') -> 'OCSP-2024-08';
+get_asn1_module('ResponseData') -> 'OCSP-2024-08';
 get_asn1_module('Name') -> 'PKIX1Explicit-2009';
 
 get_asn1_module('AuthorityInfoAccessSyntax') -> 'PKIX1Implicit-2009';

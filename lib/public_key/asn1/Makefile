@@ -52,7 +52,7 @@ ASN_TOP = PKCS-FRAME \
           CryptographicMessageSyntax-2009 \
           DSS \
           ECPrivateKey \
-          OCSP-2009 \
+          OCSP-2024-08 \
           OTP-PKIX \
           PKCS-1 PKCS-3 PKCS-10 \
           PKIX-CommonTypes-2009 \
@@ -65,7 +65,7 @@ ASN_TOP = PKCS-FRAME \
 ASN_MODULES = PKIX-CommonTypes-2009 PKIXAlgs-2009 AlgorithmInformation-2009 \
 	PKIX1Implicit-2009 PKIXEplicit-2009 PKIXAttributeCertificate-2009 \
 	PKIX1-PSS-OAEP-Algorithms-2009 \
-	OCSP-2009 PKCS-1 PKCS-3 \
+	OCSP-2024-08 PKCS-1 PKCS-3 \
 	AsymmetricKeyPackageModuleV1 PKCS-10 PKCS5v2-0 CryptographicMessageSyntax-2009 \
 	CryptographicMessageSyntaxAlgorithms-2009 SecureMimeMessageV3dot1-2009 \
 	CMSAesRsaesOaep-2009 \
