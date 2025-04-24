@@ -416,7 +416,6 @@ encode_extensions(Exts) ->
                               %% Undocumented asn1 usage, but currently the only way
                               %% to decode extensions.
 			      Value1 = pubkey_translation:encode(Value0),
-                              io:format("~p:~p: ~p\n", [?MODULE,?LINE,Value1]),
                               Value = element(1,EncodeExt('ExtnType', Value1, dummy)),
 			      Ext#'Extension'{extnValue= iolist_to_binary(Value)}
 		      end
