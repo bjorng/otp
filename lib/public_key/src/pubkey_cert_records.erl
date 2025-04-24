@@ -344,13 +344,23 @@ decode_extensions(asn1_NOVALUE) ->
 
 decode_extensions(Exts) ->
     lists:map(fun(Ext = #'Extension'{extnID=Id, extnValue=Value0}) ->
-		      case extension_id(Id) =/= undefined andalso
+                      ExtId = extension_id(Id),
+		      case ExtId =/= undefined andalso
                           'PKIX1Implicit-2009':getdec_CertExtensions(Id)
                       of
 			  false ->
                               Ext;
                           {asn1_OPENTYPE, _} ->
                               Ext;
+                          DecodeExt when ExtId =:= 'CertificatePolicies',
+                                         is_function(DecodeExt, 3) ->
+                              %% Might need workaround to gracefully handle long user notices
+                              try
+                                  Value = DecodeExt('ExtnType', iolist_to_binary(Value0), dummy),
+                                  Ext#'Extension'{extnValue=transform(Value,decode)}
+                              catch exit:{_, {error,{asn1,bad_range}}} ->
+                                      decode_otp_cert_polices(Ext, iolist_to_binary(Value0))
+                              end;
 			  DecodeExt when is_function(DecodeExt, 3) ->
                               %% Undocumented asn1 usage, but
                               %% currently the only way to decode
@@ -359,6 +369,25 @@ decode_extensions(Exts) ->
                               Ext#'Extension'{extnValue=transform(Value,decode)}
 		      end
 	      end, Exts).
+
+decode_otp_cert_polices(Ext, Value) ->
+    %% RFC 3280 states that certificate users SHOULD gracefully handle
+    %% explicitText with more than 200 characters.
+    {ok, CPs} = 'OTP-PKIX':decode('OTPCertificatePolicies', Value),
+    Ext#'Extension'{extnValue=[translate_cert_polices(CP) || CP <- CPs]}.
+
+translate_cert_polices(#'OTPPolicyInformation'{policyIdentifier = Id, policyQualifiers = Qs0}) ->
+    Qs = [translate_cert_polices(Q) || Q <- Qs0],
+    #'PolicyInformation'{policyIdentifier = Id, policyQualifiers = Qs};
+translate_cert_polices(#'OTPPolicyQualifierInfo'{policyQualifierId = Id, qualifier = Q0}) ->
+    Q = case Q0 of
+            #'OTPUserNotice'{noticeRef = Ref, explicitText = {Type, Text0}} ->
+                Text = string:slice(Text0, 0, 350),
+                #'UserNotice'{noticeRef = Ref, explicitText = {Type, Text}};
+            Other ->
+                Other
+        end,
+    #'PolicyQualifierInfo'{policyQualifierId = Id, qualifier = Q}.
 
 encode_extensions(asn1_NOVALUE) ->
     asn1_NOVALUE;

@@ -143,14 +143,6 @@ collect_qualifiers({_, ChildNodes}, Policy) ->
         fun(#'PolicyQualifierInfo'{policyQualifierId = ?'id-qt-unotice',
                                    qualifier = Qualifier}) when is_tuple(Qualifier) ->
                 Qualifier;
-           (#'PolicyQualifierInfo'{policyQualifierId = ?'id-qt-unotice',
-                                   qualifier = Qualifier}) ->  %% Remove not used??
-                try public_key:der_decode('UserNotice', Qualifier) of
-                    Notice ->
-                        Notice
-                catch error:_ ->
-                        handle_too_long_notice(Qualifier)
-                end;
            (#'PolicyQualifierInfo'{policyQualifierId = ?'id-qt-cps',
                                    qualifier = Qualifier}) ->
                 {uri, Qualifier}
@@ -414,16 +406,3 @@ prune_invalid_nodes_children(ChildNodes, InvalidNodes) when is_list(ChildNodes)-
                        (#{} = Child) -> % Possibly prune leaf
                             keep_policy_node(Child, InvalidNodes)
                     end, ChildNodes).
-
-handle_too_long_notice(Qualifier) ->
-    %% RFC 3280 states that certificate users SHOULD gracefully handle
-    %% explicitText with more than 200 characters.
-    try public_key:der_decode('OTPUserNotice', Qualifier) of % Allow real value up to 350
-        #'OTPUserNotice'{noticeRef = Ref,
-                         explicitText = DispText} ->
-            #'UserNotice'{noticeRef = Ref,
-                          explicitText = DispText}
-    catch error:_ -> %% Otherwhise return  gracefully default
-            #'UserNotice'{noticeRef = asn1_NOVALUE,
-                          explicitText = "User Notice much too long, so value is ignored"}
-    end.

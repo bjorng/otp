@@ -12,7 +12,7 @@ IMPORTS
         ATTRIBUTE, Extensions{}
         FROM PKIX-CommonTypes-2009
 
-	CertificateSerialNumber, CertExtensions{}
+	CertificateSerialNumber, CertExtensions{}, NoticeReference
 	FROM PKIX1Implicit-2009
 	{iso(1) identified-organization(3) dod(6) internet(1) security(5)
 	mechanisms(5) pkix(7) id-mod(0) id-mod-pkix1-implicit-02(59)}
@@ -20,7 +20,8 @@ IMPORTS
        id-at-commonName, id-at-organizationName, id-at-organizationalUnitName,
        id-at-localityName, id-at-countryName, id-emailAddress,
        Validity, Version, SubjectPublicKeyInfo, SignatureAlgorithms,
-       UniqueIdentifier, Name
+       UniqueIdentifier, Name,
+       id-qt-unotice, id-qt-cps
        FROM PKIX1Explicit-2009
        {iso(1) identified-organization(3) dod(6) internet(1)
 	security(5) mechanisms(5) pkix(7) id-mod(0)
@@ -86,18 +87,49 @@ HashRelativeDistinguishedName  ::=
 
 -- Used to workaround that some CAs create too long User Notices
 
+OTPCertificatePolicies ::= SEQUENCE SIZE (1..MAX) OF OTPPolicyInformation
+
+OTPPolicyInformation ::= SEQUENCE {
+     policyIdentifier   CertPolicyId,
+     policyQualifiers   SEQUENCE SIZE (1..MAX) OF
+                OTPPolicyQualifierInfo OPTIONAL }
+
+CertPolicyId ::= OBJECT IDENTIFIER
+
+CERT-POLICY-QUALIFIER ::= TYPE-IDENTIFIER
+
+OTPPolicyQualifierInfo ::= SEQUENCE {
+       policyQualifierId  CERT-POLICY-QUALIFIER.
+            &id({PolicyQualifierId}),
+       qualifier          CERT-POLICY-QUALIFIER.
+            &Type({PolicyQualifierId}{@policyQualifierId})}
+
+-- Implementations that recognize additional policy qualifiers MUST
+-- augment the following definition for PolicyQualifierId
+
+PolicyQualifierId CERT-POLICY-QUALIFIER ::=
+    { pqid-cps | pqid-unotice, ... }
+
+pqid-cps CERT-POLICY-QUALIFIER ::= { CPSuri IDENTIFIED BY id-qt-cps }
+pqid-unotice CERT-POLICY-QUALIFIER ::= { OTPUserNotice
+    IDENTIFIED BY id-qt-unotice }
+
+-- CPS pointer qualifier
+
+CPSuri ::= IA5String
+
 OTPUserNotice ::= SEQUENCE {
-     noticeRef        OTPNoticeReference OPTIONAL,
+     noticeRef        NoticeReference OPTIONAL,
      explicitText     OTPDisplayText OPTIONAL}
 
-OTPNoticeReference ::= SEQUENCE {
-     organization     OTPDisplayText,
-     noticeNumbers    SEQUENCE OF INTEGER }
+-- NoticeReference ::= SEQUENCE {
+--     organization     OTPDisplayText,
+--     noticeNumbers    SEQUENCE OF INTEGER }
 
 OTPDisplayText ::= CHOICE {
-     ia5String        IA5String      (SIZE (1..350)),
-     visibleString    VisibleString  (SIZE (1..350)),
-     bmpString        BMPString      (SIZE (1..350)),
-     utf8String       UTF8String     (SIZE (1..350)) }
+     ia5String        IA5String      (SIZE (1..650)),
+     visibleString    VisibleString  (SIZE (1..650)),
+     bmpString        BMPString      (SIZE (1..650)),
+     utf8String       UTF8String     (SIZE (1..650)) }
 
 END
