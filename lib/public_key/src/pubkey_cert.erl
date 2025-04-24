@@ -1753,6 +1753,8 @@ verify_signature(OtpCert, DerCert, Key, KeyParams) ->
                     public_key:verify(PlainText, DigestType, Signature, Key,
                                       verify_options(KeyParams));
                 'NULL' ->
+                    public_key:verify(PlainText, DigestType, Signature, Key);
+                asn1_NOVALUE ->
                     public_key:verify(PlainText, DigestType, Signature, Key)
             end;
 	_ ->
