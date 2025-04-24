@@ -12,7 +12,7 @@
               'CryptographicMessageSyntax-2009',
               'DSS',
               'ECPrivateKey',
-              'OCSP-2009',
+              'OCSP-2024-08',
               'OTP-PKIX',
               'PKCS-1',
               'PKCS-10',
