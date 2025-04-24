@@ -34,6 +34,16 @@
 
 -include("OTP-PKIX.hrl").
 -include("PKCS-1.hrl").
+
+%%  Bug in ASN.1 compiler  (hardcode the correct value)
+-undef('rSASSA-PSS-Default-Identifier').
+-define('rSASSA-PSS-Default-Identifier',
+        {'RSASSA-AlgorithmIdentifier',{1,2,840,113549,1,1,10},
+         {'RSASSA-PSS-params',{'HashAlgorithm',{1,3,14,3,2,26},'NULL'},
+          {'MaskGenAlgorithm',{1,2,840,113549,1,1,8},
+           {'HashAlgorithm',{1,3,14,3,2,26},'NULL'}},20,1}}).
+
+
 -include("PKCS-3.hrl").
 -include("PKIX-CommonTypes-2009.hrl").
 -include("PKIX1Explicit-2009.hrl").
