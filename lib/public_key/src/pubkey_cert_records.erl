@@ -423,6 +423,7 @@ encode_extensions(Exts) ->
 
 encode_tbs(TBS=#'OTPTBSCertificate'{issuer=Issuer0,
 				    subject=Subject0,
+                                    signature=Signature,
 				    subjectPublicKeyInfo=Spki0,
 				    extensions=Exts0}) ->
     Issuer  = transform(Issuer0,encode),
@@ -430,17 +431,20 @@ encode_tbs(TBS=#'OTPTBSCertificate'{issuer=Issuer0,
     Spki = encode_supportedPublicKey(Spki0),
     Exts = encode_extensions(Exts0),
     TBS#'OTPTBSCertificate'{issuer=Issuer, subject=Subject,
+                            signature = setelement(1, Signature, 'OTPTBSCertificate_signature'),
 			    subjectPublicKeyInfo=Spki,extensions=Exts}.
 
 decode_tbs(TBS = #'OTPTBSCertificate'{issuer=Issuer0,
 				      subject=Subject0,
 				      subjectPublicKeyInfo=Spki0,
-				      extensions=Exts0}) -> 
+                                      signature=Signature,
+				      extensions=Exts0}) ->
     Issuer  = transform(Issuer0,decode),
     Subject = transform(Subject0,decode),
     Spki = decode_supportedPublicKey(Spki0),
     Exts = decode_extensions(Exts0),
     TBS#'OTPTBSCertificate'{issuer=Issuer, subject=Subject,
+                            signature=setelement(1, Signature, 'SignatureAlgorithm'),
 			    subjectPublicKeyInfo=Spki,extensions=Exts}.
 
 transform_sub_tree(asn1_NOVALUE,_) -> asn1_NOVALUE;
