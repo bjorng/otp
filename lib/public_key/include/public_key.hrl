@@ -699,6 +699,12 @@
          parameters = asn1_NOVALUE
         }).
 
+%% used by SSL test suite
+
+-define('id-PBKDF2', {1,2,840,113549,1,5,12}).
+-define('id-hmacWithSHA1', {1,2,840,113549,2,7}).
+-define('id-aes256-CBC', {2,16,840,1,101,3,4,1,42}).
+
 %%%
 %%% Undocumented but used by SSH.
 %%%
