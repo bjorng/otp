@@ -2802,25 +2802,16 @@ ec_key({PubKey, PrivateKey}, Params) ->
 
 encode_name_for_short_hash({rdnSequence, Attributes0}) ->
     Attributes = lists:map(fun normalise_attribute/1, Attributes0),
-    {ok,Encoded} = 'PKIX1Explicit-2009':encode('RDNSequence', Attributes),
+    {Encoded, _} = 'OTP-PKIX':enc_HashRDNSequence(Attributes, []),
     Encoded.
 
-%% Normalise attribute for "short hash".  If the attribute value
-%% hasn't been decoded yet, decode it so we can normalise it.
+%% Normalise attribute for "short hash". We can't use the encoding
+%% function for the actual type of the attribute, since some of them
+%% don't allow utf8Strings, which is the required encoding when
+%% creating the hash.
 normalise_attribute([#'AttributeTypeAndValue'{
-                        type = _Type,
-                        value = Binary} = ATV]) when is_binary(Binary) ->
-    case pubkey_cert_records:transform(ATV, decode) of
-	#'AttributeTypeAndValue'{value = Binary} ->
-	    %% Cannot decode attribute; return original.
-	    [ATV];
-	DecodedATV = #'AttributeTypeAndValue'{} ->
-	    %% The new value will either be String or {Encoding,String}.
-	    normalise_attribute([DecodedATV])
-    end;
-normalise_attribute([#'AttributeTypeAndValue'{
-                        type = _Type,
-                        value = {Encoding, String}} = ATV])
+                        type = Type,
+                        value = {Encoding, String}}])
   when
       Encoding =:= utf8String;
       Encoding =:= printableString;
@@ -2829,23 +2820,19 @@ normalise_attribute([#'AttributeTypeAndValue'{
     %% These string types all give us something that the unicode
     %% module understands.
     NewValue = normalise_attribute_value(String),
-    [ATV#'AttributeTypeAndValue'{value = NewValue}];
+    [#'HashSingleAttribute'{type = Type, value = NewValue}];
 normalise_attribute([#'AttributeTypeAndValue'{
-                        type = _Type,
-                        value = String} = ATV]) when is_list(String) ->
+                        type = Type,
+                        value = String}]) when is_list(String) ->
     %% A string returned by pubkey_cert_records:transform/2, for
     %% certain attributes that commonly have incorrect value types.
     NewValue = normalise_attribute_value(String),
-    [ATV#'AttributeTypeAndValue'{value = NewValue}].
+    [#'HashSingleAttribute'{type = Type, value = NewValue}].
 
 normalise_attribute_value(String) ->
     Converted = unicode:characters_to_binary(String),
     NormalisedString = normalise_string(Converted),
-    %% We can't use the encoding function for the actual type of the
-    %% attribute, since some of them don't allow utf8Strings, which is
-    %% the required encoding when creating the hash.
-    {NewBinary, _} = 'PKIX1Explicit-2009':'enc_X520CommonName'({uTF8String, NormalisedString}, []),
-    NewBinary.
+    unicode:characters_to_list(NormalisedString).
 
 normalise_string(String) ->
     %% Normalise attribute values as required for "short hashes", as
