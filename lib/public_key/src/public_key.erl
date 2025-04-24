@@ -904,10 +904,19 @@ the plain format this function directly calls
 %%--------------------------------------------------------------------
 pkix_encode(Asn1Type, Term, plain) when is_atom(Asn1Type) ->
     der_encode(Asn1Type, Term);
-
-pkix_encode(Asn1Type, Term0, otp) when is_atom(Asn1Type) ->
+pkix_encode(Type, Term0, otp)
+  when Type =:= 'OTPCertificate'; Type =:= 'OTPTBSCertificate';
+       Type =:= 'OTPSubjectPublicKeyInfo' ->
     Term = pubkey_cert_records:transform(Term0, encode),
-    der_encode(Asn1Type, Term).
+    try
+	{ok, Encoded} = 'OTP-PKIX':encode(Type, Term),
+	Encoded
+    catch
+	error:{badmatch, {error, _}} = Error ->
+	    erlang:error(Error)
+    end;
+pkix_encode(Type, Term, otp) ->
+    pkix_encode(Type, Term, plain).
 
 %%--------------------------------------------------------------------
 -doc(#{equiv => decrypt_private(CipherText, Key, []),
