@@ -141,7 +141,10 @@ all_leaves({_, Leaves}) ->
 collect_qualifiers({_, ChildNodes}, Policy) ->
     FormatQualifier =
         fun(#'PolicyQualifierInfo'{policyQualifierId = ?'id-qt-unotice',
-                                   qualifier = Qualifier}) ->
+                                   qualifier = Qualifier}) when is_tuple(Qualifier) ->
+                Qualifier;
+           (#'PolicyQualifierInfo'{policyQualifierId = ?'id-qt-unotice',
+                                   qualifier = Qualifier}) ->  %% Remove not used??
                 try public_key:der_decode('UserNotice', Qualifier) of
                     Notice ->
                         Notice
