@@ -1998,10 +1998,10 @@ sign_algorithm(#'RSAPrivateKey'{} = Key , Opts) ->
       case proplists:get_value(rsa_padding, Opts, rsa_pkcs1_pss_padding) of
         rsa_pkcs1_pss_padding ->
             DigestId = rsa_digest_oid(proplists:get_value(digest, Opts, sha1)),
-            rsa_sign_algo(Key, DigestId, 'NULL');
+            rsa_sign_algo(Key, DigestId, asn1_NOVALUE);
         rsa_pss_rsae ->
             DigestId = rsa_digest_oid(proplists:get_value(digest, Opts, sha256)),
-            rsa_sign_algo(Key, DigestId, 'NULL')
+            rsa_sign_algo(Key, DigestId, asn1_NOVALUE)
       end;
 sign_algorithm({#'RSAPrivateKey'{} = Key,#'RSASSA-PSS-params'{} = Params}, _Opts) ->
     rsa_sign_algo(Key, ?'id-RSASSA-PSS', Params);
@@ -2113,7 +2113,7 @@ public_key({#'RSAPrivateKey'{modulus=N, publicExponent=E}, #'RSASSA-PSS-params'{
 			       subjectPublicKey = Public};
 public_key(#'RSAPrivateKey'{modulus=N, publicExponent=E}, _) ->
     Public = #'RSAPublicKey'{modulus=N, publicExponent=E},
-    Algo = #'PublicKeyAlgorithm'{algorithm= ?rsaEncryption, parameters='NULL'},
+    Algo = #'PublicKeyAlgorithm'{algorithm= ?rsaEncryption, parameters=asn1_NOVALUE},
     #'OTPSubjectPublicKeyInfo'{algorithm = Algo,
 			       subjectPublicKey = Public};
 public_key(#'DSAPrivateKey'{p=P, q=Q, g=G, y=Y}, _) ->
