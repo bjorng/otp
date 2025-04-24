@@ -350,7 +350,6 @@ dsa_priv_pkcs8(Config) when is_list(Config) ->
     [{'PrivateKeyInfo', DerDSAKey, not_encrypted} = Entry0 ] = public_key:pem_decode(DsaPem),
     DSAKey = public_key:der_decode('PrivateKeyInfo', DerDSAKey),
     DSAKey = public_key:pem_entry_decode(Entry0),
-    io:format("~p\n", [DSAKey]),
     true = check_entry_type(DSAKey, 'DSAPrivateKey'),
     PrivEntry0 = public_key:pem_entry_encode('PrivateKeyInfo', DSAKey),
     DSAPemNoEndNewLines = strip_superfluous_newlines(DsaPem),

@@ -119,12 +119,23 @@ transform(#'OTPTBSCertificate'{}= TBS, encode) ->
 transform(#'OTPTBSCertificate'{}= TBS, decode) ->
     decode_tbs(TBS);
 transform(#'SingleAttribute'{type=Id,value=Value0}, decode) ->
-    %% Removed hack to:
-    %%     Workaround that some certificates break the ASN-1 spec
-    %%     and encode countryname and EmailAdress as utf8
-    #'AttributeTypeAndValue'{type=Id, value=Value0};
+    case {Id, Value0} of
+        {?'id-at-countryName', {_,String}} ->
+            #'AttributeTypeAndValue'{type=Id, value=String};
+        {?'id-emailAddress', {_,String}} ->
+            #'AttributeTypeAndValue'{type=Id, value=String};
+        {_, _} ->
+            #'AttributeTypeAndValue'{type=Id, value=Value0}
+    end;
 transform(#'AttributeTypeAndValue'{type=Id, value=Value0}, encode) ->
-    #'SingleAttribute'{type=Id,value=Value0};
+    case Id of
+        ?'id-at-countryName' ->
+            #'SingleAttribute'{type=Id, value={correct, Value0}};
+        ?'id-emailAddress' ->
+            #'SingleAttribute'{type=Id, value={correct, Value0}};
+        _ ->
+            #'SingleAttribute'{type=Id,value=Value0}
+    end;
 transform(AKI = #'AuthorityKeyIdentifier'{authorityCertIssuer=ACI},Func) ->
     AKI#'AuthorityKeyIdentifier'{authorityCertIssuer=transform(ACI,Func)};
 transform(List = [{directoryName, _}],Func) ->
@@ -404,7 +415,7 @@ encode_extensions(Exts) ->
 			  EncodeExt when is_function(EncodeExt, 3) ->
                               %% Undocumented asn1 usage, but currently the only way
                               %% to decode extensions.
-			      Value1 = transform(Value0, encode),
+			      Value1 = pubkey_translation:encode(Value0),
                               Value = element(1,EncodeExt('ExtnType', Value1, dummy)),
 			      Ext#'Extension'{extnValue= iolist_to_binary(Value)}
 		      end

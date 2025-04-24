@@ -9,7 +9,7 @@ BEGIN
 -- EXPORTS ALL
 
 IMPORTS
-        ATTRIBUTE, Extensions{}
+        ATTRIBUTE, Extensions{}, SingleAttribute
         FROM PKIX-CommonTypes-2009
 
 	CertificateSerialNumber, CertExtensions{}, NoticeReference
@@ -17,10 +17,15 @@ IMPORTS
 	{iso(1) identified-organization(3) dod(6) internet(1) security(5)
 	mechanisms(5) pkix(7) id-mod(0) id-mod-pkix1-implicit-02(59)}
 
-       id-at-commonName, id-at-organizationName, id-at-organizationalUnitName,
-       id-at-localityName, id-at-countryName, id-emailAddress,
+       at-name, at-surname, at-givenName, at-initials, at-generationQualifier,
+       at-x520CommonName, at-x520LocalityName, at-x520StateOrProvinceName,
+       at-x520OrganizationName, at-x520OrganizationalUnitName, at-x520Title,
+       at-x520dnQualifier, at-x520SerialNumber, at-x520Pseudonym,
+       at-domainComponent, at-emailAddress,
+       id-at-countryName, id-emailAddress,
+       ub-emailaddress-length,
        Validity, Version, SubjectPublicKeyInfo, SignatureAlgorithms,
-       UniqueIdentifier, Name,
+       UniqueIdentifier,
        id-qt-unotice, id-qt-cps
        FROM PKIX1Explicit-2009
        {iso(1) identified-organization(3) dod(6) internet(1)
@@ -44,14 +49,13 @@ OTPCertificate  ::=  SEQUENCE  {
      signature            BIT STRING  }
 
 OTPTBSCertificate  ::=  SEQUENCE  {
-
      version         [0]  Version DEFAULT v1,
      serialNumber         CertificateSerialNumber,
      signature            AlgorithmIdentifier{SIGNATURE-ALGORITHM,
                                     { SignatureAlgorithms }},
-     issuer               Name,
+     issuer               OTPName,
      validity             Validity,
-     subject              Name,
+     subject              OTPName,
      subjectPublicKeyInfo SubjectPublicKeyInfo,
      ... ,
       [[2:               -- If present, version MUST be v2
@@ -62,14 +66,42 @@ OTPTBSCertificate  ::=  SEQUENCE  {
       extensions      [3]  Extensions{{CertExtensions}} OPTIONAL
       ]], ... }
 
+OTPName ::= CHOICE {
+    rdnSequence  RDNSequence }
+
+RDNSequence ::= SEQUENCE OF OTPRelativeDistinguishedName
+
+OTPRelativeDistinguishedName  ::=
+      SET SIZE (1 .. MAX) OF SingleAttribute { {OTPSupportedAttributes} }
+
+OTPSupportedAttributes ATTRIBUTE ::= {
+    at-name | at-surname | at-givenName | at-initials |
+    at-generationQualifier | at-x520CommonName |
+    at-x520LocalityName | at-x520StateOrProvinceName |
+    at-x520OrganizationName | at-x520OrganizationalUnitName |
+    at-x520Title | at-x520dnQualifier | otp-at-x520countryName |
+    at-x520SerialNumber | at-x520Pseudonym | at-domainComponent |
+    otp-at-emailAddress, ... }
+
+otp-at-x520countryName ATTRIBUTE ::= {
+    TYPE OTP-X520countryName IDENTIFIED BY id-at-countryName }
+
+otp-at-emailAddress ATTRIBUTE ::= {
+    TYPE OTP-emailAddress IDENTIFIED BY id-emailAddress }
+
  -- We accept utf8String encoding of the US-ASCII
  -- country name code and the mix up with other country code systems
  -- that uses three characters instead of two.
 
- OTP-X520countryname ::= CHOICE {
-       printableString   PrintableString (SIZE (2..3)),
-       utf8String        UTF8String      (SIZE (2..3))
- }
+OTP-X520countryName ::= CHOICE {
+    correct           PrintableString (SIZE (2..3)), -- Correct size is 2.
+    wrong             UTF8String      (SIZE (2..3))
+}
+
+OTP-emailAddress ::= CHOICE {
+    correct IA5String (SIZE (1..ub-emailaddress-length)),
+    wrong UTF8String
+}
 
 -- We use this variation of SingleAttribute/AttributeTypeAndValue
 -- when calculating the "short" hash of the certificate issuer.

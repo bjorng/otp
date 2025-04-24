@@ -67,6 +67,8 @@ encode(#'SubjectPublicKeyInfo'{algorithm={'PublicKeyAlgorithm', AlgId0, Params},
     #'SubjectPublicKeyInfo'{algorithm=Alg,subjectPublicKey=Key};
 encode(#'AttributeTypeAndValue'{type=T,value=V}) ->
     #'SingleAttribute'{type=T,value=V};
+encode(#'SingleAttribute'{type=T,value={correct,V}}) ->
+    #'SingleAttribute'{type=T,value=V};
 encode({'PrivateKeyInfo', Vsn, KeyAlg, PrivKey, Attrs, PubKey}) ->
     {'OneAsymmetricKey', Vsn, KeyAlg, PrivKey, Attrs, PubKey};
 encode({params, #'Dss-Parms'{p=P,q=Q,g=G}}) ->
