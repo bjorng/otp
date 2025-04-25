@@ -1377,12 +1377,9 @@ be used as input to `pkix_crls_validate/3`
 %%--------------------------------------------------------------------
 pkix_dist_point(OtpCert) when is_binary(OtpCert) ->
     pkix_dist_point(pkix_decode_cert(OtpCert, otp));
-pkix_dist_point(OtpCert) ->
-    Issuer = public_key:pkix_normalize_name(
-	       pubkey_cert_records:transform(
-		 OtpCert#'OTPCertificate'.tbsCertificate#'OTPTBSCertificate'.issuer, encode)),
-    
-    TBSCert = OtpCert#'OTPCertificate'.tbsCertificate,
+pkix_dist_point(#'OTPCertificate'{tbsCertificate = TBSCert}) ->
+    Issuer = pkix_normalize_name(TBSCert#'OTPTBSCertificate'.issuer),
+
     Extensions = pubkey_cert:extensions_list(TBSCert#'OTPTBSCertificate'.extensions),
     AltNames = case pubkey_cert:select_extension(?'id-ce-issuerAltName', Extensions) of 
 		   undefined ->
@@ -2823,7 +2820,7 @@ normalise_attribute([#'AttributeTypeAndValue'{
                         type = Type,
                         value = {Encoding, String}}])
   when
-      Encoding =:= utf8String;
+      Encoding =:= uTF8String;
       Encoding =:= printableString;
       Encoding =:= teletexString;
       Encoding =:= ia5String ->
