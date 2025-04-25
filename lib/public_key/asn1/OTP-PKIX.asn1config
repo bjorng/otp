@@ -1,0 +1,4 @@
+%% -*- erlang -*-
+{exclusive_decode,
+ {'OTP-PKIX',
+  [{decode_TBSCert_exclusive,['OTPCertificate',[{tbsCertificate,undecoded}]]}]}}.

@@ -91,11 +91,9 @@
 %% Description: Recursively decodes a Certificate. 
 %%-------------------------------------------------------------------- 
 decode_cert(DerCert) ->
-    {ok, Cert} = 'OTP-PKIX':decode('OTPCertificate', DerCert),
-    #'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert,
-    {ok, Cert#'OTPCertificate'{tbsCertificate = decode_tbs(TBS),
-                               signatureAlgorithm = setelement(1, SA, 'SignatureAlgorithm')
-                              }}.
+    {ok, Cert0} = 'OTP-PKIX':decode('OTPCertificate', DerCert),
+    Cert = dec_transform(Cert0),
+    {ok, Cert}.
 
 %%--------------------------------------------------------------------
 -spec transform(term(), encode | decode) ->term().
@@ -108,26 +106,32 @@ decode_cert(DerCert) ->
 %% backwards compatibility translation done in pubkey_translation.
 %%--------------------------------------------------------------------
 
-transform(#'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert, encode) ->
-    Cert#'OTPCertificate'{tbsCertificate=encode_tbs(TBS),
-                          signatureAlgorithm = setelement(1, SA, 'OTPCertificate_SignatureAlgorithm')};
-transform(#'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert, decode) ->
-    Cert#'OTPCertificate'{tbsCertificate=decode_tbs(TBS),
-                          signatureAlgorithm = setelement(1, SA, 'SignatureAlgorithm')};
-transform(#'OTPTBSCertificate'{}= TBS, encode) ->
-    encode_tbs(TBS);
-transform(#'OTPTBSCertificate'{}= TBS, decode) ->
-    decode_tbs(TBS);
-transform(#'SingleAttribute'{type=Id,value=Value0}, decode) ->
-    case {Id, Value0} of
-        {?'id-at-countryName', {_,String}} ->
-            #'AttributeTypeAndValue'{type=Id, value=String};
-        {?'id-emailAddress', {_,String}} ->
-            #'AttributeTypeAndValue'{type=Id, value=String};
-        {_, _} ->
-            #'AttributeTypeAndValue'{type=Id, value=Value0}
-    end;
-transform(#'AttributeTypeAndValue'{type=Id, value=Value0}, encode) ->
+transform(Term, encode) -> enc_transform(Term);
+transform(Term, decode) -> dec_transform(Term).
+
+enc_transform(#'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA} = Cert) ->
+    Cert#'OTPCertificate'{tbsCertificate=enc_transform(TBS),
+                          signatureAlgorithm=enc_transform(SA)};
+enc_transform(#'OTPTBSCertificate'{signature=Signature0,
+                                   issuer=Issuer0,
+                                   subject=Subject0,
+                                   subjectPublicKeyInfo=Spki0,
+                                   extensions=Exts0}=TBS) ->
+    Signature = enc_transform(Signature0),
+    Issuer = enc_transform(Issuer0),
+    Subject = enc_transform(Subject0),
+    Spki = encode_supportedPublicKey(Spki0),
+    Exts = encode_extensions(Exts0),
+    TBS#'OTPTBSCertificate'{signature = Signature,
+                            issuer=Issuer,
+                            subject=Subject,
+                            subjectPublicKeyInfo=Spki,
+                            extensions=Exts};
+enc_transform(#'SignatureAlgorithm'{algorithm=Algo,parameters=Params}) ->
+    #'OTPTBSCertificate_signature'{algorithm=Algo,parameters=enc_transform(Params)};
+enc_transform({params, #'Dss-Parms'{p=P,q=Q,g=G}}) ->
+    {present,#'DSA-Params'{p=P,q=Q,g=G}};
+enc_transform(#'AttributeTypeAndValue'{type=Id, value=Value0}) ->
     case Id of
         ?'id-at-countryName' ->
             #'SingleAttribute'{type=Id, value={correct, Value0}};
@@ -136,23 +140,85 @@ transform(#'AttributeTypeAndValue'{type=Id, value=Value0}, encode) ->
         _ ->
             #'SingleAttribute'{type=Id,value=Value0}
     end;
-transform(AKI = #'AuthorityKeyIdentifier'{authorityCertIssuer=ACI},Func) ->
-    AKI#'AuthorityKeyIdentifier'{authorityCertIssuer=transform(ACI,Func)};
-transform(List = [{directoryName, _}],Func) ->
-    [{directoryName, transform(Value,Func)} || {directoryName, Value} <- List];
-transform({directoryName, Value},Func) ->
-    {directoryName, transform(Value,Func)};
-transform({rdnSequence, SeqList},Func) when is_list(SeqList) ->
-    {rdnSequence, 
-     lists:map(fun(Seq) -> 
-		       lists:map(fun(Element) -> transform(Element,Func) end, Seq)
+enc_transform(#'AuthorityKeyIdentifier'{authorityCertIssuer=ACI}=AKI) ->
+    AKI#'AuthorityKeyIdentifier'{authorityCertIssuer=enc_transform(ACI)};
+enc_transform([{directoryName, _}]=List) ->
+    [{directoryName, enc_transform(Value)} || {directoryName, Value} <- List];
+enc_transform({directoryName, Value}) ->
+    {directoryName, enc_transform(Value)};
+enc_transform({rdnSequence, SeqList}) when is_list(SeqList) ->
+    {rdnSequence,
+     lists:map(fun(Seq) ->
+		       lists:map(fun(Element) -> enc_transform(Element) end, Seq)
 	       end, SeqList)};
-transform(#'NameConstraints'{permittedSubtrees=Permitted, excludedSubtrees=Excluded}, Func) ->
-    #'NameConstraints'{permittedSubtrees=transform_sub_tree(Permitted,Func),
-		       excludedSubtrees=transform_sub_tree(Excluded,Func)};
-	  
-transform(Other,_) ->
+enc_transform(#'NameConstraints'{permittedSubtrees=Permitted, excludedSubtrees=Excluded}) ->
+    #'NameConstraints'{permittedSubtrees=enc_transform_sub_tree(Permitted),
+		       excludedSubtrees=enc_transform_sub_tree(Excluded)};
+enc_transform(Other) ->
     Other.
+
+dec_transform(#'OTPCertificate'{tbsCertificate = TBS, signatureAlgorithm=SA}=Cert) ->
+    Cert#'OTPCertificate'{tbsCertificate=dec_transform(TBS),
+                          signatureAlgorithm=dec_transform(SA)};
+dec_transform(#'OTPCertificate_signatureAlgorithm'{algorithm=Algo,parameters=Params}) ->
+    #'SignatureAlgorithm'{algorithm=Algo,parameters=dec_transform(Params)};
+dec_transform(#'OTPTBSCertificate'{signature=Signature0,
+                                   issuer=Issuer0,
+                                   subject=Subject0,
+                                   subjectPublicKeyInfo=Spki0,
+                                   extensions=Exts0}=TBS) ->
+    Signature = dec_transform(Signature0),
+    Issuer  = dec_transform(Issuer0),
+    Subject = dec_transform(Subject0),
+    Spki = decode_supportedPublicKey(Spki0),
+    Exts = decode_extensions(Exts0),
+    TBS#'OTPTBSCertificate'{issuer=Issuer, subject=Subject,
+                            signature=setelement(1, Signature, 'SignatureAlgorithm'),
+			    subjectPublicKeyInfo=Spki,extensions=Exts};
+dec_transform(#'OTPTBSCertificate_signature'{algorithm=Algo,parameters=Params}) ->
+    #'SignatureAlgorithm'{algorithm=Algo,parameters=dec_transform(Params)};
+dec_transform({present,#'DSA-Params'{p=P,q=Q,g=G}}) ->
+    {params, #'Dss-Parms'{p=P,q=Q,g=G}};
+dec_transform({absent,'NULL'}) ->
+    'NULL';
+dec_transform(#'SingleAttribute'{type=Id,value=Value0}) ->
+    case {Id, Value0} of
+        {?'id-at-countryName', {_,String}} ->
+            #'AttributeTypeAndValue'{type=Id, value=String};
+        {?'id-emailAddress', {_,String}} ->
+            #'AttributeTypeAndValue'{type=Id, value=String};
+        {_, _} ->
+            #'AttributeTypeAndValue'{type=Id, value=Value0}
+    end;
+dec_transform(#'AuthorityKeyIdentifier'{authorityCertIssuer=ACI}=AKI) ->
+    AKI#'AuthorityKeyIdentifier'{authorityCertIssuer=dec_transform(ACI)};
+dec_transform([{directoryName, _}]=List) ->
+    [{directoryName, dec_transform(Value)} || {directoryName, Value} <- List];
+dec_transform({directoryName, Value}) ->
+    {directoryName, dec_transform(Value)};
+dec_transform({rdnSequence, SeqList}) when is_list(SeqList) ->
+    {rdnSequence,
+     lists:map(fun(Seq) ->
+		       lists:map(fun(Element) -> dec_transform(Element) end, Seq)
+	       end, SeqList)};
+dec_transform(#'NameConstraints'{permittedSubtrees=Permitted, excludedSubtrees=Excluded}) ->
+    #'NameConstraints'{permittedSubtrees=dec_transform_sub_tree(Permitted),
+		       excludedSubtrees=dec_transform_sub_tree(Excluded)};
+dec_transform(Other) ->
+    Other.
+
+
+enc_transform_sub_tree(asn1_NOVALUE) ->
+    asn1_NOVALUE;
+enc_transform_sub_tree(TreeList) ->
+    [Tree#'GeneralSubtree'{base=enc_transform(Name)} ||
+	#'GeneralSubtree'{base=Name}=Tree <- TreeList].
+
+dec_transform_sub_tree(asn1_NOVALUE) ->
+    asn1_NOVALUE;
+dec_transform_sub_tree(TreeList) ->
+    [Tree#'GeneralSubtree'{base=dec_transform(Name)} ||
+	#'GeneralSubtree'{base=Name}=Tree <- TreeList].
 
 %%--------------------------------------------------------------------
 -spec supportedPublicKeyAlgorithms(Oid::tuple()) -> public_key:asn1_type().
@@ -420,34 +486,3 @@ encode_extensions(Exts) ->
 			      Ext#'Extension'{extnValue= iolist_to_binary(Value)}
 		      end
 	      end, Exts).
-
-encode_tbs(TBS=#'OTPTBSCertificate'{issuer=Issuer0,
-				    subject=Subject0,
-                                    signature=Signature,
-				    subjectPublicKeyInfo=Spki0,
-				    extensions=Exts0}) ->
-    Issuer  = transform(Issuer0,encode),
-    Subject = transform(Subject0,encode),
-    Spki = encode_supportedPublicKey(Spki0),
-    Exts = encode_extensions(Exts0),
-    TBS#'OTPTBSCertificate'{issuer=Issuer, subject=Subject,
-                            signature = setelement(1, Signature, 'OTPTBSCertificate_signature'),
-			    subjectPublicKeyInfo=Spki,extensions=Exts}.
-
-decode_tbs(TBS = #'OTPTBSCertificate'{issuer=Issuer0,
-				      subject=Subject0,
-				      subjectPublicKeyInfo=Spki0,
-                                      signature=Signature,
-				      extensions=Exts0}) ->
-    Issuer  = transform(Issuer0,decode),
-    Subject = transform(Subject0,decode),
-    Spki = decode_supportedPublicKey(Spki0),
-    Exts = decode_extensions(Exts0),
-    TBS#'OTPTBSCertificate'{issuer=Issuer, subject=Subject,
-                            signature=setelement(1, Signature, 'SignatureAlgorithm'),
-			    subjectPublicKeyInfo=Spki,extensions=Exts}.
-
-transform_sub_tree(asn1_NOVALUE,_) -> asn1_NOVALUE;
-transform_sub_tree(TreeList,Func) ->
-    [Tree#'GeneralSubtree'{base=transform(Name,Func)} || 
-	Tree = #'GeneralSubtree'{base=Name} <- TreeList].

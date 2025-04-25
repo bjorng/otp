@@ -1460,6 +1460,7 @@ pkix_match_dist_point(CRL, DistPoint) when is_binary(CRL) ->
 pkix_sign(#'OTPTBSCertificate'{signature =
 				   #'SignatureAlgorithm'{}
 			       = SigAlg} = TBSCert, Key) ->
+
     Msg = pkix_encode('OTPTBSCertificate', TBSCert, otp),
     {DigestType, _, Opts} = pubkey_cert:x509_pkix_sign_types(SigAlg),
     Signature = sign(Msg, DigestType, format_pkix_sign_key(Key), Opts),
@@ -1468,8 +1469,6 @@ pkix_sign(#'OTPTBSCertificate'{signature =
 			     signature = Signature
 			    },
     pkix_encode('OTPCertificate', Cert, otp).
-%% pkix_sign(#'OTPTBSCertificate'{}, _Key) ->
-%%     error('NYI').
 
 %%--------------------------------------------------------------------
 -doc "Verifies PKIX x.509 certificate signature.".

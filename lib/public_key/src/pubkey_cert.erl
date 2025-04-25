@@ -1762,8 +1762,9 @@ verify_signature(OtpCert, DerCert, Key, KeyParams) ->
     end.
 
 encoded_tbs_cert(Cert) ->
-    {ok, PKIXCert} = 'PKIX1Explicit-2009':decode_TBSCert_exclusive(Cert),
-    {'Certificate', {'Certificate_toBeSigned', EncodedTBSCert}, _, _} = PKIXCert,
+    {ok, PKIXCert} = 'OTP-PKIX':decode_TBSCert_exclusive(Cert),
+    {'OTPCertificate',
+     {'OTPCertificate_tbsCertificate', EncodedTBSCert}, _, _} = PKIXCert,
     EncodedTBSCert.
 
 public_key_info(PublicKeyInfo,

@@ -1,3 +1,4 @@
-{exclusive_decode,{'PKIX1Explicit-2009',
-		   [{decode_TBSCert_exclusive,['Certificate',[{toBeSigned,undecoded}]]},
-		    {decode_TBSCertList_exclusive,['CertificateList',[{toBeSigned,undecoded}]]}]}}.
+%% -*- erlang -*-
+{exclusive_decode,
+ {'PKIX1Explicit-2009',
+  [{decode_TBSCertList_exclusive,['CertificateList',[{toBeSigned,undecoded}]]}]}}.

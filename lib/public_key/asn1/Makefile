@@ -73,7 +73,7 @@ ASN_MODULES = PKIX-CommonTypes-2009 PKIXAlgs-2009 AlgorithmInformation-2009 \
 ASN_ASNS = $(ASN_MODULES:%=%.asn1)
 ASN_ERLS = $(ASN_TOP:%=$(ESRC)/%.erl)
 ASN_HRLS = $(ASN_TOP:%=%.hrl)
-ASN_CONFIGS = PKIXEplicit-2009.asn1config
+ASN_CONFIGS = OTP-PKIX.asn1config PKIXEplicit-2009.asn1config
 ASN_DBS = $(ASN_MODULES:%=%.asn1db)
 ASN_TABLES = $(ASN_MODULES:%=%.table)
 
