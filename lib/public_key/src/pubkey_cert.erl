@@ -55,17 +55,9 @@
          x509_pkix_sign_types/1,
          root_cert/2]).
 
--define(_PKCS_FRAME_HRL_, true).
 -include("public_key_internal.hrl").
 
 -define('id-dsa-with-sha1', {1,2,840,10040,4,3}).
--define('anyPolicy', {2,5,29,32,0}).
-
-%% Superseded by SingleAttribute.
--record('AttributeTypeAndValue', {
-  type,
-  value
-}).
 
 -record('AnotherName', {
   'type-id',
@@ -77,8 +69,6 @@
          algorithm,       % #'PublicKeyAlgorithm'{}
          subjectPublicKey % binary()
         }).
-
--define(NULL, 0).
 
 %%====================================================================
 %% Internal application APIs

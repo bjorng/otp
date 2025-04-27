@@ -25,14 +25,7 @@
 -module(pubkey_cert_records).
 -moduledoc false.
 
--define(_PKCS_FRAME_HRL_, true).
 -include("public_key_internal.hrl").
-
-%% Superseded by SingleAttribute.
--record('AttributeTypeAndValue', {
-  type,
-  value
-}).
 
 -record('OTPSubjectPublicKeyInfo',
         {

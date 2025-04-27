@@ -59,7 +59,6 @@
   encryptedData
 }).
 
--define(_PKCS_FRAME_HRL_, true).
 -include("public_key.hrl").
 
 -export([encode/1, decode/1, decipher/2, cipher/3]).

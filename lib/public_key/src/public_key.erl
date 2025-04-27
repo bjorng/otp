@@ -43,17 +43,7 @@ macros described here and in the User's Guide:
 ```
 """.
 
-
--feature(maybe_expr,enable).
-
--define(_PKCS_FRAME_HRL_, true).
 -include("public_key_internal.hrl").
-
-%% Superseded by SingleAttribute.
--record('AttributeTypeAndValue', {
-  type,
-  value
-}).
 
 -record('PBEParameter', {
   salt,

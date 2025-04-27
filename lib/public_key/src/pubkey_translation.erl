@@ -25,14 +25,7 @@
 
 -export([decode/1,encode/1]).
 
--define(_PKCS_FRAME_HRL_, true).
 -include("public_key_internal.hrl").
-
--record('AttributeTypeAndValue',
-        {
-         type,   % id_attributes()
-         value   % term()
-        }).
 
 decode(#'SubjectPublicKeyInfo'{algorithm=AlgId0,subjectPublicKey=Key}) ->
     #'SubjectPublicKeyInfo_algorithm'{algorithm=AlgId1,parameters=Params1} = AlgId0,
@@ -50,7 +43,12 @@ decode({'OneAsymmetricKey', Vsn, KeyAlg, PrivKey, Attrs, PubKey} = Orig) ->   %%
         _  -> Orig
     end;
 decode(Tuple) when is_tuple(Tuple) ->
-    list_to_tuple(decode_list(tuple_to_list(Tuple)));
+    case is_simple_tuple(Tuple) of
+        true ->
+            Tuple;
+        false ->
+            list_to_tuple(decode_list(tuple_to_list(Tuple)))
+    end;
 decode(List) when is_list(List) ->
     decode_list(List);
 decode(Other) ->
@@ -74,7 +72,12 @@ encode({'PrivateKeyInfo', Vsn, KeyAlg, PrivKey, Attrs, PubKey}) ->
 encode({params, #'Dss-Parms'{p=P,q=Q,g=G}}) ->
     #'DSA-Params'{p=P,q=Q,g=G};
 encode(Tuple) when is_tuple(Tuple) ->
-    list_to_tuple(encode_list(tuple_to_list(Tuple)));
+    case is_simple_tuple(Tuple) of
+        true ->
+            Tuple;
+        false ->
+            list_to_tuple(encode_list(tuple_to_list(Tuple)))
+    end;
 encode(List) when is_list(List) ->
     encode_list(List);
 encode(Other) ->
@@ -82,3 +85,14 @@ encode(Other) ->
 
 encode_list(List) ->
     [encode(E) || E <- List].
+
+is_simple_tuple({'Extension',_,_,Bin}) when is_binary(Bin) ->
+    true;
+is_simple_tuple(Tuple) ->
+    case element(1, Tuple) of
+        Int when is_integer(Int) -> true;
+        asn1_OPENTYPE -> true;
+        'RSAPublicKey' -> true;
+        utcTime -> true;
+        _ -> false
+    end.

@@ -23,7 +23,6 @@
 -module(pubkey_ocsp).
 -moduledoc false.
 
--define(_PKCS_FRAME_HRL_, true).
 -include("public_key_internal.hrl").
 
 -record('OTPSubjectPublicKeyInfo',

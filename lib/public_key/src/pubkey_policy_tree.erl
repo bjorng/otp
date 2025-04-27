@@ -22,10 +22,7 @@
 -module(pubkey_policy_tree).
 -moduledoc false.
 
--define(_PKCS_FRAME_HRL_, true).
 -include("public_key_internal.hrl").
-
--define('anyPolicy', {2,5,29,32,0}).
 
 %% API
 -export([add_leaves/2,

@@ -61,8 +61,6 @@
 
 -include("Safecurves-pkix-18.hrl").
 
--include("PKCS-FRAME.hrl").
-
 -include("pubkey_defs.hrl").
 
 -define(unspecified, 0).
@@ -75,6 +73,8 @@
 -define(removeFromCRL, 8).
 -define(privilegeWithdrawn, 9).
 -define(aACompromise, 10).
+
+-define('anyPolicy', {2,5,29,32,0}).
 
 -record('ECParameters',
         {
@@ -118,5 +118,11 @@
          parameters = asn1_NOVALUE
         }).
 
+%% Superseded by SingleAttribute.
+-record('AttributeTypeAndValue',
+        {
+         type,
+         value
+        }).
 
 -endif. % -ifdef(public_key_internal).
