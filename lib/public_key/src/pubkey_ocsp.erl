@@ -25,12 +25,6 @@
 
 -include("public_key_internal.hrl").
 
--record('OTPSubjectPublicKeyInfo',
-        {
-         algorithm,       % #'PublicKeyAlgorithm'{}
-         subjectPublicKey % binary()
-        }).
-
 -export([find_single_response/3,
          get_acceptable_response_types_extn/0,
          get_nonce_extn/1,

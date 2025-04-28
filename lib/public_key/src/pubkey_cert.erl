@@ -57,19 +57,6 @@
 
 -include("public_key_internal.hrl").
 
--define('id-dsa-with-sha1', {1,2,840,10040,4,3}).
-
--record('AnotherName', {
-  'type-id',
-  value
-}).
-
--record('OTPSubjectPublicKeyInfo',
-        {
-         algorithm,       % #'PublicKeyAlgorithm'{}
-         subjectPublicKey % binary()
-        }).
-
 %%====================================================================
 %% Internal application APIs
 %%====================================================================

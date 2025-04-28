@@ -125,4 +125,89 @@
          value
         }).
 
+-record('PBEParameter',
+        {
+         salt,
+         iterationCount
+        }).
+
+-record('PBES2-params',
+        {
+         keyDerivationFunc,
+         encryptionScheme
+        }).
+
+-record('OneAsymmetricKey',
+        {
+         version,
+         privateKeyAlgorithm,
+         privateKey,
+         attributes = asn1_NOVALUE,
+         %% with extensions
+         publicKey = asn1_NOVALUE
+         %% end of extensions
+        }).
+
+-record('PrivateKeyAlgorithmIdentifier',
+        {
+         algorithm,
+         parameters = asn1_NOVALUE
+        }).
+
+-record('OTPSubjectPublicKeyInfo',
+        {
+         algorithm,       % #'PublicKeyAlgorithm'{}
+         subjectPublicKey % binary()
+        }).
+
+-record('AnotherName',
+        {
+         'type-id',
+         value
+        }).
+
+%% Object identifiers not present in modern specs.
+
+-define('characteristic-two-field', {1,2,840,10045,1,2}).
+-define('prime-field', {1,2,840,10045,1,1}).
+
+-define('brainpoolP512t1', {1,3,36,3,3,2,8,1,1,14}).
+-define('brainpoolP512r1', {1,3,36,3,3,2,8,1,1,13}).
+-define('brainpoolP384t1', {1,3,36,3,3,2,8,1,1,12}).
+-define('brainpoolP384r1', {1,3,36,3,3,2,8,1,1,11}).
+-define('brainpoolP320t1', {1,3,36,3,3,2,8,1,1,10}).
+-define('brainpoolP320r1', {1,3,36,3,3,2,8,1,1,9}).
+-define('brainpoolP256t1', {1,3,36,3,3,2,8,1,1,8}).
+-define('brainpoolP256r1', {1,3,36,3,3,2,8,1,1,7}).
+-define('brainpoolP224t1', {1,3,36,3,3,2,8,1,1,6}).
+-define('brainpoolP224r1', {1,3,36,3,3,2,8,1,1,5}).
+-define('brainpoolP192t1', {1,3,36,3,3,2,8,1,1,4}).
+-define('brainpoolP192r1', {1,3,36,3,3,2,8,1,1,3}).
+-define('brainpoolP160t1', {1,3,36,3,3,2,8,1,1,2}).
+-define('brainpoolP160r1', {1,3,36,3,3,2,8,1,1,1}).
+-define('secp224k1', {1,3,132,0,32}).
+-define('secp192k1', {1,3,132,0,31}).
+-define('secp160r2', {1,3,132,0,30}).
+-define('secp128r2', {1,3,132,0,29}).
+-define('secp128r1', {1,3,132,0,28}).
+-define('sect193r2', {1,3,132,0,25}).
+-define('sect193r1', {1,3,132,0,24}).
+-define('sect131r2', {1,3,132,0,23}).
+-define('sect131r1', {1,3,132,0,22}).
+-define('secp256k1', {1,3,132,0,10}).
+-define('secp160k1', {1,3,132,0,9}).
+-define('secp160r1', {1,3,132,0,8}).
+-define('secp112r2', {1,3,132,0,7}).
+-define('secp112r1', {1,3,132,0,6}).
+-define('sect113r2', {1,3,132,0,5}).
+-define('sect113r1', {1,3,132,0,4}).
+-define('sect239k1', {1,3,132,0,3}).
+-define('sect163r1', {1,3,132,0,2}).
+
+-define('id-dsa-with-sha1', {1,2,840,10040,4,3}).
+
+-define('ppBasis', {1,2,840,10045,1,2,3,3}).
+-define('tpBasis', {1,2,840,10045,1,2,3,2}).
+-define('gnBasis', {1,2,840,10045,1,2,3,1}).
+
 -endif. % -ifdef(public_key_internal).

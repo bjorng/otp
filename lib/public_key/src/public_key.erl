@@ -45,42 +45,6 @@ macros described here and in the User's Guide:
 
 -include("public_key_internal.hrl").
 
--record('PBEParameter', {
-  salt,
-  iterationCount
-}).
-
--record('PBES2-params', {
-  keyDerivationFunc,
-  encryptionScheme
-}).
-
--record('OneAsymmetricKey', {
-  version,
-  privateKeyAlgorithm,
-  privateKey,
-  attributes = asn1_NOVALUE,
-  %% with extensions
-  publicKey = asn1_NOVALUE
-  %% end of extensions
-}).
-
--record('PrivateKeyAlgorithmIdentifier',
-        {
-         algorithm,
-         parameters = asn1_NOVALUE
-        }).
-
--record('OTPSubjectPublicKeyInfo',
-        {
-         algorithm,       % #'PublicKeyAlgorithm'{}
-         subjectPublicKey % binary()
-        }).
-
--define('ppBasis', {1,2,840,10045,1,2,3,3}).
--define('tpBasis', {1,2,840,10045,1,2,3,2}).
--define('gnBasis', {1,2,840,10045,1,2,3,1}).
-
 -export([pem_decode/1, pem_encode/1, 
 	 der_decode/2, der_encode/2,
 	 pem_entry_decode/1,
