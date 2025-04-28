@@ -598,6 +598,14 @@ der_decode('EcpkParameters', Der) ->
 	error:{badmatch, {error, _}} = Error ->
 	    erlang:error(Error)
     end;
+der_decode('Dss-Sig-Value', Der) ->
+    try
+	{ok, Decoded} = 'PKIXAlgs-2009':decode('DSA-Sig-Value', Der),
+        pubkey_translation:decode(Decoded)
+    catch
+	error:{badmatch, {error, _}} = Error ->
+	    erlang:error(Error)
+    end;
 der_decode(Asn1Type, Der) when is_atom(Asn1Type), is_binary(Der) ->
     Asn1Module = get_asn1_module(Asn1Type),
     try
@@ -633,6 +641,7 @@ get_asn1_module('ECPrivateKey') -> 'ECPrivateKey';
 get_asn1_module('DSA-Params') -> 'PKIXAlgs-2009';
 get_asn1_module('DSAPrivateKey') -> 'DSS';
 get_asn1_module('DSAPublicKey') -> 'PKIXAlgs-2009';
+get_asn1_module('ECDSA-Sig-Value') -> 'PKIXAlgs-2009';
 get_asn1_module('RSAPrivateKey') -> 'PKCS-1';
 get_asn1_module('RSASSA-PSS-params') -> 'PKIX1-PSS-OAEP-Algorithms-2009';
 get_asn1_module('SubjectPublicKeyInfo') -> 'PKIX1Explicit-2009';
@@ -818,6 +827,14 @@ der_encode(Asn1Type, Entity) when (Asn1Type == 'PrivateKeyInfo') orelse
 der_encode('EcpkParameters', {namedCurve,_}=Entity) ->
     try
 	{ok, Encoded} = 'PKIXAlgs-2009':encode('ECParameters', Entity),
+	Encoded
+    catch
+	error:{badmatch, {error, _}} = Error ->
+	    erlang:error(Error)
+    end;
+der_encode('Dss-Sig-Value', Entity) ->
+    try
+	{ok, Encoded} = 'PKIXAlgs-2009':encode('DSA-Sig-Value', Entity),
 	Encoded
     catch
 	error:{badmatch, {error, _}} = Error ->

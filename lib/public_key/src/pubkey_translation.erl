@@ -35,6 +35,8 @@ decode(#'SubjectPublicKeyInfo'{algorithm=AlgId0,subjectPublicKey=Key}) ->
                             subjectPublicKey=Key};
 decode(#'DSA-Params'{p=P,q=Q,g=G}) ->
     {params, #'Dss-Parms'{p=P,q=Q,g=G}};
+decode(#'DSA-Sig-Value'{r = R, s = S}) ->
+    {'Dss-Sig-Value', R,S};
 decode(#'OTPExtension'{}=E) ->
     setelement(1, E, 'Extension');
 decode(#'SingleAttribute'{type=T,value=V}) ->
@@ -73,6 +75,8 @@ encode({'PrivateKeyInfo', Vsn, KeyAlg, PrivKey, Attrs, PubKey}) ->
     {'OneAsymmetricKey', Vsn, KeyAlg, PrivKey, Attrs, PubKey};
 encode({params, #'Dss-Parms'{p=P,q=Q,g=G}}) ->
     #'DSA-Params'{p=P,q=Q,g=G};
+encode({'Dss-Sig-Value', R,S}) ->
+    #'DSA-Sig-Value'{r = R, s = S};
 encode(Tuple) when is_tuple(Tuple) ->
     case is_simple_tuple(Tuple) of
         true ->
