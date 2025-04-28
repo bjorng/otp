@@ -42,7 +42,7 @@ RELSYSDIR = $(RELEASE_PATH)/lib/public_key-$(VSN)
 # ----------------------------------------------------
 
 .SUFFIXES: .asn1
-.PRECIOUS: %.erl
+.PRECIOUS: %.erl $(ESRC)/%.hrl
 
 INCLUDE = ../include
 EBIN = ../ebin
@@ -72,7 +72,7 @@ ASN_MODULES = PKIX-CommonTypes-2009 PKIXAlgs-2009 AlgorithmInformation-2009 \
 	OTP-PKIX ECPrivateKey RFC5639 Safecurves-pkix-18
 ASN_ASNS = $(ASN_MODULES:%=%.asn1)
 ASN_ERLS = $(ASN_TOP:%=$(ESRC)/%.erl)
-ASN_HRLS = $(ASN_TOP:%=%.hrl)
+ASN_HRLS = PKCS-FRAME.hrl
 ASN_CONFIGS = OTP-PKIX.asn1config PKIXEplicit-2009.asn1config
 ASN_DBS = $(ASN_MODULES:%=%.asn1db)
 ASN_TABLES = $(ASN_MODULES:%=%.table)
