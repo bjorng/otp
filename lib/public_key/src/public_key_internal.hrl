@@ -61,6 +61,8 @@
 
 -include("Safecurves-pkix-18.hrl").
 
+-include("RFC5639.hrl").
+
 -include("pubkey_defs.hrl").
 
 -define(unspecified, 0).
@@ -171,20 +173,6 @@
 -define('characteristic-two-field', {1,2,840,10045,1,2}).
 -define('prime-field', {1,2,840,10045,1,1}).
 
--define('brainpoolP512t1', {1,3,36,3,3,2,8,1,1,14}).
--define('brainpoolP512r1', {1,3,36,3,3,2,8,1,1,13}).
--define('brainpoolP384t1', {1,3,36,3,3,2,8,1,1,12}).
--define('brainpoolP384r1', {1,3,36,3,3,2,8,1,1,11}).
--define('brainpoolP320t1', {1,3,36,3,3,2,8,1,1,10}).
--define('brainpoolP320r1', {1,3,36,3,3,2,8,1,1,9}).
--define('brainpoolP256t1', {1,3,36,3,3,2,8,1,1,8}).
--define('brainpoolP256r1', {1,3,36,3,3,2,8,1,1,7}).
--define('brainpoolP224t1', {1,3,36,3,3,2,8,1,1,6}).
--define('brainpoolP224r1', {1,3,36,3,3,2,8,1,1,5}).
--define('brainpoolP192t1', {1,3,36,3,3,2,8,1,1,4}).
--define('brainpoolP192r1', {1,3,36,3,3,2,8,1,1,3}).
--define('brainpoolP160t1', {1,3,36,3,3,2,8,1,1,2}).
--define('brainpoolP160r1', {1,3,36,3,3,2,8,1,1,1}).
 -define('secp224k1', {1,3,132,0,32}).
 -define('secp192k1', {1,3,132,0,31}).
 -define('secp160r2', {1,3,132,0,30}).

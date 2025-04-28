@@ -376,8 +376,6 @@ decode_extensions(Exts) ->
                       of
 			  false ->
                               Ext;
-                          {asn1_OPENTYPE, _} ->
-                              Ext;
                           DecodeExt when ExtId =:= 'CertificatePolicies',
                                          is_function(DecodeExt, 3) ->
                               %% Might need workaround to gracefully handle long user notices
@@ -424,8 +422,6 @@ encode_extensions(Exts) ->
                           'PKIX1Implicit-2009':getenc_CertExtensions(Id)
                       of
 			  false ->
-                              Ext;
-                          {_,_} ->
                               Ext;
 			  EncodeExt when is_function(EncodeExt, 3) ->
                               %% Undocumented asn1 usage, but currently the only way

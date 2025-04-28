@@ -1396,42 +1396,40 @@ Distribution Point extension, the distribution point always matches.
                                             DistPoint :: #'DistributionPoint'{}.
 %%--------------------------------------------------------------------
 pkix_match_dist_point(CRL, DistPoint) when is_binary(CRL) ->
-    pkix_match_dist_point(der_decode('CertificateList', CRL), DistPoint).
-%% pkix_match_dist_point(#'CertificateList'{},
-%% 		      #'DistributionPoint'{distributionPoint = asn1_NOVALUE}) ->
-%%     %% No distribution point name specified - that's considered a match.
-%%     true;
-%% pkix_match_dist_point(#'CertificateList'{
-%% 			 tbsCertList =
-%% 			     #'TBSCertList'{
-%% 				crlExtensions = Extensions}},
-%% 		      #'DistributionPoint'{
-%% 			 distributionPoint = {fullName, DPs}}) ->
-%%     case pubkey_cert:select_extension(?'id-ce-issuingDistributionPoint', Extensions) of
-%% 	undefined ->
-%% 	    %% If the CRL doesn't have an IDP extension, it
-%% 	    %% automatically qualifies.
-%% 	    true;
-%% 	#'Extension'{extnValue = IDPValue} ->
-%% 	    %% If the CRL does have an IDP extension, it must match
-%% 	    %% the given DistributionPoint to be considered a match.
-%% 	    IDPEncoded = der_decode('IssuingDistributionPoint', IDPValue),
-%% 	    #'IssuingDistributionPoint'{distributionPoint = {fullName, IDPs}} =
-%% 		pubkey_cert_records:transform(IDPEncoded, decode),
-%% 	    pubkey_crl:match_one(IDPs, DPs)
-%%     end.
+    pkix_match_dist_point(der_decode('CertificateList', CRL), DistPoint);
+pkix_match_dist_point(#'CertificateList'{},
+		      #'DistributionPoint'{distributionPoint = asn1_NOVALUE}) ->
+    %% No distribution point name specified - that's considered a match.
+    true;
+pkix_match_dist_point(#'CertificateList'{
+			 toBeSigned = #'TBSCertList'{
+                                         crlExtensions = Extensions}},
+		      #'DistributionPoint'{
+			 distributionPoint = {fullName, DPs}}) ->
+    case pubkey_cert:select_extension(?'id-ce-issuingDistributionPoint', Extensions) of
+	undefined ->
+	    %% If the CRL doesn't have an IDP extension, it
+	    %% automatically qualifies.
+	    true;
+	#'Extension'{extnValue = IDPValue} ->
+	    %% If the CRL does have an IDP extension, it must match
+	    %% the given DistributionPoint to be considered a match.
+	    IDPEncoded = der_decode('IssuingDistributionPoint', IDPValue),
+	    #'IssuingDistributionPoint'{distributionPoint = {fullName, IDPs}} =
+		pubkey_cert_records:transform(IDPEncoded, decode),
+	    pubkey_crl:match_one(IDPs, DPs)
+    end.
 
 %%--------------------------------------------------------------------
 -doc "Signs an 'OTPTBSCertificate'. Returns the corresponding DER-encoded certificate.".
 -doc(#{group => <<"Sign/Verify API">>,
        since => <<"OTP R14B">>}).
--spec pkix_sign(Cert, Key) -> Der when Cert :: #'OTPTBSCertificate'{}, 
+-spec pkix_sign(Cert, Key) -> Der when Cert :: #'OTPTBSCertificate'{},
                                        Key :: private_key(),
                                        Der :: der_encoded().
 %%--------------------------------------------------------------------
 pkix_sign(#'OTPTBSCertificate'{signature =
-				   #'SignatureAlgorithm'{}
-			       = SigAlg} = TBSCert, Key) ->
+				   #'SignatureAlgorithm'{} = SigAlg} = TBSCert, Key) ->
 
     Msg = pkix_encode('OTPTBSCertificate', TBSCert, otp),
     {DigestType, _, Opts} = pubkey_cert:x509_pkix_sign_types(SigAlg),

@@ -47,29 +47,30 @@ RELSYSDIR = $(RELEASE_PATH)/lib/public_key-$(VSN)
 INCLUDE = ../include
 EBIN = ../ebin
 
-ASN_TOP = PKCS-FRAME \
+ASN_TOP = PKCS-FRAME $(ASN_MODULES)
+
+ASN_MODULES = \
           AlgorithmInformation-2009 \
+          AttributeCertificateVersion1-2009 \
           CryptographicMessageSyntax-2009 \
+          CryptographicMessageSyntaxAlgorithms-2009 \
+          CMSAesRsaesOaep-2009 \
           DSS \
           ECPrivateKey \
           OCSP-2024-08 \
           OTP-PKIX \
           PKCS-1 PKCS-3 PKCS-10 \
           PKIX-CommonTypes-2009 \
+          PKIX-X400Address-2009 \
           PKIX1-PSS-OAEP-Algorithms-2009 \
           PKIX1Explicit-2009 \
           PKIX1Implicit-2009 \
           PKIXAlgs-2009 \
-          Safecurves-pkix-18
+          PKIXAttributeCertificate-2009 \
+	  RFC5639 \
+          Safecurves-pkix-18 \
+          SecureMimeMessageV3dot1-2009
 
-ASN_MODULES = PKIX-CommonTypes-2009 PKIXAlgs-2009 AlgorithmInformation-2009 \
-	PKIX1Implicit-2009 PKIXEplicit-2009 PKIXAttributeCertificate-2009 \
-	PKIX1-PSS-OAEP-Algorithms-2009 \
-	OCSP-2024-08 PKCS-1 PKCS-3 \
-	AsymmetricKeyPackageModuleV1 PKCS-10 PKCS5v2-0 CryptographicMessageSyntax-2009 \
-	CryptographicMessageSyntaxAlgorithms-2009 SecureMimeMessageV3dot1-2009 \
-	CMSAesRsaesOaep-2009 \
-	OTP-PKIX ECPrivateKey RFC5639 Safecurves-pkix-18
 ASN_ASNS = $(ASN_MODULES:%=%.asn1)
 ASN_ERLS = $(ASN_TOP:%=$(ESRC)/%.erl)
 ASN_HRLS = PKCS-FRAME.hrl
