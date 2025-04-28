@@ -613,6 +613,7 @@ get_asn1_module('Nonce') -> 'OCSP-2024-08';
 get_asn1_module('OCSPResponse') -> 'OCSP-2024-08';
 get_asn1_module('ResponseData') -> 'OCSP-2024-08';
 get_asn1_module('Name') -> 'PKIX1Explicit-2009';
+get_asn1_module('Extensions') -> 'OTP-PKIX';
 
 get_asn1_module('AuthorityInfoAccessSyntax') -> 'PKIX1Implicit-2009';
 get_asn1_module('AuthorityKeyIdentifier') -> 'PKIX1Implicit-2009';

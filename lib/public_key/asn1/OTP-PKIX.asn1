@@ -206,4 +206,13 @@ OTPDisplayText ::= CHOICE {
      bmpString        BMPString      (SIZE (1..650)),
      utf8String       UTF8String     (SIZE (1..650)) }
 
+-- Extensions
+
+Extensions  ::=  SEQUENCE SIZE (1..MAX) OF OTPExtension
+
+OTPExtension  ::=  SEQUENCE  {
+     extnID      OBJECT IDENTIFIER,
+     critical    BOOLEAN DEFAULT FALSE,
+     extnValue   OCTET STRING  }
+
 END

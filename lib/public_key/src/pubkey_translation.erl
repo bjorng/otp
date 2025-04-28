@@ -35,6 +35,8 @@ decode(#'SubjectPublicKeyInfo'{algorithm=AlgId0,subjectPublicKey=Key}) ->
                             subjectPublicKey=Key};
 decode(#'DSA-Params'{p=P,q=Q,g=G}) ->
     {params, #'Dss-Parms'{p=P,q=Q,g=G}};
+decode(#'OTPExtension'{}=E) ->
+    setelement(1, E, 'Extension');
 decode(#'SingleAttribute'{type=T,value=V}) ->
     #'AttributeTypeAndValue'{type=T,value=V};
 decode({'OneAsymmetricKey', Vsn, KeyAlg, PrivKey, Attrs, PubKey} = Orig) ->   %% Defined In PKCS_FRAME

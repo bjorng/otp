@@ -1610,12 +1610,17 @@ ocsp_extensions() ->
     [{doc, "Check OCSP extensions"}].
 ocsp_extensions(_Config) ->
     Nonce = <<4,8,66,243,220,236,16,118,51,215>>,
-    ExpectedExtentions =
+    ExpectedExtensions =
         [{'Extension',
           ?'id-pkix-ocsp-nonce',
           asn1_DEFAULT,
-          <<4,8,66,243,220,236,16,118,51,215>>}],
-    ExpectedExtentions = public_key:ocsp_extensions(Nonce).
+          Nonce}],
+    ExpectedExtensions = public_key:ocsp_extensions(Nonce),
+    Encoded = public_key:der_encode('Extensions', ExpectedExtensions),
+    [#'Extension'{extnID=?'id-pkix-ocsp-nonce',
+                  critical=false,
+                  extnValue=Nonce}] = public_key:der_decode('Extensions', Encoded),
+    ok.
 
 pkix_ocsp_validate() ->
     [{doc, "Check OCSP extensions"}].
