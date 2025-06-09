@@ -24,6 +24,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("kernel/include/file.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -export([all/0, suite/0, init_per_testcase/2, end_per_testcase/2]).
 
@@ -46,7 +47,7 @@
          test_length/1,
          fixed_apply_badarg/1,
          external_fun_apply3/1,
-         node_1/1,doctests/1]).
+         node_1/1,doctests/1,is_between_test/1]).
 
 suite() ->
     [{ct_hooks,[ts_install_cth]},
@@ -64,7 +65,7 @@ all() ->
      is_process_alive, is_process_alive_signal_from,
      process_info_blast, os_env_case_sensitivity,
      verify_middle_queue_save, test_length,fixed_apply_badarg,
-     external_fun_apply3, node_1, doctests].
+     external_fun_apply3, node_1, doctests, is_between_test].
 
 init_per_testcase(guard_bifs_in_erl_bif_types, Config) when is_list(Config) ->
     skip_missing_erl_bif_types(Config);
@@ -1779,6 +1780,36 @@ node_error(E0) ->
 
 doctests(_Config) ->
     shell_docs:test(erlang, []).
+
+is_between_test(_Config) ->
+    true = is_between(2, 1, 10),
+    true = is_between(1, 1, 10),
+    false = is_between(0, 1, 10),
+    true = is_between(10, 1, 10),
+    false = is_between(11, 1, 10),
+    false = is_between(2, 10, 1),
+    false = is_between(2.1, 1, 10),
+    ?assertError(badarg, is_between(2, 1.5, 10)),
+    ?assertError(badarg, is_between(2, true, 10)),
+
+    X = 2, Y = 1, Z = 10,
+    true = is_between(id(X), id(Y), id(Z)),
+    false = is_between(id(X), id(Z), id(Y)),
+
+    true = apply(erlang, id(is_between), [2, 1, 10]),
+    true = apply(erlang, id(is_between), [1, 1, 10]),
+    false = apply(erlang, id(is_between), [0, 1, 10]),
+    true = apply(erlang, id(is_between), [10, 1, 10]),
+    false = apply(erlang, id(is_between), [11, 1, 10]),
+    false = apply(erlang, id(is_between), [2, 10, 1]),
+    false = apply(erlang, id(is_between), [2.1, 1, 10]),
+    ?assertError(badarg, apply(erlang, id(is_between), [2, 1.5, 10])),
+    ?assertError(badarg, apply(erlang, id(is_between), [2, true, 10])),
+
+    true = apply(erlang, id(is_between), [id(X), id(Y), id(Z)]),
+    false = apply(erlang, id(is_between), [id(X), id(Z), id(Y)]),
+
+    ok.
 
 %% helpers
 

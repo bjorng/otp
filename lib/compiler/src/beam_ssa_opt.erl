@@ -243,6 +243,7 @@ finish_1([], _StMap) ->
 
 prologue_passes(Opts) ->
     Ps = [?PASS(ssa_opt_split_blocks),
+          ?PASS(ssa_opt_is_between),
           ?PASS(ssa_opt_coalesce_phis),
           ?PASS(ssa_opt_tail_phis),
           ?PASS(ssa_opt_element),
@@ -550,7 +551,8 @@ merge_tuple_update_1([], Tuple) ->
 %%%
 
 ssa_opt_split_blocks({#opt_st{ssa=Blocks0,cnt=Count0}=St, FuncDb}) ->
-    P = fun(#b_set{op={bif,element}}) -> true;
+    P = fun(#b_set{op={bif,is_between}}) -> true;
+           (#b_set{op={bif,element}}) -> true;
            (#b_set{op=call}) -> true;
            (#b_set{op=bs_init_writable}) -> true;
            (#b_set{op=make_fun}) -> true;
@@ -559,6 +561,51 @@ ssa_opt_split_blocks({#opt_st{ssa=Blocks0,cnt=Count0}=St, FuncDb}) ->
     RPO = beam_ssa:rpo(Blocks0),
     {Blocks,Count} = beam_ssa:split_blocks_before(RPO, P, Blocks0, Count0),
     {St#opt_st{ssa=Blocks,cnt=Count}, FuncDb}.
+
+
+ssa_opt_is_between({#opt_st{ssa=Blocks0,cnt=Count0}=St, FuncDb}) ->
+    RPO = beam_ssa:rpo(Blocks0),
+    {Blocks1, Count1} = ssa_opt_is_between_1(RPO, Count0, Blocks0),
+    {St#opt_st{ssa=Blocks1,cnt=Count1}, FuncDb}.
+
+ssa_opt_is_between_1([L|Ls], Count0, Blocks0) ->
+    {Blocks, Count} = case map_get(L, Blocks0) of
+                          #b_blk{is=[#b_set{op={bif,is_between},dst=Bool1,
+                                            args=[_,#b_literal{val=Min},
+                                                  #b_literal{val=Max}]},
+                                     #b_set{op={succeeded,guard},
+                                            dst=Bool2,args=[Bool1]}],
+                                 last=#b_br{bool=Bool2}}=Blk when is_integer(Min),
+                                                                  is_integer(Max),
+                                                                  Min =< Max ->
+                              is_between_rewrite(Count0, L, Blk, Blocks0);
+                          #b_blk{} ->
+                              {Blocks0, Count0}
+                      end,
+    ssa_opt_is_between_1(Ls, Count, Blocks);
+ssa_opt_is_between_1([], Count0, Blocks0) ->
+    {Blocks0, Count0}.
+
+
+is_between_rewrite(Count0, L, Blk0, Blocks0) ->
+    LowerL = Count0,
+    UpperL = Count0 + 1,
+    LowerBool = #b_var{name=Count0},
+    UpperBool = #b_var{name=Count0 + 1},
+    Count = Count0 + 2,
+    #b_blk{is=[#b_set{dst=Bool1,args=[Term,LB,UB]}|_],
+           last=#b_br{fail=Fail}=Br0} = Blk0,
+    Blk1 = Blk0#b_blk{is=[#b_set{op={bif,is_integer},dst=Bool1,
+                                 args=[Term]}],
+                      last=#b_br{bool=Bool1,succ=LowerL,fail=Fail}},
+    BlkLower = #b_blk{is=[#b_set{op={bif,'=<'},dst=LowerBool,
+                                 args=[LB,Term]}],
+                      last=#b_br{bool=LowerBool,succ=UpperL,fail=Fail}},
+    BlkUpper = #b_blk{is=[#b_set{op={bif,'=<'},dst=UpperBool,
+                                 args=[Term,UB]}],
+                      last=Br0#b_br{bool=UpperBool}},
+    Blocks = Blocks0#{L := Blk1, LowerL => BlkLower, UpperL => BlkUpper},
+    {Blocks, Count}.
 
 %%%
 %%% Coalesce phi nodes.

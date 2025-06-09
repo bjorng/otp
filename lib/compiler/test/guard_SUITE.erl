@@ -26,6 +26,7 @@
 -compile([nowarn_obsolete_guard]).
 
 -include_lib("syntax_tools/include/merl.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1, 
 	 init_per_group/2,end_per_group/2,
@@ -44,7 +45,7 @@
 	 bad_constants/1,bad_guards/1,
          guard_in_catch/1,beam_bool_SUITE/1,
          repeated_type_tests/1,use_after_branch/1,
-         body_in_guard/1]).
+         body_in_guard/1,is_between_guard/1]).
 
 suite() -> [{ct_hooks,[ts_install_cth]}].
 
@@ -63,12 +64,13 @@ groups() ->
        basic_andalso_orelse,traverse_dcd,
        check_qlc_hrl,andalso_semi,t_tuple_size,binary_part,
        bad_constants,bad_guards,guard_in_catch,beam_bool_SUITE,
-       repeated_type_tests,use_after_branch,body_in_guard]},
+       repeated_type_tests,use_after_branch,body_in_guard,
+       is_between_guard]},
      {slow,[],[literal_type_tests,generated_combinations]}].
 
 init_per_suite(Config) ->
     test_lib:recompile(?MODULE),
-    Config.
+    id(Config).
 
 end_per_suite(_Config) ->
     ok.
@@ -3362,6 +3364,33 @@ body_in_guard(_Config) ->
     after 0 ->
         demonitor(Mon)
     end.
+
+is_between_guard(_Config) ->
+    true = is_between_guard_1(2, 1, 10),
+    true = is_between_guard_1(1, 1, 10),
+    false = is_between_guard_1(0, 1, 10),
+    true = is_between_guard_1(10, 1, 10),
+    false = is_between_guard_1(11, 1, 10),
+    false = is_between_guard_1(2, 10, 1),
+    false = is_between_guard_1(2.1, 1, 10),
+    ?assertError(badarg, is_between_guard_1(2, 1.5, 10)),
+    ?assertError(badarg, is_between_guard_1(2, true, 10)),
+    ?assertError(badarg, is_between_guard_1(2, 10, b)),
+
+    true = is_between_guard_2(id(32)),
+    false = is_between_guard_2(id(0)),
+    false = is_between_guard_2(id(1025)),
+    ok.
+
+is_between_guard_1(X, LB, UB) when is_between(X, LB, UB) ->
+    true = is_between(X, LB, UB);
+is_between_guard_1(X, LB, UB) ->
+    is_between(X, LB, UB).
+
+is_between_guard_2(X) when is_between(X, 1, 1024) ->
+    true = is_between(X, 1, 1024);
+is_between_guard_2(X) ->
+    is_between(X, 1, 1024).
 
 %% Call this function to turn off constant propagation.
 id(I) -> I.
