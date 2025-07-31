@@ -1085,6 +1085,8 @@ expand_opt(r27, Os) ->
 expand_opt(beam_debug_info, Os) ->
     [beam_debug_info, no_copt, no_bsm_opt, no_bool_opt,
      no_share_opt, no_recv_opt, no_ssa_opt, no_throw_opt | Os];
+expand_opt(beam_debug_stack, Os) ->
+    [beam_debug_stack | expand_opt(beam_debug_info, Os)];
 expand_opt({debug_info_key,_}=O, Os) ->
     [encrypt_debug_info,O|Os];
 expand_opt(no_type_opt=O, Os) ->
