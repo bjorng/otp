@@ -117,6 +117,7 @@ functions([], _Ps) -> [].
 passes(Opts) ->
     AddPrecgAnnos = proplists:get_bool(dprecg, Opts),
     BeamDebugInfo = proplists:get_bool(beam_debug_info, Opts),
+    StackAllVars = proplists:get_bool(require_stack, Opts),
 
     Ps = [?PASS(assert_no_critical_edges),
 
@@ -129,6 +130,11 @@ passes(Opts) ->
           case BeamDebugInfo of
               false -> ignore;
               true -> ?PASS(break_out_debug_line)
+          end,
+
+          case StackAllVars of
+            false -> ignore;
+            true -> ?PASS(stack_all_vars)
           end,
 
           ?PASS(place_frames),
@@ -159,6 +165,11 @@ passes(Opts) ->
           ?PASS(linear_scan),
           ?PASS(frame_size),
           ?PASS(turn_yregs),
+
+        %   case StackAllVars of
+        %     false -> ignore;
+        %     true -> ?PASS(remove_stack_instr)
+        %   end,
 
           ?PASS(assert_no_critical_edges)],
     [P || P <- Ps, P =/= ignore].
@@ -1330,6 +1341,49 @@ break_out_debug_line(#st{ssa=Blocks0,cnt=Count0}=St) ->
     {Blocks,Count} = beam_ssa:split_blocks_after(RPO, P, Blocks0, Count0),
 
     St#st{ssa=Blocks,cnt=Count}.
+
+stack_all_vars(#st{ssa=Blocks0,cnt=Count}=St) ->
+    RPO = beam_ssa:rpo(Blocks0),
+    {Blocks1, _} = stack_all_vars_is(RPO, Blocks0, sets:new(), sets:new()),
+    St#st{ssa=Blocks1,cnt=Count}.
+
+stack_all_vars_is([?EXCEPTION_BLOCK|Ls], Blocks, Seen, Defined) ->
+    stack_all_vars_is(Ls, Blocks, Seen, Defined);
+stack_all_vars_is([L|Ls], Blocks, Seen0, Defined0) ->
+    case sets:is_element(L, Seen0) of
+        true ->
+            stack_all_vars_is(Ls, Blocks, Seen0, Defined0);
+        false ->
+            #b_blk{is=Is0,last=Last} = Blk0 = map_get(L, Blocks),
+            BlkDefMap = beam_ssa:definitions([L], Blocks),
+            BlkDef = [K || K := #b_set{op=Op} <- BlkDefMap, use_zreg(Op) =/= yes, Op =/= is_nonempty_list],
+            Defined1 = sets:union(sets:from_list(BlkDef), Defined0),
+            Instr = #b_set{op=require_stack,args=sets:to_list(Defined1)},
+            Blk = case {reverse(Is0), Last} of
+                    {[#b_set{op=is_nonempty_list}=I], #b_ret{}} ->
+                        Blk0#b_blk{is=[Instr,I]};
+                    {[#b_set{op=is_nonempty_list}=I|Prec], #b_ret{}} ->
+                        Blk0#b_blk{is=reverse(Prec)++[Instr,I]};
+                    {[#b_set{op=call,dst=Dst}=I|Prec], #b_ret{}} ->
+                        Defined2 = sets:del_element(Dst, Defined1),
+                        Instr1 = #b_set{op=require_stack,args=sets:to_list(Defined2)},
+                        Blk0#b_blk{is=reverse(Prec)++[Instr1,I]};
+                    {_, #b_ret{}} ->
+                        Blk0#b_blk{is=Is0 ++ [Instr]};
+                    _ ->
+                        Blk0
+                end,
+            Seen1 = sets:add_element(L, Seen0),
+            Successors = beam_ssa:successors(Blk0),
+            % io:format("Defined1 ~p~n", [sets:to_list(Defined1)]),
+            % io:format("L ~p~n", [L]),
+            % io:format("Blk ~p~n", [Blk]),
+            {Blocks1, Seen} = stack_all_vars_is(Successors, Blocks#{L := Blk}, Seen1, Defined1),
+            stack_all_vars_is(Ls, Blocks1, Seen, Defined0)
+    end;
+stack_all_vars_is([], Blocks, Seen, _) ->
+    {Blocks, Seen}.
+
 
 %%%
 %%% Find out where frames should be placed.
@@ -2817,6 +2871,7 @@ use_zreg(nif_start) -> yes;
 use_zreg(recv_marker_bind) -> yes;
 use_zreg(recv_marker_clear) -> yes;
 use_zreg(remove_message) -> yes;
+use_zreg(require_stack) -> yes;
 use_zreg(set_tuple_element) -> yes;
 use_zreg(succeeded) -> yes;
 use_zreg(wait_timeout) -> yes;

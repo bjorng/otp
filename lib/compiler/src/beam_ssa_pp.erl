@@ -217,6 +217,8 @@ format_var(Var, FuncAnno) ->
         [_|_]=Reg -> [Reg,$/,VarString]
     end.
 
+format_var_1(none) ->
+    "none";
 format_var_1(#b_var{name=Name}) when is_atom(Name) ->
     atom_to_list(Name);
 format_var_1(#b_var{name=Name}) when is_integer(Name) ->

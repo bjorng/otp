@@ -452,6 +452,7 @@ classify_heap_need(recv_marker_clear) -> neutral;
 classify_heap_need(recv_marker_reserve) -> gc;
 classify_heap_need(recv_next) -> gc;
 classify_heap_need(remove_message) -> neutral;
+classify_heap_need(require_stack) -> neutral;
 classify_heap_need(resume) -> gc;
 classify_heap_need(set_tuple_element) -> gc;
 classify_heap_need(succeeded) -> neutral;
@@ -527,6 +528,8 @@ prefer_xregs_is([#cg_set{op=Op}=I|Is], St, Copies0, Acc)
        Op =:= bs_ensured_match_string;
        Op =:= bs_match_string ->
     Copies = prefer_xregs_prune(I, Copies0, St),
+    prefer_xregs_is(Is, St, Copies, [I|Acc]);
+prefer_xregs_is([#cg_set{op=require_stack}=I|Is], St, Copies, Acc) ->
     prefer_xregs_is(Is, St, Copies, [I|Acc]);
 prefer_xregs_is([#cg_set{args=Args0}=I0|Is], St, Copies0, Acc) ->
     Args = [do_prefer_xreg(A, Copies0, St) || A <- Args0],
@@ -1562,9 +1565,13 @@ cg_block([#cg_set{op=is_nonempty_list,dst=Bool0,args=Args0}=Set], {Bool0,Fail0},
             %% beam_ssa_type. BEAM has no is_nonempty_list instruction
             %% that will return a boolean, so we must revert it to an
             %% is_list/1 call.
-            #cg_set{anno=#{was_bif_is_list := true}} = Set, %Assertion.
-            {[{bif,is_list,Fail0,Args,Dst},
-              {test,is_eq_exact,Fail,[Dst,{atom,true}]}],St}
+            case #cg_set{anno=#{was_bif_is_list := true}} = Set of
+                true ->
+                    {[{bif,is_list,Fail0,Args,Dst},
+                    {test,is_eq_exact,Fail,[Dst,{atom,true}]}],St};
+                false ->
+                    {[{test,is_nonempty_list,Fail,Args}],St}
+            end
     end;
 cg_block([#cg_set{op=has_map_field,dst=Dst0,args=Args0}], {Dst0,Fail0}, St) ->
     Fail = ensure_label(Fail0, St),
@@ -2181,6 +2188,8 @@ cg_instr(recv_marker_reserve, [], Dst) ->
     [{recv_marker_reserve, Dst}];
 cg_instr(remove_message, [], _Dst) ->
     [remove_message];
+cg_instr(require_stack, _Args, none) ->
+    [];
 cg_instr(resume, [A,B], _Dst) ->
     [{bif,raise,{f,0},[A,B],{x,0}}].
 
@@ -2697,6 +2706,8 @@ beam_arg(#b_literal{val=Val}, _) ->
         Val =:= [] -> nil;
         true -> {literal,Val}
     end;
+beam_arg(none,_) ->
+    none;
 beam_arg(Reg, _) ->
     verify_beam_register(Reg).
 
