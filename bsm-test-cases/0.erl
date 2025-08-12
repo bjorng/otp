@@ -1,4 +1,4 @@
--module(reduced).
+-module('0').
 
 -export([rename_mod_1/3]).
 
