@@ -1342,48 +1342,66 @@ break_out_debug_line(#st{ssa=Blocks0,cnt=Count0}=St) ->
 
     St#st{ssa=Blocks,cnt=Count}.
 
-stack_all_vars(#st{ssa=Blocks0,cnt=Count,args=Args}=St) ->
+stack_all_vars(#st{ssa=Blocks0,cnt=Count0,args=Args}=St) ->
     RPO = beam_ssa:rpo(Blocks0),
-    Blocks1 = stack_all_vars_is(RPO, Blocks0, #{0 => ordsets:from_list(Args)}),
-    St#st{ssa=Blocks1,cnt=Count}.
+    {Blocks1, Count1} = stack_all_vars_is(RPO, Blocks0, Count0, #{0 => ordsets:from_list(Args)}),
+    St#st{ssa=Blocks1,cnt=Count1}.
 
-stack_all_vars_is([?EXCEPTION_BLOCK|Ls], Blocks, Defined) ->
-    stack_all_vars_is(Ls, Blocks, Defined);
-stack_all_vars_is([L|Ls], Blocks, Defined0) ->
+stack_all_vars_is([?EXCEPTION_BLOCK|Ls], Blocks, Count, Defined) ->
+    stack_all_vars_is(Ls, Blocks, Count, Defined);
+stack_all_vars_is([L|Ls], Blocks, Count0, Defined0) ->
     #b_blk{is=Is0,last=Last} = Blk0 = maps:get(L, Blocks),
     Defined1 = get_defined(L, Blocks, Defined0),
     case Defined1 of
-        unreachable -> stack_all_vars_is(Ls, Blocks, Defined0);
+        unreachable -> stack_all_vars_is(Ls, Blocks, Count0, Defined0);
         #{L := Def} ->
-            Instr = #b_set{op=require_stack,args=ordsets:to_list(Def)},
-            Blk = case {reverse(Is0), Last} of
+                {Blk, Count1} = case {reverse(Is0), Last} of
                     {[#b_set{op=is_nonempty_list}=I], #b_ret{}} ->
-                        Blk0#b_blk{is=[Instr,I]};
+                        {Dst, Count} = new_var(Count0),
+                        Instr = #b_set{op=require_stack,args=ordsets:to_list(Def),dst=Dst},
+                        {Blk0#b_blk{is=[Instr,I]}, Count};
                     {[#b_set{op=is_nonempty_list}=I|Prec], #b_ret{}} ->
-                        Blk0#b_blk{is=reverse(Prec)++[Instr,I]};
-                    {[#b_set{op=call,dst=Dst}=I|Prec], #b_ret{}} ->
-                        Defined2 = ordsets:del_element(Dst, Def),
-                        Instr1 = #b_set{op=require_stack,args=ordsets:to_list(Defined2)},
-                        Blk0#b_blk{is=reverse(Prec)++[Instr1,I]};
+                        {Dst, Count} = new_var(Count0),
+                        Instr = #b_set{op=require_stack,args=ordsets:to_list(Def),dst=Dst},
+                        {Blk0#b_blk{is=reverse(Prec)++[Instr,I]}, Count};
+                    {[#b_set{op=call,dst=Dst0}=I|Prec], #b_ret{}} ->
+                        Defined2 = ordsets:del_element(Dst0, Def),
+                        {Dst, Count} = new_var(Count0),
+                        Instr1 = #b_set{op=require_stack,args=ordsets:to_list(Defined2),dst=Dst},
+                        {Blk0#b_blk{is=reverse(Prec)++[Instr1,I]}, Count};
                     {_, #b_ret{}} ->
-                        Blk0#b_blk{is=Is0 ++ [Instr]};
+                        {Dst, Count} = new_var(Count0),
+                        Instr = #b_set{op=require_stack,args=ordsets:to_list(Def),dst=Dst},
+                        {Blk0#b_blk{is=Is0 ++ [Instr]}, Count};
                     _ ->
-                        Blk0
+                        {Blk0, Count0}
                 end,
-            stack_all_vars_is(Ls, Blocks#{L:=Blk}, Defined1)
+            stack_all_vars_is(Ls, Blocks#{L:=Blk}, Count1, Defined1)
     end;
-stack_all_vars_is([], Blocks, _) ->
-    Blocks.
+stack_all_vars_is([], Blocks, Count, _) ->
+    {Blocks, Count}.
 
 get_defined(L, Blocks, Defined0) ->
     case Defined0 of
         #{L := Def0} ->
             Def0 = maps:get(L, Defined0, ordsets:new()),
             Definitions = beam_ssa:definitions([L], Blocks),
-            Def1 = [K || K := #b_set{op=Op} <- Definitions, use_zreg(Op) =/= yes, will_not_be_z(K, L, Blocks) =:= true, Op =/= is_nonempty_list, Op =/= bs_skip, Op =/= fconv],
+            Def1 = [K || K := #b_set{op=Op} <- Definitions, can_save(L, K, Op, Blocks) =:= true],
             Defined1 = Defined0#{L => ordsets:union(Def0, ordsets:from_list(Def1))},
             get_defined_next(L, Blocks, Defined1);
         #{} -> unreachable
+    end.
+
+can_save(BlockLabel, VarLabel, Op, Blocks) ->
+    case Op of
+        is_nonempty_list -> false;
+        bs_skip -> false;
+        {float, A} when A =/= get -> false;
+        phi -> false;
+        new_try_tag -> false;
+        copy -> false;
+        _ ->
+            use_zreg(Op) =/= yes andalso will_not_be_z(VarLabel, BlockLabel, Blocks) =:= true
     end.
 
 get_defined_next(L, Blocks, Defined0) ->

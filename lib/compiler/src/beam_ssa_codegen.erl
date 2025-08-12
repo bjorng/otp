@@ -1506,7 +1506,7 @@ cg_block([#cg_set{op=kill_try_tag,args=Args0}|Is], Context, St0) ->
     {Is0,St} = cg_block(Is, Context, St0),
     {[{try_end,Reg}|Is0],St};
 cg_block([#cg_set{op=catch_end,dst=Dst0,args=Args0}|Is], Context, St0) ->
-    [Dst,Reg,{x,0}] = beam_args([Dst0|Args0], St0),
+    [Dst,Reg,_] = beam_args([Dst0|Args0], St0),
     {Is0,St} = cg_block(Is, Context, St0),
     {[{catch_end,Reg}|copy({x,0}, Dst)++Is0],St};
 cg_block([#cg_set{op=call}=I,
@@ -2188,7 +2188,7 @@ cg_instr(recv_marker_reserve, [], Dst) ->
     [{recv_marker_reserve, Dst}];
 cg_instr(remove_message, [], _Dst) ->
     [remove_message];
-cg_instr(require_stack, _Args, none) ->
+cg_instr(require_stack, _Args, _Dst) ->
     [];
 cg_instr(resume, [A,B], _Dst) ->
     [{bif,raise,{f,0},[A,B],{x,0}}].

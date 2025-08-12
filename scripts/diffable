@@ -717,7 +717,7 @@ collect_timing(Data) ->
         {timings,Timings} ->
             collect_timing(Timings, Data)
     after 0 ->
-            %% print_timing(Data),
+            print_timing(Data),
             ok
     end.
 
@@ -738,18 +738,18 @@ collect_subpass([{SubPass,SubTime}|SubTimes], Data) ->
 collect_subpass([], Data) ->
     Data.
 
-% print_timing(Data) ->
-%     Times = lists:reverse(lists:keysort(2, maps:to_list(Data))),
-%     Total = lists:sum([T || {_,{T,_}} <- Times]),
-%     lists:foreach(
-%       fun({PassName,{ElapsedNative,SubTimes}}) ->
-%               Elapsed = erlang:convert_time_unit(ElapsedNative,
-%                                                  native, microsecond),
-%               io:format(" ~-30s: ~10.3f s       ~3w %\n",
-%                         [PassName,Elapsed/1000000,
-%                          percent(ElapsedNative, Total)]),
-%               print_subpass_timing(SubTimes)
-%       end, Times).
+print_timing(Data) ->
+    Times = lists:reverse(lists:keysort(2, maps:to_list(Data))),
+    Total = lists:sum([T || {_,{T,_}} <- Times]),
+    lists:foreach(
+      fun({PassName,{ElapsedNative,SubTimes}}) ->
+              Elapsed = erlang:convert_time_unit(ElapsedNative,
+                                                 native, microsecond),
+              io:format(" ~-30s: ~10.3f s       ~3w %\n",
+                        [PassName,Elapsed/1000000,
+                         percent(ElapsedNative, Total)]),
+              print_subpass_timing(SubTimes)
+      end, Times).
 
 print_subpass_timing(Times0) ->
     Times = lists:reverse(lists:keysort(2, maps:to_list(Times0))),
@@ -758,17 +758,17 @@ print_subpass_timing(Times0) ->
         [] ->
             ok;
         [_|_] ->
-            io:format("    %% Sub passes from slowest to fastest:\n")
-            %% print_times_1(Times, Total)
+            io:format("    %% Sub passes from slowest to fastest:\n"),
+            print_times_1(Times, Total)
     end.
 
-% print_times_1([{Name,T}|Ts], Total) ->
-%     Elapsed = erlang:convert_time_unit(T, native, microsecond),
-%     io:format("    ~-27s: ~10.3f s ~3w %\n",
-%               [Name,Elapsed/1000000,percent(T, Total)]),
-%     print_times_1(Ts, Total);
-% print_times_1([], _Total) ->
-%     ok.
+print_times_1([{Name,T}|Ts], Total) ->
+    Elapsed = erlang:convert_time_unit(T, native, microsecond),
+    io:format("    ~-27s: ~10.3f s ~3w %\n",
+              [Name,Elapsed/1000000,percent(T, Total)]),
+    print_times_1(Ts, Total);
+print_times_1([], _Total) ->
+    ok.
 
 percent(0, _Total) ->
     0;
