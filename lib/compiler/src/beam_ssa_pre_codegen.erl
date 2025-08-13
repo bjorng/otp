@@ -1385,26 +1385,13 @@ get_defined(L, Blocks, Defined0) ->
     case Defined0 of
         #{L := Def0} ->
             Def0 = maps:get(L, Defined0, ordsets:new()),
-            Definitions = beam_ssa:definitions([L], Blocks),
-            Def1 = [K || K := Set <- Definitions, can_save(L, K, Set, Blocks)],
+            #b_blk{is=Is} = map_get(L, Blocks),
+            Def1 = [Dst || #b_set{dst=#b_var{name=Name}=Dst} <:- Is,
+                           beam_ssa_codegen:is_original_variable(Name)],
             Defined1 = Defined0#{L => ordsets:union(Def0, ordsets:from_list(Def1))},
             get_defined_next(L, Blocks, Defined1);
         #{} -> unreachable
     end.
-
-can_save(BlockLabel, VarLabel, #b_set{op=Op,dst=#b_var{name=Dst}}, Blocks) ->
-    beam_ssa_codegen:is_original_variable(Dst) andalso
-        case Op of
-            is_nonempty_list -> false;
-            bs_skip -> false;
-            {float, A} when A =/= get -> false;
-            phi -> false;
-            new_try_tag -> false;
-            copy -> false;
-            _ ->
-                use_zreg(Op) =/= yes andalso
-                    will_not_be_z(VarLabel, BlockLabel, Blocks)
-        end.
 
 get_defined_next(L, Blocks, Defined0) ->
     Def0 = maps:get(L, Defined0, ordsets:new()),
@@ -1423,61 +1410,6 @@ get_defined_next(L, Blocks, Defined0) ->
                 Defined#{Lbl => ordsets:intersection(Def0, Def)}
             end, Defined0, Successors)
     end.
-
-will_not_be_z(K, L, Blocks) ->
-    #b_blk{is=Is0} = Blk = maps:get(L, Blocks),
-    case reverse(Is0) of
-        [#b_set{dst=K}|_] ->
-            Successors = beam_ssa:successors(Blk),
-            Used = lists:flatten([beam_ssa:used(maps:get(Lbl, Blocks)) || Lbl <- Successors]),
-            % io:format("will not be z ~p~n", [[K, lists:any(fun(V) -> V =:= K end, Used)]]),
-            lists:any(fun(V) -> V =:= K end, Used);
-        _ -> true
-    end.
-
-% stack_all_vars_is([?EXCEPTION_BLOCK|Ls], Blocks, Seen, Defined) ->
-%     stack_all_vars_is(Ls, Blocks, Seen, Defined);
-% stack_all_vars_is([L|Ls], Blocks, Seen0, Defined0) ->
-%     case sets:is_element(L, Seen0) of
-%         true ->
-%             stack_all_vars_is(Ls, Blocks, Seen0, Defined0);
-%         false ->
-%             #b_blk{is=Is0,last=Last} = Blk0 = map_get(L, Blocks),
-%             Def0 = maps:get(L, Defined0),
-%             BlkDefMap = beam_ssa:definitions([L], Blocks),
-%             BlkDef = [K || K := #b_set{op=Op} <- BlkDefMap, use_zreg(Op) =:= no, Op =/= is_nonempty_list],
-%             Defined1 = Defined0#{L:= sets:union(sets:from_list(BlkDef), Def0)},
-%             Instr = #b_set{op=require_stack,args=sets:to_list(Defined1)},
-%             Blk = case {reverse(Is0), Last} of
-%                     {[#b_set{op=is_nonempty_list}=I], #b_ret{}} ->
-%                         Blk0#b_blk{is=[Instr,I]};
-%                     {[#b_set{op=is_nonempty_list}=I|Prec], #b_ret{}} ->
-%                         Blk0#b_blk{is=reverse(Prec)++[Instr,I]};
-%                     {[#b_set{op=call,dst=Dst}=I|Prec], #b_ret{}} ->
-%                         Defined2 = sets:del_element(Dst, Defined1),
-%                         Instr1 = #b_set{op=require_stack,args=sets:to_list(Defined2)},
-%                         Blk0#b_blk{is=reverse(Prec)++[Instr1,I]};
-%                     {_, #b_ret{}} ->
-%                         Blk0#b_blk{is=Is0 ++ [Instr]};
-%                     _ ->
-%                         Blk0
-%                 end,
-%             Seen1 = sets:add_element(L, Seen0),
-%             Successors = beam_ssa:successors(Blk0),
-%             Defined2 = case {reverse(Is0), Last} of
-%                 {#b_set{op=succeeded,arg=Var}, #b_br{fail=Fail}} ->
-%                     Def1 = 
-%                     Defined1#{Fail := sets:del_element(Var, Defined1)};
-
-%             % io:format("Defined1 ~p~n", [sets:to_list(Defined1)]),
-%             % io:format("L ~p~n", [L]),
-%             % io:format("Blk ~p~n", [Blk]),
-%             {Blocks1, Seen} = stack_all_vars_is(Successors, Blocks#{L := Blk}, Seen1, Defined1),
-%             stack_all_vars_is(Ls, Blocks1, Seen, Defined0)
-%     end;
-% stack_all_vars_is([], Blocks, Seen, _) ->
-%     {Blocks, Seen}.
-
 
 %%%
 %%% Find out where frames should be placed.
