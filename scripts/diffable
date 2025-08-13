@@ -143,11 +143,21 @@ do_compile(OutDir, Opts0) ->
 	    "dialyzer",
 	    "ssl",
             "wx"],
+    cover:local_only(),
+    cover:start(),
+    CompilerDir = filename:join(code:lib_dir(compiler), "ebin"),
+    io:format("~p\n", [code:unstick_dir(CompilerDir)]),
+    io:format("~s\n", [CompilerDir]),
+    io:format("~p\n", [cover:compile_beam_directory(CompilerDir)]),
+    io:format("~p\n", [cover:modules()]),
     {Specs,Opts} = get_specs(Apps, Opts1),
     CF = choose_format(Opts),
     p_run(fun(Spec) ->
                   compile_spec(CF, Spec)
           end, Specs),
+    Result = cover:analyze_to_file('_', [html]),
+    io:format("~p\n", [Result]),
+    io:format("~p\n", [file:get_cwd()]),
     case map_get(time, Opts) of
         true ->
             collect_timing();
