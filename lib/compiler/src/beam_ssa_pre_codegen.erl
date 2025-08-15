@@ -221,9 +221,11 @@ fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
            (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
                 fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
-           (#b_set{op=bs_get_tail,dst=Dst,args=[ParentCtx|_]}, A) ->
-                %% Link this match context to the previous match context.
-                fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
+           (#b_set{op=bs_get_tail,args=[ParentCtx|_]}, A) ->
+                %% We must not create a link here, because bs_get_tail
+                %% doesn't return a match context, but we must ensure
+                %% that ParentCtx is registered as a match context.
+                fix_bs_ensure_root(ParentCtx, A);
            (_, A) ->
                 A
         end,
