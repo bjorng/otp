@@ -221,6 +221,11 @@ fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
            (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
                 fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
+           (#b_set{op=bs_get_tail,args=[ParentCtx|_]}, A) ->
+                %% We must not create a link here, because bs_get_tail
+                %% doesn't return a match context, but we must ensure
+                %% that ParentCtx is registered as a match context.
+                fix_bs_ensure_root(ParentCtx, A);
            (_, A) ->
                 A
         end,
@@ -245,7 +250,7 @@ fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
 %%
 %% If Ctx is not in the CtxChain, it means that the match context has
 %% not been created in this function, it could be a function argument,
-%% a result from a function application or extracted from a term
+%% a result from a function application or extracted from a term.
 %% Regardless, we want it registered as a match context.
 %%
 fix_bs_ensure_root(Ctx, CtxChain) when is_map_key(Ctx, CtxChain) ->
@@ -255,17 +260,7 @@ fix_bs_ensure_root(Ctx, CtxChain) ->
 
 %% Insert bs_get_position and bs_set_position instructions as needed.
 bs_pos_bsm3(Linear0, CtxChain, RPO, FunArgs, Count0) ->
-    IsCtxInChain = fun(Arg) ->
-                           case CtxChain of
-                               #{Arg:={context,Arg}} -> true;
-                               #{} -> false
-                           end
-                   end,
-    %% Populate the position map with the function arguments which are
-    %% match contexts.
-    D = #{0 => #{Arg => Arg || Arg <- FunArgs, IsCtxInChain(Arg)}},
-
-    Rs0 = bs_restores(Linear0, CtxChain, D, #{}),
+    Rs0 = bs_restores(Linear0, CtxChain, #{}, #{}),
     Rs = maps:values(Rs0),
     S0 = sofs:relation(Rs, [{context,save_point}]),
     S1 = sofs:relation_to_family(S0),
@@ -304,8 +299,8 @@ bs_pos_bsm3(Linear0, CtxChain, RPO, FunArgs, Count0) ->
                            L = hd(Common),
                            Acc#{L=>[Save|maps:get(L, Acc, [])]};
                       (_, _, Acc) ->
-                           % There are no uses of the argument which
-                           % changes the match context position.
+                           %% There are no uses of the argument which
+                           %% changes the match context position.
                            Acc
                    end, #{}, InsertBeforeFirstChange),
     {bs_insert_bsm3(Linear0, Gets, Sets, ArgInserts), Count}.
@@ -342,7 +337,9 @@ make_bs_pos_dict_1([], Ctx, I, Acc) ->
 
 bs_restores([{L,#b_blk{is=Is,last=Last}}|Bs], CtxChain, D0, Rs0) ->
     InPos = maps:get(L, D0, #{}),
-    {SuccPos, FailPos, Rs} = bs_restores_is(Is, CtxChain, InPos, InPos, Rs0),
+    SPos = handle_implied_start_match(Is, InPos, CtxChain),
+    FPos = InPos,
+    {SuccPos, FailPos, Rs} = bs_restores_is(Is, CtxChain, SPos, FPos, Rs0),
 
     D = bs_update_successors(Last, SuccPos, FailPos, D0),
     bs_restores(Bs, CtxChain, D, Rs);
@@ -357,6 +354,34 @@ bs_update_successors(#b_switch{fail=Fail,list=List}, SPos, FPos, D) ->
 bs_update_successors(#b_ret{}, SPos, FPos, D) ->
     SPos = FPos,                                %Assertion.
     D.
+
+handle_implied_start_match([], InPos, _CtxChain) ->
+    InPos;
+handle_implied_start_match([I|Is], InPos, CtxChain) ->
+    RefCtx = referenced_ctx(I),
+    case {InPos, CtxChain} of
+        {#{RefCtx := _}, _} ->
+            InPos;
+        {_, #{RefCtx := {context,Ctx}}} ->
+            InPos#{Ctx => Ctx};
+        {_, #{RefCtx := _}} ->
+            InPos;
+        {_, _} when RefCtx =:= none ->
+            handle_implied_start_match(Is, InPos, CtxChain);
+        Other ->
+            %% TODO: This clause is only here to help debugging
+            %% crashes.
+            io:format("RefCtx: ~p\n", [RefCtx]),
+            io:format("I: ~p\n", [I]),
+            io:format("Other: ~p\n", [Other])
+    end.
+
+referenced_ctx(#b_set{op=bs_ensure,args=[Ctx|_]}) -> Ctx;
+referenced_ctx(#b_set{op=bs_extract,args=[Ctx]}) -> Ctx;
+referenced_ctx(#b_set{op=bs_get_tail,args=[Ctx]}) -> Ctx;
+referenced_ctx(#b_set{op=bs_match,args=[_,Ctx|_]}) -> Ctx;
+referenced_ctx(#b_set{op=bs_test_tail,args=[Ctx|_]}) -> Ctx;
+referenced_ctx(#b_set{}) -> none.
 
 join_positions([{L,MapPos0}|T], D) ->
     case D of
