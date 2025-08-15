@@ -299,8 +299,8 @@ bs_pos_bsm3(Linear0, CtxChain, RPO, FunArgs, Count0) ->
                            L = hd(Common),
                            Acc#{L=>[Save|maps:get(L, Acc, [])]};
                       (_, _, Acc) ->
-                           % There are no uses of the argument which
-                           % changes the match context position.
+                           %% There are no uses of the argument which
+                           %% changes the match context position.
                            Acc
                    end, #{}, InsertBeforeFirstChange),
     {bs_insert_bsm3(Linear0, Gets, Sets, ArgInserts), Count}.
