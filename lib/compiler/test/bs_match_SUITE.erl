@@ -1043,6 +1043,9 @@ multiple_uses(Config) when is_list(Config) ->
     <<1>> = first_after(<<1,2,3>>, 0),
     <<2>> = first_after(<<1,2,3>>, 1),
 
+    {<<0:32>>, <<>>} = multiple_uses_4(<<"abc",0:32>>, <<>>, 3),
+    {<<0:32,"rest">>, <<"rest">>} =
+        multiple_uses_4(<<"abc",0:32,"rest">>, <<>>, 3),
     ok.
 
 multiple_uses_1(<<X:16,Tail/binary>>) ->
@@ -1081,6 +1084,16 @@ first_after(Data, Offset) ->
 
 match_first(_, <<First:1/binary, Rest/binary>>) ->
     {First, Rest}.
+
+%% Simplified from dets_v9:binobjs2terms/6. This test case crashed the
+%% compiler while trying to fix a crash that occurred when trying to
+%% compile multiple_uses_cmp/2.
+multiple_uses_4(Bin, Bin1, 0) ->
+    {Bin,Bin1};
+multiple_uses_4(Bin, _Bin1, ObjSz) ->
+    <<_:ObjSz/binary, T/binary>> = Bin,
+    <<NObjSz:32, T1/binary>> = T,
+    multiple_uses_4(T, T1, NObjSz).
 
 zero_label(Config) when is_list(Config) ->
     <<"nosemouth">> = read_pols(<<"FACE","nose","mouth">>),
