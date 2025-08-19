@@ -209,7 +209,12 @@ assert_no_ces(_, #b_blk{is=[#b_set{op=phi,args=[_,_]=Phis}|_]}, Blocks) ->
 assert_no_ces(_, _, Blocks) -> Blocks.
 
 %% fix_bs(St0) -> St.
-%%  Combine bs_match and bs_extract instructions to bs_get instructions.
+%%  Combine bs_match and bs_extract instructions to BEAM instructions,
+%%  and insert bs_get_position and bs_set_position instructions where
+%%  needed.
+%%
+%%  It is here we go from the functional style of binary matching in
+%%  SSA to the imperative style of the BEAM instructions.
 
 fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
     F = fun(#b_set{op=bs_start_match,dst=Dst}, A) ->
@@ -260,7 +265,7 @@ fix_bs_ensure_root(Ctx, CtxChain) ->
 
 %% Insert bs_get_position and bs_set_position instructions as needed.
 bs_pos_bsm3(Linear0, CtxChain, RPO, FunArgs, Count0) ->
-    Rs0 = bs_restores(Linear0, CtxChain, #{}, #{}),
+    Rs0 = bs_restores(Linear0, CtxChain),
     Rs = maps:values(Rs0),
     S0 = sofs:relation(Rs, [{context,save_point}]),
     S1 = sofs:relation_to_family(S0),
@@ -334,6 +339,38 @@ make_bs_pos_dict_1([H|T], Ctx, I, Acc) ->
     make_bs_pos_dict_1(T, Ctx, I+1, [{{Ctx,H},I}|Acc]);
 make_bs_pos_dict_1([], Ctx, I, Acc) ->
     {[{Ctx,I}|Acc], I}.
+
+%% bs_restores(LinearSSA, ContextChainMap) -> SaveRestoreMap.
+%%  Figure out where to insert bs_get_position (saving a position)
+%%  and bs_set_position (restoring a position) instructions.
+%%
+%%  The resulting SaveRestoreMap has entries in the following
+%%  format:
+%%
+%%      RestoreBefore => {Context, Position}
+%%
+%%  RestoreBefore, Context, and Position are all SSA variables.
+%%
+%%  RestoreBefore identifies an instruction that requires a
+%%  bs_set_position before it to restore match context Context to a
+%%  previous position identified by Position.
+%%
+%%  That is, the following instruction will be inserted immediately
+%%  before instruction RestoreBefore:
+%%
+%%      NewDummyVariable = bs_set_position Context, PositionVariable
+%%
+%%  The entries will also be used to insert bs_get_position
+%%  instructions to save positions. Each such instruction will be
+%%  inserted in a block following the instruction identified by
+%%  Position. The inserted instructions looks like follows:
+%%
+%%      PositionVarible = bs_get_position Context
+%%
+bs_restores(SSA, CtxChain) ->
+    Positions = #{},
+    RestoreAcc = #{},
+    bs_restores(SSA, CtxChain, Positions, RestoreAcc).
 
 bs_restores([{L,#b_blk{is=Is,last=Last}}|Bs], CtxChain, D0, Rs0) ->
     InPos = maps:get(L, D0, #{}),
@@ -417,14 +454,35 @@ join_positions_2([V | Vs], Bigger, Smaller) ->
 join_positions_2([], _Bigger, Smaller) ->
     Smaller.
 
+%% bs_restores_is([Instruction], CtxChain,
+%%                SuccessPositions0, FailurePositions0,
+%%                SaveRestoreMapAcc0) ->
+%%                      {SuccessPositions,
+%%                       FailurePositions,
+%%                       SaveRestoreMap}
 %%
-%% Updates the restore and position maps according to the given instructions.
+%%  Update the restore and position maps according to the given
+%%  instructions, and update the SaveRestoreMap if an instruction
+%%  requires a position that is not current in the match context.
 %%
-%% Note that positions may be updated even when a match fails; if a match
-%% requires a restore, the position at the fail block will be the position
-%% we've *restored to* and not the one we entered the current block with.
+%%  The position maps (SuccessPositions and FailurePositions) have
+%%  entries in the following format:
 %%
-
+%%      InitialContext => CurrentContext
+%%
+%%  where InitialContext is the original match context created by a
+%%  bs_start_match instruction (not necessarily in the current
+%%  function), and CurrentContext refers to the most recent
+%%  instruction that changed the position in the match context.
+%%
+%%  See the bs_restores/2 function for a description of
+%%  SaveRestoreMap.
+%%
+%%  Note that positions may be updated even when a match fails; if a
+%%  match requires a restore, the position at the fail block will be
+%%  the position we've *restored to* and not the one we entered the
+%%  current block with.
+%%
 bs_restores_is([#b_set{op=bs_start_match,dst=Start}|Is],
                CtxChain, SPos0, _FPos, Rs) ->
     %% Match instructions leave the position unchanged on failure, so
@@ -477,6 +535,7 @@ bs_restores_is([#b_set{anno=#{ensured := _},
             FPos = SPos0#{Start := FromPos},
             bs_restores_is(Is, CtxChain, SPos, FPos, Rs)
     end;
+
 bs_restores_is([#b_set{op=bs_match,dst=NewPos,args=Args}=I|Is],
                CtxChain, SPos0, _FPos, Rs0) ->
     Start = bs_subst_ctx(NewPos, CtxChain),
