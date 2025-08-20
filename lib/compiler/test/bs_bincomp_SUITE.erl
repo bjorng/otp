@@ -714,6 +714,10 @@ cs(Bin) ->
             ok;
         bs_bincomp_r26_SUITE ->
             ok;
+        bs_bincomp_no_module_opt_SUITE ->
+            ok;
+        bs_bincomp_no_type_opt_SUITE ->
+            ok;
         _ ->
             ByteSize = byte_size(Bin),
             {refc_binary,ByteSize,{binary,ByteSize},_} =
