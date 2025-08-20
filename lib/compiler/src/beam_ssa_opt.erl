@@ -330,7 +330,16 @@ late_epilogue_passes(Opts) ->
 passes_1(Ps, Opts0) ->
     Negations = [{list_to_atom("no_"++atom_to_list(N)),N} ||
                     {N,_} <:- Ps],
-    Opts = proplists:normalize(Opts0, [{negations,Negations}]),
+    NoBsmOpts = [no_ssa_opt_alias,
+                 no_ssa_opt_bsm_tails_as_ctx,
+                 no_ssa_opt_destructive_update
+                ],
+    Expansions = [{no_bs_match,[no_ssa_opt_bs_ensure,no_bs_match]},
+                  {no_type_opt,NoBsmOpts},
+                  {no_module_opt,NoBsmOpts},
+                  {no_bsm_opt,NoBsmOpts}],
+    Opts = proplists:normalize(Opts0, [{expand,Expansions},
+                                       {negations,Negations}]),
     [case proplists:get_value(Name, Opts, true) of
          true ->
              P;
