@@ -153,9 +153,13 @@ void BeamModuleAssembler::emit_i_bs_start_match3(const ArgRegister &Src,
 
     ERTS_CT_ASSERT((HEADER_SUB_BITS & _TAG_PRIMARY_MASK) == 0 &&
                    (ERL_SUB_BITS_FLAG_MASK == _TAG_PRIMARY_MASK));
-    a.bfi(TMP2, TMP3, imm(0), imm(2));
-    a.cmp(TMP2, imm(HEADER_SUB_BITS | ERL_SUB_BITS_FLAGS_MATCH_CONTEXT));
-    a.b_eq(next);
+    if (Src == Dst) {
+        /* It is only safe to reuse the current match context if
+         * Src and Dst are the same register. */
+        a.bfi(TMP2, TMP3, imm(0), imm(2));
+        a.cmp(TMP2, imm(HEADER_SUB_BITS | ERL_SUB_BITS_FLAGS_MATCH_CONTEXT));
+        a.b_eq(next);
+    }
 
     {
         if (Fail.get() != 0) {
