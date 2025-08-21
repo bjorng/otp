@@ -1,0 +1,266 @@
+{module, wfbm}.  %% version = 0
+
+{exports, [{check_for_dot_or_space,1},
+           {check_for_dot_or_space,2},
+           {get_tail,1},
+           {id,1},
+           {module_info,0},
+           {module_info,1},
+           {wfbm,0}]}.
+
+{attributes, []}.
+
+{labels, 24}.
+
+
+{function, check_for_dot_or_space, 1, 2}.
+  {label,1}.
+    {line,[{location,"wfbm.erl",7}]}.
+    {func_info,{atom,wfbm},{atom,check_for_dot_or_space},1}.
+  {label,2}.
+    {move,{integer,0},{x,1}}.
+    {call_only,2,{f,4}}. % check_for_dot_or_space/2
+
+
+{function, check_for_dot_or_space, 2, 4}.
+  {label,3}.
+    {line,[{location,"wfbm.erl",10}]}.
+    {func_info,{atom,wfbm},{atom,check_for_dot_or_space},2}.
+  {label,4}.
+    {test,bs_start_match3,{f,8},2,[{x,0}],{x,0}}.
+    {bs_get_position,{x,0},{x,2},2}.
+    {bs_match,{f,5},{x,0},{commands,[{ensure_at_least,8,8},{'=:=',nil,8,32}]}}.
+    {test,is_eq_exact,{f,5},[{x,1},{integer,0}]}.
+    {move,{literal,{nomatch,0}},{x,0}}.
+    return.
+  {label,5}.
+    {bs_set_position,{x,0},{x,2}}.
+    {test,bs_get_binary2,
+          {f,8},
+          3,
+          [{tr,{x,0},{t_bs_context,1}},
+           {x,1},
+           8,
+           {field_flags,[{anno,[18,{file,"wfbm.erl"}]},unsigned,big]}],
+          {x,3}}.
+    {bs_match,{f,25},
+              {x,0},
+              {commands,[{ensure_at_least,8,1},
+                         {integer,4,{literal,[]},8,1,{x,4}}]}}.
+    {select_val,{tr,{x,4},{t_integer,{0,255}}},
+                {f,25},
+                {list,[{integer,32},{f,7},{integer,46},{f,6}]}}.
+  {label,6}.
+    {bs_match,{f,25},{x,0},{commands,[{ensure_at_least,0,8}]}}.
+    {test_heap,3,2}.
+    {put_tuple2,{x,0},{list,[{atom,nomatch},{x,1}]}}.
+    return.
+  {label,7}.
+    {bs_match,{f,25},{x,0},{commands,[{ensure_at_least,0,8}]}}.
+    {test_heap,3,4}.
+    {put_tuple2,{x,0},{list,[{atom,ok},{x,3}]}}.
+    return.
+  {label,8}.
+    {line,[{location,"wfbm.erl",24}]}.
+    {gc_bif,'+',{f,0},2,[{x,1},{integer,1}],{x,1}}.
+    {call_only,2,{f,4}}. % check_for_dot_or_space/2
+  {label,25}.
+	{line,[{location,"wfbm.erl",24}]}.
+	{bs_set_position,{x,0},{x,2}}.
+    {gc_bif,'+',{f,0},2,[{x,1},{integer,1}],{x,1}}.
+    {call_only,2,{f,4}}. % check_for_dot_or_space/2
+
+
+{function, get_tail, 1, 10}.
+  {label,9}.
+    {line,[{location,"wfbm.erl",27}]}.
+    {func_info,{atom,wfbm},{atom,get_tail},1}.
+  {label,10}.
+    {test,is_ne_exact,{f,11},[{x,0},{literal,<<>>}]}.
+    {test,bs_start_match3,{f,13},1,[{x,0}],{x,1}}.
+    {bs_match,{f,13},
+              {x,1},
+              {commands,[{ensure_at_least,128,8},
+                         {binary,2,{literal,[]},16,8,{x,0}}]}}.
+    {bs_start_match4,{atom,no_fail},2,{x,0},{x,0}}.
+    {bs_match,{f,11},
+              {x,0},
+              {commands,[{ensure_exactly,128},
+                         {skip,24},
+                         {'=:=',nil,16,30767},
+                         {binary,2,{literal,[]},4,8,{x,2}},
+                         {'=:=',nil,8,47},
+                         {binary,3,{literal,[]},2,8,{x,3}},
+                         {'=:=',nil,8,47},
+                         {binary,4,{literal,[]},2,8,{x,4}},
+                         {'=:=',nil,8,47}]}}.
+    {allocate,3,5}.
+    {move,{x,4},{y,0}}.
+    {move,{x,3},{y,1}}.
+    {move,{x,2},{y,2}}.
+    {move,{x,1},{x,0}}.
+    {line,[{location,"wfbm.erl",33}]}.
+    {call,1,{f,2}}. % check_for_dot_or_space/1
+    {'%',
+        {var_info,
+            {x,0},
+            [{type,
+                 {t_union,none,none,none,
+                     [{{2,{t_atom,[nomatch]}},
+                       {t_tuple,2,true,#{1 => {t_atom,[nomatch]}}}},
+                      {{2,{t_atom,[ok]}},
+                       {t_tuple,2,true,
+                           #{1 => {t_atom,[ok]},2 => {t_bitstring,8,false}}}}],
+                     none}}]}}.
+    {test,is_tagged_tuple,
+          {f,12},
+          [{tr,{x,0},
+               {t_union,none,none,none,
+                        [{{2,{t_atom,[nomatch]}},
+                          {t_tuple,2,true,#{1 => {t_atom,[nomatch]}}}},
+                         {{2,{t_atom,[ok]}},
+                          {t_tuple,2,true,
+                                   #{1 => {t_atom,[ok]},
+                                     2 => {t_bitstring,8,false}}}}],
+                        none}},
+           2,
+           {atom,ok}]}.
+    {get_tuple_element,{x,0},1,{x,0}}.
+    {line,[{location,"wfbm.erl",35}]}.
+    {bs_create_bin,{f,0},
+                   3,1,8,
+                   {x,0},
+                   {list,[{atom,append},
+                          1,8,nil,
+                          {tr,{y,2},{t_bitstring,8,false}},
+                          {atom,all},
+                          {atom,string},
+                          0,8,nil,
+                          {string,<<"/">>},
+                          {integer,1},
+                          {atom,binary},
+                          3,8,nil,
+                          {tr,{y,1},{t_bitstring,8,false}},
+                          {atom,all},
+                          {atom,string},
+                          0,8,nil,
+                          {string,<<"/">>},
+                          {integer,1},
+                          {atom,binary},
+                          5,8,nil,
+                          {tr,{y,0},{t_bitstring,8,false}},
+                          {atom,all},
+                          {atom,string},
+                          0,8,nil,
+                          {string,<<"/">>},
+                          {integer,1},
+                          {atom,binary},
+                          7,8,nil,
+                          {tr,{x,0},{t_bitstring,8,false}},
+                          {atom,all}]}}.
+    {put_tuple2,{x,0},{list,[{atom,ok},{x,0}]}}.
+    {deallocate,3}.
+    return.
+  {label,11}.
+    {move,{atom,nomatch},{x,0}}.
+    return.
+  {label,12}.
+    {line,[{location,"wfbm.erl",33}]}.
+    {case_end,{x,0}}.
+  {label,13}.
+    {line,[{location,"wfbm.erl",30}]}.
+    {badmatch,{x,0}}.
+
+
+{function, wfbm, 0, 15}.
+  {label,14}.
+    {line,[{location,"wfbm.erl",41}]}.
+    {func_info,{atom,wfbm},{atom,wfbm},0}.
+  {label,15}.
+    {allocate,0,0}.
+    {move,{literal,<<"g.urka">>},{x,0}}.
+    {line,[{location,"wfbm.erl",42}]}.
+    {call,1,{f,2}}. % check_for_dot_or_space/1
+    {'%',
+        {var_info,
+            {x,0},
+            [{type,
+                 {t_union,none,none,none,
+                     [{{2,{t_atom,[nomatch]}},
+                       {t_tuple,2,true,#{1 => {t_atom,[nomatch]}}}},
+                      {{2,{t_atom,[ok]}},
+                       {t_tuple,2,true,
+                           #{1 => {t_atom,[ok]},2 => {t_bitstring,8,false}}}}],
+                     none}}]}}.
+    {test,is_eq_exact,
+          {f,17},
+          [{tr,{x,0},
+               {t_union,none,none,none,
+                        [{{2,{t_atom,[nomatch]}},
+                          {t_tuple,2,true,#{1 => {t_atom,[nomatch]}}}},
+                         {{2,{t_atom,[ok]}},
+                          {t_tuple,2,true,
+                                   #{1 => {t_atom,[ok]},
+                                     2 => {t_bitstring,8,false}}}}],
+                        none}},
+           {literal,{nomatch,1}}]}.
+    {move,{literal,<<"200x/2007/10/23/blurf ">>},{x,0}}.
+    {line,[{location,"wfbm.erl",43}]}.
+    {call,1,{f,10}}. % get_tail/1
+    {'%',
+        {var_info,
+            {x,0},
+            [{type,
+                 {t_union,
+                     {t_atom,[nomatch]},
+                     none,none,
+                     [{{2,{t_atom,[ok]}},
+                       {t_tuple,2,true,
+                           #{1 => {t_atom,[ok]},2 => {t_bitstring,8,false}}}}],
+                     none}}]}}.
+    {test,is_eq_exact,
+          {f,16},
+          [{tr,{x,0},
+               {t_union,{t_atom,[nomatch]},
+                        none,none,
+                        [{{2,{t_atom,[ok]}},
+                          {t_tuple,2,true,
+                                   #{1 => {t_atom,[ok]},
+                                     2 => {t_bitstring,8,false}}}}],
+                        none}},
+           {literal,{ok,<<"2007/10/23/blurf">>}}]}.
+    {move,{atom,ok},{x,0}}.
+    {deallocate,0}.
+    return.
+  {label,16}.
+    {badmatch,{x,0}}.
+  {label,17}.
+    {line,[{location,"wfbm.erl",42}]}.
+    {badmatch,{x,0}}.
+
+
+{function, id, 1, 19}.
+  {label,18}.
+    {line,[{location,"wfbm.erl",46}]}.
+    {func_info,{atom,wfbm},{atom,id},1}.
+  {label,19}.
+    return.
+
+
+{function, module_info, 0, 21}.
+  {label,20}.
+    {line,[]}.
+    {func_info,{atom,wfbm},{atom,module_info},0}.
+  {label,21}.
+    {move,{atom,wfbm},{x,0}}.
+    {call_ext_only,1,{extfunc,erlang,get_module_info,1}}.
+
+
+{function, module_info, 1, 23}.
+  {label,22}.
+    {line,[]}.
+    {func_info,{atom,wfbm},{atom,module_info},1}.
+  {label,23}.
+    {move,{x,0},{x,1}}.
+    {move,{atom,wfbm},{x,0}}.
+    {call_ext_only,2,{extfunc,erlang,get_module_info,2}}.
