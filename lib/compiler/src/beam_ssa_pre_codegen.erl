@@ -216,7 +216,8 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 %%  It is here we go from the functional style of binary matching in
 %%  SSA to the imperative style of the BEAM instructions.
 
-fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
+fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
+    Blocks = kludge1(Blocks0),
     F = fun(#b_set{op=bs_start_match,dst=Dst}, A) ->
                 %% Mark the root of the match context list.
                 A#{Dst => {context,Dst}};
@@ -250,6 +251,27 @@ fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
             Linear = bs_instrs(Linear1, CtxChain, []),
 
             St#st{ssa=maps:from_list(Linear),cnt=Count}
+    end.
+
+kludge1(Blocks0) ->
+    case Blocks0 of
+        #{9 := Blk9_0, 47 := Blk47_0} ->
+            NewVar = #b_var{name=10},
+            #b_blk{is=[#b_set{op=bs_start_match},TestTail0]} = Blk9_0,
+            Is9 = [TestTail0#b_set{args=[NewVar,#b_literal{val=0}]}],
+            Blk9_1 = Blk9_0#b_blk{is=Is9},
+
+            Is47 = [#b_set{op=put_tuple,dst=#b_var{name=25},
+                           args=[#b_literal{val=badmatch},NewVar]} |
+                    tl(Blk47_0#b_blk.is)],
+            Blk47_1 = Blk47_0#b_blk{is=Is47},
+
+            io:format("~p\n", [Blk9_1]),
+            io:format("~p\n", [Blk47_1]),
+
+            Blocks0#{9 := Blk9_1, 47 := Blk47_1};
+        #{} ->
+            Blocks0
     end.
 
 %%
