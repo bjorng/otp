@@ -217,9 +217,17 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 %%  SSA to the imperative style of the BEAM instructions.
 
 fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
-    F = fun(#b_set{op=bs_start_match,dst=Dst}, A) ->
+    F = fun(#b_set{op=bs_start_match,dst=Dst,
+                   args=[#b_literal{val=new},Matchable]}, A0) ->
                 %% Mark the root of the match context list.
-                A#{Dst => {context,Dst}};
+                A = A0#{Dst => {context,Dst}},
+                case A of
+                    #{{matchable,Matchable} := Ctx} ->
+                        A#{{Dst,Matchable} => Ctx,
+                           {matchable,Matchable} := Dst};
+                    #{} ->
+                        A#{{matchable,Matchable} => Dst}
+                end;
            (#b_set{op=bs_ensure,dst=Dst,args=[ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
                 fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
@@ -483,8 +491,8 @@ join_positions_2([], _Bigger, Smaller) ->
 %%  the position we've *restored to* and not the one we entered the
 %%  current block with.
 %%
-bs_restores_is([#b_set{op=bs_start_match,dst=Start}|Is],
-               CtxChain, SPos0, _FPos, Rs) ->
+bs_restores_is([#b_set{op=bs_start_match,dst=Start,args=[_,Matchable]}|Is],
+               CtxChain, SPos0, _FPos, Rs0) ->
     %% Match instructions leave the position unchanged on failure, so
     %% FPos must be the SPos we entered the *instruction* with, and not the
     %% *block*.
@@ -493,9 +501,17 @@ bs_restores_is([#b_set{op=bs_start_match,dst=Start}|Is],
     %% all but the last are guaranteed to succeed; the upcoming fail block must
     %% restore to the position of the next-to-last match, not the position we
     %% entered the current block with.
-    FPos = SPos0,
-    SPos = SPos0#{Start=>Start},
-    bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
+    case CtxChain of
+        #{{Start,Matchable} := Ctx} ->
+            FPos = SPos0,
+            SPos = SPos0#{Ctx => Matchable},
+            Rs = Rs0#{Start => {Ctx,Ctx}},
+            bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
+        #{} ->
+            FPos = SPos0,
+            SPos = SPos0#{Start => Start},
+            bs_restores_is(Is, CtxChain, SPos, FPos, Rs0)
+    end;
 bs_restores_is([#b_set{op=bs_ensure,dst=NewPos,args=Args}|Is],
                CtxChain, SPos0, _FPos, Rs0) ->
     Start = bs_subst_ctx(NewPos, CtxChain),
@@ -721,6 +737,29 @@ bs_insert_deferred([#b_set{op=bs_extract}=I | Is], Deferred) ->
 bs_insert_deferred(Is, Deferred) ->
     Deferred ++ Is.
 
+bs_insert_is([#b_set{op=bs_start_match,dst=Dst}=I|Is], Saves, Restores, Acc0) ->
+    Pre = case Restores of
+              #{Dst:=R} -> [R];
+              #{} -> []
+          end,
+    Post = case Saves of
+               #{Dst:=S} -> [S];
+               #{} -> []
+           end,
+    Acc = case Pre of
+              [] ->
+                  [I|Acc0];
+              [#b_set{args=[Ctx,_]}=SetPos] ->
+                  Copy = #b_set{op=copy,dst=Dst,args=[Ctx]},
+                  [Copy,SetPos|Acc0]
+          end,
+    case Is of
+        [#b_set{op={succeeded,_},args=[Dst]}] ->
+            %% Defer the save sequence to the success block.
+            {reverse(Acc, Is), Post};
+        _ ->
+            bs_insert_is(Is, Saves, Restores, Post ++ Acc)
+    end;
 bs_insert_is([#b_set{dst=Dst}=I|Is], Saves, Restores, Acc0) ->
     Pre = case Restores of
               #{Dst:=R} -> [R];
