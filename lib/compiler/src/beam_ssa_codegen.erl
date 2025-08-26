@@ -433,6 +433,7 @@ classify_heap_need(executable_line) -> neutral;
 classify_heap_need(extract) -> gc;
 classify_heap_need(get_hd) -> neutral;
 classify_heap_need(get_map_element) -> neutral;
+classify_heap_need(get_struct_element) -> neutral;
 classify_heap_need(get_tl) -> neutral;
 classify_heap_need(get_tuple_element) -> neutral;
 classify_heap_need(has_map_field) -> neutral;
@@ -1549,6 +1550,12 @@ cg_block([#cg_set{op=get_map_element,dst=Dst0,args=Args0,anno=Anno},
     Dst = beam_arg(Dst0, St),
     Fail = ensure_label(Fail0, St),
     {[{get_map_elements,Fail,Map,{list,[Key,Dst]}}],St};
+cg_block([#cg_set{op=get_struct_element,dst=Dst0,args=Args0,anno=Anno},
+          #cg_set{op=succeeded,dst=Bool}], {Bool,Fail0}, St) ->
+  [Str,Key] = typed_args(Args0, Anno, St),
+  Dst = beam_arg(Dst0, St),
+  Fail = ensure_label(Fail0, St),
+  {[{get_struct_element,Fail,Str,Key,Dst}],St};
 cg_block([#cg_set{op={float,convert},dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     {f,0} = bif_fail(Fail),                     %Assertion.
@@ -1813,6 +1820,10 @@ bif_to_test_1(is_list,     [_]=Ops, Fail) ->
     {test,is_list,Fail,Ops};
 bif_to_test_1(is_map,      [_]=Ops, Fail) ->
     {test,is_map,Fail,Ops};
+bif_to_test_1(is_struct, [_]=Ops, Fail) ->
+  {test,is_struct,Fail,Ops};
+bif_to_test_1(is_tagged_struct, [_,_,_]=Ops, Fail) ->
+  {test,is_tagged_struct,Fail,Ops};
 bif_to_test_1(is_number,   [_]=Ops, Fail) ->
     {test,is_number,Fail,Ops};
 bif_to_test_1(is_pid,      [_]=Ops, Fail) ->

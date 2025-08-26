@@ -1617,3 +1617,11 @@ i_update_record_in_place t xy xy t s
 i_update_record_continue t s
 
 i_update_record_in_place_done
+
+#
+# structs
+#
+
+is_struct f? xy
+is_tagged_struct f? xy a a
+get_struct_element f? xy a xy
