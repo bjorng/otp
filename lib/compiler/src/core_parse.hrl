@@ -84,6 +84,9 @@
 		     key :: any(),              % TODO
 		     val :: any()}).            % TODO
 
+-record(c_struct, {anno=[] :: list(), id :: {atom(), atom()} | {}, es :: [cerl:c_struct_pair()]}).
+-record(c_struct_pair, {anno=[] :: list(), key :: atom(), val :: cerl:cerl()}).
+
 -record(c_module, {anno=[] :: list(), name :: cerl:cerl(),
 		   exports :: [cerl:cerl()],
 		   attrs :: [{cerl:cerl(), cerl:cerl()}],

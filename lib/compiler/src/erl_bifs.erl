@@ -123,6 +123,7 @@ is_pure(erlang, is_pid, 1) -> true;
 is_pure(erlang, is_port, 1) -> true;
 is_pure(erlang, is_record, 2) -> true;
 is_pure(erlang, is_record, 3) -> true;
+is_pure(erlang, is_tagged_struct, 3) -> true;
 is_pure(erlang, is_reference, 1) -> true;
 is_pure(erlang, is_tuple, 1) -> true;
 is_pure(erlang, length, 1) -> true;

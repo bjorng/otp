@@ -129,6 +129,7 @@ MODULES= \
 	slave \
 	sofs \
 	string \
+	struct \
 	supervisor \
 	supervisor_bridge \
 	sys \

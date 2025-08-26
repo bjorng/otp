@@ -176,6 +176,7 @@
                file=[{file,""}],                %File.
                load_nif=false :: boolean()      %true if calls erlang:load_nif/2
 	      }).
+-type state() :: #core{}.
 
 %% XXX: The following type declarations do not belong in this module
 -type fa()        :: {atom(), arity()}.
@@ -1084,6 +1085,7 @@ set_wanted(_, St) -> St.
 %%
 %%      {{X,Y},[Z]}
 
+-spec sanitize(erl_parse:af_pattern()) -> erl_parse:af_pattern().
 sanitize({match,L,P1,P2}) ->
     {tuple,L,[sanitize(P1),sanitize(P2)]};
 sanitize({cons,L,H,T}) ->
@@ -1096,6 +1098,9 @@ sanitize({bin,L,Segs0}) ->
     {tuple,L,Segs};
 sanitize({map,L,Ps0}) ->
     Ps = [sanitize(V) || {map_field_exact,_,_,V} <- Ps0],
+    {tuple,L,Ps};
+sanitize({struct,L,_,Ps0}) ->
+    Ps = [sanitize(V) || {record_field,_,_,V} <- Ps0],
     {tuple,L,Ps};
 sanitize({op,L,_Name,P1,P2}) ->
     {tuple,L,[sanitize(P1),sanitize(P2)]};
@@ -2605,6 +2610,12 @@ pattern({tuple,L,Ps}, St) ->
 pattern({map,L,Pairs}, St0) ->
     {Ps,St1} = pattern_map_pairs(Pairs, St0),
     {#imap{anno=#a{anno=lineno_anno(L, St1)},es=Ps},St1};
+pattern({struct,L,{M,N},Pairs},St0) ->
+    {Ps,St1} = pattern_struct_pairs(Pairs, St0),
+    {#c_struct{anno=lineno_anno(L, St1),id={M,N},es=Ps},St1};
+pattern({struct,L,{},Pairs},St0) ->
+  {Ps,St1} = pattern_struct_pairs(Pairs, St0),
+  {#c_struct{anno=lineno_anno(L, St1),id={},es=Ps},St1};
 pattern({bin,L,Ps}, St0) ->
     {Segments,St} = pat_bin(Ps, St0),
     {#ibinary{anno=#a{anno=lineno_anno(L, St)},segments=Segments},St};
@@ -2645,6 +2656,10 @@ pattern_map_pairs(Ps, St0) ->
     {CMapPairs,St1} = mapfoldl(fun pattern_map_pair/2, St0, Ps),
     {pat_alias_map_pairs(CMapPairs),St1}.
 
+-spec pattern_struct_pairs([erl_parse:af_record_field(erl_parse:af_pattern())], state()) -> {[cerl:c_struct_pair()], state()}.
+pattern_struct_pairs(Ps,St0) ->
+    mapfoldl(fun pattern_struct_pair/2, St0, Ps).
+
 pattern_map_pair({map_field_exact,L,K,V}, St0) ->
     Ck0 = erl_eval:partial_eval(K),
     {Ck,St1} = exprs([Ck0], St0),
@@ -2653,6 +2668,11 @@ pattern_map_pair({map_field_exact,L,K,V}, St0) ->
                op=#c_literal{val=exact},
                key=Ck,
                val=Cv},St2}.
+
+-spec pattern_struct_pair(erl_parse:af_record_field(erl_parse:af_pattern()), state()) -> {cerl:c_struct_pair(), state()}.
+pattern_struct_pair({record_field, L, {atom, _, K}, V}, St0) ->
+  {Cv, St1} = pattern(V, St0),
+  {#c_struct_pair{anno=lineno_anno(L, St1),key=K,val=Cv},St1}.
 
 pat_alias_map_pairs(Ps) ->
     D0 = foldl(fun(#imappair{key=K0}=Pair, A) ->
@@ -2997,6 +3017,7 @@ annotate_cons(A, H, T, #core{dialyzer=Dialyzer}) ->
 %%%
 
 -record(known, {base=[],ks=[],prev_ks=[]}).
+-type known() :: #known{}.
 
 known_init() ->
     #known{}.
@@ -3459,6 +3480,12 @@ upattern(#c_alias{var=V0,pat=P0}=Alias, Ks, St0) ->
     {V1,Vg,Vv,Vu,St1} = upattern(V0, Ks, St0),
     {P1,Pg,Pv,Pu,St2} = upattern(P0, known_union(Ks, Vv), St1),
     {Alias#c_alias{var=V1,pat=P1},Vg ++ Pg,union(Vv, Pv),union(Vu, Pu),St2};
+upattern(#c_struct{es=Es0}=Str, Ks, St0) ->
+    {Es1,Esg,Esv,Eus,St1} = upattern_list(Es0, Ks, St0),
+    {Str#c_struct{es=Es1},Esg,Esv,Eus,St1};
+upattern(#c_struct_pair{val=V0}=Pair, Ks, St0) ->
+    {V,Vg,Vn,Vu,St1} = upattern(V0, Ks, St0),
+    {Pair#c_struct_pair{val=V},Vg,Vn,Vu,St1};
 upattern(Other, _, St) -> {Other,[],[],[],St}.	%Constants
 
 %% upattern_list([Pat], [KnownVar], State) ->
@@ -3623,6 +3650,9 @@ ren_pat(#c_alias{var=Var0,pat=Pat0}=Alias, Ks, {_,_}=Subs0, St0) ->
 ren_pat(#imap{es=Es0}=Map, Ks, {_,_}=Subs0, St0) ->
     {Es,Subs,St} = ren_pat_map(Es0, Ks, Subs0, St0),
     {Map#imap{es=Es},Subs,St};
+ren_pat(#c_struct{es=Es0}=Struct, Ks, {_,_}=Subs0, St0) ->
+    {Es,Subs,St} = ren_pat_struct(Es0, Ks, Subs0, St0),
+    {Struct#c_struct{es=Es},Subs,St};
 ren_pat(#ibinary{segments=Es0}=P, Ks, {Isub,Osub0}, St0) ->
     {Es,_Isub,Osub,St} = ren_pat_bin(Es0, Ks, Isub, Osub0, St0),
     {P#ibinary{segments=Es},{Isub,Osub},St};
@@ -3657,6 +3687,13 @@ ren_pat_map([#imappair{val=Val0}=MapPair|Es0], Ks, Subs0, St0) ->
 ren_pat_map([], _Ks, Subs, St) ->
     {[],Subs,St}.
 
+-spec ren_pat_struct([cerl:c_struct_pair()], known(), {[iset()], [iset()]}, state()) -> {[cerl:c_struct_pair()], {[iset()], [iset()]}, state()}.
+ren_pat_struct([#c_struct_pair{val=Val0}=StrPair|Es0], Ks, Subs0, St0) ->
+  {Val,Subs1,St1} = ren_pat(Val0, Ks, Subs0, St0),
+  {Es,Subs,St} = ren_pat_struct(Es0, Ks, Subs1, St1),
+  {[StrPair#c_struct_pair{val=Val}|Es],Subs,St};
+ren_pat_struct([], _Ks, Subs, St) ->
+  {[],Subs,St}.
 ren_get_subst([#c_var{name=V}]=Old, Sub) ->
     case ren_is_subst(V, Sub) of
         no -> Old;
@@ -3724,6 +3761,8 @@ cpattern(#c_tuple{es=Es}=Tup) ->
     Tup#c_tuple{es=cpattern_list(Es)};
 cpattern(#imap{anno=#a{anno=Anno},es=Es}) ->
     #c_map{anno=Anno,es=cpat_map_pairs(Es),is_pat=true};
+cpattern(#c_struct{es=Es}=Str) ->
+    Str#c_struct{es=cpat_struct_pairs(Es)};
 cpattern(#ibinary{anno=#a{anno=Anno},segments=Segs0}) ->
     Segs = [cpat_bin_seg(S) || S <- Segs0],
     #c_binary{anno=Anno,segments=Segs};
@@ -3735,6 +3774,13 @@ cpat_map_pairs([#imappair{anno=#a{anno=Anno},op=Op,key=Key0,val=Val0}|T]) ->
     Pair = #c_map_pair{anno=Anno,op=Op,key=Key,val=Val},
     [Pair|cpat_map_pairs(T)];
 cpat_map_pairs([]) -> [].
+
+-spec cpat_struct_pairs([cerl:c_struct_pair()]) -> [cerl:c_struct_pair()].
+cpat_struct_pairs([#c_struct_pair{val=Val0}=Pair0|T]) ->
+    Val = cpattern(Val0),
+    Pair = Pair0#c_struct_pair{val=Val},
+    [Pair|cpat_struct_pairs(T)];
+cpat_struct_pairs([]) -> [].
 
 cpat_bin_seg(#ibitstr{anno=#a{anno=Anno},val=E,size=Sz0,unit=Unit,
                       type=Type,flags=Flags}) ->
@@ -3997,6 +4043,7 @@ skip_lowering(#c_call{}, _A) -> skip;
 skip_lowering(#c_cons{}, _A) -> skip;
 skip_lowering(#c_literal{}, _A) -> skip;
 skip_lowering(#c_map{}, _A) -> skip;
+skip_lowering(#c_struct{}, _A) -> skip;
 skip_lowering(#c_opaque{}, _A) -> skip;
 skip_lowering(#c_primop{}, _A) -> skip;
 skip_lowering(#c_tuple{}, _A) -> skip;
@@ -4280,6 +4327,8 @@ split_pat(#c_binary{anno=Anno0,segments=Segs0}=Bin, St0) ->
     end;
 split_pat(#c_map{es=Es}=Map, St) ->
     split_map_pat(Es, Map, St, []);
+split_pat(#c_struct{es=Es}=Str, St) ->
+    split_struct_pat(Es, Str, St, []);
 split_pat(#c_var{}, _) ->
     none;
 split_pat(#c_alias{pat=Pat}=Alias0, St0) ->
@@ -4336,6 +4385,18 @@ split_map_pat([#c_map_pair{key=Key,val=Val}=E0|Es], Map0, St0, Acc) ->
             {BefMap,Split,St1}
     end;
 split_map_pat([], _, _, _) -> none.
+
+split_struct_pat([#c_struct_pair{val=Val}=E0|Es], Str0, St0, Acc) ->
+  case split_pat(Val, St0) of
+    none ->
+      split_struct_pat(Es, Str0, St0, [E0|Acc]);
+    {Ps,Split,St1} ->
+      {Var,St} = new_var(St1),
+      E = E0#c_struct_pair{val=Var},
+      Str = Str0#c_struct{es=reverse(Acc, [E|Es])},
+      {Str,{split, [Var],Ps,Split},St}
+  end;
+split_struct_pat([], _, _, _) -> none.
 
 eval_map_key(#c_var{}, _E, _Es, _Map, _St) ->
     none;
@@ -4580,6 +4641,8 @@ is_simple(#c_tuple{es=Es}) -> is_simple_list(Es);
 is_simple(#c_map{es=Es}) -> is_simple_list(Es);
 is_simple(#c_map_pair{key=K,val=V}) ->
     is_simple(K) andalso is_simple(V);
+is_simple(#c_struct{es=Es}) -> is_simple_list(Es);
+is_simple(#c_struct_pair{val = V}) -> is_simple(V);
 is_simple(_) -> false.
 
 -spec is_simple_list([cerl:cerl()]) -> boolean().
