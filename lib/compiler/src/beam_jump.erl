@@ -943,6 +943,8 @@ instr_labels({put_map,Lbl,_Op,_Src,_Dst,_Live,_List}) ->
     do_instr_labels(Lbl);
 instr_labels({get_map_elements,Lbl,_Src,_List}) ->
     do_instr_labels(Lbl);
+instr_labels({get_struct_element,Lbl,_Src,_Key,_Dst}) ->
+    do_instr_labels(Lbl);
 instr_labels({bs_start_match4,Fail,_,_,_}) ->
     case Fail of
         {f,L} -> [L];

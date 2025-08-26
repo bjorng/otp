@@ -838,8 +838,12 @@ bif re:import/1
 # STRUCT PROTOTYPE
 #
 
-bif struct_prototype:define/3
-bif struct_prototype:create/3
-bif struct_prototype:update/3
-bif struct_prototype:read/2
-bif struct_prototype:is/4
+bif struct:define/3
+bif struct:create/2
+bif struct:update/3
+
+ubif erlang:is_struct/1
+ubif erlang:is_tagged_struct/3
+ubif erlang:struct_get/2
+ubif erlang:struct_module/1
+ubif erlang:struct_name/1

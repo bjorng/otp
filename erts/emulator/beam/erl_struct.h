@@ -30,7 +30,6 @@
 typedef struct {
     Eterm module;
     Eterm name;
-    Uint arity;
 
     /* Literal-tagged pointers to the canonical ErtsStructDefinition for each
      * code generation. */
@@ -58,15 +57,16 @@ typedef struct {
 void erts_struct_init_table(void);
 
 ERTS_GLB_INLINE ErtsStructEntry *erts_struct_active_entry(Eterm module,
-                                                     Eterm name,
-                                                     Uint arity);
+                                                     Eterm name);
 
 ErtsStructEntry *erts_struct_put(Eterm module,
-                                 Eterm name,
-                                 Uint arity);
+                                 Eterm name);
 ErtsStructEntry *erts_struct_get_or_make_stub(Eterm module,
-                                              Eterm name,
-                                              Uint arity);
+                                              Eterm name);
+
+Eterm struct_module(Eterm obj);
+Eterm struct_name(Eterm obj);
+Eterm struct_get_element(Eterm obj, Eterm key);
 
 void erts_struct_start_staging(void);
 void erts_struct_end_staging(int commit);
@@ -80,13 +80,12 @@ extern erts_mtx_t struct_staging_lock;
 #if ERTS_GLB_INLINE_INCL_FUNC_DEF
 
 ERTS_GLB_INLINE ErtsStructEntry*
-erts_struct_active_entry(Eterm module, Eterm name, Uint arity)
+erts_struct_active_entry(Eterm module, Eterm name)
 {
     extern ErtsStructEntry *erts_struct_find_entry(Eterm module,
                                                    Eterm name,
-                                                   Uint arity,
                                                    ErtsCodeIndex code_ix);
-    return erts_struct_find_entry(module, name, arity, erts_active_code_ix());
+    return erts_struct_find_entry(module, name, erts_active_code_ix());
 }
 
 #endif /* ERTS_GLB_INLINE_INCL_FUNC_DEF */
