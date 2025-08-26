@@ -1315,3 +1315,25 @@ i_lambda_error(Dummy) {
 
 padding() {
 }
+
+// structs
+
+is_struct(Fail, Src) {
+    if (!is_struct($Src)) {
+        $FAIL($Fail);
+    }
+}
+
+is_tagged_struct(Fail, Src, Mod, Name) {
+    if (!is_struct($Src) || $Mod != struct_module($Src) || $Name != struct_name($Src)) {
+        $FAIL($Fail);
+    }
+}
+
+get_struct_element(Fail, Src, Key, Dst) {
+    Eterm res = struct_get_element($Src, $Key);
+    if (is_non_value(res)) {
+        $FAIL($Fail);
+    }
+    $Dst = res;
+}
