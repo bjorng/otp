@@ -856,6 +856,8 @@ vi(build_stacktrace, Vst0) ->
 vi({get_map_elements,{f,Fail},Src0,{list,List}}, Vst) ->
     Src = unpack_typed_arg(Src0, Vst),
     verify_get_map(Fail, Src, List, Vst);
+vi({get_struct_element,{f,Fail},Src,Key,Dst}, Vst) ->
+  verify_get_struct_element(Fail, Src, Key, Dst, Vst);
 vi({put_map_assoc=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
     verify_put_map(Op, Fail, Src, Dst, Live, List, Vst);
 vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
@@ -1386,6 +1388,17 @@ pmt_1([Key0, Value0 | List], Vst, Acc0) ->
     pmt_1(List, Vst, Acc);
 pmt_1([], _Vst, Acc) ->
     Acc.
+
+verify_get_struct_element(Fail, Src, _Key, Dst, Vst0) ->
+  assert_no_exception(Fail),
+  assert_not_literal(Src),
+  branch(Fail, Vst0,
+    fun(FailVst) ->
+      FailVst
+    end,
+    fun(SuccVst) ->
+      create_term(any, get_struct_element, [Src], Dst, SuccVst)
+    end).
 
 verify_update_record(Size, Src0, Dst, List0, Vst0) ->
     Src = unpack_typed_arg(Src0, Vst0),

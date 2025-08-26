@@ -112,6 +112,8 @@ MODULES= \
 	shell_docs_SUITE \
 	shell_docs_markdown_SUITE \
 	sigils_SUITE \
+	structs_SUITE \
+	structs_i_SUITE \
 	supervisor_SUITE \
 	supervisor_bridge_SUITE \
 	sys_SUITE \

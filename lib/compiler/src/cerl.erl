@@ -115,7 +115,9 @@ function `type/1`.
          pat_list_vars/1, pat_vars/1, primop_args/1, primop_arity/1,
          primop_name/1, receive_action/1, receive_clauses/1,
          receive_timeout/1, seq_arg/1, seq_body/1, set_ann/2,
-         string_lit/1, string_val/1, subtrees/1, to_records/1,
+         string_lit/1, string_val/1,
+         struct_es/1, struct_pair_val/1,
+         subtrees/1, to_records/1,
          try_arg/1, try_body/1, try_vars/1, try_evars/1, try_handler/1,
          tuple_arity/1, tuple_es/1, type/1, unfold_literal/1,
          update_c_alias/3, update_c_apply/3, update_c_call/4,
@@ -124,7 +126,9 @@ function `type/1`.
          update_c_fname/3, update_c_fun/3, update_c_let/4,
          update_c_letrec/3, update_c_map/3, update_c_map_pair/4,
          update_c_module/5, update_c_primop/3,
-         update_c_receive/4, update_c_seq/3, update_c_try/6,
+         update_c_receive/4, update_c_seq/3,
+         update_c_struct/2, update_c_struct_pair/2,
+         update_c_try/6,
          update_c_tuple/2, update_c_tuple_skel/2, update_c_values/2,
          update_c_var/2, update_data/3, update_list/2, update_list/3,
          update_data_skel/3, update_tree/2, update_tree/3,
@@ -136,7 +140,7 @@ function `type/1`.
 
 -export_type([c_binary/0, c_bitstr/0, c_call/0, c_clause/0, c_cons/0, c_fun/0,
 	      c_let/0, c_literal/0, c_map/0, c_map_pair/0,
-	      c_module/0, c_tuple/0,
+	      c_module/0, c_struct/0, c_struct_pair/0, c_tuple/0,
 	      c_values/0, c_var/0, cerl/0, var_name/0]).
 
 -include("core_parse.hrl").
@@ -156,6 +160,8 @@ function `type/1`.
 -type c_literal() :: #c_literal{}.
 -type c_map()     :: #c_map{}.
 -type c_map_pair() :: #c_map_pair{}.
+-type c_struct()  :: #c_struct{}.
+-type c_struct_pair() :: #c_struct_pair{}.
 -type c_module()  :: #c_module{}.
 -type c_opaque()  :: #c_opaque{}.
 -type c_primop()  :: #c_primop{}.
@@ -169,7 +175,7 @@ function `type/1`.
 -type cerl() :: c_alias()  | c_apply()  | c_binary()  | c_bitstr()
               | c_call()   | c_case()   | c_catch()   | c_clause()  | c_cons()
               | c_fun()    | c_let()    | c_letrec()  | c_literal()
-	      | c_map()    | c_map_pair()
+	      | c_map()    | c_map_pair() | c_struct() | c_struct_pair()
 	      | c_module() | c_opaque()
               | c_primop() | c_receive() | c_seq()
               | c_try()    | c_tuple()  | c_values()  | c_var().
@@ -193,10 +199,11 @@ function `type/1`.
 %% the annotation field only).
 %% =====================================================================
 
--type ctype() :: 'alias'   | 'apply'  | 'binary' | 'bitstr' | 'call' | 'case'
-               | 'catch'   | 'clause' | 'cons'   | 'fun'    | 'let'  | 'letrec'
-               | 'literal' | 'map'  | 'map_pair' | 'module' | 'primop'
-               | 'receive' | 'seq'    | 'try'    | 'tuple'  | 'values' | 'var'.
+-type ctype() :: 'alias'   | 'apply'  | 'binary' | 'bitstr' | 'call'   | 'case'
+               | 'catch'   | 'clause' | 'cons'   | 'fun'    | 'let'    | 'letrec'
+               | 'literal' | 'map'  | 'map_pair' | 'module' | 'opaque' | 'primop'
+               | 'receive' | 'seq'  | 'struct'   | 'struct_pair'
+               | 'try'     | 'tuple'  | 'values' | 'var'.
 
 -doc """
 Returns the type tag of `Node`.
@@ -270,7 +277,9 @@ type(#c_try{}) -> 'try';
 type(#c_tuple{}) -> tuple;
 type(#c_values{}) -> values;
 type(#c_var{}) -> var;
-type(#c_opaque{}) -> opaque.
+type(#c_opaque{}) -> opaque;
+type(#c_struct{}) -> struct;
+type(#c_struct_pair{}) -> struct_pair.
 
 -doc """
 Returns `true` if `Node` is a leaf node, otherwise `false`.
@@ -1431,6 +1440,11 @@ map_es(#c_literal{anno=As,val=M}) when is_map(M) ->
 map_es(#c_map{es = Es}) ->
     Es.
 
+-spec struct_es(Node :: c_struct | c_literal()) -> [c_struct_pair()].
+
+struct_es(#c_struct{es = Es}) ->
+  Es.
+
 -doc """
 Returns the argument subtree of an abstract map.
 
@@ -1544,6 +1558,10 @@ update_c_map(#c_map{is_pat = true}=Old, M, Es) ->
 update_c_map(#c_map{is_pat=false}=Old, M, Es) ->
     ann_c_map(get_ann(Old), M, Es).
 
+-spec update_c_struct(Node :: c_struct(), Pairs :: [c_struct_pair()]) -> c_struct().
+update_c_struct(#c_struct{}=Old, Es) ->
+    Old#c_struct{es = Es}.
+
 %% ---------------------------------------------------------------------
 
 -doc """
@@ -1599,6 +1617,10 @@ ann_c_map_pair(As, Op, K, V) ->
 update_c_map_pair(Node, Op, K, V) ->
     #c_map_pair{op = Op, key = K, val = V, anno = get_ann(Node)}.
 
+-spec update_c_struct_pair(Node :: c_struct_pair(), Value :: cerl()) -> c_struct_pair().
+update_c_struct_pair(Node, V) ->
+    Node#c_struct_pair{val = V}.
+
 -doc """
 Returns the key subtree of an abstract map pair.
 
@@ -1620,6 +1642,11 @@ _See also: _`c_map_pair/2`, `c_map_pair_exact/2`.
 -spec map_pair_val(Node :: c_map_pair()) -> cerl().
 
 map_pair_val(#c_map_pair{val=V}) -> V.
+
+-spec struct_pair_val(Node :: c_struct_pair()) -> cerl().
+
+struct_pair_val(#c_struct_pair{val=V}) -> V.
+
 
 -doc """
 Returns the operation subtree of an abstract map pair.

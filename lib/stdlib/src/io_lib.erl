@@ -810,7 +810,10 @@ write1(T, D, E, O) when is_tuple(T) ->
 	    [${,
 	     [write1(element(1, T), D-1, E, O)|write_tuple(T, 2, D-1, E, O)],
 	     $}]
-    end.
+    end;
+write1(T, _D, _E, _O) ->
+  true = erlang:is_struct(T),
+  "#_{...}".
 
 %% write_tail(List, Depth, Encoding)
 %%  Test the terminating case first as this looks better with depth.

@@ -40,6 +40,7 @@
 #include "erl_version.h"
 #include "erl_binary.h"
 #include "erl_map.h"
+#include "erl_struct.h"
 
 BIF_RETTYPE and_2(BIF_ALIST_2)
 {
@@ -325,6 +326,23 @@ BIF_RETTYPE is_map_1(BIF_ALIST_1)
 {
     if (is_map(BIF_ARG_1)) {
 	BIF_RET(am_true);
+    }
+    BIF_RET(am_false);
+}
+
+BIF_RETTYPE is_struct_1(BIF_ALIST_1)
+{
+    if (is_struct(BIF_ARG_1)) {
+        BIF_RET(am_true);
+    }
+    BIF_RET(am_false);
+}
+
+BIF_RETTYPE is_tagged_struct_3(BIF_ALIST_3)
+{
+    Eterm obj = BIF_ARG_1;
+    if (is_struct(obj) && BIF_ARG_2 == struct_module(obj) && BIF_ARG_3 == struct_name(obj)) {
+        BIF_RET(am_true);
     }
     BIF_RET(am_false);
 }
