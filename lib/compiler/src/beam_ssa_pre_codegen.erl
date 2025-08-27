@@ -1214,6 +1214,7 @@ expand_update_tuple_is([], Count, Acc) ->
 %% Note that it returns the instructions in reverse order.
 expand_update_tuple_list(Args, I0, Src, Count0) ->
     [Index, Value | Rest] = sort_update_tuple(Args, []),
+    io:format("~p\n", [Args]),
 
     %% set_tuple_element is destructive, so we have to start off with a
     %% setelement/3 call to give them something to work on.

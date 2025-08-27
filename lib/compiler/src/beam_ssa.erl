@@ -32,6 +32,7 @@
          flatmapfold_instrs/4,
          fold_blocks/4,
          fold_instrs/4,
+         forward_dataflow_blocks/3,forward_dataflow_linear/3,
          insert_on_edges/3,
          is_loop_header/1,
          linearize/1,
@@ -818,6 +819,66 @@ merge_blocks(Labels, Blocks) ->
     %% embedding succeeded:guard instructions into the middle of
     %% blocks when this function is called from beam_ssa_bool.
     merge_blocks_1(Labels, Preds, Blocks).
+
+-spec forward_dataflow_blocks(any(), any(), Blocks0) -> Blocks when
+      Blocks0 :: block_map(),
+      Blocks :: block_map().
+
+forward_dataflow_blocks(Blocks, BlockFun, JoinFun)
+  when is_function(BlockFun, 2), is_function(JoinFun, 2) ->
+    From = rpo(Blocks),
+    Map0 = #{0 => #{}},
+    forward_dataflow_1(From, BlockFun, JoinFun, Blocks, Map0).
+
+-spec forward_dataflow_linear(any(), any(), any()) -> any().
+
+forward_dataflow_linear(Linear, BlockFun, JoinFun)
+  when is_function(BlockFun, 2), is_function(JoinFun, 2) ->
+    Map0 = #{0 => #{}},
+    forward_dataflow_linear(Linear, BlockFun, JoinFun, Map0).
+
+forward_dataflow_linear([{L,Blk0}|Ls], BlockFun, JoinFun, Map0) ->
+    case Map0 of
+        #{L := Data0} ->
+            {Blk,Data} = BlockFun(Blk0, Data0),
+            Successors = successors(Blk),
+            Map = forward_data_successors(Successors, Data, JoinFun, Map0),
+            [{L,Blk}|forward_dataflow_linear(Ls, BlockFun, JoinFun, Map)];
+        #{} ->
+            %% Drop this unreachable block.
+            forward_dataflow_linear(Ls, BlockFun, JoinFun, Map0)
+    end;
+forward_dataflow_linear([], _, _, _) ->
+    [].
+
+forward_dataflow_1([L|Ls], BlockFun, JoinFun, Blocks0, Map0) ->
+    Blk0 = map_get(L, Blocks0),
+    Data0 = map_get(L, Map0),
+    {Blk,Data} = BlockFun(Blk0, Data0),
+    Successors = successors(Blk),
+    Map = forward_data_successors(Successors, Data, JoinFun, Map0),
+    case Blk of
+        Blk0 ->
+            forward_dataflow_1(Ls, BlockFun, JoinFun, Blocks0, Map);
+        #b_blk{} ->
+            Blocks = Blocks0#{L := Blk},
+            forward_dataflow_1(Ls, BlockFun, JoinFun, Blocks, Map)
+    end;
+forward_dataflow_1([], _, _, Blocks, Data) ->
+    {Blocks,Data}.
+
+forward_data_successors([L|Ls], Data0, Join, Map0) ->
+    case Map0 of
+        #{L := Data1} ->
+            Data = Join(Data0, Data1),
+            Map = Map0#{L := Data},
+            forward_data_successors(Ls, Data0, Join, Map);
+        #{} ->
+            Map = Map0#{L => Data0},
+            forward_data_successors(Ls, Data0, Join, Map)
+    end;
+forward_data_successors([], _, _, Map) ->
+    Map.
 
 %%%
 %%% Internal functions.
