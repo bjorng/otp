@@ -247,6 +247,7 @@ fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
             %% Insert position instructions where needed.
             {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain, RPO,
                                           FunArgs, Count1),
+
             %% Rename instructions.
             Linear = bs_instrs(Linear1, CtxChain, []),
 
@@ -377,17 +378,38 @@ bs_restores([{L,#b_blk{is=Is,last=Last}}|Bs], CtxChain, D0, Rs0) ->
     InPos = maps:get(L, D0, #{}),
     SPos = handle_implied_start_match(Is, InPos, CtxChain),
     FPos = InPos,
-    {SuccPos, FailPos, Rs} = bs_restores_is(Is, CtxChain, SPos, FPos, Rs0),
-    io:format("L ~p~n", [L]),
-    io:format("SPos ~p~n", [SPos]),
-    io:format("FPos ~p~n", [FPos]),
-    io:format("SuccPos ~p~n", [SuccPos]),
-    io:format("FailPos ~p~n", [FailPos]),
-    io:format("Last ~p~n~n", [Last]),
+    {SuccPos0, FailPos0, Rs1} = bs_restores_is(Is, CtxChain, SPos, FPos, Rs0),
+    {SuccPos, FailPos, Rs} = bs_restores_last(L, Last, CtxChain,
+                                              SuccPos0, FailPos0, Rs1),
+
+    %% io:format("L ~p~n", [L]),
+    %% io:format("SPos ~p~n", [SPos]),
+    %% io:format("FPos ~p~n", [FPos]),
+    %% io:format("SuccPos ~p~n", [SuccPos]),
+    %% io:format("FailPos ~p~n", [FailPos]),
+    %% io:format("Last ~p~n~n", [Last]),
+
     D = bs_update_successors(Last, SuccPos, FailPos, D0),
     bs_restores(Bs, CtxChain, D, Rs);
 bs_restores([], _, _, Rs) -> Rs.
 
+bs_restores_last(_L, #b_ret{arg=Arg}, CtxChain, SuccPos0, FailPos0, Rs0) ->
+    case is_map_key(Arg, CtxChain) of
+        true ->
+            Arg = bs_subst_ctx(Arg, CtxChain),  %Assertion.
+            case SuccPos0 of
+                #{Arg := Arg} ->
+                    {SuccPos0, FailPos0, Rs0};
+                #{} ->
+                    Rs = Rs0#{Arg => {Arg,Arg}},
+                    {SuccPos0, FailPos0, Rs}
+            end;
+        false ->
+            {SuccPos0, FailPos0, Rs0}
+    end;
+bs_restores_last(_, _, _,  SuccPos0, FailPos0, Rs0) ->
+    {SuccPos0, FailPos0, Rs0}.
+    
 bs_update_successors(#b_br{succ=Succ,fail=Fail}, SPos, FPos, D) ->
     join_positions([{Succ,SPos},{Fail,FPos}], D);
 bs_update_successors(#b_switch{fail=Fail,list=List}, SPos, FPos, D) ->
@@ -786,17 +808,27 @@ bs_restore_args([], Pos, _CtxChain, _Dst, Rs) ->
 bs_insert_bsm3(Blocks, Saves, Restores, ArgInserts) ->
     bs_insert_1(Blocks, [], Saves, Restores, ArgInserts).
 
-bs_insert_1([{L,#b_blk{is=Is0}=Blk} | Bs],
+bs_insert_1([{L,#b_blk{is=Is0,last=Last}=Blk} | Bs],
             Deferred0, Saves, Restores, ArgInserts) ->
     Is1 = bs_insert_deferred(Is0, Deferred0),
     {Is2, Deferred} = bs_insert_is(Is1, Saves, Restores, []),
-
+    Is3 = case Last of
+              #b_ret{arg=Ret} ->
+                  case Restores of
+                      #{Ret := Restore} ->
+                          Is2 ++ [Restore];
+                      #{} ->
+                          Is2
+                  end;
+              _ ->
+                  Is2
+          end,
     Is = case ArgInserts of
              #{L:=ToInsert} ->
                  %% There are restores to be inserted in this block.
                  ToInsert;
              _ -> []
-         end ++ Is2,
+         end ++ Is3,
     [{L,Blk#b_blk{is=Is}}|bs_insert_1(Bs, Deferred, Saves,
                                       Restores, ArgInserts)];
 bs_insert_1([], [], _, _, _) ->
