@@ -396,12 +396,12 @@ bs_restores([], _, _, Rs) -> Rs.
 bs_restores_last(L, #b_ret{arg=Arg}, CtxChain, SuccPos0, FailPos0, Rs0) ->
     case is_map_key(Arg, CtxChain) of
         true ->
-            Arg = bs_subst_ctx(Arg, CtxChain),  %Assertion.
+            Ctx = bs_subst_ctx(Arg, CtxChain),
             case SuccPos0 of
-                #{Arg := Arg} ->
+                #{Ctx := Ctx} ->
                     {SuccPos0, FailPos0, Rs0};
                 #{} ->
-                    Rs = Rs0#{{ret,L} => {Arg,Arg}},
+                    Rs = Rs0#{{ret,L} => {Ctx,Arg}},
                     {SuccPos0, FailPos0, Rs}
             end;
         false ->
@@ -436,7 +436,7 @@ bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst
     [L|Successors] = beam_ssa:rpo([L], BlockMap),
     Destructive = bs_find_destructive(Successors, BlockMap, []),
     Uses = beam_ssa:uses(Successors, BlockMap),
-    Fragiles = map_get(Arg, Uses),
+    Fragiles = maps:get(Arg, Uses, []),
     FragileLbls = [Label || {Label,_} <:- Fragiles],
 
     CanReachFragile = bs_find_destructive_2(Destructive, BlockMap, FragileLbls, #{}),
