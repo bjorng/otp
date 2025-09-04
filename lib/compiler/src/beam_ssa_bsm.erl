@@ -62,7 +62,7 @@
 -include("beam_ssa.hrl").
 -include("beam_types.hrl").
 
--import(lists, [member/2, reverse/1, splitwith/2, foldl/3,
+-import(lists, [member/2, reverse/1, reverse/2, splitwith/2, foldl/3,
                 mapfoldl/3, max/1, unzip/1]).
 
 -spec format_error(term()) -> nonempty_string().
@@ -89,7 +89,8 @@ module(#b_module{body=Fs0}=Module, Opts) ->
     %%                            %% when repeated.
 
     {Fs, _} = compile:run_sub_passes(
-                [?PASS(combine_matches)],
+                [?PASS(combine_matches),
+                 ?PASS(accept_context_args)],
                 {Fs0, ModInfo}),
 
     Ws = case proplists:get_bool(bin_opt_info, Opts) of
@@ -497,6 +498,249 @@ cm_combine_tail_1(Bool, DstCtx, SrcCtx, Renames0) ->
                                  DstCtx => SrcCtx },
             {SrcCtx, Renames}
     end.
+
+funcinfo_set(#b_function{}=F, Attribute, Value, ModInfo) ->
+    funcinfo_set(get_fa(F), Attribute, Value, ModInfo);
+funcinfo_set(Key, Attribute, Value, ModInfo) ->
+    FuncInfo = maps:put(Attribute, Value, maps:get(Key, ModInfo, #{})),
+    maps:put(Key, FuncInfo, ModInfo).
+
+%% Lets functions accept match contexts as arguments. The parameter must be
+%% unused before the bs_start_match instruction, and it must be matched in the
+%% first block.
+
+-record(aca, { unused_parameters :: ordsets:ordset(#b_var{}),
+               counter :: non_neg_integer(),
+               parameter_info = #{} :: #{ #b_var{} => param_info() },
+               match_aliases = #{} :: match_alias_map() }).
+
+accept_context_args({Fs, ModInfo}) ->
+    mapfoldl(fun accept_context_args/2, ModInfo, Fs).
+
+accept_context_args(#b_function{bs=Blocks0}=F, ModInfo0) ->
+    case funcinfo_get(F, has_bsm_ops, ModInfo0) of
+        true ->
+            Parameters = ordsets:from_list(funcinfo_get(F, parameters, ModInfo0)),
+            State0 = #aca{ unused_parameters = Parameters,
+                           counter = F#b_function.cnt },
+
+            {Blocks1, State} = aca_1(Blocks0, State0),
+            {Blocks, Counter} = alias_matched_binaries(Blocks1,
+                                                       State#aca.counter,
+                                                       State#aca.match_aliases),
+
+            ModInfo = funcinfo_set(F, parameter_info, State#aca.parameter_info,
+                                   ModInfo0),
+
+            {F#b_function{bs=Blocks,cnt=Counter}, ModInfo};
+        false ->
+            {F, ModInfo0}
+    end.
+
+aca_1(Blocks, State) ->
+    %% We only handle block 0 as we don't yet support starting a match after a
+    %% test. This is generally good enough as the sys_core_bsm pass makes the
+    %% match instruction come first if possible, and it's rare for a function
+    %% to binary-match several parameters at once.
+    EntryBlock = maps:get(0, Blocks),
+    aca_enable_reuse(EntryBlock#b_blk.is, EntryBlock, Blocks, [], State).
+
+aca_enable_reuse([#b_set{op=bs_start_match,args=[_,Src]}=I0 | Rest],
+                 EntryBlock, Blocks0, Acc, State0) ->
+    case aca_is_reuse_safe(Src, State0) of
+        true ->
+            {I, Last0, Blocks1, State} =
+                aca_reuse_context(I0, EntryBlock, Blocks0, State0),
+
+            Is = reverse([I | Acc], Rest),
+            Last = beam_ssa:normalize(Last0),
+            Blocks = maps:put(0, EntryBlock#b_blk{is=Is,last=Last}, Blocks1),
+
+            %% Copying (and thus renaming) the successors of a block may cause
+            %% them to become unreachable under their original label, breaking
+            %% the phi nodes on the original path that refer to them, so we
+            %% remove unreachable blocks to make sure they aren't referenced.
+            {beam_ssa:trim_unreachable(Blocks), State};
+        false ->
+            {Blocks0, State0}
+    end;
+aca_enable_reuse([I | Is], EntryBlock, Blocks, Acc, State0) ->
+    UnusedParams0 = State0#aca.unused_parameters,
+    case ordsets:intersection(UnusedParams0, beam_ssa:used(I)) of
+        [] ->
+            aca_enable_reuse(Is, EntryBlock, Blocks, [I | Acc], State0);
+        PrematureUses ->
+            UnusedParams = ordsets:subtract(UnusedParams0, PrematureUses),
+
+            %% Mark the offending parameters as unsuitable for context reuse.
+            ParamInfo = foldl(fun(A, Ps) ->
+                                      maps:put(A, {used_before_match, I}, Ps)
+                              end, State0#aca.parameter_info, PrematureUses),
+
+            State = State0#aca{ unused_parameters = UnusedParams,
+                                parameter_info = ParamInfo },
+            aca_enable_reuse(Is, EntryBlock, Blocks, [I | Acc], State)
+    end;
+aca_enable_reuse([], _EntryBlock, Blocks, _Acc, State) ->
+    {Blocks, State}.
+
+aca_is_reuse_safe(Src, State) ->
+    %% Context reuse is unsafe unless all uses are dominated by the start_match
+    %% instruction. Since we only process block 0 it's enough to check if
+    %% they're unused so far.
+    ordsets:is_element(Src, State#aca.unused_parameters).
+
+aca_reuse_context(#b_set{op=bs_start_match,dst=Dst,args=[_,Src]}=I0,
+                  Block, Blocks0, State0) ->
+    %% When matching fails on a reused context it needs to be converted back
+    %% to a binary. We only need to do this on the success path since it can't
+    %% be a context on the type failure path, but it's very common for these
+    %% to converge which requires special handling.
+    {State1, Last, Blocks} =
+        aca_handle_convergence(Src, State0, Block#b_blk.last, Blocks0),
+
+    Aliases = maps:put(Src, {Last#b_br.succ, Dst}, State1#aca.match_aliases),
+    ParamInfo = maps:put(Src, suitable_for_reuse, State1#aca.parameter_info),
+
+    State = State1#aca{ match_aliases = Aliases,
+                        parameter_info = ParamInfo },
+
+    I = beam_ssa:add_anno(accepts_match_contexts, true, I0),
+
+    {I, Last, Blocks, State}.
+
+aca_handle_convergence(Src, State0, Last0, Blocks0) ->
+    #b_br{fail=Fail0,succ=Succ0} = Last0,
+
+    SuccPath = beam_ssa:rpo([Succ0], Blocks0),
+    FailPath = beam_ssa:rpo([Fail0], Blocks0),
+
+    %% The promotion logic in alias_matched_binaries breaks down if the source
+    %% is used after the fail/success paths converge, as we have no way to tell
+    %% whether the source is a match context or something else past that point.
+    %%
+    %% We could handle this through clever insertion of phi nodes but it's
+    %% far simpler to copy either branch in its entirety. It doesn't matter
+    %% which one as long as they become disjoint.
+    ConvergedPaths = ordsets:intersection(
+                       ordsets:from_list(SuccPath),
+                       ordsets:from_list(FailPath)),
+
+    ConvergedLabels = beam_ssa:rpo(ConvergedPaths, Blocks0),
+    case maps:is_key(Src, beam_ssa:uses(ConvergedLabels, Blocks0)) of
+        true ->
+            case shortest(SuccPath, FailPath) of
+                left ->
+                    {Succ, Blocks, Counter} =
+                        aca_copy_successors(Succ0, Blocks0, State0#aca.counter),
+                    State = State0#aca{ counter = Counter },
+                    Last = beam_ssa:normalize(Last0#b_br{succ=Succ}),
+                    {State, Last, Blocks};
+                right ->
+                    {Fail, Blocks, Counter} =
+                        aca_copy_successors(Fail0, Blocks0, State0#aca.counter),
+                    State = State0#aca{ counter = Counter },
+                    Last = beam_ssa:normalize(Last0#b_br{fail=Fail}),
+                    {State, Last, Blocks}
+            end;
+        false ->
+            {State0, Last0, Blocks0}
+    end.
+
+shortest([_|As], [_|Bs]) -> shortest(As, Bs);
+shortest([], _) -> left;
+shortest(_, []) -> right.
+
+%% Copies all successor blocks of Lbl, returning the label to the entry block
+%% of this copy. Since the copied blocks aren't referenced anywhere else, they
+%% are all guaranteed to be dominated by Lbl.
+aca_copy_successors(Lbl0, Blocks0, Counter0) ->
+    %% Building the block rename map up front greatly simplifies phi node
+    %% handling.
+    Path = beam_ssa:rpo([Lbl0], Blocks0),
+    {BRs, Counter1} = aca_cs_build_brs(Path, Counter0, #{}),
+    {Blocks, Counter} = aca_cs_1(Path, Blocks0, Counter1, #{}, BRs, #{}),
+    Lbl = maps:get(Lbl0, BRs),
+    {Lbl, Blocks, Counter}.
+
+aca_cs_build_brs([?EXCEPTION_BLOCK=Lbl | Path], Counter, Acc) ->
+    %% ?EXCEPTION_BLOCK is a marker and not an actual block, so renaming it
+    %% will break exception handling.
+    aca_cs_build_brs(Path, Counter, Acc#{ Lbl => Lbl });
+aca_cs_build_brs([Lbl | Path], Counter0, Acc) ->
+    aca_cs_build_brs(Path, Counter0 + 1, Acc#{ Lbl => Counter0 });
+aca_cs_build_brs([], Counter, Acc) ->
+    {Acc, Counter}.
+
+aca_cs_1([Lbl0 | Path], Blocks, Counter0, VRs0, BRs, Acc0) ->
+    Block0 = maps:get(Lbl0, Blocks),
+    Lbl = maps:get(Lbl0, BRs),
+    {VRs, Block, Counter} = aca_cs_block(Block0, Counter0, VRs0, BRs),
+    Acc = maps:put(Lbl, Block, Acc0),
+    aca_cs_1(Path, Blocks, Counter, VRs, BRs, Acc);
+aca_cs_1([], Blocks, Counter, _VRs, _BRs, Acc) ->
+    {maps:merge(Blocks, Acc), Counter}.
+
+aca_cs_block(#b_blk{is=Is0,last=Last0}=Block0, Counter0, VRs0, BRs) ->
+    {VRs, Is, Counter} = aca_cs_is(Is0, Counter0, VRs0, BRs, []),
+    Last1 = aca_cs_last(Last0, VRs, BRs),
+    Last = beam_ssa:normalize(Last1),
+    Block = Block0#b_blk{is=Is,last=Last},
+    {VRs, Block, Counter}.
+
+aca_cs_is([#b_set{op=Op,
+                  dst=Dst0,
+                  args=Args0}=I0 | Is],
+          Counter0, VRs0, BRs, Acc) ->
+    Args = case Op of
+               phi -> aca_cs_args_phi(Args0, VRs0, BRs);
+               _ -> aca_cs_args(Args0, VRs0)
+           end,
+    Counter = Counter0 + 1,
+    Dst = #b_var{name=Counter0},
+    I = I0#b_set{dst=Dst,args=Args},
+    VRs = maps:put(Dst0, Dst, VRs0),
+    aca_cs_is(Is, Counter, VRs, BRs, [I | Acc]);
+aca_cs_is([], Counter, VRs, _BRs, Acc) ->
+    {VRs, reverse(Acc), Counter}.
+
+aca_cs_last(#b_switch{arg=Arg0,list=Switch0,fail=Fail0}=Sw, VRs, BRs) ->
+    Switch = [{Literal, maps:get(Lbl, BRs)} || {Literal, Lbl} <:- Switch0],
+    Sw#b_switch{arg=aca_cs_arg(Arg0, VRs),
+                fail=maps:get(Fail0, BRs),
+                list=Switch};
+aca_cs_last(#b_br{bool=Arg0,succ=Succ0,fail=Fail0}=Br, VRs, BRs) ->
+    Br#b_br{bool=aca_cs_arg(Arg0, VRs),
+            succ=maps:get(Succ0, BRs),
+            fail=maps:get(Fail0, BRs)};
+aca_cs_last(#b_ret{arg=Arg0}=Ret, VRs, _BRs) ->
+    Ret#b_ret{arg=aca_cs_arg(Arg0, VRs)}.
+
+aca_cs_args_phi([{Arg, Lbl} | Args], VRs, BRs) ->
+    case BRs of
+        #{ Lbl := New } ->
+            [{aca_cs_arg(Arg, VRs), New} | aca_cs_args_phi(Args, VRs, BRs)];
+        #{} ->
+            aca_cs_args_phi(Args, VRs, BRs)
+    end;
+aca_cs_args_phi([], _VRs, _BRs) ->
+    [].
+
+aca_cs_args([Arg | Args], VRs) ->
+    [aca_cs_arg(Arg, VRs) | aca_cs_args(Args, VRs)];
+aca_cs_args([], _VRs) ->
+    [].
+
+aca_cs_arg(#b_remote{mod=Mod0,name=Name0}=Rem, VRs) ->
+    Mod = aca_cs_arg(Mod0, VRs),
+    Name = aca_cs_arg(Name0, VRs),
+    Rem#b_remote{mod=Mod,name=Name};
+aca_cs_arg(Arg, VRs) ->
+    case VRs of
+        #{ Arg := New } -> New;
+        #{} -> Arg
+    end.
+
 
 %%%
 %%% +bin_opt_info
