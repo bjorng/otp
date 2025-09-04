@@ -216,7 +216,8 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 %%  It is here we go from the functional style of binary matching in
 %%  SSA to the imperative style of the BEAM instructions.
 
-fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
+fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
+    {Blocks, Count1} = bs_add_block(Blocks0, Count0),
     F = fun(#b_set{op=bs_start_match,dst=Dst}, A) ->
                 %% Mark the root of the match context list.
                 A#{Dst => {context,Dst}};
@@ -245,7 +246,7 @@ fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
 
             %% Insert position instructions where needed.
             {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain, RPO,
-                                          FunArgs, Count0),
+                                          FunArgs, Count1),
             %% Rename instructions.
             Linear = bs_instrs(Linear1, CtxChain, []),
 
@@ -377,7 +378,12 @@ bs_restores([{L,#b_blk{is=Is,last=Last}}|Bs], CtxChain, D0, Rs0) ->
     SPos = handle_implied_start_match(Is, InPos, CtxChain),
     FPos = InPos,
     {SuccPos, FailPos, Rs} = bs_restores_is(Is, CtxChain, SPos, FPos, Rs0),
-
+    io:format("L ~p~n", [L]),
+    io:format("SPos ~p~n", [SPos]),
+    io:format("FPos ~p~n", [FPos]),
+    io:format("SuccPos ~p~n", [SuccPos]),
+    io:format("FailPos ~p~n", [FailPos]),
+    io:format("Last ~p~n~n", [Last]),
     D = bs_update_successors(Last, SuccPos, FailPos, D0),
     bs_restores(Bs, CtxChain, D, Rs);
 bs_restores([], _, _, Rs) -> Rs.
@@ -391,6 +397,86 @@ bs_update_successors(#b_switch{fail=Fail,list=List}, SPos, FPos, D) ->
 bs_update_successors(#b_ret{}, SPos, FPos, D) ->
     SPos = FPos,                                %Assertion.
     D.
+
+bs_add_block(BlockMap, Count0) ->
+    SSA = beam_ssa:linearize(BlockMap),
+    {Map, FragileBlks, ReachFrom} = bs_find_start_match(SSA, BlockMap, #{}, #{}, #{}),
+    NeedDup = lists:uniq(maps:values(ReachFrom)),
+    % io:format("Map ~p~n", [Map]),
+    % io:format("FragileBlks ~p~n", [FragileBlks]),
+    % io:format("ReachFrom ~p~n", [ReachFrom]),
+    {NewBlocks, Count1, _RedirectMap} = duplicate_block(BlockMap, Map, FragileBlks, NeedDup, Count0, ReachFrom),
+    % io:format("NewBlocks ~p~n", [NewBlocks]),
+    % io:format("Count1 ~p~n", [Count1]),
+    {NewBlocks, Count1}.
+
+bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}|_]}}|Bs], BlockMap, Map0, FragileBlks0, ReachFrom) ->
+    [L|Successors] = beam_ssa:rpo([L], BlockMap),
+    Destructive = bs_find_destructive(Successors, BlockMap, []),
+    Uses = beam_ssa:uses(Successors, BlockMap),
+    Fragiles = map_get(Arg, Uses),
+    FragileLbls = [Label || {Label,_} <:- Fragiles],
+
+    CanReachFragile = bs_find_destructive_2(Destructive, BlockMap, FragileLbls, #{}),
+
+    Map1 = Map0#{Arg => Dst},
+    FragileBlks = maps:merge(FragileBlks0, maps:from_keys(FragileLbls, Arg)),
+
+    bs_find_start_match(Bs, BlockMap, Map1, FragileBlks, maps:merge(ReachFrom, CanReachFragile));
+bs_find_start_match([_B|Bs], BlockMap, Map, FragileMap, ReachFrom) ->
+    bs_find_start_match(Bs, BlockMap, Map, FragileMap, ReachFrom);
+bs_find_start_match([], _BlockMap, Map, FragileMap, ReachFrom) ->
+    {Map, FragileMap, ReachFrom}.
+
+bs_find_destructive([L|SuccessorLabels], BlockMap, Acc) ->
+    Blk = map_get(L, BlockMap),
+    case Blk of
+        #b_blk{is=[#b_set{op=bs_match}|_]} ->
+            [L|Successors] = beam_ssa:rpo([L], BlockMap),
+            bs_find_destructive(SuccessorLabels, BlockMap, [L|Acc]++Successors);
+        _ ->
+            bs_find_destructive(SuccessorLabels, BlockMap, Acc)
+    end;
+bs_find_destructive([], _BlockMap, Acc) ->
+    sets:to_list(sets:from_list(Acc)).
+
+bs_find_destructive_2([L|Destructive], BlockMap, FragileLabels, Redirect) ->
+    Blk = map_get(L, BlockMap),
+    case Blk of
+        #b_blk{last=#b_br{fail=Fail}} ->
+            case lists:member(Fail, FragileLabels) of
+                true -> bs_find_destructive_2(Destructive, BlockMap, FragileLabels, Redirect#{L => Fail});
+                _ -> bs_find_destructive_2(Destructive, BlockMap, FragileLabels, Redirect)
+            end;
+        _ -> bs_find_destructive_2(Destructive, BlockMap, FragileLabels, Redirect)
+    end;
+bs_find_destructive_2([], _, _, Redirect) -> Redirect.
+
+duplicate_block(BlockMap0, Map, FragileBlks, [L|NeedDup], Count0, RedirectMap) ->
+    OldBlock = map_get(L, BlockMap0),
+    NewLabel = Count0,
+    Count = Count0 + 1,
+    % FragileVar = map_get(L, FragileBlks),
+    % ReplacedBy = map_get(FragileVar, Map),
+    % io:format("FragileVar ~p~n", [FragileVar]),
+    % io:format("ReplacedBy ~p~n", [ReplacedBy]),
+    NewBlock = beam_ssa:rename_vars(Map, [NewLabel], #{NewLabel => OldBlock}),
+    BlockMap1 = maps:merge(BlockMap0, NewBlock),
+    BlocksToPatch = [K || K := VarName <- RedirectMap, VarName =:= L],
+    % io:format("BlocksToPatch: ~p~n", [BlocksToPatch]),
+    BlockMap = patch_blocks(BlocksToPatch, NewLabel, BlockMap1),
+    duplicate_block(BlockMap, Map, FragileBlks, NeedDup, Count, RedirectMap);
+duplicate_block(BlockMap, _Map, _FragileBlks, [], Count, RedirectMap) ->
+    {BlockMap, Count, RedirectMap}.
+
+
+patch_blocks([Lbl|BlocksToPatch], L, BlockMap) ->
+    B0 = map_get(Lbl, BlockMap),
+    #b_blk{last=Last} = B0,
+    B1 = B0#b_blk{last=Last#b_br{fail=L}},
+    patch_blocks(BlocksToPatch, L, BlockMap#{Lbl => B1});
+patch_blocks([], _L, BlockMap) ->
+    BlockMap.
 
 handle_implied_start_match([], InPos, _CtxChain) ->
     InPos;
