@@ -335,7 +335,8 @@ passes_1(Ps, Opts0) ->
                 ],
     Expansions = [{no_bs_match,[no_ssa_opt_bs_ensure,no_bs_match]},
                   {no_type_opt,NoBsmOpts},
-                  {no_module_opt,NoBsmOpts}],
+                  {no_module_opt,NoBsmOpts},
+                  {no_bsm_opt,NoBsmOpts}],
     Opts = proplists:normalize(Opts0, [{expand,Expansions},
                                        {negations,Negations}]),
     [case proplists:get_value(Name, Opts, true) of
