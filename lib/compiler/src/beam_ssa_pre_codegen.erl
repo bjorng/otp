@@ -393,7 +393,7 @@ bs_restores([{L,#b_blk{is=Is,last=Last}}|Bs], CtxChain, D0, Rs0) ->
     bs_restores(Bs, CtxChain, D, Rs);
 bs_restores([], _, _, Rs) -> Rs.
 
-bs_restores_last(_L, #b_ret{arg=Arg}, CtxChain, SuccPos0, FailPos0, Rs0) ->
+bs_restores_last(L, #b_ret{arg=Arg}, CtxChain, SuccPos0, FailPos0, Rs0) ->
     case is_map_key(Arg, CtxChain) of
         true ->
             Arg = bs_subst_ctx(Arg, CtxChain),  %Assertion.
@@ -401,7 +401,7 @@ bs_restores_last(_L, #b_ret{arg=Arg}, CtxChain, SuccPos0, FailPos0, Rs0) ->
                 #{Arg := Arg} ->
                     {SuccPos0, FailPos0, Rs0};
                 #{} ->
-                    Rs = Rs0#{Arg => {Arg,Arg}},
+                    Rs = Rs0#{{ret,L} => {Arg,Arg}},
                     {SuccPos0, FailPos0, Rs}
             end;
         false ->
@@ -813,9 +813,9 @@ bs_insert_1([{L,#b_blk{is=Is0,last=Last}=Blk} | Bs],
     Is1 = bs_insert_deferred(Is0, Deferred0),
     {Is2, Deferred} = bs_insert_is(Is1, Saves, Restores, []),
     Is3 = case Last of
-              #b_ret{arg=Ret} ->
+              #b_ret{} ->
                   case Restores of
-                      #{Ret := Restore} ->
+                      #{{ret,L} := Restore} ->
                           Is2 ++ [Restore];
                       #{} ->
                           Is2
