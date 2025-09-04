@@ -217,20 +217,15 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 %%  SSA to the imperative style of the BEAM instructions.
 
 fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
-    F = fun(#b_set{op=bs_start_match,dst=Dst}, A) ->
+    F = fun(#b_set{op=bs_start_match,dst=Dst,args=[_,ParentCtx]}, A) ->
                 %% Mark the root of the match context list.
-                A#{Dst => {context,Dst}};
+                A#{Dst => {origin,ParentCtx}};
            (#b_set{op=bs_ensure,dst=Dst,args=[ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
                 fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
            (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
                 fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
-           (#b_set{op=bs_get_tail,args=[ParentCtx|_]}, A) ->
-                %% We must not create a link here, because bs_get_tail
-                %% doesn't return a match context, but we must ensure
-                %% that ParentCtx is registered as a match context.
-                fix_bs_ensure_root(ParentCtx, A);
            (_, A) ->
                 A
         end,
@@ -248,7 +243,6 @@ fix_bs(#st{ssa=Blocks,cnt=Count0,args=FunArgs}=St) ->
                                           FunArgs, Count0),
             %% Rename instructions.
             Linear = bs_instrs(Linear1, CtxChain, []),
-
             St#st{ssa=maps:from_list(Linear),cnt=Count}
     end.
 
@@ -266,14 +260,16 @@ fix_bs_ensure_root(Ctx, CtxChain) ->
 %% Insert bs_get_position and bs_set_position instructions as needed.
 bs_pos_bsm3(Linear0, CtxChain, RPO, FunArgs, Count0) ->
     Rs0 = bs_restores(Linear0, CtxChain),
-    Rs = maps:values(Rs0),
-    S0 = sofs:relation(Rs, [{context,save_point}]),
-    S1 = sofs:relation_to_family(S0),
-    S = sofs:to_external(S1),
+    Rs1 = maps:values(Rs0),
+    S0 = sofs:from_external(Rs1, [[{context,save_point}]]),
+    S1 = sofs:union(S0),
+    S2 = sofs:relation_to_family(S1),
+    S = sofs:to_external(S2),
 
     {SavePoints,Count1} = make_bs_pos_dict(S, Count0, []),
 
-    {Gets,Count2} = make_bs_getpos_map(Rs, SavePoints, Count1, []),
+    {Gets,Count2} = make_bs_getpos_map(append(Rs1), SavePoints, Count1, []),
+
     {Sets,Count} =
         make_bs_setpos_map(maps:to_list(Rs0), SavePoints, Count2, []),
 
@@ -317,13 +313,26 @@ make_bs_getpos_map([{Ctx,Save}=Ps|T], SavePoints, Count, Acc) ->
 make_bs_getpos_map([], _, Count, Acc) ->
     {maps:from_list(Acc),Count}.
 
-make_bs_setpos_map([{Bef,{Ctx,_}=Ps}|T], SavePoints, Count, Acc) ->
+make_bs_setpos_map([{Bef,Restores0}|T], SavePoints, Count0, Acc) ->
+    Sub0 = #{},
+    {Restores,Count,Sub} =
+        make_bs_setpos_map_list(reverse(Restores0), SavePoints, Count0, Sub0, []),
+    make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,{Restores,Sub}}|Acc]);
+make_bs_setpos_map([], _, Count, Acc) ->
+    {maps:from_list(Acc),Count}.
+
+make_bs_setpos_map_list([{Ctx,_}=Ps], SavePoints, Count, Sub, Acc) ->
     Ignored = #b_var{name=Count},
     Args = [Ctx, get_savepoint(Ps, SavePoints)],
     I = #b_set{op=bs_set_position,dst=Ignored,args=Args},
-    make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,I}|Acc]);
-make_bs_setpos_map([], _, Count, Acc) ->
-    {maps:from_list(Acc),Count}.
+    {reverse(Acc, [I]),Count,Sub};
+make_bs_setpos_map_list([{Ctx,Pos}=Ps|T], SavePoints, Count0, Sub0, Acc) ->
+    {[Ignored,Tail],Count} = new_vars(2, Count0),
+    SetArgs = [Ctx, get_savepoint(Ps, SavePoints)],
+    Set = #b_set{op=bs_set_position,dst=Ignored,args=SetArgs},
+    GetTail = #b_set{op=bs_get_tail,dst=Tail,args=[Ctx]},
+    Sub = Sub0#{Pos => Tail},
+    make_bs_setpos_map_list(T, SavePoints, Count, Sub, [GetTail,Set|Acc]).
 
 get_savepoint({_,_}=Ps, SavePoints) ->
     Name = map_get(Ps, SavePoints),
@@ -376,12 +385,38 @@ bs_restores([{L,#b_blk{is=Is,last=Last}}|Bs], CtxChain, D0, Rs0) ->
     InPos = maps:get(L, D0, #{}),
     SPos = handle_implied_start_match(Is, InPos, CtxChain),
     FPos = InPos,
-    {SuccPos, FailPos, Rs} = bs_restores_is(Is, CtxChain, SPos, FPos, Rs0),
+    {SuccPos0, FailPos0, Rs1} = bs_restores_is(Is, CtxChain, SPos, FPos, Rs0),
+    {SuccPos, FailPos, Rs} = bs_restores_last(L, Last, CtxChain,
+                                              SuccPos0, FailPos0, Rs1),
+
+    %% io:format("L ~p~n", [L]),
+    %% io:format("SPos ~p~n", [SPos]),
+    %% io:format("FPos ~p~n", [FPos]),
+    %% io:format("SuccPos ~p~n", [SuccPos]),
+    %% io:format("FailPos ~p~n", [FailPos]),
+    %% io:format("Last ~p~n~n", [Last]),
 
     D = bs_update_successors(Last, SuccPos, FailPos, D0),
     bs_restores(Bs, CtxChain, D, Rs);
 bs_restores([], _, _, Rs) -> Rs.
 
+bs_restores_last(L, #b_ret{arg=Arg}, CtxChain, SuccPos0, FailPos0, Rs0) ->
+    case is_map_key(Arg, CtxChain) of
+        true ->
+            Ctx = bs_subst_ctx(Arg, CtxChain),
+            case SuccPos0 of
+                #{Ctx := Arg} ->
+                    {SuccPos0, FailPos0, Rs0};
+                #{} ->
+                    Rs = Rs0#{{ret,L} => [{Ctx,Arg}]},
+                    {SuccPos0, FailPos0, Rs}
+            end;
+        false ->
+            {SuccPos0, FailPos0, Rs0}
+    end;
+bs_restores_last(_, _, _,  SuccPos0, FailPos0, Rs0) ->
+    {SuccPos0, FailPos0, Rs0}.
+    
 bs_update_successors(#b_br{succ=Succ,fail=Fail}, SPos, FPos, D) ->
     join_positions([{Succ,SPos},{Fail,FPos}], D);
 bs_update_successors(#b_switch{fail=Fail,list=List}, SPos, FPos, D) ->
@@ -401,10 +436,15 @@ handle_implied_start_match([I|Is], InPos, CtxChain) ->
             InPos;
         {_, #{RefCtx := {context,Ctx}}} ->
             InPos#{Ctx => Ctx};
+        {_, #{RefCtx := {_,_Ctx}}} ->
+            InPos;
         {_, #{RefCtx := _}} ->
             InPos;
         {_, _} when RefCtx =:= none ->
             handle_implied_start_match(Is, InPos, CtxChain);
+        %% Added because of trim_bs_start_match_resume/1 in bs_match_SUITE
+        {#{}, _} ->
+            InPos;
         Other ->
             %% TODO: This clause is only here to help debugging
             %% crashes.
@@ -483,8 +523,8 @@ join_positions_2([], _Bigger, Smaller) ->
 %%  the position we've *restored to* and not the one we entered the
 %%  current block with.
 %%
-bs_restores_is([#b_set{op=bs_start_match,dst=Start}|Is],
-               CtxChain, SPos0, _FPos, Rs) ->
+bs_restores_is([#b_set{op=bs_start_match,dst=Start,args=[_,BinOrCtx]}|Is],
+               CtxChain, SPos0, _FPos, Rs0) ->
     %% Match instructions leave the position unchanged on failure, so
     %% FPos must be the SPos we entered the *instruction* with, and not the
     %% *block*.
@@ -494,7 +534,13 @@ bs_restores_is([#b_set{op=bs_start_match,dst=Start}|Is],
     %% restore to the position of the next-to-last match, not the position we
     %% entered the current block with.
     FPos = SPos0,
-    SPos = SPos0#{Start=>Start},
+    SPos = SPos0#{Start => Start},
+    Rs = case CtxChain of
+             #{BinOrCtx := _} ->
+                 Rs0#{Start => [{BinOrCtx,BinOrCtx}]};
+             #{} ->
+                 Rs0
+         end,
     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
 bs_restores_is([#b_set{op=bs_ensure,dst=NewPos,args=Args}|Is],
                CtxChain, SPos0, _FPos, Rs0) ->
@@ -510,9 +556,9 @@ bs_restores_is([#b_set{op=bs_ensure,dst=NewPos,args=Args}|Is],
             FPos = SPos0,
             bs_restores_is(Is, CtxChain, SPos, FPos, Rs0);
         #{} ->
-            SPos = SPos0#{Start := NewPos},
-            FPos = SPos0#{Start := FromPos},
-            Rs = Rs0#{NewPos=>{Start,FromPos}},
+            SPos = SPos0#{Start => NewPos},
+            FPos = SPos0#{Start => FromPos},
+            Rs = Rs0#{NewPos => [{Start,FromPos}]},
             bs_restores_is(Is, CtxChain, SPos, FPos, Rs)
     end;
 bs_restores_is([#b_set{anno=#{ensured := _},
@@ -571,13 +617,13 @@ bs_restores_is([#b_set{op=bs_match,dst=NewPos,args=Args}=I|Is],
                     %% restored to (NOT NewPos).
                     SPos = SPos0#{Start:=FromPos},
                     FPos = SPos,
-                    Rs = Rs0#{NewPos=>{Start,FromPos}},
+                    Rs = Rs0#{NewPos => [{Start,FromPos}]},
                     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
                 plain ->
                     %% Match or skip. Position will be changed.
                     SPos = SPos0#{Start:=NewPos},
                     FPos = SPos0#{Start:=FromPos},
-                    Rs = Rs0#{NewPos=>{Start,FromPos}},
+                    Rs = Rs0#{NewPos => [{Start,FromPos}]},
                     bs_restores_is(Is, CtxChain, SPos, FPos, Rs)
             end
     end;
@@ -640,8 +686,8 @@ bs_restores_is([#b_set{op=get_tuple_element,
         #{} ->
             bs_restores_is(Is, CtxChain, SPos0, SPos0, Rs)
     end;
-bs_restores_is([_ | Is], CtxChain, SPos, _FPos, Rs) ->
-    FPos = SPos,
+bs_restores_is([#b_set{dst=Dst,args=Args0}|Is], CtxChain, SPos0, FPos, Rs0) ->
+    {SPos, Rs} = bs_restore_args(Args0, SPos0, CtxChain, Dst, Rs0),
     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
 bs_restores_is([], _CtxChain, SPos, _FPos, Rs) ->
     FPos = SPos,
@@ -683,7 +729,8 @@ bs_restore_args([#b_var{}=Arg|Args], Pos0, CtxChain, Dst, Rs0) ->
         #{Start:=_} ->
             %% Different positions, need a restore instruction.
             Pos = Pos0#{Start:=Arg},
-            Rs = Rs0#{Dst=>{Start,Arg}},
+            Restores = [{Start,Arg}|maps:get(Dst, Rs0, [])],
+            Rs = Rs0#{Dst => Restores},
             bs_restore_args(Args, Pos, CtxChain, Dst, Rs);
         #{} ->
             %% Not a match context.
@@ -699,17 +746,27 @@ bs_restore_args([], Pos, _CtxChain, _Dst, Rs) ->
 bs_insert_bsm3(Blocks, Saves, Restores, ArgInserts) ->
     bs_insert_1(Blocks, [], Saves, Restores, ArgInserts).
 
-bs_insert_1([{L,#b_blk{is=Is0}=Blk} | Bs],
+bs_insert_1([{L,#b_blk{is=Is0,last=Last}=Blk} | Bs],
             Deferred0, Saves, Restores, ArgInserts) ->
     Is1 = bs_insert_deferred(Is0, Deferred0),
     {Is2, Deferred} = bs_insert_is(Is1, Saves, Restores, []),
-
+    Is3 = case Last of
+              #b_ret{} ->
+                  case Restores of
+                      #{{ret,L} := {[_|_]=Rs,_Sub}} ->
+                          Is2 ++ Rs;
+                      #{} ->
+                          Is2
+                  end;
+              _ ->
+                  Is2
+          end,
     Is = case ArgInserts of
              #{L:=ToInsert} ->
                  %% There are restores to be inserted in this block.
                  ToInsert;
              _ -> []
-         end ++ Is2,
+         end ++ Is3,
     [{L,Blk#b_blk{is=Is}}|bs_insert_1(Bs, Deferred, Saves,
                                       Restores, ArgInserts)];
 bs_insert_1([], [], _, _, _) ->
@@ -720,16 +777,25 @@ bs_insert_deferred([#b_set{op=bs_extract}=I | Is], Deferred) ->
 bs_insert_deferred(Is, Deferred) ->
     Deferred ++ Is.
 
-bs_insert_is([#b_set{dst=Dst}=I|Is], Saves, Restores, Acc0) ->
-    Pre = case Restores of
-              #{Dst:=R} -> [R];
-              #{} -> []
-          end,
+bs_insert_is([#b_set{dst=Dst}=I0|Is], Saves, Restores, Acc0) ->
+    {Pre0,I} = case Restores of
+                   #{Dst := {[_|_]=Rs,Sub}} ->
+                       Args0 = I0#b_set.args,
+                       Args = [case Sub of
+                                   #{A := Replacement} -> Replacement;
+                                   #{} -> A
+                               end || A <- Args0],
+                       I1 = I0#b_set{args=Args},
+                       {Rs,I1};
+                   #{} ->
+                       {[],I0}
+           end,
+    Pre = bs_eliminate_start_match(Pre0, I),
     Post = case Saves of
                #{Dst:=S} -> [S];
                #{} -> []
            end,
-    Acc = [I | Pre] ++ Acc0,
+    Acc = Pre ++ Acc0,
     case Is of
         [#b_set{op={succeeded,_},args=[Dst]}] ->
             %% Defer the save sequence to the success block.
@@ -739,6 +805,14 @@ bs_insert_is([#b_set{dst=Dst}=I|Is], Saves, Restores, Acc0) ->
     end;
 bs_insert_is([], _, _, Acc) ->
     {reverse(Acc), []}.
+
+bs_eliminate_start_match([], I) ->
+    [I];
+bs_eliminate_start_match([#b_set{}=SetPosition], #b_set{op=bs_start_match,dst=Dst,args=[_,Ctx]}) ->
+    Copy = #b_set{op=copy,dst=Dst,args=[Ctx]},
+    [Copy,SetPosition];
+bs_eliminate_start_match(Is, I1) ->
+    [I1|reverse(Is)].
 
 %% Translate bs_match instructions to one of:
 %%
@@ -849,8 +923,10 @@ bs_combine(Dst, Ctx, [{L,#b_blk{is=Is0}=Blk}|Acc]) ->
 
 bs_subst_ctx(#b_var{}=Var, CtxChain) ->
     case CtxChain of
-        #{Var:={context,Ctx}} ->
-            Ctx;
+        #{Var:={origin,_}} ->
+            Var;
+        #{Var:={context,ParentCtx}} ->
+            ParentCtx;
         #{Var:=ParentCtx} ->
             bs_subst_ctx(ParentCtx, CtxChain);
         #{} ->
@@ -2996,6 +3072,7 @@ reserve_regs(#st{args=Args,ssa=Blocks,intervals=Intervals,res=Res0}=St) ->
 
     %% Reserve all remaining unreserved variables as X registers.
     Res = maps:from_list(Res3),
+
     St#st{res=reserve_xregs(RPO, Blocks, Res)}.
 
 reserve_arg_regs([#b_var{}=Arg|Is], N, Acc) ->
@@ -3131,7 +3208,6 @@ reserve_xregs([L|Ls], Blocks, XsMap0, Res0) ->
     %% Add register hints for variables that are defined
     %% in the (reversed) instruction sequence.
     {Res,Xs} = reserve_xregs_is(Is, Res0, Xs0, []),
-
     XsMap = XsMap0#{L=>Xs},
     reserve_xregs(Ls, Blocks, XsMap, Res);
 reserve_xregs([], _, _, Res) -> Res.

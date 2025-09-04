@@ -43,7 +43,8 @@
 -include("beam_ssa_opt.hrl").
 -include("beam_types.hrl").
 
--import(lists, [all/2,append/1,droplast/1,duplicate/2,flatten/1,foldl/3,
+-import(lists, [all/2,append/1,droplast/1,duplicate/2,
+                flatten/1,foldl/3,
                 keyfind/3,last/1,mapfoldl/3,member/2,
                 partition/2,reverse/1,reverse/2,
                 splitwith/2,sort/1,takewhile/2,unzip/1]).
@@ -330,7 +331,10 @@ late_epilogue_passes(Opts) ->
 passes_1(Ps, Opts0) ->
     Negations = [{list_to_atom("no_"++atom_to_list(N)),N} ||
                     {N,_} <:- Ps],
-    NoBsmOpts = [no_ssa_opt_alias,
+    NoBsmOpts = [no_bs_match,
+                 no_ssa_opt_bsm,
+                 no_ssa_opt_bs_ensure,
+                 no_ssa_opt_alias,
                  no_ssa_opt_bsm_tails_as_ctx,
                  no_ssa_opt_destructive_update
                 ],
@@ -2110,7 +2114,8 @@ ssa_opt_bsm({#opt_st{ssa=Linear0}=St, FuncDb}) ->
     Extracted0 = bsm_extracted(Linear0),
     Extracted = sets:from_list(Extracted0),
     Linear1 = bsm_skip(Linear0, Extracted),
-    Linear = bsm_coalesce_skips(Linear1, #{}),
+    Linear2 = bsm_coalesce_skips(Linear1, #{}),
+    Linear = bsm_context(Linear2),
     {St#opt_st{ssa=Linear}, FuncDb}.
 
 bsm_skip([{L,#b_blk{is=Is0}=Blk}|Bs0], Extracted) ->
@@ -2220,6 +2225,98 @@ coalesce_skips_is([#b_set{op=bs_match,
     end;
 coalesce_skips_is(_, _, _, _) ->
     not_possible.
+
+bsm_context(Linear0) ->
+    RPO = [L || {L,_} <- Linear0],
+    Blocks0 = maps:from_list(Linear0),
+    {Dom, _} = beam_ssa:dominators(RPO, Blocks0),
+    Sub = #{},
+    Blocks = context(RPO, Dom, Sub, Blocks0),
+    beam_ssa:linearize(Blocks).
+
+context([L|Ls], Dom, Sub0, Blocks0) ->
+    #b_blk{is=Is0,last=Last0} = Blk0 = map_get(L, Blocks0),
+    DominatedBy = map_get(L, Dom),
+    {Is,Sub} = context_is(Is0, Last0, Dom, L, Sub0),
+    Last = context_last(Last0, DominatedBy, Sub),
+    Blk = Blk0#b_blk{is=Is,last=Last},
+    Blocks = Blocks0#{L := Blk},
+    context(Ls, Dom, Sub, Blocks);
+context([], _Dom, _Sub, Blocks) ->
+    Blocks.
+
+context_is([#b_set{anno=Anno,op=bs_start_match,dst=Dst,args=[_,Matchable]},
+          #b_set{op={succeeded,guard},args=[Dst]}]=Is, Last, _Dom, _L, Sub0) ->
+    case context_is_bitstring(1, Matchable, Anno) of
+        true ->
+            {[],Sub0};
+        false ->
+            case Sub0 of
+                #{Matchable := {Dominator,Ctx}} ->
+                    Sub = Sub0#{Dst => {Dominator,Ctx}},
+                    {Is,Sub};
+                #{} ->
+                    #b_br{succ=Succ} = Last,
+                    Sub = Sub0#{Matchable => {Succ,Dst}},
+                    {Is,Sub}
+            end
+    end;
+context_is([#b_set{op=bs_start_match,dst=Dst,args=[_,Matchable],
+                 anno=Anno}=I|Is0],
+         Last, Dom, L, Sub0) ->
+    case context_is_bitstring(1, Matchable, Anno) of
+        true ->
+            {Is,Sub} = context_is(Is0, Last, Dom, L, Sub0),
+            {[I|Is],Sub};
+        false ->
+            case Sub0 of
+                #{Matchable := {Dominator,Ctx}} ->
+                    Sub1 = Sub0#{Dst => {Dominator,Ctx}},
+                    {Is,Sub} = context_is(Is0, Last, Dom, L, Sub1),
+                    {[I|Is],Sub};
+                #{} ->
+                    Sub1 = Sub0#{Matchable => {L,Dst}},
+                    {Is,Sub} = context_is(Is0, Last, Dom, L, Sub1),
+                    {[I|Is],Sub}
+            end
+    end;
+context_is([#b_set{args=Args0}=I0|Is0], Last, Dom, L, Sub0) ->
+    DominatedBy = map_get(L, Dom),
+    Args = [context_sub_arg(A, DominatedBy, Sub0) || A <- Args0],
+    I = I0#b_set{args=Args},
+    {Is,Sub} = context_is(Is0, Last, Dom, L, Sub0),
+    {[I|Is],Sub};
+context_is([], _Last, _Dom, _L, Sub) ->
+    {[],Sub}.
+
+context_last(#b_ret{arg=Arg0}, DominatedBy, Sub) ->
+    Arg = context_sub_arg(Arg0, DominatedBy, Sub),
+    #b_ret{arg=Arg};
+context_last(Last, _, _) ->
+    Last.
+
+context_sub_arg(A, DominatedBy, Sub) ->
+    case Sub of
+        #{A := {Dominator,V}} ->
+            case member(Dominator, DominatedBy) of
+                true -> V;
+                false -> A
+            end;
+        #{} -> A
+    end.
+
+context_is_bitstring(_Pos, Arg, Anno) ->
+    case Anno of
+        #{created_for := _} ->
+            true;
+        #{} ->
+            case Arg of
+                #b_literal{val=Bs} when is_bitstring(Bs) ->
+                    true;
+                _ ->
+                    false
+            end
+    end.
 
 %%%
 %%% Short-cutting binary matching instructions.
