@@ -422,6 +422,10 @@ extract_src_vars({'catch',_Anno,E}, Lc, Acc0) ->
 extract_src_vars({zip,_,Qs0}, _Lc, Acc0) ->
     Qs = extract_sv_qs(Qs0),
     extract_args(Qs, Acc0);
+extract_src_vars({struct,_,_,Es}, Lc, Acc0) ->
+    extract_body(Es, Lc, Acc0);
+extract_src_vars({record_field,_,_,E}, Lc, Acc0) ->
+    extract_src_vars(E, Lc, Acc0);
 extract_src_vars({C,_,Build,Qs0}, Lc, Acc0)
   when C =:= lc; C =:= bc; C =:= mc ->
     case any_debug_line_instrs(Build) of
@@ -437,10 +441,15 @@ extract_src_vars({C,_,Build,Qs0}, Lc, Acc0)
             Acc1 = extract_src_vars(Build, Lc, Acc0),
             extract_args(Qs0, Acc1)
     end;
-extract_src_vars({G,_,P,E}, _Lc, Acc0) ->
-    true = is_generator(G),                     %Assertion.
-    Acc1 = extract_src_vars(P, false, Acc0),
-    extract_src_vars(E, false, Acc1).
+extract_src_vars({G,_,P,E}=X, _Lc, Acc0) ->
+    case is_generator(G) of
+        true ->
+            Acc1 = extract_src_vars(P, false, Acc0),
+            extract_src_vars(E, false, Acc1);
+        false ->
+            io:format("~p\n", [X]),
+            error(X)
+    end.
 
 is_generator(generate) -> true;
 is_generator(b_generate) -> true;

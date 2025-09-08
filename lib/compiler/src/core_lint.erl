@@ -509,8 +509,8 @@ pattern(#c_map_pair{op=#c_literal{val=exact},key=K,val=V}, Def, Ps, St) ->
     pattern_list([V],Def,Ps,St);
 pattern(#c_struct{es=Es}, Def, Ps, St) ->
     pattern_list(Es, Def, Ps, St);
-pattern(#c_struct_pair{key=_K,val=V}, Def, Ps, St) ->
-    pattern_list([V],Def,Ps,St);
+pattern(#c_struct_pair{key=K,val=V}, Def, Ps, St) ->
+    pattern_list([K,V], Def, Ps, St);
 pattern(#c_binary{segments=Ss}, Def, Ps, St0) ->
     St = pat_bin_tail_check(Ss, St0),
     pat_bin(Ss, Def, Ps, St);

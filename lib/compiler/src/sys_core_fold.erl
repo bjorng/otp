@@ -1804,7 +1804,12 @@ case_opt_compiler_generated(Core) ->
 		case cerl:type(C) of
 		    alias -> C;
 		    var -> C;
-		    _ -> cerl:set_ann(C, [compiler_generated])
+                    struct ->
+                        Id = cerl:set_ann(cerl:struct_id(C), []),
+                        Es = cerl:struct_es(C),
+                        cerl:update_c_struct(C, Id, Es);
+		    _ ->
+                        cerl:set_ann(C, [compiler_generated])
 		end
 	end,
     cerl_trees:map(F, Core).
