@@ -78,8 +78,11 @@ Syntax trees are defined in the module `m:cerl`.
 	       ann_c_map_pair/4,
 	       update_c_map_pair/4,
 
-	       struct_es/1, struct_pair_val/1,
-	       update_c_struct/2, update_c_struct_pair/2
+	       ann_c_struct/3, struct_id/1, struct_es/1,
+               update_c_struct/3,
+               ann_c_struct_pair/3,
+               struct_pair_key/1, struct_pair_val/1,
+	       update_c_struct_pair/3
 	   ]).
 
 -type cerl() :: cerl:cerl().
@@ -158,9 +161,11 @@ map_1(F, T) ->
                                  map(F, map_pair_key(T)),
                                  map(F, map_pair_val(T)));
 	struct ->
-			update_c_struct(T, map_list(F, struct_es(T)));
+            update_c_struct(T, map(F, struct_id(T)),
+                            map_list(F, struct_es(T)));
 	struct_pair ->
-		  update_c_struct_pair(T, map(F, struct_pair_val(T)));
+            update_c_struct_pair(T, map(F, struct_pair_key(T)),
+                                 map(F, struct_pair_val(T)));
  	'let' ->
 	    update_c_let(T, map_list(F, let_vars(T)),
 			 map(F, let_arg(T)),
@@ -429,11 +434,13 @@ mapfold(Pre, Post, S00, T0) ->
 		    {Val, S3} = mapfold(Pre, Post, S2, map_pair_val(T)),
 		    Post(update_c_map_pair(T,Op,Key,Val), S3);
 		struct ->
-			  {Ts, S1} = mapfold_list(Pre, Post, S0, struct_es(T)),
-				Post(update_c_struct(T, Ts), S1);
+                    {Id, S1} = mapfold(Pre, Post, S0, struct_id(T)),
+                    {Ts, S2} = mapfold_list(Pre, Post, S1, struct_es(T)),
+                    Post(update_c_struct(T, Id, Ts), S2);
 		struct_pair ->
-			  {Val, S1} = mapfold(Pre, Post, S0, struct_pair_val(T)),
-			  Post(update_c_struct_pair(T,Val), S1);
+                    {Key, S1} = mapfold(Pre, Post, S0, struct_pair_key(T)),
+                    {Val, S2} = mapfold(Pre, Post, S1, struct_pair_val(T)),
+                    Post(update_c_struct_pair(T, Key, Val), S2);
 		'let' ->
 		    {Vs, S1} = mapfold_list(Pre, Post, S0, let_vars(T)),
 		    {A, S2} = mapfold(Pre, Post, S1, let_arg(T)),
@@ -906,6 +913,16 @@ label(T, N, Env) ->
 	    {Val, N3} = label(map_pair_val(T), N2, Env),
 	    {As,  N4} = label_ann(T, N3),
 	    {ann_c_map_pair(As,Op,Key,Val), N4};
+        struct ->
+            {Id, N1} = label(struct_id(T), N, Env),
+            {Ts, N2} = label_list(struct_es(T), N1, Env),
+            {As, N3} = label_ann(T, N2),
+            {ann_c_struct(As, Id, Ts), N3};
+	struct_pair ->
+	    {Key, N1} = label(struct_pair_key(T), N, Env),
+	    {Val, N2} = label(struct_pair_val(T), N1, Env),
+	    {As,  N3} = label_ann(T, N2),
+	    {ann_c_struct_pair(As, Key, Val), N3};
  	'let' ->
 	    {A, N1} = label(let_arg(T), N, Env),
 	    {Vs, N2, Env1} = label_vars(let_vars(T), N1, Env),

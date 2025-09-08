@@ -792,12 +792,12 @@ pattern(#c_tuple{es=Ces}, Sub0, St0) ->
 pattern(#c_map{es=Ces}, Sub0, St0) ->
     {Kes,Sub1,St1} = pattern_map_pairs(Ces, Sub0, St0),
     {#cg_map{op=exact,es=Kes},Sub1,St1};
-pattern(#c_struct{id = {M, N}, es=Ces}, Sub0, St0) ->
+pattern(#c_struct{id=#c_literal{val={M,N}}, es=Ces}, Sub0, St0) ->
     {Kes,Sub1,St1} = pattern_struct_pairs(Ces, Sub0, St0),
-    {#cg_struct{id = {M, N}, es=Kes},Sub1,St1};
-pattern(#c_struct{id = {}, es=Ces}, Sub0, St0) ->
+    {#cg_struct{id={M,N},es=Kes},Sub1,St1};
+pattern(#c_struct{id=#c_literal{val={}}, es=Ces}, Sub0, St0) ->
     {Kes,Sub1,St1} = pattern_struct_pairs(Ces, Sub0, St0),
-    {#cg_struct{id = {}, es=Kes},Sub1,St1};
+    {#cg_struct{id={},es=Kes},Sub1,St1};
 pattern(#c_binary{segments=Cv}, Sub0, St0) ->
     {Kv,Sub1,St1} = pattern_bin(Cv, Sub0, St0),
     {#cg_binary{segs=Kv},Sub1,St1};
@@ -830,8 +830,9 @@ pattern_map_pairs(Ces0, Sub0, St0) ->
 pattern_struct_pairs(Ces0, Sub0, St0) ->
     {Kes,{Sub1,St1}} =
         mapfoldl(fun(#c_struct_pair{key=K,val=Cv},{Subi0,Sti0}) ->
-            {Kv,Subi1,Sti1} = pattern(Cv, Subi0, Sti0),
-            {#cg_struct_pair{key=K,val=Kv},{Subi1,Sti1}}
+                         {Kk,Subi1,Sti1} = pattern(K, Subi0, Sti0),
+                         {Kv,Subi2,Sti2} = pattern(Cv, Subi1, Sti1),
+                         {#cg_struct_pair{key=Kk,val=Kv},{Subi2,Sti2}}
                  end, {Sub0, St0}, Ces0),
     {Kes,Sub1,St1}.
 
@@ -2952,7 +2953,7 @@ select_struct_val(StrSrc, {}, Es, B, Fail, St0) ->
 
 select_extract_struct([P|Ps], StrSrc, Fail, St0) ->
     #cg_struct_pair{key=Key,val=Dst} = P,
-    Set = #b_set{op=get_struct_element,dst=Dst,args=[StrSrc,#b_literal{val = Key}]},
+    Set = #b_set{op=get_struct_element,dst=Dst,args=[StrSrc,Key]},
     {TestIs,St1} = make_succeeded(Dst, {guard,Fail}, St0),
     {Is,St} = select_extract_struct(Ps, StrSrc, Fail, St1),
     {[Set|TestIs]++Is,St};

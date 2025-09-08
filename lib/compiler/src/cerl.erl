@@ -101,7 +101,7 @@ function `type/1`.
          is_c_fun/1, is_c_int/1, is_c_let/1, is_c_letrec/1, is_c_list/1,
          is_c_map/1, is_c_map_empty/1, is_c_map_pattern/1,
          is_c_module/1, is_c_nil/1, is_c_primop/1, is_c_receive/1,
-         is_c_seq/1, is_c_string/1, is_c_try/1, is_c_tuple/1,
+         is_c_seq/1, is_c_string/1, is_c_struct/1, is_c_try/1, is_c_tuple/1,
          is_c_values/1, is_c_var/1, is_data/1, is_leaf/1, is_literal/1,
          is_literal_term/1, is_print_char/1, is_print_string/1,
          let_arg/1, let_arity/1, let_body/1, let_vars/1, letrec_body/1,
@@ -116,7 +116,9 @@ function `type/1`.
          primop_name/1, receive_action/1, receive_clauses/1,
          receive_timeout/1, seq_arg/1, seq_body/1, set_ann/2,
          string_lit/1, string_val/1,
-         struct_es/1, struct_pair_val/1,
+         c_struct/2, ann_c_struct/3, struct_id/1, struct_es/1,
+         c_struct_pair/2, ann_c_struct_pair/3,
+         struct_pair_key/1, struct_pair_val/1,
          subtrees/1, to_records/1,
          try_arg/1, try_body/1, try_vars/1, try_evars/1, try_handler/1,
          tuple_arity/1, tuple_es/1, type/1, unfold_literal/1,
@@ -127,7 +129,7 @@ function `type/1`.
          update_c_letrec/3, update_c_map/3, update_c_map_pair/4,
          update_c_module/5, update_c_primop/3,
          update_c_receive/4, update_c_seq/3,
-         update_c_struct/2, update_c_struct_pair/2,
+         update_c_struct/3, update_c_struct_pair/3,
          update_c_try/6,
          update_c_tuple/2, update_c_tuple_skel/2, update_c_values/2,
          update_c_var/2, update_data/3, update_list/2, update_list/3,
@@ -230,6 +232,7 @@ Current node types are:
 - `primop`
 - `receive`
 - `seq`
+- `struct`
 - `try`
 - `tuple`
 - `values`
@@ -249,7 +252,7 @@ The only purpose of the `opaque` type is to facilitate testing of the compiler.
 _See also: _`abstract/1`, `c_alias/2`, `c_apply/2`, `c_binary/1`, `c_bitstr/5`,
 `c_call/3`, `c_case/2`, `c_catch/1`, `c_clause/3`, `c_cons/2`, `c_fun/2`,
 `c_let/3`, `c_letrec/2`, `c_module/3`, `c_primop/2`, `c_receive/1`, `c_seq/2`,
-`c_try/5`, `c_tuple/1`, `c_values/1`, `c_var/1`, `data_type/1`,
+`c_struct/2`, `c_try/5`, `c_tuple/1`, `c_values/1`, `c_var/1`, `data_type/1`,
 `from_records/1`, `get_ann/1`, `meta/1`, `subtrees/1`, `to_records/1`.
 """.
 -spec type(Node :: cerl()) -> ctype().
@@ -273,13 +276,13 @@ type(#c_module{}) -> module;
 type(#c_primop{}) -> primop;
 type(#c_receive{}) -> 'receive';
 type(#c_seq{}) -> seq;
+type(#c_struct{}) -> struct;
+type(#c_struct_pair{}) -> struct_pair;
 type(#c_try{}) -> 'try';
 type(#c_tuple{}) -> tuple;
 type(#c_values{}) -> values;
 type(#c_var{}) -> var;
-type(#c_opaque{}) -> opaque;
-type(#c_struct{}) -> struct;
-type(#c_struct_pair{}) -> struct_pair.
+type(#c_opaque{}) -> opaque.
 
 -doc """
 Returns `true` if `Node` is a leaf node, otherwise `false`.
@@ -1440,11 +1443,6 @@ map_es(#c_literal{anno=As,val=M}) when is_map(M) ->
 map_es(#c_map{es = Es}) ->
     Es.
 
--spec struct_es(Node :: c_struct | c_literal()) -> [c_struct_pair()].
-
-struct_es(#c_struct{es = Es}) ->
-  Es.
-
 -doc """
 Returns the argument subtree of an abstract map.
 
@@ -1558,10 +1556,6 @@ update_c_map(#c_map{is_pat = true}=Old, M, Es) ->
 update_c_map(#c_map{is_pat=false}=Old, M, Es) ->
     ann_c_map(get_ann(Old), M, Es).
 
--spec update_c_struct(Node :: c_struct(), Pairs :: [c_struct_pair()]) -> c_struct().
-update_c_struct(#c_struct{}=Old, Es) ->
-    Old#c_struct{es = Es}.
-
 %% ---------------------------------------------------------------------
 
 -doc """
@@ -1617,10 +1611,6 @@ ann_c_map_pair(As, Op, K, V) ->
 update_c_map_pair(Node, Op, K, V) ->
     #c_map_pair{op = Op, key = K, val = V, anno = get_ann(Node)}.
 
--spec update_c_struct_pair(Node :: c_struct_pair(), Value :: cerl()) -> c_struct_pair().
-update_c_struct_pair(Node, V) ->
-    Node#c_struct_pair{val = V}.
-
 -doc """
 Returns the key subtree of an abstract map pair.
 
@@ -1643,11 +1633,6 @@ _See also: _`c_map_pair/2`, `c_map_pair_exact/2`.
 
 map_pair_val(#c_map_pair{val=V}) -> V.
 
--spec struct_pair_val(Node :: c_struct_pair()) -> cerl().
-
-struct_pair_val(#c_struct_pair{val=V}) -> V.
-
-
 -doc """
 Returns the operation subtree of an abstract map pair.
 
@@ -1658,6 +1643,132 @@ _See also: _`c_map_pair/2`, `c_map_pair_exact/2`.
 
 map_pair_op(#c_map_pair{op=Op}) -> Op.
 
+%% ---------------------------------------------------------------------
+
+-type struct_id() :: c_literal().
+
+-doc """
+Creates an abstract struct constructor.
+
+_See also: _`ann_c_struct/3`, `is_c_struct/1`, `struct_id/1`, `struct_es/1`,
+`c_struct_pair/2`, `update_c_struct/3`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec c_struct(Argument :: struct_id(),
+               Pairs :: [c_struct_pair()]) -> #c_struct{}.
+
+c_struct(Id, Es) ->
+    #c_struct{id=Id, es=Es}.
+
+-doc "_See also: _`c_struct/2`.".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec ann_c_struct(Annotations :: [term()],
+                   Argument :: c_map() | c_literal(),
+                   Pairs :: [c_struct_pair()]) -> #c_struct{}.
+
+ann_c_struct(As, Id, Es) ->
+    #c_struct{id=Id, es=Es, anno=As}.
+
+-doc """
+Returns the list of struct pair subtrees of an abstract struct.
+
+_See also: _`c_struct/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec struct_es(Node :: c_struct()) -> [c_struct_pair()].
+
+struct_es(#c_struct{es = Es}) ->
+    Es.
+
+-doc """
+Returns the identifier of of an abstract struct.
+
+_See also: _`c_struct/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec struct_id(Node :: c_struct()) -> struct_id().
+
+struct_id(#c_struct{id = Id}) ->
+    Id.
+
+-doc """
+_See also: _`c_struct/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec update_c_struct(Node :: c_struct(), Id :: struct_id(),
+                      Pairs :: [c_struct_pair()]) -> c_struct().
+update_c_struct(#c_struct{}=Old, Id, Es) ->
+    Old#c_struct{id = Id, es = Es}.
+
+-doc """
+Returns `true` if `Node` is an abstract struct, otherwise `false`.
+
+_See also: _`c_struct/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec is_c_struct(Node :: cerl()) -> boolean().
+
+is_c_struct(#c_struct{}) ->
+    true;
+is_c_struct(_) ->
+    false.
+
+%% ---------------------------------------------------------------------
+
+-doc """
+Creates an abstract struct pair.
+
+These can only occur as components of an abstract struct creation
+expression or an abstract update expression (see `c_struct/2`).
+
+The result represents "`Key = Value`".
+
+_See also: _`ann_c_struct_pair/3`, `struct_pair_key/1`, `struct_pair_val/1`.
+""".  -doc(#{since => <<"OTP @OTP-19785@">>}).  -spec
+c_struct_pair(Key :: c_literal(), Value :: cerl()) -> c_struct_pair().
+
+c_struct_pair(K, V) ->
+    #c_struct_pair{key = K, val=V}.
+
+-doc "_See also: _`c_struct/2`.".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec ann_c_struct_pair(Annotations :: [term()],
+                        Key :: cerl(), Value :: cerl()) -> c_struct_pair().
+
+ann_c_struct_pair(As, K, V) ->
+    #c_struct_pair{key = K, val=V, anno = As}.
+
+-doc """
+Returns the key subtree of an abstract struct pair.
+
+_See also: _`c_struct_pair/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+
+-spec struct_pair_key(Node :: c_struct_pair()) -> c_literal().
+
+struct_pair_key(#c_struct_pair{key=K}) -> K.
+
+-doc """
+Returns the value subtree of an abstract struct pair.
+
+_See also: _`c_struct_pair/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+
+-spec struct_pair_val(Node :: c_struct_pair()) -> cerl().
+
+struct_pair_val(#c_struct_pair{val=V}) -> V.
+
+-doc """
+_See also: _`c_struct_pair/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec update_c_struct_pair(Node :: c_struct_pair(),
+                           Key :: c_literal(),
+                           Value :: cerl()) -> c_struct_pair().
+update_c_struct_pair(Node, K, V) ->
+    Node#c_struct_pair{key = K, val = V}.
 
 %% ---------------------------------------------------------------------
 
@@ -2847,7 +2958,11 @@ pat_vars(Node, Vs) ->
 	    %% bitstr_size is not a pattern var, excluded
 	    pat_vars(bitstr_val(Node), Vs);
 	alias ->
-	    pat_vars(alias_pat(Node), [alias_var(Node) | Vs])
+	    pat_vars(alias_pat(Node), [alias_var(Node) | Vs]);
+        struct ->
+            pat_list_vars(struct_es(Node), Vs);
+        struct_pair ->
+	    pat_list_vars([struct_pair_val(Node)], Vs)
     end.
 
 

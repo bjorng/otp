@@ -1314,6 +1314,17 @@ resolve_inst({debug_line,[Kind,Location,Index,Live]},_,_,_) ->
      resolve_arg(Index),resolve_arg(Live)};
 
 %%
+%% OTP 29.
+%%
+
+resolve_inst({is_struct,[Fail,Src]},_,_,_) ->
+    {is_struct,Fail,Src};
+resolve_inst({is_tagged_struct,[Fail,Src,Module,Name]},_,_,_) ->
+    {is_struct,Fail,Src,Module,Name};
+resolve_inst({get_struct_element,[Fail,Src,Name,Dst]},_,_,_) ->
+    {get_struct_element,Fail,Src,Name,Dst};
+
+%%
 %% Catches instructions that are not yet handled.
 %%
 resolve_inst(X,_,_,_) -> ?exit({resolve_inst,X}).

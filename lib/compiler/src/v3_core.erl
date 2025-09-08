@@ -2610,12 +2610,12 @@ pattern({tuple,L,Ps}, St) ->
 pattern({map,L,Pairs}, St0) ->
     {Ps,St1} = pattern_map_pairs(Pairs, St0),
     {#imap{anno=#a{anno=lineno_anno(L, St1)},es=Ps},St1};
-pattern({struct,L,{M,N},Pairs},St0) ->
+pattern({struct,L,{M,N},Pairs}, St0) ->
     {Ps,St1} = pattern_struct_pairs(Pairs, St0),
-    {#c_struct{anno=lineno_anno(L, St1),id={M,N},es=Ps},St1};
-pattern({struct,L,{},Pairs},St0) ->
-  {Ps,St1} = pattern_struct_pairs(Pairs, St0),
-  {#c_struct{anno=lineno_anno(L, St1),id={},es=Ps},St1};
+    {#c_struct{anno=lineno_anno(L, St1),id=#c_literal{val={M,N}},es=Ps},St1};
+pattern({struct,L,{},Pairs}, St0) ->
+    {Ps,St1} = pattern_struct_pairs(Pairs, St0),
+    {#c_struct{anno=lineno_anno(L, St1),id=#c_literal{val={}},es=Ps},St1};
 pattern({bin,L,Ps}, St0) ->
     {Segments,St} = pat_bin(Ps, St0),
     {#ibinary{anno=#a{anno=lineno_anno(L, St)},segments=Segments},St};
@@ -2656,10 +2656,6 @@ pattern_map_pairs(Ps, St0) ->
     {CMapPairs,St1} = mapfoldl(fun pattern_map_pair/2, St0, Ps),
     {pat_alias_map_pairs(CMapPairs),St1}.
 
--spec pattern_struct_pairs([erl_parse:af_record_field(erl_parse:af_pattern())], state()) -> {[cerl:c_struct_pair()], state()}.
-pattern_struct_pairs(Ps,St0) ->
-    mapfoldl(fun pattern_struct_pair/2, St0, Ps).
-
 pattern_map_pair({map_field_exact,L,K,V}, St0) ->
     Ck0 = erl_eval:partial_eval(K),
     {Ck,St1} = exprs([Ck0], St0),
@@ -2668,11 +2664,6 @@ pattern_map_pair({map_field_exact,L,K,V}, St0) ->
                op=#c_literal{val=exact},
                key=Ck,
                val=Cv},St2}.
-
--spec pattern_struct_pair(erl_parse:af_record_field(erl_parse:af_pattern()), state()) -> {cerl:c_struct_pair(), state()}.
-pattern_struct_pair({record_field, L, {atom, _, K}, V}, St0) ->
-  {Cv, St1} = pattern(V, St0),
-  {#c_struct_pair{anno=lineno_anno(L, St1),key=K,val=Cv},St1}.
 
 pat_alias_map_pairs(Ps) ->
     D0 = foldl(fun(#imappair{key=K0}=Pair, A) ->
@@ -2705,6 +2696,19 @@ map_sort_key(Key, KeyMap) ->
         _ ->
             {expr,map_size(KeyMap)}
     end.
+
+-spec pattern_struct_pairs([erl_parse:af_record_field(erl_parse:af_pattern())], state()) ->
+          {[cerl:c_struct_pair()], state()}.
+pattern_struct_pairs(Ps, St0) ->
+    mapfoldl(fun pattern_struct_pair/2, St0, Ps).
+
+-spec pattern_struct_pair(erl_parse:af_record_field(erl_parse:af_pattern()), state()) ->
+          {cerl:c_struct_pair(), state()}.
+pattern_struct_pair({record_field, L, K, V}, St0) ->
+    {Ck, St1} = pattern(K, St0),
+    {Cv, St2} = pattern(V, St1),
+    {#c_struct_pair{anno=lineno_anno(L, St1),key=Ck,val=Cv},St2}.
+
 
 %% pat_bin([BinElement], State) -> [BinSeg].
 
