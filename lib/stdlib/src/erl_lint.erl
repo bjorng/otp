@@ -970,7 +970,7 @@ forms(Forms0, St0) ->
     AutoImportSuppressed = auto_import_suppressed(St0#lint.compile),
     StDeprecated = disallowed_compile_flags(Forms,St0),
     St1 = includes_qlc_hrl(Forms, StDeprecated#lint{locals = Locals,
-                struct_locals = StructLocals,
+                                                    struct_locals = StructLocals,
 						    no_auto = AutoImportSuppressed}),
     St2 = bif_clashes(Forms, St1),
     St3 = not_deprecated(Forms, St2),
@@ -1931,37 +1931,38 @@ add_imports(Mod, Fs, Is) ->
     foldl(fun (F, Is0) -> orddict:store(F, Mod, Is0) end, Is, Fs).
 
 -spec import_struct(anno(), {module(), [atom()]}, lint_state()) -> lint_state().
-import_struct(Anno, {Mod, Ss}, St00) ->
-  St = check_module_name(Mod, Anno, St00),
-  Mss = ordsets:from_list(Ss),
-  case check_struct_imports(Anno, Mss, St#lint.struct_imports, St#lint.struct_locals) of
-    [] ->
-      St#lint{struct_imports = add_struct_imports(Mod, Mss, St#lint.struct_imports)};
-    Es ->
-      foldl(fun(E, St0) -> add_error(Anno, {redefine_struct_import, E}, St0) end, St, Es)
-  end.
+import_struct(Anno, {Mod, Ss}, #lint{struct_imports=Imports,
+                                     struct_locals=Locals}=St0) ->
+    St = check_module_name(Mod, Anno, St0),
+    Mss = ordsets:from_list(Ss),
+    case check_struct_imports(Anno, Mss, Imports, Locals) of
+        [] ->
+            St#lint{struct_imports = add_struct_imports(Mod, Mss, Imports)};
+        Es ->
+            foldl(fun(E, S0) -> add_error(Anno, {redefine_struct_import, E}, S0) end, St, Es)
+    end.
 
--spec check_struct_imports(
-    anno(),
-    ordsets:ordset(atom()),
-    orddict:orddict(atom(), atom()),
-    gb_sets:set(atom())
-) -> [atom() | {atom(), atom()}].
+-spec check_struct_imports(anno(),
+                           ordsets:ordset(atom()),
+                           orddict:orddict(atom(), atom()),
+                           gb_sets:set(atom())) ->
+          [atom() | {atom(), atom()}].
 check_struct_imports(_Anno, Ss, Is, Locals) ->
-  foldl(fun (S, Efs) ->
-    case gb_sets:is_element(S, Locals) of
-      true -> [S|Efs];
-      false ->
-        case orddict:find(S, Is) of
-          {ok,Mod} -> [{S,Mod}|Efs];
-          error -> Efs
-        end
-        end
-        end, [], Ss).
+    foldl(fun (S, Efs) ->
+                  case gb_sets:is_element(S, Locals) of
+                      true -> [S|Efs];
+                      false ->
+                          case orddict:find(S, Is) of
+                              {ok,Mod} -> [{S,Mod}|Efs];
+                              error -> Efs
+                          end
+                  end
+          end, [], Ss).
 
--spec add_struct_imports(module(), ordsets:ordset(atom()), orddict:orddict(atom(), atom())) -> orddict:orddict(atom(), atom()).
+-spec add_struct_imports(module(), ordsets:ordset(atom()), orddict:orddict(atom(), atom())) ->
+          orddict:orddict(atom(), atom()).
 add_struct_imports(Mod, Ss, Is) ->
-  foldl(fun (S, Is0) -> orddict:store(S, Mod, Is0) end, Is, Ss).
+    foldl(fun (S, Is0) -> orddict:store(S, Mod, Is0) end, Is, Ss).
 
 -spec imported(atom(), arity(), lint_state()) -> {'yes',module()} | 'no'.
 
@@ -1971,9 +1972,8 @@ imported(F, A, St) ->
         error -> no
     end.
 
+%% Check an on_load directive and remember it.
 -spec on_load(erl_anno:anno(), fa(), lint_state()) -> lint_state().
-%%  Check an on_load directive and remember it.
-
 on_load(Anno, {Name,Arity}=Fa, #lint{on_load=OnLoad0}=St0)
   when is_atom(Name), is_integer(Arity) ->
     %% Always add the function name (even if there is a problem),
@@ -2146,23 +2146,23 @@ pattern({record,Anno,Name,Pfs}, Vt, Old, St) ->
             St2 = check_struct_fields_usage(Name, Pfs, St1),
             pattern_struct_fields(Pfs, Vt, Old, St2);
         false ->
-    case maps:find(Name, St#lint.records) of
-        {ok,{_Anno,Fields}} ->
-            St1 = used_record(Name, St),
-            St2 = check_multi_field_init(Pfs, Anno, Fields, St1),
-            pattern_fields(Pfs, Name, Fields, Vt, Old, St2);
-        error ->
-            DefRecords = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
-            case most_possible_string(Name, DefRecords) of
-                [] -> {[],[],add_error(Anno, {undefined_record,Name}, St)};
-                GuessF -> {[],[],add_error(Anno, {undefined_record,Name,GuessF}, St)}
+            case maps:find(Name, St#lint.records) of
+                {ok,{_Anno,Fields}} ->
+                    St1 = used_record(Name, St),
+                    St2 = check_multi_field_init(Pfs, Anno, Fields, St1),
+                    pattern_fields(Pfs, Name, Fields, Vt, Old, St2);
+                error ->
+                    DefRecords = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
+                    case most_possible_string(Name, DefRecords) of
+                        [] -> {[],[],add_error(Anno, {undefined_record,Name}, St)};
+                        GuessF -> {[],[],add_error(Anno, {undefined_record,Name,GuessF}, St)}
+                    end
             end
-    end
     end;
 pattern({struct, _Anno, {_Mod, _Name}, Fs}, Vt, Old, St) ->
-  pattern_struct_fields(Fs, Vt, Old, St);
+    pattern_struct_fields(Fs, Vt, Old, St);
 pattern({struct, _Anno, {}, Fs}, Vt, Old, St) ->
-  pattern_struct_fields(Fs, Vt, Old, St);
+    pattern_struct_fields(Fs, Vt, Old, St);
 pattern({bin,_,Fs}, Vt, Old, St) ->
     pattern_bin(Fs, Vt, Old, St);
 pattern({op,_Anno,'++',{nil,_},R}, Vt, Old, St) ->
@@ -2505,7 +2505,7 @@ gexpr({map,_Anno,Src,Es}, Vt, St) ->
     {vtmerge(Svt, Fvt),St2};
 gexpr({record_index,Anno,Name,Field}, _Vt, St) ->
     check_record(Anno, Name, St,
-                 fun (Dfs, St1) -> record_field(Field, Name, Dfs, St1) end );
+                 fun (Dfs, St1) -> record_field(Field, Name, Dfs, St1) end);
 gexpr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) ->
     case is_native_record_defined(Name, St0) of
         true ->
@@ -2514,24 +2514,20 @@ gexpr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) ->
             St3 = check_struct_field_expr_usage(E, St2),
             {Rvt,St3};
         false ->
-    {Rvt,St1} = gexpr(Rec, Vt, St0),
-    {Fvt,St2} = check_record(Anno, Name, St1,
-                             fun (Dfs, St) ->
-                                     record_field(Field, Name, Dfs, St)
-                             end),
-    {vtmerge(Rvt, Fvt),St2}
+            {Rvt,St1} = gexpr(Rec, Vt, St0),
+            {Fvt,St2} = check_record(Anno, Name, St1,
+                                     fun (Dfs, St) ->
+                                             record_field(Field, Name, Dfs, St)
+                                     end),
+            {vtmerge(Rvt, Fvt),St2}
     end;
 gexpr({record,Anno,Name,Inits}, Vt, St) ->
     check_record(Anno, Name, St,
                  fun (Dfs, St1) ->
                          ginit_fields(Inits, Anno, Name, Dfs, Vt, St1)
                  end);
-gexpr({struct_field_expr, _Anno, Str, {_MName,_Name}, FieldName}, Vt, St0) when is_atom(FieldName) ->
-  {Rvt,St1} = gexpr(Str, Vt, St0),
-  {Rvt,St1};
-gexpr({struct_field_expr, _Anno, Str, {}, FieldName}, Vt, St0) when is_atom(FieldName) ->
-  {Rvt,St1} = gexpr(Str, Vt, St0),
-  {Rvt,St1};
+gexpr({struct_field_expr, _Anno, Str, _Id, FieldName}, Vt, St0) when is_atom(FieldName) ->
+    gexpr(Str, Vt, St0);
 gexpr({bin,_Anno,Fs}, Vt,St) ->
     expr_bin(Fs, Vt, St, fun gexpr/3);
 gexpr({call,_Anno,{atom,_Ar,is_record},[E,{atom,An,Name}]}, Vt, St0) ->
@@ -2553,26 +2549,26 @@ gexpr({call,Anno,{atom,_Ar,is_record},[E0,{atom,_,_Name},{integer,_,_}]},
 	    {E,add_error(Anno, {illegal_guard_local_call,{is_record,3}}, St1)}
     end;
 gexpr({call,Anno,{atom,_Ar,is_tagged_struct},[E0,{atom,_,_M},{atom,_,_N}]},
-    Vt, St0) ->
-  {E,St1} = gexpr(E0, Vt, St0),
-  case no_guard_bif_clash(St0, {is_record,3}) of
-    true ->
-      {E,St1};
-    false ->
-      {E,add_error(Anno, {illegal_guard_local_call,{is_record,3}}, St1)}
-  end;
+      Vt, St0) ->
+    {E,St1} = gexpr(E0, Vt, St0),
+    case no_guard_bif_clash(St0, {is_record,3}) of
+        true ->
+            {E,St1};
+        false ->
+            {E,add_error(Anno, {illegal_guard_local_call,{is_record,3}}, St1)}
+    end;
 gexpr({call,Anno,{atom,_Ar,is_record},[_,_,_]=Asvt0}, Vt, St0) ->
     {Asvt,St1} = gexpr_list(Asvt0, Vt, St0),
     {Asvt,add_error(Anno, illegal_guard_expr, St1)};
 gexpr({call,Anno,{atom,_Ar,is_tagged_struct},[_,_,_]=Asvt0}, Vt, St0) ->
-  {Asvt,St1} = gexpr_list(Asvt0, Vt, St0),
-  {Asvt,add_error(Anno, illegal_guard_expr, St1)};
+    {Asvt,St1} = gexpr_list(Asvt0, Vt, St0),
+    {Asvt,add_error(Anno, illegal_guard_expr, St1)};
 gexpr({call,Anno,{remote,_,{atom,_,erlang},{atom,_,is_record}=Isr},[_,_,_]=Args},
       Vt, St0) ->
     gexpr({call,Anno,Isr,Args}, Vt, St0);
 gexpr({call,Anno,{remote,_,{atom,_,erlang},{atom,_,is_tagged_struct}=Ists},[_,_,_]=Args},
-    Vt, St0) ->
-  gexpr({call,Anno,Ists,Args}, Vt, St0);
+      Vt, St0) ->
+    gexpr({call,Anno,Ists,Args}, Vt, St0);
 gexpr({call,Anno,{atom,_Aa,F},As}, Vt, St0) ->
     {Asvt,St1} = gexpr_list(As, Vt, St0),
     A = length(As),
@@ -2732,7 +2728,7 @@ is_gexpr({record_index,_A,_Name,Field}, Info) ->
 is_gexpr({record_field,_A,Rec,_Name,Field}, Info) ->
     is_gexpr_list([Rec,Field], Info);
 is_gexpr({struct_field_expr,_A,Str,_Name,_FieldName}, Info) ->
-  is_gexpr(Str, Info);
+    is_gexpr(Str, Info);
 is_gexpr({record,A,Name,Inits}, Info0) ->
     Info = case Info0 of
                {#{},_} ->
@@ -2845,28 +2841,28 @@ expr({record,Anno,Name,Inits}, Vt, St) ->
             St3 = check_struct_fields_usage(Name, Inits, St2),
             St4 = check_struct_fields_init(Name, Inits, St3, Anno),
             {Usvt, St4};
-        false -> check_record(Anno, Name, St,
-                 fun (Dfs, St1) ->
-                         init_fields(Inits, Anno, Name, Dfs, Vt, St1)
-                 end)
+        false ->
+            check_record(Anno, Name, St,
+                         fun (Dfs, St1) ->
+                                 init_fields(Inits, Anno, Name, Dfs, Vt, St1)
+                         end)
     end;
 expr({struct, _Anno, {MName, Name}, Inits}, Vt, St) when is_atom(MName),is_atom(Name) ->
-  {Usvt, St1} = check_struct_fields(Inits, Vt, St),
-  {Usvt, St1};
+    check_struct_fields(Inits, Vt, St);
 expr({struct_update, _Anno, Expr, {MName, Name}, Updates}, Vt, St) when is_atom(MName),is_atom(Name) ->
-  {Rvt, St1} = expr(Expr, Vt, St),
-  {Usvt, St2} = check_struct_fields(Updates, Vt, St1),
-  Usvt1 = vtmerge(Rvt, Usvt),
-  {Usvt1, St2};
+    {Rvt, St1} = expr(Expr, Vt, St),
+    {Usvt, St2} = check_struct_fields(Updates, Vt, St1),
+    Usvt1 = vtmerge(Rvt, Usvt),
+    {Usvt1, St2};
 expr({struct_update, _Anno, Expr, {}, Updates}, Vt, St) ->
-  {Rvt, St1} = expr(Expr, Vt, St),
-  {Usvt, St2} = check_struct_fields(Updates, Vt, St1),
-  Usvt1 = vtmerge(Rvt, Usvt),
-  {Usvt1, St2};
+    {Rvt, St1} = expr(Expr, Vt, St),
+    {Usvt, St2} = check_struct_fields(Updates, Vt, St1),
+    Usvt1 = vtmerge(Rvt, Usvt),
+    {Usvt1, St2};
 expr({struct_field_expr, _Anno, Str, {_MName,_Name}, FieldName}, Vt, St) when is_atom(FieldName) ->
-  expr(Str, Vt, St);
+    expr(Str, Vt, St);
 expr({struct_field_expr, _Anno, Str, {}, FieldName}, Vt, St) when is_atom(FieldName) ->
-  expr(Str, Vt, St);
+    expr(Str, Vt, St);
 expr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) ->
     case is_native_record_defined(Name, St0) of
         true ->
@@ -2875,12 +2871,12 @@ expr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) ->
             St3 = check_struct_field_expr_usage(E, St2),
             {Usvt, St3};
         false ->
-    {Rvt,St1} = record_expr(Anno, Rec, Vt, St0),
-    {Fvt,St2} = check_record(Anno, Name, St1,
-                             fun (Dfs, St) ->
-                                     record_field(Field, Name, Dfs, St)
-                             end),
-    {vtmerge(Rvt, Fvt),St2}
+            {Rvt,St1} = record_expr(Anno, Rec, Vt, St0),
+            {Fvt,St2} = check_record(Anno, Name, St1,
+                                     fun (Dfs, St) ->
+                                             record_field(Field, Name, Dfs, St)
+                                     end),
+            {vtmerge(Rvt, Fvt),St2}
     end;
 expr({record,Anno,Rec,Name,Upds}, Vt, St0) ->
     case is_native_record_defined(Name, St0) of
@@ -2892,15 +2888,17 @@ expr({record,Anno,Rec,Name,Upds}, Vt, St0) ->
             St4 = check_struct_fields_usage(Name, Upds, St3),
             {Usvt1, St4};
         false ->
-    {Rvt,St1} = record_expr(Anno, Rec, Vt, St0),
-    {Usvt,St2} = check_record(Anno, Name, St1,
-                          fun (Dfs, St) ->
-                                  update_fields(Upds, Name, Dfs, Vt, St)
-                          end ),
-    case has_wildcard_field(Upds) of
-        no -> {vtmerge(Rvt, Usvt), warn_if_literal_update(Anno, Rec, St2)};
-        WildAnno -> {[],add_error(WildAnno, {wildcard_in_update,Name}, St2)}
-    end
+            {Rvt,St1} = record_expr(Anno, Rec, Vt, St0),
+            {Usvt,St2} = check_record(Anno, Name, St1,
+                                      fun (Dfs, St) ->
+                                              update_fields(Upds, Name, Dfs, Vt, St)
+                                      end ),
+            case has_wildcard_field(Upds) of
+                no ->
+                    {vtmerge(Rvt, Usvt), warn_if_literal_update(Anno, Rec, St2)};
+                WildAnno ->
+                    {[],add_error(WildAnno, {wildcard_in_update,Name}, St2)}
+            end
     end;
 expr({bin,_Anno,Fs}, Vt, St) ->
     expr_bin(Fs, Vt, St, fun expr/3);
@@ -3245,13 +3243,14 @@ record_def(Anno, Name, Fs0, St0) ->
 
 -spec struct_def(anno(), atom(), [erl_parse:af_field_decl()], lint_state()) -> lint_state().
 struct_def(Anno, Name, Fs0, St0) ->
-  case is_map_key(Name, St0#lint.structs) of
-    true -> add_error(Anno, {redefine_struct,Name}, St0);
-    false ->
-      {Fs, St1} = struct_def_fields(Fs0, Name, St0),
-      St2=St1#lint{structs=maps:put(Name, {Anno,Fs}, St1#lint.structs)},
-      St2
-  end.
+    case is_map_key(Name, St0#lint.structs) of
+        true ->
+            add_error(Anno, {redefine_struct,Name}, St0);
+        false ->
+            Fs1 = normalise_struct_fields(Fs0),
+            {Fs, St1} = struct_def_fields(Fs1, Name, St0),
+            St1#lint{structs=maps:put(Name, {Anno,Fs}, St1#lint.structs)}
+    end.
 
 
 %% def_fields([RecDef], RecordName, State) -> {[DefField],State}.
@@ -3281,24 +3280,35 @@ def_fields(Fs0, Name, St0) ->
                   end
           end, {[],St0}, Fs0).
 
--spec struct_def_fields(
-    [erl_parse:af_field_decl()],
-    atom(),
-    lint_state()
-) -> {[erl_parse:af_field_decl()], lint_state()}.
+-spec struct_def_fields([erl_parse:af_field_decl()],
+                        atom(),
+                        lint_state()) ->
+          {[erl_parse:af_field_decl()], lint_state()}.
 struct_def_fields(Fs0, Name, St0) ->
-   foldl(fun
-           ({record_field, Af, {atom, _Aa, F}}=Field, {Fs, St}) ->
-              case exist_struct_field(F, Fs) of
-                true -> {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
-                false -> {[Field|Fs],St}
-              end;
-           ({record_field, Af, {atom, _Aa, F}, _Init}=Field, {Fs, St}) ->
-             case exist_struct_field(F, Fs) of
-               true -> {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
-               false -> {[Field|Fs],St}
-             end
-          end, {[],St0}, Fs0).
+    foldl(fun
+              ({record_field, Af, {atom, _Aa, F}}=Field, {Fs, St}) ->
+                 case exist_struct_field(F, Fs) of
+                     true ->
+                         {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
+                     false ->
+                         {[Field|Fs],St}
+                 end;
+              ({record_field, Af, {atom, _Aa, F}, _Init}=Field, {Fs, St}) ->
+                 case exist_struct_field(F, Fs) of
+                     true ->
+                         {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
+                     false ->
+                         {[Field|Fs],St}
+                 end
+         end, {[],St0}, Fs0).
+
+normalise_struct_fields(Fs) ->
+    map(fun ({typed_record_field,{record_field,Af,Field},_Type}) ->
+		{record_field,Af,Field,{atom,Af,undefined}};
+	    ({typed_record_field,Field,_Type}) ->
+		Field;
+            (F) -> F
+        end, Fs).
 
 %% normalise_fields([RecDef]) -> [Field].
 %%  Normalise the field definitions to always have a default value. If
@@ -3352,18 +3362,19 @@ check_record(Anno, Name, St, CheckFun) ->
 
 -spec is_native_record_defined(Name :: atom(), lint_state()) -> boolean().
 is_native_record_defined(Name, St) ->
-    maps:is_key(Name, St#lint.structs) orelse orddict:is_key(Name, St#lint.struct_imports).
+    is_map_key(Name, St#lint.structs) orelse orddict:is_key(Name, St#lint.struct_imports).
 
 -spec call_struct(anno(), atom(), lint_state()) -> lint_state().
 call_struct(Anno, Name, St) ->
-  case maps:find(Name, St#lint.structs) of
-    {ok, _} -> St;
-    error ->
-      case orddict:find(Name, St#lint.struct_imports) of
-        {ok, _} -> St;
-        error -> add_error(Anno, {undefined_struct,Name}, St)
-      end
-  end.
+    case is_map_key(Name, St#lint.structs) of
+        true ->
+            St;
+        false ->
+            case orddict:find(Name, St#lint.struct_imports) of
+                {ok, _} -> St;
+                error -> add_error(Anno, {undefined_struct,Name}, St)
+            end
+    end.
 
 used_record(Name, #lint{usage=Usage}=St) ->
     UsedRecs = gb_sets:add_element(Name, Usage#usage.used_records),
@@ -3515,11 +3526,11 @@ exist_struct_field(_F, []) -> false.
 
 -spec not_inited_struct_fields([erl_parse:af_field_decl()]) -> [atom()].
 not_inited_struct_fields([{record_field,_Af,{atom,_Aa,F}}|Fs]) ->
-  [F | not_inited_struct_fields(Fs)];
+    [F | not_inited_struct_fields(Fs)];
 not_inited_struct_fields([_|Fs]) ->
-  not_inited_struct_fields(Fs);
+    not_inited_struct_fields(Fs);
 not_inited_struct_fields([]) ->
-  [].
+    [].
 
 %% find_field(FieldName, [Field]) -> {ok,Val} | error.
 %%  Find a record field in a field list.
@@ -3528,130 +3539,107 @@ find_field(F, [{record_field,_Af,{atom,_Aa,F},Val}|_Fs]) -> {ok,Val};
 find_field(F, [_|Fs]) -> find_field(F, Fs);
 find_field(_F, []) -> error.
 
--spec pattern_struct_fields(
-    [erl_parse:af_record_field(erl_parse:af_pattern())],
-    var_table(),
-    var_table(),
-    lint_state()
-) -> {var_table(), var_table(), lint_state()}.
+-spec pattern_struct_fields([erl_parse:af_record_field(erl_parse:af_pattern())],
+                            var_table(),
+                            var_table(),
+                            lint_state()) ->
+          {var_table(), var_table(), lint_state()}.
 pattern_struct_fields(Fs, Vt0, Old, St0) ->
-  CheckFun = fun (Val, Vt, St) -> pattern(Val, Vt, Old, St) end,
-  {_SeenFields,Uvt,Unew,St1} =
-    foldl(fun (Field, {Sfsa,Vta,Newa,Sta}) ->
-      case check_struct_field(Field, Vt0, Sta, Sfsa, CheckFun) of
-        {Sfsb,{Vtb,Stb}} ->
-          {Vt, St1} = vtmerge_pat(Vta, Vtb, Stb),
-          {Sfsb, Vt, [], St1};
-        {Sfsb,{Vtb,Newb,Stb}} ->
-          {Vt, Mst0} = vtmerge_pat(Vta, Vtb, Stb),
-          {New, Mst} = vtmerge_pat(Newa, Newb, Mst0),
-          {Sfsb, Vt, New, Mst}
-      end
-          end, {[],[],[],St0}, Fs),
-  {Uvt,Unew,St1}.
+    CheckFun = fun (Val, Vt, St) -> pattern(Val, Vt, Old, St) end,
+    {_SeenFields,Uvt,Unew,St1} =
+        foldl(fun (Field, {Sfsa,Vta,Newa,Sta}) ->
+                      case check_struct_field(Field, Vt0, Sta, Sfsa, CheckFun) of
+                          {Sfsb,{Vtb,Stb}} ->
+                              {Vt, St1} = vtmerge_pat(Vta, Vtb, Stb),
+                              {Sfsb, Vt, [], St1};
+                          {Sfsb,{Vtb,Newb,Stb}} ->
+                              {Vt, Mst0} = vtmerge_pat(Vta, Vtb, Stb),
+                              {New, Mst} = vtmerge_pat(Newa, Newb, Mst0),
+                              {Sfsb, Vt, New, Mst}
+                      end
+              end, {[],[],[],St0}, Fs),
+    {Uvt,Unew,St1}.
 
-%% check that there are no duplicate fields
-%% in struct usages.
-%% We don't have a definition of the struct here.
--spec check_struct_fields(
-    [erl_parse:af_record_field(erl_parse:abstract_expr())],
-    var_table(),
-    lint_state()
-) -> {var_table(), lint_state()}.
+%% Check that there are no duplicate fields in struct usages. We
+%% don't have the definition of the struct here.
+-spec check_struct_fields([erl_parse:af_record_field(erl_parse:abstract_expr())],
+                          var_table(),
+                          lint_state()) ->
+          {var_table(), lint_state()}.
 check_struct_fields(Fs, Vt0, St0) ->
-  CheckFun = fun expr/3,
-  {_SeenFields,Uvt,St1} =
-    foldl(
-      fun (Field, {Sfsa,Vta,Sta}) ->
-        {Sfsb,{Vtb,Stb}} = check_struct_field(Field, Vt0, Sta, Sfsa, CheckFun),
-        {Vt1, St1} = vtmerge_pat(Vta, Vtb, Stb),
-        {Sfsb, Vt1, St1}
-      end,
-      {[],[], St0},
-      Fs),
-  {Uvt,St1}.
+    CheckFun = fun expr/3,
+    {_SeenFields,Uvt,St1} =
+        foldl(fun (Field, {Sfsa,Vta,Sta}) ->
+                      {Sfsb,{Vtb,Stb}} = check_struct_field(Field, Vt0, Sta, Sfsa, CheckFun),
+                      {Vt1, St1} = vtmerge_pat(Vta, Vtb, Stb),
+                      {Sfsb, Vt1, St1}
+              end, {[],[], St0}, Fs),
+    {Uvt,St1}.
 
--spec check_struct_field(
-    erl_parse:af_record_field(erl_parse:abstract_expr()),
-    var_table(),
-    lint_state(),
-    [atom()],
-    fun((dynamic(), var_table(), lint_state()) -> {var_table(), lint_state()})
-) -> {[atom()], {var_table(), lint_state()}}.
 check_struct_field({record_field, Af, {atom, _, F}, Val}, Vt, St, Sfs, CheckFun) ->
-  case member(F, Sfs) of
-    true -> {Sfs, {[], add_error(Af, {redefine_struct_field, F}, St)}};
-    false -> {[F|Sfs],CheckFun(Val, Vt, St)}
-  end.
+    case member(F, Sfs) of
+        true ->
+            {Sfs, {[], add_error(Af, {redefine_struct_field, F}, St)}};
+        false ->
+            {[F|Sfs],CheckFun(Val, Vt, St)}
+    end.
 
-%% check struct fields against
-%% the struct definition. Issues warnings.
--spec check_struct_fields_usage(
-    atom(),
-    [erl_parse:af_record_field(erl_parse:abstract_expr())],
-    lint_state()
-) -> lint_state().
+%% Check struct fields against the struct definition and issue
+%% warnings.
+-spec check_struct_fields_usage(atom(),
+                                [erl_parse:af_record_field(erl_parse:abstract_expr())],
+                                lint_state()) ->
+          lint_state().
 check_struct_fields_usage(SName, Fs, St0) ->
-  case maps:find(SName, St0#lint.structs) of
-    error ->
-      St0;
-    {ok, {_A, FieldDefs}} ->
-      foldl(
-          fun({record_field, Af, {atom, _, FName}, _Val}, St) ->
-            case exist_struct_field(FName, FieldDefs) of
-              true -> St;
-              false -> add_warning(Af, {undefined_struct_field, FName, SName}, St)
-            end
-          end,
-          St0,
-          Fs
-      )
-  end.
+    case St0#lint.structs of
+        #{SName := {_A, FieldDefs}} ->
+            foldl(fun({record_field, Af, {atom, _, FName}, _Val}, St) ->
+                          case exist_struct_field(FName, FieldDefs) of
+                              true -> St;
+                              false -> add_warning(Af, {undefined_struct_field, FName, SName}, St)
+                          end
+                  end, St0, Fs);
+        #{} ->
+            St0
+    end.
 
--spec check_struct_fields_init(
-    atom(),
-    [erl_parse:af_record_field(erl_parse:abstract_expr())],
-    lint_state(),
-    anno()
-) -> lint_state().
+-spec check_struct_fields_init(atom(),
+                               [erl_parse:af_record_field(erl_parse:abstract_expr())],
+                               lint_state(),
+                               anno()) ->
+          lint_state().
 check_struct_fields_init(SName, Inits, St0, Anno) ->
-  case maps:find(SName, St0#lint.structs) of
-    error ->
-      St0;
-    {ok, {_A, FieldDefs}} ->
-      NotInitedInDef = not_inited_struct_fields(FieldDefs),
-      Inited = foldl(
-        fun({record_field, _Aa, {atom, _, FName}, _Val}, Init) -> [FName | Init] end,
-        [],
-        Inits
-      ),
-      NotInited = NotInitedInDef -- Inited,
-      foldl(
-        fun(F, St) -> add_warning(Anno, {not_inited_struct_field, F, SName}, St) end,
-        St0,
-        NotInited
-      )
-  end.
+    case St0#lint.structs of
+        #{SName := {_A, FieldDefs}} ->
+            NotInitedInDef = not_inited_struct_fields(FieldDefs),
+            Inited = [FName || {record_field, _Aa, {atom, _, FName}, _Val} <- Inits],
+            NotInited = NotInitedInDef -- Inited,
+            foldl(fun(F, St) ->
+                          add_warning(Anno, {not_inited_struct_field, F, SName}, St)
+                  end, St0, NotInited);
+        #{} ->
+            St0
+    end.
 
 
--spec check_struct_field_expr_usage(erl_parse:af_record_field_access(_), lint_state()) -> lint_state().
+-spec check_struct_field_expr_usage(erl_parse:af_record_field_access(_), lint_state()) ->
+          lint_state().
 check_struct_field_expr_usage({record_field, Anno, _Str, SName, {atom, _, FName}}, St) ->
-  case maps:find(SName, St#lint.structs) of
-    error ->
-      St;
-    {ok, {_A, FieldDefs}} ->
-      case exist_struct_field(FName, FieldDefs) of
-        true -> St;
-        false -> add_warning(Anno, {undefined_struct_field, FName, SName}, St)
-      end
-  end.
+    case St#lint.structs of
+        #{SName := {_A, FieldDefs}} ->
+            case exist_struct_field(FName, FieldDefs) of
+                true -> St;
+                false -> add_warning(Anno, {undefined_struct_field, FName, SName}, St)
+            end;
+        #{} ->
+            St
+    end.
 
 
--spec local_structs(
-    [erl_parse:abstract_form() | erl_parse:form_info()]
-) -> gb_sets:set(atom()).
+-spec local_structs([erl_parse:abstract_form() | erl_parse:form_info()]) ->
+          gb_sets:set(atom()).
 local_structs(Forms) ->
-  gb_sets:from_list([ Name || {attribute, _, struct, {Name,_StrTuple}} <- Forms ]).
+    gb_sets:from_list([Name || {attribute, _, struct, {Name,_StrTuple}} <- Forms]).
 
 
 %% type_def(Attr, Anno, TypeName, PatField, Args, State) -> State.
