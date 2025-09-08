@@ -834,11 +834,11 @@ bif erl_debugger:peek_xreg/3
 #
 bif erts_debug:unaligned_bitstring/2
 bif re:import/1
+
 #
 # STRUCT PROTOTYPE
 #
 
-bif struct:define/3
 bif struct:create/2
 bif struct:update/3
 

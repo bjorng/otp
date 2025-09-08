@@ -33,42 +33,46 @@ Section [The Abstract Format](`e:erts:absform.md`) in ERTS User's Guide.
 
 -export([module/2]).
 
--import(lists, [map/2,foldl/3,foldr/3,sort/1,reverse/1,duplicate/2]).
+-import(lists, [duplicate/2,foldl/3,foldr/3,keymember/3,map/2,
+                reverse/1,sort/1]).
 
 -record(exprec, {vcount=0,             % Variable counter
-                 % Call types
+                 %% Call types
                  calltype=#{} :: calltype_map(),
-                 % Struct types
-                 structype=#{} :: structtype_map(),
-                 % Record definitions
+
+                 %% Struct types
+                 structmod=#{} :: structtype_map(),
+
+                 %% Record definitions
                  records=#{} :: #{erl_parse:record_name() => [erl_parse:af_field_decl()]},
-                 % Raw record forms
+
+                 %% Raw record forms
                  raw_records=[] :: [erl_parse:af_record_decl()],
-                 % Strict record accesses
-                 strict_ra=[] :: [record_access()],
-                 % Successfully accessed records
-                 checked_ra=[] :: [record_access()],
-                 % Compiler option 'dialyzer'
+
+                 %% Compiler option 'dialyzer'
                  dialyzer=false :: boolean(),
                  strict_rec_tests=true :: boolean(),
-                 % Strict struct accesses
-                 strict_sa=[] :: [struct_access()],
-                 % Successfully accessed structs
-                 checked_sa=[] :: [struct_access()],
+
+                 %% Records that'll need checks and records that have
+                 %% already been checked.
+                 check_needed=[] :: term(),
+                 checked_access=[] :: term(),
+
+                 %% The module name.
                  module=''
                 }).
 
--type record_access() :: {
-    {atom(), erl_parse:abstract_expr()},
-    erl_anno:anno(),
-    erl_parse:abstract_expr(),
-    integer()
-}.
--type struct_access() :: {
-    {{module(), atom()}, erl_parse:abstract_expr()},
-    erl_anno:anno(),
-    erl_parse:abstract_expr()
-}.
+%% -type record_access() :: {
+%%     {atom(), erl_parse:abstract_expr()},
+%%     erl_anno:anno(),
+%%     erl_parse:abstract_expr(),
+%%     integer()
+%% }.
+%% -type struct_access() :: {
+%%     {{module(), atom()}, erl_parse:abstract_expr()},
+%%     erl_anno:anno(),
+%%     erl_parse:abstract_expr()
+%% }.
 -type calltype() :: local | {imported, module()}.
 -type calltype_map() :: #{{atom(), arity()} => calltype()}.
 -type structtype() :: local | {imported, module()}.
@@ -91,7 +95,7 @@ module(Fs0, Opts0) ->
     Opts = Opts0 ++ compiler_options(Fs0),
     St0 = #exprec{dialyzer = lists:member(dialyzer, Opts),
                   calltype = init_calltype(Fs0),
-                  structype = init_structtype(Fs0),
+                  structmod = init_structmod(Fs0),
                   strict_rec_tests = strict_record_tests(Opts)},
     {Fs,_St} = forms(Fs0, St0),
     erase(erl_expand_records_in_guard),
@@ -114,23 +118,19 @@ init_calltype_imports([_|T], Ctype) ->
     init_calltype_imports(T, Ctype);
 init_calltype_imports([], Ctype) -> Ctype.
 
--spec init_structtype([erl_parse:abstract_form()]) -> structtype_map().
-init_structtype(Forms) ->
-    Stype = #{ Name => local || {attribute, _, struct, {Name,_}} <- Forms },
-    init_structtype_imports(Forms, Stype).
+-spec init_structmod([erl_parse:abstract_form()]) -> structtype_map().
+init_structmod(Forms) ->
+    SMod = #{Name => local || {attribute, _, struct, {Name,_}} <- Forms},
+    init_structmod_imports(Forms, SMod).
 
--spec init_structtype_imports([erl_parse:abstract_form()], structtype_map()) -> structtype_map().
-init_structtype_imports([{attribute,_,import_struct,{Mod,Ss}}|T], Stype0) ->
-    true = is_atom(Mod),
-    Stype = foldl(fun(S, Acc) -> Acc#{S => {imported, Mod}} end, Stype0, Ss),
-    init_structtype_imports(T, Stype);
-init_structtype_imports([_|T], Stype) ->
-    init_structtype_imports(T, Stype);
-init_structtype_imports([], Stype) -> Stype.
-
--spec is_native_record_defined(Name :: atom(), #exprec{}) -> boolean().
-is_native_record_defined(Name, St) ->
-    maps:is_key(Name, St#exprec.structype).
+-spec init_structmod_imports([erl_parse:abstract_form()], structtype_map()) -> structtype_map().
+init_structmod_imports([{attribute,_,import_struct,{Mod,Ss}}|T], SMod0) ->
+    true = is_atom(Mod),                        %Assertion.
+    SMod = foldl(fun(S, Acc) -> Acc#{S => {imported, Mod}} end, SMod0, Ss),
+    init_structmod_imports(T, SMod);
+init_structmod_imports([_|T], SMod) ->
+    init_structmod_imports(T, SMod);
+init_structmod_imports([], SMod) -> SMod.
 
 forms([{attribute,_,record,{Name,Defs}}=Attr | Fs], St0) ->
     NDefs = normalise_fields(Defs),
@@ -192,30 +192,24 @@ pattern({map_field_exact,Anno,K0,V0}, St0) ->
     {K,St1} = expr(K0, St0),
     {V,St2} = pattern(V0, St1),
     {{map_field_exact,Anno,K,V},St2};
-pattern({struct,Anno,{M,N},Ps}, St0) ->
+pattern({struct,Anno,Id,Ps}, St0) ->
     {TPs,St1} = pattern_list(Ps, St0),
-    {{struct,Anno,{M,N},TPs},St1};
-pattern({struct,Anno,{},Ps}, St0) ->
-    {TPs,St1} = pattern_list(Ps, St0),
-    {{struct,Anno,{},TPs},St1};
+    {{struct,Anno,Id,TPs},St1};
 pattern({record_field, Anno, F, V0}, St0) ->
     {V, St1} = pattern(V0, St0),
     {{record_field, Anno, F, V}, St1};
 pattern({record_index,Anno,Name,Field}, St) ->
     {index_expr(Anno, Field, Name, record_fields(Name, Anno, St)),St};
 pattern({record,Anno0,Name,Pfs}, St0) ->
-    case is_native_record_defined(Name, St0) of
-        true ->
-            M = case St0#exprec.structype of
-            #{Name := {imported, M0}} -> M0;
-            #{Name := local} -> St0#exprec.module
-        end,
-        pattern({struct,Anno0,{M,Name},Pfs},St0);
-        false ->
-    Fs = record_fields(Name, Anno0, St0),
-    {TMs,St1} = pattern_list(pattern_fields(Fs, Pfs), St0),
-    Anno = mark_record(Anno0, St1),
-    {{tuple,Anno,[{atom,Anno0,Name} | TMs]},St1}
+    case St0#exprec.structmod of
+        #{Name := M0} ->
+            M = struct_mod(M0, St0),
+            pattern({struct,Anno0,{M,Name},Pfs}, St0);
+        #{} ->
+            Fs = record_fields(Name, Anno0, St0),
+            {TMs,St1} = pattern_list(pattern_fields(Fs, Pfs), St0),
+            Anno = mark_record(Anno0, St1),
+            {{tuple,Anno,[{atom,Anno0,Name} | TMs]},St1}
     end;
 pattern({bin,Anno,Es0}, St0) ->
     {Es1,St1} = pattern_bin(Es0, St0),
@@ -238,6 +232,9 @@ pattern_list([P0 | Ps0], St0) ->
     {[P | Ps],St2};
 pattern_list([], St) -> {[],St}.
 
+struct_mod({imported, M}, _St) -> M;
+struct_mod(local, #exprec{module=M}) -> M.
+
 guard([G0 | Gs0], St0) ->
     {G,St1} = guard_tests(G0, St0),
     {Gs,St2} = guard(Gs0, St1),
@@ -246,7 +243,7 @@ guard([], St) -> {[],St}.
 
 guard_tests(Gts0, St0) ->
     {Gts1,St1} = guard_tests1(Gts0, St0),
-    {Gts1,St1#exprec{checked_ra = [], checked_sa = []}}.
+    {Gts1,St1#exprec{checked_access = []}}.
 
 guard_tests1([Gt0 | Gts0], St0) ->
     {Gt1,St1} = guard_test(Gt0, St0),
@@ -406,50 +403,41 @@ expr({record_index,Anno,Name,F}, St) ->
     I = index_expr(Anno, F, Name, record_fields(Name, Anno, St)),
     expr(I, St);
 expr({record,Anno0,Name,Is}, St) ->
-    case is_native_record_defined(Name, St) of
-        true ->
-            M = case St#exprec.structype of
-                #{Name := {imported, M0}} -> M0;
-                #{Name := local} -> St#exprec.module
-            end,
+    case St#exprec.structmod of
+        #{Name := M0} ->
+            M = struct_mod(M0, St),
             expr({struct,Anno0,{M,Name},Is}, St);
-        false ->
-    Anno = mark_record(Anno0, St),
-    expr({tuple,Anno,[{atom,Anno0,Name} |
-                      record_inits(record_fields(Name, Anno0, St), Is)]},
-         St)
+        #{} ->
+            Anno = mark_record(Anno0, St),
+            expr({tuple,Anno,[{atom,Anno0,Name} |
+                              record_inits(record_fields(Name, Anno0, St), Is)]},
+                 St)
     end;
 expr({record_field,A,R,Name,F}, St) ->
-    case is_native_record_defined(Name, St) of
-        true ->
-            M = case St#exprec.structype of
-                #{Name := {imported, M0}} -> M0;
-                #{Name := local} -> St#exprec.module
-            end,
+    case St#exprec.structmod of
+        #{Name := M0} ->
+            M = struct_mod(M0, St),
             {atom,_,FName} = F,
             expr({struct_field_expr,A,R,{M,Name},FName}, St);
-        false ->
-    Anno = erl_parse:first_anno(R),
-    get_record_field(Anno, R, F, Name, St)
+        #{} ->
+            Anno = erl_parse:first_anno(R),
+            get_record_field(Anno, R, F, Name, St)
     end;
 expr({record,Anno,R,Name,Us}, St0) ->
-    case is_native_record_defined(Name, St0) of
-        true ->
-            M = case St0#exprec.structype of
-                #{Name := {imported, M0}} -> M0;
-                #{Name := local} -> St0#exprec.module
-            end,
+    case St0#exprec.structmod of
+        #{Name := M0} ->
+            M = struct_mod(M0, St0),
             expr({struct_update,Anno,R,{M,Name},Us}, St0);
-        false ->
-    {Ue,St1} = record_update(R, Name, record_fields(Name, Anno, St0), Us, St0),
-    expr(Ue, St1)
+        #{} ->
+            {Ue,St1} = record_update(R, Name, record_fields(Name, Anno, St0), Us, St0),
+            expr(Ue, St1)
     end;
 expr({struct,Anno,{M,N},Inits},St0) ->
     Struct0 =
         {call,
-            Anno,
-            {remote,Anno,{atom,Anno,struct},{atom,Anno,create}},
-            [{atom, Anno, M},{atom, Anno, N}]},
+         Anno,
+         {remote,Anno,{atom,Anno,struct},{atom,Anno,create}},
+         [{atom, Anno, M},{atom, Anno, N}]},
     {Struct1,St1} = expr(Struct0, St0),
     {Ue,St2} = struct_init_update(Struct1, Anno, Inits, St1),
     expr(Ue, St2);
@@ -615,7 +603,7 @@ expr({op,Anno,Op,L0,R0}, St0) when Op =:= 'andalso';
                                    Op =:= 'orelse' ->
     {L,St1} = bool_operand(L0, St0),
     {R,St2} = bool_operand(R0, St1),
-    {{op,Anno,Op,L,R},St2#exprec{checked_ra = St1#exprec.checked_ra, checked_sa = St1#exprec.checked_sa}};
+    {{op,Anno,Op,L,R},St2#exprec{checked_access = St1#exprec.checked_access}};
 expr({op,Anno,Op,L0,R0}, St0) ->
     {L,St1} = expr(L0, St0),
     {R,St2} = expr(R0, St1),
@@ -637,41 +625,40 @@ bool_operand(E0, St0) ->
     {E1,St1} = expr(E0, St0),
     strict_record_access(E1, St1).
 
+strict_record_access(E0, #exprec{check_needed=[]}=St0) ->
+    %% The `json` module has guards with hundreds of equality tests
+    %% combined using `orelse`. Because of that, it is important to
+    %% do nothing quickly.
+    {E0, St0};
 strict_record_access(E0, St0) ->
-    #exprec{strict_ra = StrictRA, checked_ra = CheckedRA,
-            strict_sa = StrictSA, checked_sa = CheckedSA} = St0,
-    {NewR,NRC} = lists:foldl(fun ({Key,_Anno,_R,_Sz}=A, {L,C}) ->
-                                   case lists:keymember(Key, 1, C) of
-                                       true -> {L,C};
-                                       false -> {[A|L],[A|C]}
-                                   end
-                           end, {[],CheckedRA}, StrictRA),
-    E1 = if NewR =:= [] -> E0; true -> conj(NewR, E0) end,
-    {NewS,NSC} = lists:foldl(fun ({Key,_Anno,_S}=A, {L,C}) ->
-                                   case lists:keymember(Key, 1, C) of
-                                       true -> {L,C};
-                                       false -> {[A|L],[A|C]}
-                                   end
-                             end, {[],CheckedSA}, StrictSA),
-    E2 = if NewS =:= [] -> E1; true -> conj_struct(NewS, E1) end,
-    St1 = St0#exprec{strict_ra = [], checked_ra = NRC, strict_sa = [], checked_sa = NSC},
-    expr(E2, St1).
+    #exprec{check_needed=Needed, checked_access=Checked} = St0,
+
+    {NewR,NRC} = foldl(fun ({Key,_Anno,_Check}=A, {L,C}) ->
+                               case keymember(Key, 1, C) of
+                                   true -> {L,C};
+                                   false -> {[A|L],[A|C]}
+                               end
+                       end, {[],Checked}, Needed),
+    E1 = case NewR of
+             [] ->
+                 E0;
+             [_|_] ->
+                 conj(NewR, E0)
+         end,
+
+    St1 = St0#exprec{check_needed=[], checked_access=NRC},
+    expr(E1, St1).
 
 %% Make it look nice (?) when compiled with the 'E' flag
 %% ('and'/2 is left recursive).
-conj([], _E) ->
+conj([], __E) ->
     empty;
-conj([{{Name,_Rp},Anno,R,Sz} | AL], E) ->
-    NAnno = no_compiler_warning(Anno),
-    T1 = {op,NAnno,'orelse',
-          {call,NAnno,
-	   {remote,NAnno,{atom,NAnno,erlang},{atom,NAnno,is_record}},
-	   [R,{atom,NAnno,Name},{integer,NAnno,Sz}]},
-	  {atom,NAnno,fail}},
+conj([{_Key,Anno,Check} | AL], E) ->
+    T1 = {op,Anno,'orelse',Check,{atom,Anno,fail}},
     T2 = case conj(AL, none) of
-        empty -> T1;
-        C -> {op,NAnno,'and',C,T1}
-    end,
+             empty -> T1;
+             C -> {op,Anno,'and',C,T1}
+         end,
     case E of
 	none ->
 	    case T2 of
@@ -680,44 +667,12 @@ conj([{{Name,_Rp},Anno,R,Sz} | AL], E) ->
 		_ ->
 		    %% Wrap the 'orelse' expression in an dummy 'and true' to make
 		    %% sure that the entire guard fails if the 'orelse'
-		    %% expression returns 'fail'. ('orelse' used to verify
-		    %% that its right operand was a boolean, but that is no
-		    %% longer the case.)
-		    {op,NAnno,'and',T2,{atom,NAnno,true}}
+		    %% expression returns 'fail'. ('orelse' doesn't check
+		    %% that its right-hand operand is a boolean.)
+		    {op,Anno,'and',T2,{atom,Anno,true}}
 	    end;
 	_ ->
-	    {op,NAnno,'and',T2,E}
-    end.
-
--spec conj_struct([struct_access()], erl_parse:abstract_expr() | none) -> erl_parse:abstract_expr() | empty.
-conj_struct([], _E) ->
-    empty;
-conj_struct([{{{Module,Name},_Rp},Anno,R} | AL], E) ->
-    NAnno = no_compiler_warning(Anno),
-    T1 = {op,NAnno,'orelse',
-        {call,NAnno,
-            {remote,NAnno,{atom,NAnno,erlang},{atom,NAnno,is_tagged_struct}},
-            [R,{atom,NAnno,Module},{atom,NAnno,Name}]},
-        {atom,NAnno,fail}},
-    T2 = case conj_struct(AL, none) of
-             empty -> T1;
-             C -> {op,NAnno,'and',C,T1}
-         end,
-    case E of
-        none ->
-            case T2 of
-                {op,_,'and',_,_} ->
-                    T2;
-                _ ->
-                    %% Wrap the 'orelse' expression in an dummy 'and true' to make
-                    %% sure that the entire guard fails if the 'orelse'
-                    %% expression returns 'fail'. ('orelse' used to verify
-                    %% that its right operand was a boolean, but that is no
-                    %% longer the case.)
-                    {op,NAnno,'and',T2,{atom,NAnno,true}}
-            end;
-        _ ->
-            {op,NAnno,'and',T2,E}
+	    {op,Anno,'and',T2,E}
     end.
 
 %% lc_tq(Anno, Qualifiers, State) ->
@@ -783,7 +738,7 @@ lc_tq(Anno, [F0 | Qs0], #exprec{calltype=Calltype,raw_records=Records}=St0) ->
             {[F1 | Qs1],St2}
     end;
 lc_tq(_Anno, [], St0) ->
-    {[],St0#exprec{checked_ra = [], checked_sa = []}}.
+    {[],St0#exprec{checked_access=[]}}.
 
 %% normalise_fields([RecDef]) -> [Field].
 %%  Normalise the field definitions to always have a default value. If
@@ -848,34 +803,41 @@ get_record_field(Anno, R, Index, Name, St) ->
             strict_get_record_field(Anno, R, Index, Name, St)
     end.
 
-strict_get_record_field(Anno, R, {atom,_,F}=Index, Name, St0) ->
+strict_get_record_field(Anno0, R, {atom,_,F}=Index, Name, St0) ->
     case is_in_guard() of
         false ->                                %Body context.
-            {Var,St} = new_var(Anno, St0),
-            Fs = record_fields(Name, Anno, St),
+            {Var,St} = new_var(Anno0, St0),
+            Fs = record_fields(Name, Anno0, St),
             I = index_expr(F, Fs, 2),
-            P = record_pattern(2, I, Var, length(Fs)+1, Anno, [{atom,Anno,Name}]),
-            NAnno = no_compiler_warning(Anno),
-            RAnno = mark_record(NAnno, St),
-	    E = {'case',Anno,R,
-		     [{clause,NAnno,[{tuple,RAnno,P}],[],[Var]},
-		      {clause,NAnno,[Var],[],
-		       [{call,NAnno,{remote,NAnno,
-				    {atom,NAnno,erlang},
-				    {atom,NAnno,error}},
-			 [{tuple,NAnno,[{atom,NAnno,badrecord},Var]}]}]}]},
+            P = record_pattern(2, I, Var, length(Fs)+1, Anno0, [{atom,Anno0,Name}]),
+            Anno = no_compiler_warning(Anno0),
+            RAnno = mark_record(Anno, St),
+	    E = {'case',Anno0,R,
+		     [{clause,Anno,[{tuple,RAnno,P}],[],[Var]},
+		      {clause,Anno,[Var],[],
+		       [{call,Anno,{remote,Anno,
+				    {atom,Anno,erlang},
+				    {atom,Anno,error}},
+			 [{tuple,Anno,[{atom,Anno,badrecord},Var]}]}]}]},
             expr(E, St);
         true ->                                 %In a guard.
-            Fs = record_fields(Name, Anno, St0),
-            I = index_expr(Anno, Index, Name, Fs),
+            Fs = record_fields(Name, Anno0, St0),
+            I = index_expr(Anno0, Index, Name, Fs),
             {ExpR,St1}  = expr(R, St0),
             %% Just to make comparison simple:
             A0 = erl_anno:new(0),
             ExpRp = erl_parse:map_anno(fun(_A) -> A0 end, ExpR),
-            RA = {{Name,ExpRp},Anno,ExpR,length(Fs)+1},
-            St2 = St1#exprec{strict_ra = [RA | St1#exprec.strict_ra]},
-            {{call,Anno,
-	      {remote,Anno,{atom,Anno,erlang},{atom,Anno,element}},
+            Anno = no_compiler_warning(Anno0),
+            Size = length(Fs) + 1,
+            RA = {{Name,ExpRp},
+                  Anno,
+                  {call,Anno,
+                   {remote,Anno,{atom,Anno,erlang},
+                    {atom,Anno,is_record}},
+                   [ExpR,{atom,Anno,Name},{integer,Anno,Size}]}},
+            St2 = St1#exprec{check_needed=[RA | St1#exprec.check_needed]},
+            {{call,Anno0,
+	      {remote,Anno0,{atom,Anno0,erlang},{atom,Anno0,element}},
 	      [I,ExpR]},St2}
     end.
 
@@ -1055,33 +1017,41 @@ record_exprs([], St, Pre, Fs) ->
     {atom(), atom()} | {},
     #exprec{}
 ) -> {erl_parse:abstract_expr(), #exprec{}}.
-get_struct_field(Anno, Str, F, Id, St0) ->
+get_struct_field(Anno0, Str, F, Id, St0) ->
     case is_in_guard() of
         false ->
-            {Var,St} = new_var(Anno, St0),
-            NAnno = no_compiler_warning(Anno),
-            E = {'case',Anno,Str,
-                [{clause,NAnno,[{struct,NAnno,Id, [{record_field, NAnno, {atom, NAnno, F}, Var}]}],[],[Var]},
-                    {clause,NAnno,[Var],[],
-                        [{call,NAnno,{remote,NAnno,
-                            {atom,NAnno,erlang},
-                            {atom,NAnno,error}},
-                            [{tuple,NAnno,[{atom,NAnno,badstruct},Var]}]}]}]},
+            {Var,St} = new_var(Anno0, St0),
+            NAnno = no_compiler_warning(Anno0),
+            E = {'case',Anno0,Str,
+                 [{clause,NAnno,[{struct,NAnno,Id,
+                                  [{record_field, NAnno, {atom, NAnno, F}, Var}]}],
+                   [],[Var]},
+                  {clause,NAnno,[Var],[],
+                   [{call,NAnno,{remote,NAnno,
+                                 {atom,NAnno,erlang},
+                                 {atom,NAnno,error}},
+                     [{tuple,NAnno,[{atom,NAnno,badstruct},Var]}]}]}]},
             expr(E, St);
         true ->
-            {ExpS,St1}  = expr(Str, St0),
+            {ExpS,St1} = expr(Str, St0),
             A0 = erl_anno:new(0),
             ExpSp = erl_parse:map_anno(fun(_A) -> A0 end, ExpS),
             St2 =
                 case Id of
                     {Mod, Name} ->
-                        RA = {{{Mod, Name},ExpSp},Anno,ExpS},
-                        St1#exprec{strict_sa = [RA | St1#exprec.strict_sa]};
+                        Anno = no_compiler_warning(Anno0),
+                        RA = {{Mod,Name,ExpSp}, Anno,
+                              {call,Anno,
+                               {remote,Anno,{atom,Anno,erlang},
+                                {atom,Anno,is_tagged_struct}},
+                               [ExpS,{atom,Anno,Mod},{atom,Anno,Name}]}},
+                        St1#exprec{check_needed=[RA | St1#exprec.check_needed]};
                     {} ->
                         St1
                 end,
-            {{call,Anno,
-                {remote,Anno,{atom,Anno,erlang},{atom,Anno,struct_get}}, [{atom, Anno, F},ExpS]},St2}
+            {{call,Anno0,
+              {remote,Anno0,{atom,Anno0,erlang},{atom,Anno0,struct_get}},
+              [{atom,Anno0,F},ExpS]},St2}
     end.
 
 -spec update_struct_fields(

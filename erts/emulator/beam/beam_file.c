@@ -31,6 +31,7 @@
 #include "erl_unicode.h"
 #include "erl_binary.h"
 #include "erl_global_literals.h"
+#include "erl_struct.h"
 
 #define LoadError(Expr)      \
     do {                     \
@@ -874,6 +875,195 @@ static int parse_debug_chunk(BeamFile *beam, IFF_Chunk *chunk) {
     }
 }
 
+static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
+    Sint32 record_count;
+    Sint32 total_field_count;
+    BeamOpAllocator op_allocator;
+    BeamCodeReader *op_reader;
+    BeamOp *op = NULL;
+    BeamFile_RecordTable *rec = &beam->record;
+    ErtsStructDefinition *tmp_def;
+    Eterm *fp;
+
+    LoadAssert(beamreader_read_i32(p_reader, &record_count));
+    LoadAssert(beamreader_read_i32(p_reader, &total_field_count));
+
+    beamopallocator_init(&op_allocator);
+
+    op_reader = erts_alloc(ERTS_ALC_T_PREPARED_CODE, sizeof(BeamCodeReader));
+
+    op_reader->allocator = &op_allocator;
+    op_reader->file = beam;
+    op_reader->pending = NULL;
+    op_reader->first = 1;
+    op_reader->reader = *p_reader;
+
+    if (record_count < 0) {
+        goto error;
+    }
+
+    rec->record_count = record_count;
+    rec->total_field_count = 2 * total_field_count;
+    rec->records = erts_alloc(ERTS_ALC_T_PREPARED_CODE,
+                              record_count * sizeof(BeamFile_Record));
+    rec->fields = erts_alloc(ERTS_ALC_T_PREPARED_CODE,
+                             2 * total_field_count * sizeof(Eterm));
+    fp = rec->fields;
+
+    for (Sint32 i = 0; i < record_count; i++) {
+        BeamOpArg *arg;
+        int extra_args;
+        int field_index;
+
+        if (!beamcodereader_next(op_reader, &op)) {
+            goto error;
+        }
+        if (op->op != genop_call_last_3) {
+            goto error;
+        }
+
+        arg = op->a;
+
+        /* Process name. */
+        switch (arg->type) {
+        case TAG_a:
+            if (is_atom(arg->val)) {
+                rec->records[i].name = arg->val;
+            } else {
+                goto error;
+            }
+            break;
+        default:
+            goto error;
+        }
+
+        arg++;
+
+        /* Process exported flag. */
+        switch (arg->type) {
+        case TAG_a:
+            if (arg->val == am_true || arg->val == am_false) {
+                rec->records[i].is_exported = arg->val == am_true;
+            } else {
+                goto error;
+            }
+            break;
+        default:
+            goto error;
+        }
+
+        arg++;
+
+        /* Get and check the number of extra arguments. */
+        if (arg->type != TAG_u) {
+            goto error;
+        }
+
+        extra_args = arg->val;
+
+        arg++;
+
+        if (extra_args % 2 != 0) {
+            goto error;
+        }
+
+        rec->records[i].num_fields = extra_args / 2;
+        rec->records[i].first = fp;
+
+        tmp_def = (ErtsStructDefinition *) erts_alloc(ERTS_ALC_T_TMP,
+                                                      (extra_args + 2) * sizeof(Eterm));
+        tmp_def->thing_word = make_arityval(extra_args + 1);
+        tmp_def->entry = NIL;
+
+        field_index = 0;
+
+        while (extra_args > 0) {
+            switch (arg[0].type) {
+            case TAG_a:
+                *fp++ = arg[0].val;
+                tmp_def->fields[field_index].key = arg[0].val;
+                break;
+            default:
+                goto error;
+            }
+
+            switch (arg[1].type) {
+            case TAG_u:
+                *fp++ = THE_NON_VALUE;
+                tmp_def->fields[field_index].value = NIL;
+                break;
+            case TAG_a:
+            case TAG_n:
+                *fp++ = arg[1].val;
+                tmp_def->fields[field_index].value = arg[1].val;
+                break;
+            case TAG_i:
+                *fp++ = arg[1].val;
+                tmp_def->fields[field_index].value = make_small(arg[1].val);
+                break;
+            case TAG_q:
+                *fp++ = beamfile_get_literal(beam, arg[1].val);
+                tmp_def->fields[field_index].value =
+                    beamfile_get_literal(beam, arg[1].val);
+                break;
+            default:
+                goto error;
+            }
+
+            field_index++;
+            arg += 2;
+            extra_args -= 2;
+        }
+
+        rec->records[i].def_literal = beamfile_add_literal(beam, make_boxed(tmp_def), 0);
+
+        erts_free(ERTS_ALC_T_TMP, tmp_def);
+
+        beamopallocator_free_op(&op_allocator, op);
+        op = NULL;
+    }
+
+    beamcodereader_close(op_reader);
+    beamopallocator_dtor(&op_allocator);
+
+    return 1;
+
+ error:
+    if (op != NULL) {
+        beamopallocator_free_op(&op_allocator, op);
+    }
+
+    beamcodereader_close(op_reader);
+    beamopallocator_dtor(&op_allocator);
+
+    if (rec->records) {
+        erts_free(ERTS_ALC_T_PREPARED_CODE, rec->records);
+        rec->records = NULL;
+    }
+
+    if (rec->fields) {
+        erts_free(ERTS_ALC_T_PREPARED_CODE, rec->fields);
+        rec->fields = NULL;
+    }
+
+    return 0;
+}
+
+static int parse_record_chunk(BeamFile *beam, IFF_Chunk *chunk) {
+    BeamReader reader;
+    Sint32 version;
+
+    beamreader_init(chunk->data, chunk->size, &reader);
+
+    LoadAssert(beamreader_read_i32(&reader, &version));
+
+    if (version == 0) {
+        return parse_record_chunk_data(beam, &reader);
+    } else {
+        return 0;
+    }
+}
+
 static ErlHeapFragment *new_literal_fragment(Uint size)
 {
     ErlHeapFragment *bp;
@@ -1128,6 +1318,7 @@ beamfile_read(const byte *data, size_t size, BeamFile *beam) {
         MakeIffId('T', 'y', 'p', 'e'), /* 12 */
         MakeIffId('M', 'e', 't', 'a'), /* 13 */
         MakeIffId('D', 'b', 'g', 'B'), /* 14 */
+        MakeIffId('R', 'e', 'c', 's'), /* 15 */
     };
 
     static const int UTF8_ATOM_CHUNK = 0;
@@ -1147,6 +1338,7 @@ beamfile_read(const byte *data, size_t size, BeamFile *beam) {
     static const int TYPE_CHUNK = 12;
     static const int META_CHUNK = 13;
     static const int DEBUG_CHUNK = 14;
+    static const int RECORD_CHUNK = 15;
 
     static const int NUM_CHUNKS = sizeof(chunk_iffs) / sizeof(chunk_iffs[0]);
 
@@ -1251,6 +1443,13 @@ beamfile_read(const byte *data, size_t size, BeamFile *beam) {
         }
     }
 
+    if (chunks[RECORD_CHUNK].size > 0) {
+        if (!parse_record_chunk(beam, &chunks[RECORD_CHUNK])) {
+            error = BEAMFILE_READ_CORRUPT_RECORD_TABLE;
+            goto error;
+        }
+    }
+
     beam->strings.data = chunks[STR_CHUNK].data;
     beam->strings.size = chunks[STR_CHUNK].size;
 
@@ -1324,6 +1523,12 @@ beamfile_read(const byte *data, size_t size, BeamFile *beam) {
             MD5Update(&md5,
                       (byte*)chunks[META_CHUNK].data,
                       chunks[META_CHUNK].size);
+        }
+
+        if (chunks[RECORD_CHUNK].size > 0) {
+            MD5Update(&md5,
+                      (byte*)chunks[RECORD_CHUNK].data,
+                      chunks[RECORD_CHUNK].size);
         }
 
         MD5Final(beam->checksum, &md5);
