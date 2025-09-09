@@ -530,17 +530,21 @@ build_record_def([{struct,[{Name,Fs}]}|Defs], Dict0) ->
     %% The native-record definitions utilizes the encoding machinery
     %% for BEAM instructions. Each record definition is translated to:
     %%
-    %%    {call,RecordName,{list,[FieldName,OptionalValue,...]}}
+    %%    {call_last,RecordName,Exported,
+    %%               {list,[FieldName,OptionalValue,...]}}
     %%
     %% Where:
     %%
     %%    RecordName := atom(),
+    %%    Exported := boolean(),
     %%    FieldName := atom(),
+    %%    OptionalValue := term() | Absent
+    %%    Absent := 0 tagged with the u tag
     %%
-    %% The only reason the `call` instruction is used is because it
-    %% has two operands.
+    %% The only reason the `call_last` instruction is used is because
+    %% it has three operands.
     %%
-    %% As an example, the following native-record:
+    %% As an example, the following non-exported native-record:
     %%
     %%    -struct user, {
     %%       id = -1,
@@ -550,11 +554,12 @@ build_record_def([{struct,[{Name,Fs}]}|Defs], Dict0) ->
     %%
     %% will be translated to the following instruction:
     %%
-    %%     {call,{atom,user},{list,[{atom,id},{literal,-1},
-    %%                              {atom,name},0,
-    %%                              {atom,city},0]}}
+    %%     {call_last,{atom,user},{atom,false},
+    %%                {list,[{atom,id},{literal,-1},
+    %%                       {atom,name},0,
+    %%                       {atom,city},0]}}
     Def = build_record_def_fs(Fs),
-    Instr0 = {call,{atom,Name},{list,Def}},
+    Instr0 = {call_last,{atom,Name},{atom,true},{list,Def}},
     {Instr,Dict1} = make_op(Instr0, Dict0),
     {Tail,Dict2} = build_record_def(Defs, Dict1),
     {[Instr|Tail],Dict2};
