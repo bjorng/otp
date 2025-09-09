@@ -516,17 +516,20 @@ build_record_chunk(Attr0, Dict0) ->
         [] ->
             {[],Attr0,Dict0};
         [_|_] ->
-            {Defs,Dict} = build_record_def(Defs0, Dict0),
+            Defs1 = [Def || {struct,[Def]} <:- Defs0],
+            {Defs,Dict} = build_record_def(Defs1, Dict0),
+            NumFields = lists:sum([length(Fs) || {_,Fs} <:- Defs1]),
             NumItems = length(Defs),
             0 = NumItems bsr 31,                %Assertion.
             Contents = <<?BEAM_RECORD_VERSION:32,
                          NumItems:32,
+                         NumFields:32,
                          (iolist_to_binary(Defs))/binary>>,
             Chunk = chunk(~"Recs", Contents),
             {Chunk,Attr,Dict}
     end.
 
-build_record_def([{struct,[{Name,Fs}]}|Defs], Dict0) ->
+build_record_def([{Name,Fs}|Defs], Dict0) ->
     %% The native-record definitions utilizes the encoding machinery
     %% for BEAM instructions. Each record definition is translated to:
     %%
