@@ -433,6 +433,16 @@ save_restore(Config) when is_list(Config) ->
     c = multiple_matches(<<777:16>>, <<57:8>>),
     d = multiple_matches(<<17:8>>, <<1111:16>>),
 
+    {'EXIT',{function_clause,
+             [{?MODULE,multiple_matches,[<<0:32>>, <<777:16>>],_}|_]}} =
+        catch multiple_matches(<<0:32>>, <<777:16>>),
+    {'EXIT',{function_clause,
+             [{?MODULE,multiple_matches,[<<42:16>>, <<7777:24>>],_}|_]}} =
+        catch multiple_matches(<<42:16>>, <<7777:24>>),
+    {'EXIT',{function_clause,
+             [{?MODULE,multiple_matches,[<<42:8>>, <<7777:24>>],_}|_]}} =
+        catch multiple_matches(<<42:8>>, <<7777:24>>),
+
     Bin = <<-1:64>>,
     case bad_float_unpack_match(Bin) of
 	-1 -> ok;
