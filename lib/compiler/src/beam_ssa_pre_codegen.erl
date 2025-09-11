@@ -218,15 +218,15 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 
 fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
     {Blocks, Count1} = bs_add_block(Blocks0, Count0),
-    F = fun(#b_set{op=bs_start_match,dst=Dst}, A) ->
+    F = fun(#b_set{op=bs_start_match,dst=Dst,args=[_,ParentCtx]}, A) ->
                 %% Mark the root of the match context list.
-                A#{Dst => {context,Dst}};
+                A#{Dst => {origin,ParentCtx}};
            (#b_set{op=bs_ensure,dst=Dst,args=[ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
                 fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
            (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
-                fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
+                fix_bs_ensure_root(ParentCtx, A#{Dst => {changed,ParentCtx}});
            (#b_set{op=bs_get_tail,args=[ParentCtx|_]}, A) ->
                 %% We must not create a link here, because bs_get_tail
                 %% doesn't return a match context, but we must ensure
@@ -419,24 +419,6 @@ bs_update_successors(#b_switch{fail=Fail,list=List}, SPos, FPos, D) ->
 bs_update_successors(#b_ret{}, SPos, FPos, D) ->
     SPos = FPos,                                %Assertion.
     D.
-
-% bs_origin(Blocks) ->
-%     io:format("Blocks ~p~n", [Blocks]),
-%     F = fun(#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}, A) ->
-%                 %% Mark the root of the match context list.
-%                 A#{Dst => {origin,Arg}};
-%            (#b_set{op=bs_ensure,dst=Dst,args=[ParentCtx|_]}, A) ->
-%                 %% Link this match context to the previous match context.
-%                 A#{Dst => ParentCtx};
-%            (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
-%                 %% Link this match context to the previous match context.
-%                 A#{Dst => {changed,ParentCtx}};
-%            (_, A) ->
-%                 A
-%         end,
-%     RPO = beam_ssa:rpo(Blocks),
-%     CtxChain = beam_ssa:fold_instrs(F, RPO, #{}, Blocks),
-%     Blocks.
 
 bs_add_block(BlockMap, Count0) ->
     SSA = beam_ssa:linearize(BlockMap),
@@ -1000,8 +982,10 @@ bs_combine(Dst, Ctx, [{L,#b_blk{is=Is0}=Blk}|Acc]) ->
 
 bs_subst_ctx(#b_var{}=Var, CtxChain) ->
     case CtxChain of
-        #{Var:={context,Ctx}} ->
-            Ctx;
+        #{Var:={origin,_}} ->
+            Var;
+        #{Var:={changed,ParentCtx}} ->
+            bs_subst_ctx(ParentCtx, CtxChain);
         #{Var:=ParentCtx} ->
             bs_subst_ctx(ParentCtx, CtxChain);
         #{} ->
