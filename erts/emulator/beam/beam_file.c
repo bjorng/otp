@@ -993,10 +993,13 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
                 tmp_def->fields[field_index].value = NIL;
                 break;
             case TAG_a:
-            case TAG_i:
             case TAG_n:
                 *fp++ = arg[1].val;
                 tmp_def->fields[field_index].value = arg[1].val;
+                break;
+            case TAG_i:
+                *fp++ = arg[1].val;
+                tmp_def->fields[field_index].value = make_small(arg[1].val);
                 break;
             case TAG_q:
                 *fp++ = beamfile_get_literal(beam, arg[1].val);

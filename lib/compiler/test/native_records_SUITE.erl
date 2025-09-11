@@ -29,7 +29,9 @@
 -record #empty{}.
 -record #a{x, y}.
 -record #b{x=none, y=none, z=none}.
--record #c{x::integer, y=0::integer}.
+-record #c{x::integer, y=0::integer, z=[]}.
+-record #d{f=3.1416, l=[a,b,c], t={a,b,c},
+           m=#{a => 1}}.
 
 suite() ->
     [{ct_hooks,[ts_install_cth]},
