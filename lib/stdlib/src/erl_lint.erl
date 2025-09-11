@@ -3245,13 +3245,15 @@ record_def(Anno, Name, Fs0, St0) ->
 
 -spec struct_def(anno(), atom(), [erl_parse:af_field_decl()], lint_state()) -> lint_state().
 struct_def(Anno, Name, Fs0, St0) ->
-  case is_map_key(Name, St0#lint.structs) of
-    true -> add_error(Anno, {redefine_struct,Name}, St0);
-    false ->
-      {Fs, St1} = struct_def_fields(Fs0, Name, St0),
-      St2=St1#lint{structs=maps:put(Name, {Anno,Fs}, St1#lint.structs)},
-      St2
-  end.
+    case is_map_key(Name, St0#lint.structs) of
+        true ->
+            add_error(Anno, {redefine_struct,Name}, St0);
+        false ->
+            Fs1 = normalise_struct_fields(Fs0),
+            {Fs, St1} = struct_def_fields(Fs1, Name, St0),
+            St2=St1#lint{structs=maps:put(Name, {Anno,Fs}, St1#lint.structs)},
+            St2
+    end.
 
 
 %% def_fields([RecDef], RecordName, State) -> {[DefField],State}.
@@ -3282,23 +3284,30 @@ def_fields(Fs0, Name, St0) ->
           end, {[],St0}, Fs0).
 
 -spec struct_def_fields(
-    [erl_parse:af_field_decl()],
-    atom(),
-    lint_state()
-) -> {[erl_parse:af_field_decl()], lint_state()}.
+        [erl_parse:af_field_decl()],
+        atom(),
+        lint_state()) ->
+          {[erl_parse:af_field_decl()], lint_state()}.
 struct_def_fields(Fs0, Name, St0) ->
-   foldl(fun
-           ({record_field, Af, {atom, _Aa, F}}=Field, {Fs, St}) ->
-              case exist_struct_field(F, Fs) of
-                true -> {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
-                false -> {[Field|Fs],St}
-              end;
-           ({record_field, Af, {atom, _Aa, F}, _Init}=Field, {Fs, St}) ->
-             case exist_struct_field(F, Fs) of
-               true -> {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
-               false -> {[Field|Fs],St}
-             end
-          end, {[],St0}, Fs0).
+    foldl(fun
+              ({record_field, Af, {atom, _Aa, F}}=Field, {Fs, St}) ->
+                 case exist_struct_field(F, Fs) of
+                     true -> {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
+                     false -> {[Field|Fs],St}
+                 end;
+              ({record_field, Af, {atom, _Aa, F}, _Init}=Field, {Fs, St}) ->
+                 case exist_struct_field(F, Fs) of
+                     true -> {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
+                     false -> {[Field|Fs],St}
+                 end
+         end, {[],St0}, Fs0).
+
+normalise_struct_fields(Fs) ->
+    map(fun ({typed_record_field,{record_field,Af,Field},_Type}) ->
+		{record_field,Af,Field,{atom,Af,undefined}};
+	    ({typed_record_field,Field,_Type}) ->
+		Field;
+            (F) -> F end, Fs).
 
 %% normalise_fields([RecDef]) -> [Field].
 %%  Normalise the field definitions to always have a default value. If

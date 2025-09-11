@@ -57,6 +57,7 @@ map_pair_types map_pair_type
 bin_base_type bin_unit_type
 maybe_expr maybe_match_exprs maybe_match
 clause_body_exprs
+record_spec typed_record_spec record_name
 ssa_check_anno
 ssa_check_anno_clause
 ssa_check_anno_clauses
@@ -97,7 +98,7 @@ char integer float atom sigil_prefix string sigil_suffix var
 '<<' '>>'
 '!' '=' '::' '..' '...'
 '?='
-'spec' 'callback' % helper
+'spec' 'callback' 'record' % helper
 dot
 '%ssa%'.
 
@@ -133,8 +134,14 @@ form -> function dot : '$1'.
 attribute -> '-' atom attr_val               : build_attribute('$2', '$3').
 attribute -> '-' atom typed_attr_val         : build_typed_attribute('$2','$3').
 attribute -> '-' atom '(' typed_attr_val ')' : build_typed_attribute('$2','$4').
+
+attribute -> '-' 'record' record_spec        : build_record('$2', '$3').
+attribute -> '-' 'record' typed_record_spec  : build_record('$2', '$3').
+attribute -> '-' 'record' '(' typed_record_spec ')' :  build_record('$2', '$4').
+
 attribute -> '-' 'spec' type_spec            : build_type_spec('$2', '$3').
 attribute -> '-' 'callback' type_spec        : build_type_spec('$2', '$3').
+attribute -> '-' 'record' type_spec          : build_type_spec('$2', '$3').
 
 type_spec -> spec_fun type_sigs : {'$1', '$2'}.
 type_spec -> '(' spec_fun type_sigs ')' : {'$2', '$3'}.
@@ -144,6 +151,20 @@ spec_fun ->                  atom ':' atom : {'$1', '$3'}.
 
 typed_attr_val -> expr ',' typed_record_fields : {typed_record, '$1', '$3'}.
 typed_attr_val -> expr '::' top_type           : {type_def, '$1', '$3'}.
+
+%% Pretty much like attr_val, but record name must be an atom,
+%% to not allow variable names as record names when there is no leading '#'.
+record_spec -> atom : {record, ['$1']}.
+record_spec -> atom ',' exprs: {record, ['$1' | '$3']}.
+record_spec -> '(' atom ',' exprs ')': {record, ['$2' | '$4']}.
+
+%% More record-like record declaration that allows record_name.
+record_spec -> '#' record_name : {struct, ['$2']}.
+record_spec -> '#' record_name exprs: {struct, ['$2' | '$3']}.
+record_spec -> '(' '#' record_name exprs ')': {struct, ['$3' | '$4']}.
+
+typed_record_spec -> atom ',' typed_record_fields : {typed_record, '$1', '$3'}.
+typed_record_spec -> '#' record_name typed_record_fields : {typed_struct, '$2', '$3'}.
 
 typed_record_fields -> '{' typed_exprs '}' : {tuple, ?anno('$1'), '$2'}.
 
@@ -624,6 +645,9 @@ comp_op -> '>=' : '$1'.
 comp_op -> '>' : '$1'.
 comp_op -> '=:=' : '$1'.
 comp_op -> '=/=' : '$1'.
+
+record_name -> atom : '$1'.
+record_name -> var : '$1'.
 
 ssa_check_when_clauses -> ssa_check_when_clause : ['$1'].
 ssa_check_when_clauses -> ssa_check_when_clause ssa_check_when_clauses :
@@ -1381,6 +1405,10 @@ parse_form([{'-',A1},{atom,A2,callback}|Tokens]) ->
     NewTokens = [{'-',A1},{'callback',A2}|Tokens],
     ?ANNO_CHECK(NewTokens),
     parse(NewTokens);
+parse_form([{'-',A1},{atom,A2,record}|Tokens]) ->
+    NewTokens = [{'-',A1},{record,A2}|Tokens],
+    ?ANNO_CHECK(NewTokens),
+    parse(NewTokens);
 parse_form(Tokens) ->
     ?ANNO_CHECK(Tokens),
     parse(Tokens).
@@ -1525,6 +1553,21 @@ build_bin_type([], Int) ->
 build_bin_type([{var, Aa, _}|_], _) ->
     ret_err(Aa, "Bad binary type").
 
+build_atom({atom, _Aa, _Name} = Atom) -> Atom;
+build_atom({var, Aa, Name}) -> {atom, Aa, Name};
+build_atom({record, Aa}) -> {atom, Aa, record}.
+
+build_record({record, Aa}, {typed_record,Name0,Tuple}) ->
+    {atom,_,Name} = build_atom(Name0),
+    {attribute,Aa,record,{Name,record_tuple(Tuple)}};
+build_record({record, Aa}, {typed_struct,Name0,Tuple}) ->
+    {atom,_,Name} = build_atom(Name0),
+    {attribute,Aa,struct,{Name,record_tuple(Tuple)}};
+build_record({record, Aa}, {Tag,[Name0,Fs]}) ->
+    true = Tag =:= record orelse Tag =:= struct, %Assertion.
+    {atom,_,Name} = build_atom(Name0),
+    {attribute,Aa,Tag,{Name,record_tuple(Fs)}}.
+
 build_type({atom, A, Name}, Types) ->
     Tag = type_tag(Name, length(Types)),
     {Tag, A, Name, Types}.
@@ -1577,6 +1620,8 @@ build_attribute({atom,Aa,record}, Val) ->
     case Val of
 	[{atom,_An,Record},RecTuple] ->
 	    {attribute,Aa,record,{Record,record_tuple(RecTuple)}};
+	[{record,_Ar,Record,Fields}] ->
+	    {attribute,Aa,struct,{Record,Fields}};
         [Other|_] -> error_bad_decl(Other, record)
     end;
 build_attribute({atom,Aa,struct}, Val) ->

@@ -19,15 +19,19 @@
 %%
 %% %CopyrightEnd%
 %%
--module(native_records_SUITE).
+-module(native_record_SUITE).
 -include_lib("stdlib/include/assert.hrl").
 
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
          local_basic/1,local_updates/1]).
 
--struct a, {x, y}.
--struct b, {x = none, y = none, z = none}.
+-record #empty{}.
+-record #a{x, y}.
+-record #b{x=none, y=none, z=none}.
+-record #c{x::integer, y=0::integer, z=[]}.
+-record #d{f=3.1416, l=[a,b,c], t={a,b,c},
+           m=#{a => 1}}.
 
 suite() ->
     [{ct_hooks,[ts_install_cth]},
@@ -60,9 +64,13 @@ end_per_group(_GroupName, Config) ->
 local_basic(_Config) ->
     ARec = id(#a{x=1, y=2}),
     BRec = id(#b{}),
+    CRec = id(#c{x=42, y=100}),
 
+    empty = name(id(#empty{})),
     a = name(ARec),
     b = name(BRec),
+    c = name(CRec),
+
     NameFun = fun(#a{}) -> a;
                  (#b{}) -> b
               end,
@@ -75,6 +83,11 @@ local_basic(_Config) ->
     false = is_int_ax(id(#a{x=a,y=b})),
 
     ok.
+
+name(#empty{}) -> empty;
+name(#a{}) -> a;
+name(#b{}) -> b;
+name(#c{}) -> c.
 
 is_int_ax(A) ->
     Result = is_int_ax_guard_1(A),
@@ -103,9 +116,6 @@ local_updates(_Config) ->
     baz = R2#b.z,
 
     ok.
-
-name(#a{}) -> a;
-name(#b{}) -> b.
 
 %%% Common utilities.
 
