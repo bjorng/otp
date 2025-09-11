@@ -62,10 +62,12 @@ end_per_group(_GroupName, Config) ->
 local_basic(_Config) ->
     ARec = id(#a{x=1, y=2}),
     BRec = id(#b{}),
+    CRec = id(#c{x=42, y=100}),
 
+    empty = name(id(#empty{})),
     a = name(ARec),
     b = name(BRec),
-    empty = name(id(#empty{})),
+    c = name(CRec),
 
     NameFun = fun(#a{}) -> a;
                  (#b{}) -> b
@@ -80,9 +82,10 @@ local_basic(_Config) ->
 
     ok.
 
+name(#empty{}) -> empty;
 name(#a{}) -> a;
 name(#b{}) -> b;
-name(#empty{}) -> empty.
+name(#c{}) -> c.
 
 is_int_ax(A) ->
     Result = is_int_ax_guard_1(A),

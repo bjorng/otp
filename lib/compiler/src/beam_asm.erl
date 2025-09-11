@@ -569,6 +569,8 @@ build_record_def([{Name,Fs}|Defs], Dict0) ->
 build_record_def([], Dict) ->
     {[],Dict}.
 
+build_record_def_fs([{typed_record_field,RecField,_Type}|Fs]) ->
+    build_record_def_fs([RecField|Fs]);
 build_record_def_fs([{record_field,_,Key0,Exp}|Fs]) ->
     {atom,_,Key1} = Key0,
     Key = {atom,Key1},
