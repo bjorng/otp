@@ -26,8 +26,10 @@
 	 init_per_group/2,end_per_group/2,
          local_basic/1,local_updates/1]).
 
--struct a, {x, y}.
--struct b, {x = none, y = none, z = none}.
+-record #empty{}.
+-record #a{x, y}.
+-record #b{x=none, y=none, z=none}.
+-record #c{x::integer, y=0::integer}.
 
 suite() ->
     [{ct_hooks,[ts_install_cth]},
@@ -63,6 +65,8 @@ local_basic(_Config) ->
 
     a = name(ARec),
     b = name(BRec),
+    empty = name(id(#empty{})),
+
     NameFun = fun(#a{}) -> a;
                  (#b{}) -> b
               end,
@@ -75,6 +79,10 @@ local_basic(_Config) ->
     false = is_int_ax(id(#a{x=a,y=b})),
 
     ok.
+
+name(#a{}) -> a;
+name(#b{}) -> b;
+name(#empty{}) -> empty.
 
 is_int_ax(A) ->
     Result = is_int_ax_guard_1(A),
@@ -103,9 +111,6 @@ local_updates(_Config) ->
     baz = R2#b.z,
 
     ok.
-
-name(#a{}) -> a;
-name(#b{}) -> b.
 
 %%% Common utilities.
 
