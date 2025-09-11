@@ -420,28 +420,59 @@ bs_update_successors(#b_ret{}, SPos, FPos, D) ->
     SPos = FPos,                                %Assertion.
     D.
 
+% bs_origin(Blocks) ->
+%     io:format("Blocks ~p~n", [Blocks]),
+%     F = fun(#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}, A) ->
+%                 %% Mark the root of the match context list.
+%                 A#{Dst => {origin,Arg}};
+%            (#b_set{op=bs_ensure,dst=Dst,args=[ParentCtx|_]}, A) ->
+%                 %% Link this match context to the previous match context.
+%                 A#{Dst => ParentCtx};
+%            (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
+%                 %% Link this match context to the previous match context.
+%                 A#{Dst => {changed,ParentCtx}};
+%            (_, A) ->
+%                 A
+%         end,
+%     RPO = beam_ssa:rpo(Blocks),
+%     CtxChain = beam_ssa:fold_instrs(F, RPO, #{}, Blocks),
+%     Blocks.
+
 bs_add_block(BlockMap, Count0) ->
     SSA = beam_ssa:linearize(BlockMap),
+    %% Find all bs_start_match instructions. If an Arg is used again after,
+    %% bs_match, that block is a fragile block. Find all blocks that can reach
+    %% a fragile block and count all of them as fragile.
     {Map, FragileBlks, ReachFrom} = bs_find_start_match(SSA, BlockMap, #{}, #{}, #{}),
     NeedDup = lists:uniq(maps:values(ReachFrom)),
     % io:format("Map ~p~n", [Map]),
     % io:format("FragileBlks ~p~n", [FragileBlks]),
     % io:format("ReachFrom ~p~n", [ReachFrom]),
-    {NewBlocks, Count1, _RedirectMap} = duplicate_block(BlockMap, Map, FragileBlks, NeedDup, Count0, ReachFrom),
+    %% Duplicate fragile blocks and redirect branches.
+    {NewBlocks, Count1} = duplicate_block(BlockMap, Map, FragileBlks, NeedDup, Count0, ReachFrom),
     % io:format("NewBlocks ~p~n", [NewBlocks]),
     % io:format("Count1 ~p~n", [Count1]),
     {NewBlocks, Count1}.
 
 bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}|_]}}|Bs], BlockMap, Map0, FragileBlks0, ReachFrom) ->
+    %% Map Arg to Dst, so we know what to replace it with.
+    Map1 = case Map0 of
+        #{Arg := _Dst0} ->
+            %% TODO: This Arg created a match context before, we may need to
+            %% replace the current usage with Dst0.
+            Map0;
+        _ -> Map0#{Arg => Dst}
+    end,
     [L|Successors] = beam_ssa:rpo([L], BlockMap),
+    %% Find all bs_match instructions in the successors.
     Destructive = bs_find_destructive(Successors, BlockMap, []),
     Uses = beam_ssa:uses(Successors, BlockMap),
+    %% Find all blocks that uses Arg. Collect their labels.
     Fragiles = maps:get(Arg, Uses, []),
     FragileLbls = [Label || {Label,_} <:- Fragiles],
-
-    CanReachFragile = bs_find_destructive_2(Destructive, BlockMap, FragileLbls, #{}),
-
-    Map1 = Map0#{Arg => Dst},
+    %% Find all blocks that can be reached from destructive
+    %% bs_match instructions.
+    CanReachFragile = bs_find_fragile_label(Destructive, BlockMap, FragileLbls, #{}),
     FragileBlks = maps:merge(FragileBlks0, maps:from_keys(FragileLbls, Arg)),
 
     bs_find_start_match(Bs, BlockMap, Map1, FragileBlks, maps:merge(ReachFrom, CanReachFragile));
@@ -454,6 +485,7 @@ bs_find_destructive([L|SuccessorLabels], BlockMap, Acc) ->
     Blk = map_get(L, BlockMap),
     case Blk of
         #b_blk{is=[#b_set{op=bs_match}|_]} ->
+            %% TODO: Only collect successors of the success label.
             [L|Successors] = beam_ssa:rpo([L], BlockMap),
             bs_find_destructive(SuccessorLabels, BlockMap, [L|Acc]++Successors);
         _ ->
@@ -462,17 +494,17 @@ bs_find_destructive([L|SuccessorLabels], BlockMap, Acc) ->
 bs_find_destructive([], _BlockMap, Acc) ->
     sets:to_list(sets:from_list(Acc)).
 
-bs_find_destructive_2([L|Destructive], BlockMap, FragileLabels, Redirect) ->
+bs_find_fragile_label([L|Destructive], BlockMap, FragileLabels, Redirect) ->
     Blk = map_get(L, BlockMap),
     case Blk of
         #b_blk{last=#b_br{fail=Fail}} ->
             case lists:member(Fail, FragileLabels) of
-                true -> bs_find_destructive_2(Destructive, BlockMap, FragileLabels, Redirect#{L => Fail});
-                _ -> bs_find_destructive_2(Destructive, BlockMap, FragileLabels, Redirect)
+                true -> bs_find_fragile_label(Destructive, BlockMap, FragileLabels, Redirect#{L => Fail});
+                _ -> bs_find_fragile_label(Destructive, BlockMap, FragileLabels, Redirect)
             end;
-        _ -> bs_find_destructive_2(Destructive, BlockMap, FragileLabels, Redirect)
+        _ -> bs_find_fragile_label(Destructive, BlockMap, FragileLabels, Redirect)
     end;
-bs_find_destructive_2([], _, _, Redirect) -> Redirect.
+bs_find_fragile_label([], _, _, Redirect) -> Redirect.
 
 duplicate_block(BlockMap0, Map, FragileBlks, [L|NeedDup], Count0, RedirectMap) ->
     OldBlock = map_get(L, BlockMap0),
@@ -485,11 +517,11 @@ duplicate_block(BlockMap0, Map, FragileBlks, [L|NeedDup], Count0, RedirectMap) -
     NewBlock = beam_ssa:rename_vars(Map, [NewLabel], #{NewLabel => OldBlock}),
     BlockMap1 = maps:merge(BlockMap0, NewBlock),
     BlocksToPatch = [K || K := VarName <- RedirectMap, VarName =:= L],
-    % io:format("BlocksToPatch: ~p~n", [BlocksToPatch]),
+    io:format("BlocksToPatch: ~p~n", [BlocksToPatch]),
     BlockMap = patch_blocks(BlocksToPatch, NewLabel, BlockMap1),
     duplicate_block(BlockMap, Map, FragileBlks, NeedDup, Count, RedirectMap);
-duplicate_block(BlockMap, _Map, _FragileBlks, [], Count, RedirectMap) ->
-    {BlockMap, Count, RedirectMap}.
+duplicate_block(BlockMap, _Map, _FragileBlks, [], Count, _RedirectMap) ->
+    {BlockMap, Count}.
 
 
 patch_blocks([Lbl|BlocksToPatch], L, BlockMap) ->
