@@ -57,6 +57,7 @@ map_pair_types map_pair_type
 bin_base_type bin_unit_type
 maybe_expr maybe_match_exprs maybe_match
 clause_body_exprs
+record_def rec_field_def
 ssa_check_anno
 ssa_check_anno_clause
 ssa_check_anno_clauses
@@ -130,11 +131,18 @@ Nonassoc 500 '*'. % for binary expressions
 form -> attribute dot : '$1'.
 form -> function dot : '$1'.
 
+attribute -> '-' atom '#' atom '{' record_def '}' : build_native_record('$2', '$4', '$6').
 attribute -> '-' atom attr_val               : build_attribute('$2', '$3').
 attribute -> '-' atom typed_attr_val         : build_typed_attribute('$2','$3').
 attribute -> '-' atom '(' typed_attr_val ')' : build_typed_attribute('$2','$4').
 attribute -> '-' 'spec' type_spec            : build_type_spec('$2', '$3').
 attribute -> '-' 'callback' type_spec        : build_type_spec('$2', '$3').
+
+record_def -> rec_field_def                : ['$1'].
+record_def -> rec_field_def ',' record_def : ['$1'|'$3'].
+
+rec_field_def -> expr                      : '$1'.
+%% rec_field_def -> atom                      : '$1'.
 
 type_spec -> spec_fun type_sigs : {'$1', '$2'}.
 type_spec -> '(' spec_fun type_sigs ')' : {'$2', '$3'}.
@@ -1464,6 +1472,12 @@ build_typed_attribute({atom,Aa,Attr}=Abstr,_) ->
         _      -> ret_err(Aa, "bad attribute")
     end.
 
+build_native_record({atom,Aa,record}, {atom,_,Name}, Fields) ->
+    io:format(":: ~p\n", [Name]),
+    io:format(":: ~p\n", [Fields]),
+    io:nl(),
+    {attribute,Aa,struct,{Name,record_fields(Fields)}}.
+
 build_type_spec({Kind,Aa}, {SpecFun, TypeSpecs})
   when Kind =:= spec ; Kind =:= callback ->
     NewSpecFun =
@@ -1574,9 +1588,12 @@ build_attribute({atom,Aa,import_struct}, Val) ->
         [_,Other|_] -> error_bad_decl(Other, import_struct)
     end;
 build_attribute({atom,Aa,record}, Val) ->
+    io:format("== ~p\n", [Val]),
     case Val of
 	[{atom,_An,Record},RecTuple] ->
 	    {attribute,Aa,record,{Record,record_tuple(RecTuple)}};
+	[{record,_Ar,Record,Fields}] ->
+	    {attribute,Aa,struct,{Record,Fields}};
         [Other|_] -> error_bad_decl(Other, record)
     end;
 build_attribute({atom,Aa,struct}, Val) ->
@@ -1688,7 +1705,10 @@ struct_name_list(Other) ->
 
 record_tuple({tuple,_At,Fields}) ->
     record_fields(Fields);
+record_tuple({record,_Ar,_Name,Fields}) ->
+    Fields;
 record_tuple(Other) ->
+    io:format(":: ~p\n", [Other]),
     ret_abstr_err(Other, "bad record declaration").
 
 record_fields([{atom,Aa,A}|Fields]) ->
