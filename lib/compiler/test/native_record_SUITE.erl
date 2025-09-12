@@ -19,7 +19,7 @@
 %%
 %% %CopyrightEnd%
 %%
--module(native_records_SUITE).
+-module(native_record_SUITE).
 -include_lib("stdlib/include/assert.hrl").
 
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,

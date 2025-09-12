@@ -1557,14 +1557,16 @@ build_atom({atom, _Aa, _Name} = Atom) -> Atom;
 build_atom({var, Aa, Name}) -> {atom, Aa, Name};
 build_atom({record, Aa}) -> {atom, Aa, record}.
 
-build_record({record, Aa}, {Tag,[Name,Fs]}) ->
-    io:format("~p\n", [{Tag,Fs}]),
-    io:format("~p\n", [record_tuple(Fs)]),
-    build_atom({atom,Aa,blurf}),
-    Res = {attribute,Aa,Tag,{Name,record_tuple(Fs)}},
-    io:format("~p\n", [Res]),
-    io:nl(),
-    Res.
+build_record({record, Aa}, {typed_record,Name0,Tuple}) ->
+    {atom,_,Name} = build_atom(Name0),
+    {attribute,Aa,record,{Name,record_tuple(Tuple)}};
+build_record({record, Aa}, {typed_struct,Name0,Tuple}) ->
+    {atom,_,Name} = build_atom(Name0),
+    {attribute,Aa,struct,{Name,record_tuple(Tuple)}};
+build_record({record, Aa}, {Tag,[Name0,Fs]}) ->
+    true = Tag =:= record orelse Tag =:= struct, %Assertion.
+    {atom,_,Name} = build_atom(Name0),
+    {attribute,Aa,Tag,{Name,record_tuple(Fs)}}.
 
 build_type({atom, A, Name}, Types) ->
     Tag = type_tag(Name, length(Types)),

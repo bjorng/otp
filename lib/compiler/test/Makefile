@@ -65,7 +65,7 @@ MODULES= \
 	maybe_SUITE \
 	mc_SUITE \
 	misc_SUITE \
-	native_records_SUITE \
+	native_record_SUITE \
 	overridden_bif_SUITE \
 	random_code_SUITE \
 	receive_SUITE \
