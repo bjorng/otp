@@ -136,6 +136,7 @@ INLINE= \
 	maybe \
 	mc \
 	misc \
+	native_record \
 	overridden_bif \
 	receive \
 	record
