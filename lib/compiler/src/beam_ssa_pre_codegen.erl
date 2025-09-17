@@ -444,8 +444,8 @@ bs_add_block(BlockMap, Count0, CtxChain) ->
             NeedDup = lists:uniq(maps:values(ReachFrom)),
             %% Duplicate blocks and redirect branches.
             {NewBlocks, Count1} = duplicate_block(BlockMap0, Map1, FragileBlks, NeedDup, Count0, ReachFrom),
-            % io:format("NewBlocks ~p~n", [NewBlocks]),
-            % io:format("Count1 ~p~n", [Count1]),
+            %% io:format("NewBlocks ~p~n", [NewBlocks]),
+            %% io:format("Count1 ~p~n", [Count1]),
             {NewBlocks, Count1}
     end.
 
@@ -542,7 +542,8 @@ bs_find_common_dom(Blk, BlockMap) ->
 
 bs_find_redirect([L|Destructive], BlockMap, FragileLabels, Redirect0) ->
     Blk = map_get(L, BlockMap),
-    Redirect = foldl(fun(Successor, R0) ->
+    Redirect = foldl(fun(?EXCEPTION_BLOCK, R0) -> R0;
+                        (Successor, R0) ->
                              case member(Successor, FragileLabels) of
                                  true -> R0#{L => Successor};
                                  false -> R0
