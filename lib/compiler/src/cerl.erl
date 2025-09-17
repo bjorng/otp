@@ -117,7 +117,7 @@ function `type/1`.
          receive_timeout/1, seq_arg/1, seq_body/1, set_ann/2,
          string_lit/1, string_val/1,
          ann_c_struct/3, struct_id/1, struct_es/1,
-         struct_pair_key/1, struct_pair_val/1,
+         ann_c_struct_pair/3, struct_pair_key/1, struct_pair_val/1,
          subtrees/1, to_records/1,
          try_arg/1, try_body/1, try_vars/1, try_evars/1, try_handler/1,
          tuple_arity/1, tuple_es/1, type/1, unfold_literal/1,
@@ -1677,6 +1677,13 @@ struct_id(#c_struct{id = Id}) ->
 
 
 %% ---------------------------------------------------------------------
+
+-doc(#{since => <<"OTP 29.0">>}).
+-spec ann_c_struct_pair(Annotations :: [term()],
+                        Key :: cerl(), Value :: cerl()) -> c_map_pair().
+
+ann_c_struct_pair(As, K, V) ->
+    #c_struct_pair{key = K, val=V, anno = As}.
 
 -doc """
 Returns the key subtree of an abstract struct pair.

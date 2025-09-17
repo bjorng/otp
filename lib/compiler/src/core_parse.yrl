@@ -230,7 +230,7 @@ struct_pair_patterns -> struct_pair_pattern : ['$1'].
 struct_pair_patterns -> struct_pair_pattern ',' struct_pair_patterns : ['$1' | '$3'].
 
 struct_pair_pattern -> anno_atom '=' anno_pattern :
-                           #c_struct_pair{key=val='$1',val='$3'}.
+                           #c_struct_pair{key='$1',val='$3'}.
 struct_pair_pattern -> '(' anno_atom '=' anno_pattern '-|' annotation ')' :
                            #c_struct_pair{anno='$6',key='$2',val='$4'}.
 
