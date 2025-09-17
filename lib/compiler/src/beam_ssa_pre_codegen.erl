@@ -570,7 +570,6 @@ duplicate_block(BlockMap0, Map, FragileBlks, [L|NeedDup], Count0, RedirectMap) -
         _ ->
             {BlockMap1, Count} = aca_copy_successors(L, BlockMap0, Count0, Map),
             BlocksToPatch = [K || K := VarName <- RedirectMap, VarName =:= L],
-            io:format("BlocksToPatch ~w~n", [BlocksToPatch]),
             BlockMap = patch_blocks(BlocksToPatch, Count0, BlockMap1),
             {BlockMap, Count}
         end,
@@ -772,8 +771,8 @@ join_positions_2([], _Bigger, Smaller) ->
 %%  the position we've *restored to* and not the one we entered the
 %%  current block with.
 %%
-bs_restores_is([#b_set{op=bs_start_match,dst=Start}|Is],
-               CtxChain, SPos0, _FPos, Rs) ->
+bs_restores_is([#b_set{op=bs_start_match,dst=Start,args=[_,BinOrCtx]}|Is],
+               CtxChain, SPos0, _FPos, Rs0) ->
     %% Match instructions leave the position unchanged on failure, so
     %% FPos must be the SPos we entered the *instruction* with, and not the
     %% *block*.
@@ -783,7 +782,13 @@ bs_restores_is([#b_set{op=bs_start_match,dst=Start}|Is],
     %% restore to the position of the next-to-last match, not the position we
     %% entered the current block with.
     FPos = SPos0,
-    SPos = SPos0#{Start=>Start},
+    SPos = SPos0#{Start => Start},
+    Rs = case CtxChain of
+             #{BinOrCtx := _} ->
+                 Rs0#{Start => {BinOrCtx,BinOrCtx}};
+             #{} ->
+                 Rs0
+         end,
     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
 bs_restores_is([#b_set{op=bs_ensure,dst=NewPos,args=Args}|Is],
                CtxChain, SPos0, _FPos, Rs0) ->
@@ -1021,15 +1026,16 @@ bs_insert_deferred(Is, Deferred) ->
     Deferred ++ Is.
 
 bs_insert_is([#b_set{dst=Dst}=I|Is], Saves, Restores, Acc0) ->
-    Pre = case Restores of
-              #{Dst:=R} -> [R];
-              #{} -> []
-          end,
+    Pre0 = case Restores of
+               #{Dst:=R} -> [R];
+               #{} -> []
+           end,
+    Pre = bs_eliminate_start_match(Pre0, I),
     Post = case Saves of
                #{Dst:=S} -> [S];
                #{} -> []
            end,
-    Acc = [I | Pre] ++ Acc0,
+    Acc = Pre ++ Acc0,
     case Is of
         [#b_set{op={succeeded,_},args=[Dst]}] ->
             %% Defer the save sequence to the success block.
@@ -1039,6 +1045,14 @@ bs_insert_is([#b_set{dst=Dst}=I|Is], Saves, Restores, Acc0) ->
     end;
 bs_insert_is([], _, _, Acc) ->
     {reverse(Acc), []}.
+
+bs_eliminate_start_match([], I) ->
+    [I];
+bs_eliminate_start_match([#b_set{}=SetPosition], #b_set{op=bs_start_match,dst=Dst,args=[_,Ctx]}) ->
+    Copy = #b_set{op=copy,dst=Dst,args=[Ctx]},
+    [Copy,SetPosition];
+bs_eliminate_start_match([I0], I1) ->
+    [I1,I0].
 
 %% Translate bs_match instructions to one of:
 %%
