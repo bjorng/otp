@@ -512,25 +512,15 @@ bs_find_destructive([Dst|MatchDsts], CtxChain) ->
 bs_find_destructive([], _) ->
     nofail.
 
-bs_find_redirect([L|Destructive], BlockMap, FragileLabels, Redirect) ->
+bs_find_redirect([L|Destructive], BlockMap, FragileLabels, Redirect0) ->
     Blk = map_get(L, BlockMap),
-    case Blk of
-        #b_blk{last=#b_switch{fail=Fail}} ->
-            case lists:member(Fail, FragileLabels) of
-                true -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect#{L => Fail});
-                _ -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect)
-            end;
-        #b_blk{last=#b_br{succ=Succ,fail=Fail}} ->
-            case lists:member(Fail, FragileLabels) of
-                true -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect#{L => Fail});
-                _ ->
-                    case lists:member(Succ, FragileLabels) of
-                        true -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect#{L => Succ});
-                        _ -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect)
-                    end
-            end;
-        _ -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect)
-    end;
+    Redirect = foldl(fun(Successor, R0) ->
+                             case member(Successor, FragileLabels) of
+                                 true -> R0#{L => Successor};
+                                 false -> R0
+                             end
+                     end, Redirect0, beam_ssa:successors(Blk)),
+    bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect);
 bs_find_redirect([], _, _, Redirect) -> Redirect.
 
 duplicate_block(BlockMap0, Map, FragileBlks, [L|NeedDup], Count0, RedirectMap) ->
