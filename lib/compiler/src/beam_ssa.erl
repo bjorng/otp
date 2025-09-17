@@ -876,6 +876,8 @@ dominators_1([{L,Preds}|Ls], Df, Doms) ->
     dominators_1(Ls, Df, Doms#{L=>Dom});
 dominators_1([], _Df, Doms) -> Doms.
 
+dom_intersection([], _) ->
+    [];
 dom_intersection([S], _Df) ->
     S;
 dom_intersection([S|Ss], Df) ->

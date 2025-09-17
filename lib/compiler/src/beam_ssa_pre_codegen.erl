@@ -217,26 +217,32 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 %%  SSA to the imperative style of the BEAM instructions.
 
 fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
-    {Blocks, Count1} = bs_add_block(Blocks0, Count0),
     F = fun(#b_set{op=bs_start_match,dst=Dst,args=[_,ParentCtx]}, A) ->
                 %% Mark the root of the match context list.
                 A#{Dst => {origin,ParentCtx}};
            (#b_set{op=bs_ensure,dst=Dst,args=[ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
                 fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
-           (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
+           (#b_set{anno=Anno,op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
-                fix_bs_ensure_root(ParentCtx, A#{Dst => {changed,ParentCtx}});
-           (#b_set{op=bs_get_tail,args=[ParentCtx|_]}, A) ->
+                case Anno of
+                    #{ensured := true} ->
+                        fix_bs_ensure_root(ParentCtx, A#{Dst => {nofail,ParentCtx}});
+                    _ ->
+                        fix_bs_ensure_root(ParentCtx, A#{Dst => {changed,ParentCtx}})
+                end;
+           (#b_set{op=bs_get_tail,args=[ParentCtx,#b_literal{val=0}]}, A) ->
                 %% We must not create a link here, because bs_get_tail
                 %% doesn't return a match context, but we must ensure
                 %% that ParentCtx is registered as a match context.
-                fix_bs_ensure_root(ParentCtx, A);
+                %% Also mark all previous bs_match as nofail.
+                fix_bs_ensure_root(ParentCtx,A);
            (_, A) ->
                 A
         end,
-    RPO = beam_ssa:rpo(Blocks),
-    CtxChain = beam_ssa:fold_instrs(F, RPO, #{}, Blocks),
+    RPO = beam_ssa:rpo(Blocks0),
+    CtxChain = beam_ssa:fold_instrs(F, RPO, #{}, Blocks0),
+    {Blocks, Count1} = bs_add_block(Blocks0, Count0, CtxChain),
     case map_size(CtxChain) of
         0 ->
             %% No binary matching in this function.
@@ -420,88 +426,129 @@ bs_update_successors(#b_ret{}, SPos, FPos, D) ->
     SPos = FPos,                                %Assertion.
     D.
 
-bs_add_block(BlockMap, Count0) ->
-    SSA = beam_ssa:linearize(BlockMap),
-    %% Find all bs_start_match instructions. If an Arg is used again after,
-    %% bs_match, that block is a fragile block. Find all blocks that can reach
-    %% a fragile block and count all of them as fragile.
-    {Map, FragileBlks, ReachFrom} = bs_find_start_match(SSA, BlockMap, #{}, #{}, #{}),
-    NeedDup = lists:uniq(maps:values(ReachFrom)),
-    % io:format("Map ~p~n", [Map]),
-    % io:format("FragileBlks ~p~n", [FragileBlks]),
-    % io:format("ReachFrom ~p~n", [ReachFrom]),
-    %% Duplicate fragile blocks and redirect branches.
-    {NewBlocks, Count1} = duplicate_block(BlockMap, Map, FragileBlks, NeedDup, Count0, ReachFrom),
-    % io:format("NewBlocks ~p~n", [NewBlocks]),
-    % io:format("Count1 ~p~n", [Count1]),
-    {NewBlocks, Count1}.
+bs_add_block(BlockMap, Count0, CtxChain) ->
+    io:format("CtxChain ~p~n", [CtxChain]),
+    Changed = [V || {changed, V} <- maps:values(CtxChain)],
+    case Changed of
+        [] -> {BlockMap, Count0};
+        _  ->
+            SSA = beam_ssa:linearize(BlockMap),
+            %% Find all bs_start_match instructions. If an Arg is used again after,
+            %% bs_match, that block is a fragile block. Find all blocks that can reach
+            %% a fragile block and count all of them as fragile.
+            {Map1, FragileBlks, ReachFrom} = bs_find_start_match(SSA, BlockMap, CtxChain, #{}, #{}, #{}),
+            io:format("ReachFrom ~p~n", [ReachFrom]),
+            NeedDup = lists:uniq(maps:values(ReachFrom)),
+            %% Duplicate blocks and redirect branches.
+            {NewBlocks, Count1} = duplicate_block(BlockMap, Map1, FragileBlks, NeedDup, Count0, ReachFrom),
+            % io:format("NewBlocks ~p~n", [NewBlocks]),
+            % io:format("Count1 ~p~n", [Count1]),
+            {NewBlocks, Count1}
+    end.
 
-bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}|_]}}|Bs], BlockMap, Map0, FragileBlks0, ReachFrom) ->
+bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}|_]}}|Bs], BlockMap, CtxChain, Map0, FragileBlks0, ReachFrom) ->
     %% Map Arg to Dst, so we know what to replace it with.
-    Map1 = case Map0 of
-        #{Arg := _Dst0} ->
-            %% TODO: This Arg created a match context before, we may need to
-            %% replace the current usage with Dst0.
+    Map1 = case {CtxChain, Map0} of
+        {#{Dst := {origin,Arg}}, #{Arg := _Dst0}} ->
             Map0;
-        _ -> Map0#{Arg => Dst}
+        {#{Dst := {origin,Arg}}, #{}} ->
+            Map0#{Arg => Dst};
+        _ -> Map0
     end,
     [L|Successors] = beam_ssa:rpo([L], BlockMap),
-    %% Find all bs_match instructions in the successors.
-    Destructive = bs_find_destructive(Successors, BlockMap, []),
-    Uses = beam_ssa:uses(Successors, BlockMap),
-    %% Find all blocks that uses Arg. Collect their labels.
-    Fragiles = maps:get(Arg, Uses, []),
-    FragileLbls = [Label || {Label,_} <:- Fragiles],
-    %% Find all blocks that can be reached from destructive
-    %% bs_match instructions.
-    CanReachFragile = bs_find_fragile_label(Destructive, BlockMap, FragileLbls, #{}),
-    FragileBlks = maps:merge(FragileBlks0, maps:from_keys(FragileLbls, Arg)),
+    %% Find all fragile blocks that uses a changed match context.
+    %% Find dominator blocks that needs to be duplicated together with all
+    %% successors because of this.
+    {Destructives, Dominators} = bs_find_dominator(Successors, BlockMap, CtxChain, [], []),
+    %% Find all blocks that need to be redirected after duplication.
+    CanReachFragile = bs_find_redirect(Destructives, BlockMap, Dominators, #{}),
+    FragileBlks = maps:merge(FragileBlks0, maps:from_keys(Dominators, Arg)),
+    bs_find_start_match(Bs, BlockMap, CtxChain, Map1, FragileBlks, maps:merge(ReachFrom, CanReachFragile));
+bs_find_start_match([_B|Bs], BlockMap, CtxChain, Map1, FragileMap, ReachFrom) ->
+    bs_find_start_match(Bs, BlockMap, CtxChain, Map1, FragileMap, ReachFrom);
+bs_find_start_match([], _BlockMap, _CtxChain, Map1, FragileMap, ReachFrom) ->
+    {Map1, FragileMap, ReachFrom}.
 
-    bs_find_start_match(Bs, BlockMap, Map1, FragileBlks, maps:merge(ReachFrom, CanReachFragile));
-bs_find_start_match([_B|Bs], BlockMap, Map, FragileMap, ReachFrom) ->
-    bs_find_start_match(Bs, BlockMap, Map, FragileMap, ReachFrom);
-bs_find_start_match([], _BlockMap, Map, FragileMap, ReachFrom) ->
-    {Map, FragileMap, ReachFrom}.
-
-bs_find_destructive([L|SuccessorLabels], BlockMap, Acc) ->
+bs_find_dominator([L|SuccessorLabels], BlockMap, CtxChain, SuccAcc, DomAcc) ->
     Blk = map_get(L, BlockMap),
     case Blk of
-        #b_blk{is=[#b_set{op=bs_match}|_]} ->
-            %% TODO: Only collect successors of the success label.
-            [L|Successors] = beam_ssa:rpo([L], BlockMap),
-            bs_find_destructive(SuccessorLabels, BlockMap, [L|Acc]++Successors);
-        _ ->
-            bs_find_destructive(SuccessorLabels, BlockMap, Acc)
-    end;
-bs_find_destructive([], _BlockMap, Acc) ->
-    sets:to_list(sets:from_list(Acc)).
-
-bs_find_fragile_label([L|Destructive], BlockMap, FragileLabels, Redirect) ->
-    Blk = map_get(L, BlockMap),
-    case Blk of
-        #b_blk{last=#b_br{fail=Fail}} ->
-            case lists:member(Fail, FragileLabels) of
-                true -> bs_find_fragile_label(Destructive, BlockMap, FragileLabels, Redirect#{L => Fail});
-                _ -> bs_find_fragile_label(Destructive, BlockMap, FragileLabels, Redirect)
+        #b_blk{is=Is,last=#b_br{succ=Succ,fail=Fail}} ->
+            %% Collect destinations of bs_match. If any corresponding value
+            %% is {changed,_} in CtxChain, the successor of the success label
+            %% has changed position.
+            MatchDsts = [Dst || #b_set{op=bs_match,dst=Dst} <- Is],
+            case bs_find_destructive(MatchDsts, CtxChain) of
+                changed ->
+                    SuccPath = beam_ssa:rpo([Succ], BlockMap),
+                    FailPath = beam_ssa:rpo([Fail], BlockMap),
+                    ConvergedPaths = ordsets:intersection(
+                                        ordsets:from_list(SuccPath),
+                                        ordsets:from_list(FailPath)),
+                    ConvergedLabels = beam_ssa:rpo(ConvergedPaths, BlockMap),
+                    RPO = beam_ssa:rpo(BlockMap),
+                    {Dominators, Nums} = beam_ssa:dominators(RPO, BlockMap),
+                    CommonDominators0 = beam_ssa:common_dominators(ConvergedLabels,
+                                                                  Dominators,
+                                                                  Nums),
+                    CommonDominators = lists:droplast(CommonDominators0),
+                    bs_find_dominator(SuccessorLabels, BlockMap, CtxChain, SuccAcc++SuccPath, DomAcc++CommonDominators);
+                nofail ->
+                    bs_find_dominator(SuccessorLabels, BlockMap, CtxChain, SuccAcc, DomAcc)
             end;
-        _ -> bs_find_fragile_label(Destructive, BlockMap, FragileLabels, Redirect)
+        _ ->
+            bs_find_dominator(SuccessorLabels, BlockMap, CtxChain, SuccAcc, DomAcc)
     end;
-bs_find_fragile_label([], _, _, Redirect) -> Redirect.
+bs_find_dominator([], _BlockMap, _CtxChain, SuccAcc, DomAcc) ->
+    {ordsets:from_list(SuccAcc),
+     ordsets:from_list(DomAcc)}.
+
+bs_find_destructive([Dst|MatchDsts], CtxChain) ->
+    case CtxChain of
+        #{Dst := {changed, _}} ->
+            changed;
+        _ ->
+            bs_find_destructive(MatchDsts, CtxChain)
+    end;
+bs_find_destructive([], _) ->
+    nofail.
+
+bs_find_redirect([L|Destructive], BlockMap, FragileLabels, Redirect) ->
+    Blk = map_get(L, BlockMap),
+    case Blk of
+        #b_blk{last=#b_switch{fail=Fail}} ->
+            case lists:member(Fail, FragileLabels) of
+                true -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect#{L => Fail});
+                _ -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect)
+            end;
+        #b_blk{last=#b_br{succ=Succ,fail=Fail}} ->
+            case lists:member(Fail, FragileLabels) of
+                true -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect#{L => Fail});
+                _ ->
+                    case lists:member(Succ, FragileLabels) of
+                        true -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect#{L => Succ});
+                        _ -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect)
+                    end
+            end;
+        _ -> bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect)
+    end;
+bs_find_redirect([], _, _, Redirect) -> Redirect.
 
 duplicate_block(BlockMap0, Map, FragileBlks, [L|NeedDup], Count0, RedirectMap) ->
     OldBlock = map_get(L, BlockMap0),
-    NewLabel = Count0,
-    Count = Count0 + 1,
-    % FragileVar = map_get(L, FragileBlks),
-    % ReplacedBy = map_get(FragileVar, Map),
-    % io:format("FragileVar ~p~n", [FragileVar]),
-    % io:format("ReplacedBy ~p~n", [ReplacedBy]),
-    NewBlock = beam_ssa:rename_vars(Map, [NewLabel], #{NewLabel => OldBlock}),
-    BlockMap1 = maps:merge(BlockMap0, NewBlock),
-    BlocksToPatch = [K || K := VarName <- RedirectMap, VarName =:= L],
-    io:format("BlocksToPatch: ~p~n", [BlocksToPatch]),
-    BlockMap = patch_blocks(BlocksToPatch, NewLabel, BlockMap1),
-    duplicate_block(BlockMap, Map, FragileBlks, NeedDup, Count, RedirectMap);
+    {BlockMap2, Count2} = case OldBlock of
+        #b_blk{is=[#b_set{op=bs_start_match}|_]} ->
+            %% No need to duplicate. Rename to use the correct position.
+            NewBlock = beam_ssa:rename_vars(Map, [L], #{L => OldBlock}),
+            BlockMap1 = maps:merge(BlockMap0, NewBlock),
+            {BlockMap1, Count0};
+        _ ->
+            {BlockMap1, Count} = aca_copy_successors(L, BlockMap0, Count0, Map),
+            BlocksToPatch = [K || K := VarName <- RedirectMap, VarName =:= L],
+            io:format("BlocksToPatch ~w~n", [BlocksToPatch]),
+            BlockMap = patch_blocks(BlocksToPatch, Count0, BlockMap1),
+            {BlockMap, Count}
+        end,
+    duplicate_block(BlockMap2, Map, FragileBlks, NeedDup, Count2, RedirectMap);
 duplicate_block(BlockMap, _Map, _FragileBlks, [], Count, _RedirectMap) ->
     {BlockMap, Count}.
 
@@ -509,10 +556,104 @@ duplicate_block(BlockMap, _Map, _FragileBlks, [], Count, _RedirectMap) ->
 patch_blocks([Lbl|BlocksToPatch], L, BlockMap) ->
     B0 = map_get(Lbl, BlockMap),
     #b_blk{last=Last} = B0,
-    B1 = B0#b_blk{last=Last#b_br{fail=L}},
+    B1 = case Last of
+        #b_br{} ->
+            B0#b_blk{last=Last#b_br{fail=L}};
+        #b_switch{} ->
+            B0#b_blk{last=Last#b_switch{fail=L}}
+    end,
     patch_blocks(BlocksToPatch, L, BlockMap#{Lbl => B1});
 patch_blocks([], _L, BlockMap) ->
     BlockMap.
+
+%% Copies all successor blocks of Lbl, returning the label to the entry block
+%% of this copy. Since the copied blocks aren't referenced anywhere else, they
+%% are all guaranteed to be dominated by Lbl.
+aca_copy_successors(Lbl0, Blocks0, Counter0, VR) ->
+    %% Building the block rename map up front greatly simplifies phi node
+    %% handling.
+    Path = beam_ssa:rpo([Lbl0], Blocks0),
+    {BRs, Counter1} = aca_cs_build_brs(Path, Counter0, #{}),
+    {Blocks, Counter} = aca_cs_1(Path, Blocks0, Counter1, VR, BRs, #{}),
+    {Blocks, Counter}.
+
+aca_cs_build_brs([?EXCEPTION_BLOCK=Lbl | Path], Counter, Acc) ->
+    %% ?EXCEPTION_BLOCK is a marker and not an actual block, so renaming it
+    %% will break exception handling.
+    aca_cs_build_brs(Path, Counter, Acc#{ Lbl => Lbl });
+aca_cs_build_brs([Lbl | Path], Counter0, Acc) ->
+    aca_cs_build_brs(Path, Counter0 + 1, Acc#{ Lbl => Counter0 });
+aca_cs_build_brs([], Counter, Acc) ->
+    {Acc, Counter}.
+
+aca_cs_1([Lbl0 | Path], Blocks, Counter0, VRs0, BRs, Acc0) ->
+    Block0 = maps:get(Lbl0, Blocks),
+    Lbl = maps:get(Lbl0, BRs),
+    {VRs, Block, Counter} = aca_cs_block(Block0, Counter0, VRs0, BRs),
+    Acc = maps:put(Lbl, Block, Acc0),
+    aca_cs_1(Path, Blocks, Counter, VRs, BRs, Acc);
+aca_cs_1([], Blocks, Counter, _VRs, _BRs, Acc) ->
+    {maps:merge(Blocks, Acc), Counter}.
+
+aca_cs_block(#b_blk{is=Is0,last=Last0}=Block0, Counter0, VRs0, BRs) ->
+    {VRs, Is, Counter} = aca_cs_is(Is0, Counter0, VRs0, BRs, []),
+    Last1 = aca_cs_last(Last0, VRs, BRs),
+    Last = beam_ssa:normalize(Last1),
+    Block = Block0#b_blk{is=Is,last=Last},
+    {VRs, Block, Counter}.
+
+aca_cs_is([#b_set{op=Op,
+                  dst=Dst0,
+                  args=Args0}=I0 | Is],
+          Counter0, VRs0, BRs, Acc) ->
+    Args = case Op of
+               phi -> aca_cs_args_phi(Args0, VRs0, BRs);
+               _ -> aca_cs_args(Args0, VRs0)
+           end,
+    Counter = Counter0 + 1,
+    Dst = #b_var{name=Counter0},
+    I = I0#b_set{dst=Dst,args=Args},
+    VRs = maps:put(Dst0, Dst, VRs0),
+    aca_cs_is(Is, Counter, VRs, BRs, [I | Acc]);
+aca_cs_is([], Counter, VRs, _BRs, Acc) ->
+    {VRs, reverse(Acc), Counter}.
+
+aca_cs_last(#b_switch{arg=Arg0,list=Switch0,fail=Fail0}=Sw, VRs, BRs) ->
+    Switch = [{Literal, maps:get(Lbl, BRs)} || {Literal, Lbl} <:- Switch0],
+    Sw#b_switch{arg=aca_cs_arg(Arg0, VRs),
+                fail=maps:get(Fail0, BRs),
+                list=Switch};
+aca_cs_last(#b_br{bool=Arg0,succ=Succ0,fail=Fail0}=Br, VRs, BRs) ->
+    Br#b_br{bool=aca_cs_arg(Arg0, VRs),
+            succ=maps:get(Succ0, BRs),
+            fail=maps:get(Fail0, BRs)};
+aca_cs_last(#b_ret{arg=Arg0}=Ret, VRs, _BRs) ->
+    Ret#b_ret{arg=aca_cs_arg(Arg0, VRs)}.
+
+aca_cs_args_phi([{Arg, Lbl} | Args], VRs, BRs) ->
+    case BRs of
+        #{ Lbl := New } ->
+            [{aca_cs_arg(Arg, VRs), New} | aca_cs_args_phi(Args, VRs, BRs)];
+        #{} ->
+            aca_cs_args_phi(Args, VRs, BRs)
+    end;
+aca_cs_args_phi([], _VRs, _BRs) ->
+    [].
+
+aca_cs_args([Arg | Args], VRs) ->
+    [aca_cs_arg(Arg, VRs) | aca_cs_args(Args, VRs)];
+aca_cs_args([], _VRs) ->
+    [].
+
+aca_cs_arg(#b_remote{mod=Mod0,name=Name0}=Rem, VRs) ->
+    Mod = aca_cs_arg(Mod0, VRs),
+    Name = aca_cs_arg(Name0, VRs),
+    Rem#b_remote{mod=Mod,name=Name};
+aca_cs_arg(Arg, VRs) ->
+    case VRs of
+        #{ Arg := New } -> New;
+        #{} -> Arg
+    end.
 
 handle_implied_start_match([], InPos, _CtxChain) ->
     InPos;
@@ -985,6 +1126,8 @@ bs_subst_ctx(#b_var{}=Var, CtxChain) ->
         #{Var:={origin,_}} ->
             Var;
         #{Var:={changed,ParentCtx}} ->
+            bs_subst_ctx(ParentCtx, CtxChain);
+        #{Var:={nofail,ParentCtx}} ->
             bs_subst_ctx(ParentCtx, CtxChain);
         #{Var:=ParentCtx} ->
             bs_subst_ctx(ParentCtx, CtxChain);
