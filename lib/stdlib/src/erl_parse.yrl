@@ -58,6 +58,7 @@ bin_base_type bin_unit_type
 maybe_expr maybe_match_exprs maybe_match
 clause_body_exprs
 record_spec typed_record_spec record_name
+reserved_word
 ssa_check_anno
 ssa_check_anno_clause
 ssa_check_anno_clauses
@@ -88,7 +89,7 @@ char integer float atom sigil_prefix string sigil_suffix var
 '(' ')' ',' '->' '{' '}' '[' ']' '|' '||' '<-' '<:-' ';' ':' '#' '.' '&&'
 '#_'
 'after' 'begin' 'case' 'try' 'catch' 'end' 'fun' 'if' 'of' 'receive' 'when'
-'maybe' 'else'
+'maybe' 'else' 'cond' 'let'
 'andalso' 'orelse'
 'bnot' 'not'
 '*' '/' 'div' 'rem' 'band' 'and'
@@ -341,9 +342,14 @@ map_pat_expr -> '#' map_tuple :
 	{map, ?anno('$1'),'$2'}.
 
 record_pat_expr -> '#' atom '.' atom :
-	{record_index,?anno('$1'),element(3, '$2'),'$4'}.
-record_pat_expr -> '#' atom record_tuple :
-	{record,?anno('$1'),element(3, '$2'),'$3'}.
+                       {record_index,?anno('$1'),element(3, '$2'),'$4'}.
+record_pat_expr -> '#' record_name record_tuple :
+                       {record,?anno('$1'),element(3, '$2'),'$3'}.
+
+struct_pat_expr -> '#' atom ':' record_name record_tuple :
+	{struct,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
+struct_pat_expr -> '#_' record_tuple :
+	{struct,?anno('$1'), {},'$2'}.
 
 list -> '[' ']' : {nil,?anno('$1')}.
 list -> '[' expr tail : {cons,?anno('$1'),'$2','$3'}.
@@ -439,15 +445,15 @@ map_key -> expr : '$1'.
 
 record_expr -> '#' atom '.' atom :
 	{record_index,?anno('$1'),element(3, '$2'),'$4'}.
-record_expr -> '#' atom record_tuple :
+record_expr -> '#' record_name record_tuple :
 	{record,?anno('$1'),element(3, '$2'),'$3'}.
-record_expr -> expr_max '#' atom '.' atom :
+record_expr -> expr_max '#' record_name '.' atom :
 	{record_field,?anno('$2'),'$1',element(3, '$3'),'$5'}.
-record_expr -> expr_max '#' atom record_tuple :
+record_expr -> expr_max '#' record_name record_tuple :
 	{record,?anno('$2'),'$1',element(3, '$3'),'$4'}.
-record_expr -> record_expr '#' atom '.' atom :
+record_expr -> record_expr '#' record_name '.' atom :
 	{record_field,?anno('$2'),'$1',element(3, '$3'),'$5'}.
-record_expr -> record_expr '#' atom record_tuple :
+record_expr -> record_expr '#' record_name record_tuple :
 	{record,?anno('$2'),'$1',element(3, '$3'),'$4'}.
 
 record_tuple -> '{' '}' : [].
@@ -459,27 +465,22 @@ record_fields -> record_field ',' record_fields : ['$1' | '$3'].
 record_field -> var '=' expr : {record_field,?anno('$1'),'$1','$3'}.
 record_field -> atom '=' expr : {record_field,?anno('$1'),'$1','$3'}.
 
-struct_expr -> '#' atom ':' atom record_tuple :
+struct_expr -> '#' atom ':' record_name record_tuple :
 	{struct,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
 struct_expr -> '#_' record_tuple :
 	{struct,?anno('$1'), {},'$2'}.
 
-struct_expr -> expr_max '#' atom ':' atom '.' atom :
+struct_expr -> expr_max '#' atom ':' record_name '.' atom :
 	{struct_field_expr,?anno('$2'),'$1',{element(3, '$3'),element(3, '$5')},element(3, '$7')}.
 struct_expr -> expr_max '#_' '.' atom :
 	{struct_field_expr,?anno('$2'),'$1',{},element(3, '$4')}.
 
-struct_expr -> expr_max '#' atom ':' atom record_tuple :
+struct_expr -> expr_max '#' atom ':' record_name record_tuple :
 	{struct_update,?anno('$2'),'$1',{element(3, '$3'),element(3, '$5')},'$6'}.
 struct_expr -> expr_max '#_' record_tuple :
 	{struct_update,?anno('$2'),'$1',{},'$3'}.
 struct_expr -> struct_expr '#_' record_tuple :
     {struct_update,?anno('$2'),'$1',{},'$3'}.
-
-struct_pat_expr -> '#' atom ':' atom record_tuple :
-	{struct,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
-struct_pat_expr -> '#_' record_tuple :
-	{struct,?anno('$1'), {},'$2'}.
 
 %% N.B. This is called from expr.
 
@@ -647,7 +648,38 @@ comp_op -> '=:=' : '$1'.
 comp_op -> '=/=' : '$1'.
 
 record_name -> atom : '$1'.
-record_name -> var : '$1'.
+record_name -> var : {atom,?anno('$1'),element(3, '$1')}.
+record_name -> reserved_word : {atom,?anno('$1'),element(1, '$1')}.
+
+reserved_word -> 'after' : '$1'.
+reserved_word -> 'and' : '$1'.
+reserved_word -> 'andalso' : '$1'.
+reserved_word -> 'band' : '$1'.
+reserved_word -> 'begin' : '$1'.
+reserved_word -> 'bnot' : '$1'.
+reserved_word -> 'bor' : '$1'.
+reserved_word -> 'bsl' : '$1'.
+reserved_word -> 'bsr' : '$1'.
+reserved_word -> 'bxor' : '$1'.
+reserved_word -> 'case' : '$1'.
+reserved_word -> 'catch' : '$1'.
+reserved_word -> 'cond' : '$1'.
+reserved_word -> 'div' : '$1'.
+reserved_word -> 'else' : '$1'.
+reserved_word -> 'end' : '$1'.
+reserved_word -> 'fun' : '$1'.
+reserved_word -> 'if' : '$1'.
+reserved_word -> 'let' : '$1'.
+reserved_word -> 'maybe' : '$1'.
+reserved_word -> 'not' : '$1'.
+reserved_word -> 'of' : '$1'.
+reserved_word -> 'or' : '$1'.
+reserved_word -> 'orelse' : '$1'.
+reserved_word -> 'receive' : '$1'.
+reserved_word -> 'rem' : '$1'.
+reserved_word -> 'try' : '$1'.
+reserved_word -> 'when' : '$1'.
+reserved_word -> 'xor' : '$1'.
 
 ssa_check_when_clauses -> ssa_check_when_clause : ['$1'].
 ssa_check_when_clauses -> ssa_check_when_clause ssa_check_when_clauses :
@@ -1555,7 +1587,8 @@ build_bin_type([{var, Aa, _}|_], _) ->
 
 build_atom({atom, _Aa, _Name} = Atom) -> Atom;
 build_atom({var, Aa, Name}) -> {atom, Aa, Name};
-build_atom({record, Aa}) -> {atom, Aa, record}.
+build_atom({record, Aa}) -> {atom, Aa, record};
+build_atom({ReservedWord, Aa}) -> {atom, Aa, ReservedWord}.
 
 build_record({record, Aa}, {typed_record,Name0,Tuple}) ->
     {atom,_,Name} = build_atom(Name0),
