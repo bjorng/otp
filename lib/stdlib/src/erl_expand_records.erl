@@ -41,7 +41,7 @@ Section [The Abstract Format](`e:erts:absform.md`) in ERTS User's Guide.
                  calltype=#{} :: calltype_map(),
 
                  %% Struct types
-                 structype=#{} :: structtype_map(),
+                 structmod=#{} :: structtype_map(),
 
                  %% Record definitions
                  records=#{} :: #{erl_parse:record_name() => [erl_parse:af_field_decl()]},
@@ -95,7 +95,7 @@ module(Fs0, Opts0) ->
     Opts = Opts0 ++ compiler_options(Fs0),
     St0 = #exprec{dialyzer = lists:member(dialyzer, Opts),
                   calltype = init_calltype(Fs0),
-                  structype = init_structtype(Fs0),
+                  structmod = init_structmod(Fs0),
                   strict_rec_tests = strict_record_tests(Opts)},
     {Fs,_St} = forms(Fs0, St0),
     erase(erl_expand_records_in_guard),
@@ -118,23 +118,19 @@ init_calltype_imports([_|T], Ctype) ->
     init_calltype_imports(T, Ctype);
 init_calltype_imports([], Ctype) -> Ctype.
 
--spec init_structtype([erl_parse:abstract_form()]) -> structtype_map().
-init_structtype(Forms) ->
-    Stype = #{ Name => local || {attribute, _, struct, {Name,_}} <- Forms },
-    init_structtype_imports(Forms, Stype).
+-spec init_structmod([erl_parse:abstract_form()]) -> structtype_map().
+init_structmod(Forms) ->
+    SMod = #{Name => local || {attribute, _, struct, {Name,_}} <- Forms},
+    init_structmod_imports(Forms, SMod).
 
--spec init_structtype_imports([erl_parse:abstract_form()], structtype_map()) -> structtype_map().
-init_structtype_imports([{attribute,_,import_struct,{Mod,Ss}}|T], Stype0) ->
-    true = is_atom(Mod),
-    Stype = foldl(fun(S, Acc) -> Acc#{S => {imported, Mod}} end, Stype0, Ss),
-    init_structtype_imports(T, Stype);
-init_structtype_imports([_|T], Stype) ->
-    init_structtype_imports(T, Stype);
-init_structtype_imports([], Stype) -> Stype.
-
--spec is_native_record_defined(Name :: atom(), #exprec{}) -> boolean().
-is_native_record_defined(Name, St) ->
-    maps:is_key(Name, St#exprec.structype).
+-spec init_structmod_imports([erl_parse:abstract_form()], structtype_map()) -> structtype_map().
+init_structmod_imports([{attribute,_,import_struct,{Mod,Ss}}|T], SMod0) ->
+    true = is_atom(Mod),                        %Assertion.
+    SMod = foldl(fun(S, Acc) -> Acc#{S => {imported, Mod}} end, SMod0, Ss),
+    init_structmod_imports(T, SMod);
+init_structmod_imports([_|T], SMod) ->
+    init_structmod_imports(T, SMod);
+init_structmod_imports([], SMod) -> SMod.
 
 forms([{attribute,_,record,{Name,Defs}}=Attr | Fs], St0) ->
     NDefs = normalise_fields(Defs),
@@ -196,30 +192,24 @@ pattern({map_field_exact,Anno,K0,V0}, St0) ->
     {K,St1} = expr(K0, St0),
     {V,St2} = pattern(V0, St1),
     {{map_field_exact,Anno,K,V},St2};
-pattern({struct,Anno,{M,N},Ps}, St0) ->
+pattern({struct,Anno,Id,Ps}, St0) ->
     {TPs,St1} = pattern_list(Ps, St0),
-    {{struct,Anno,{M,N},TPs},St1};
-pattern({struct,Anno,{},Ps}, St0) ->
-    {TPs,St1} = pattern_list(Ps, St0),
-    {{struct,Anno,{},TPs},St1};
+    {{struct,Anno,Id,TPs},St1};
 pattern({record_field, Anno, F, V0}, St0) ->
     {V, St1} = pattern(V0, St0),
     {{record_field, Anno, F, V}, St1};
 pattern({record_index,Anno,Name,Field}, St) ->
     {index_expr(Anno, Field, Name, record_fields(Name, Anno, St)),St};
 pattern({record,Anno0,Name,Pfs}, St0) ->
-    case is_native_record_defined(Name, St0) of
-        true ->
-            M = case St0#exprec.structype of
-            #{Name := {imported, M0}} -> M0;
-            #{Name := local} -> St0#exprec.module
-        end,
-        pattern({struct,Anno0,{M,Name},Pfs},St0);
-        false ->
-    Fs = record_fields(Name, Anno0, St0),
-    {TMs,St1} = pattern_list(pattern_fields(Fs, Pfs), St0),
-    Anno = mark_record(Anno0, St1),
-    {{tuple,Anno,[{atom,Anno0,Name} | TMs]},St1}
+    case St0#exprec.structmod of
+        #{Name := M0} ->
+            M = struct_mod(M0, St0),
+            pattern({struct,Anno0,{M,Name},Pfs}, St0);
+        #{} ->
+            Fs = record_fields(Name, Anno0, St0),
+            {TMs,St1} = pattern_list(pattern_fields(Fs, Pfs), St0),
+            Anno = mark_record(Anno0, St1),
+            {{tuple,Anno,[{atom,Anno0,Name} | TMs]},St1}
     end;
 pattern({bin,Anno,Es0}, St0) ->
     {Es1,St1} = pattern_bin(Es0, St0),
@@ -241,6 +231,9 @@ pattern_list([P0 | Ps0], St0) ->
     {Ps,St2} = pattern_list(Ps0, St1),
     {[P | Ps],St2};
 pattern_list([], St) -> {[],St}.
+
+struct_mod({imported, M}, _St) -> M;
+struct_mod(local, #exprec{module=M}) -> M.
 
 guard([G0 | Gs0], St0) ->
     {G,St1} = guard_tests(G0, St0),
@@ -410,50 +403,41 @@ expr({record_index,Anno,Name,F}, St) ->
     I = index_expr(Anno, F, Name, record_fields(Name, Anno, St)),
     expr(I, St);
 expr({record,Anno0,Name,Is}, St) ->
-    case is_native_record_defined(Name, St) of
-        true ->
-            M = case St#exprec.structype of
-                #{Name := {imported, M0}} -> M0;
-                #{Name := local} -> St#exprec.module
-            end,
+    case St#exprec.structmod of
+        #{Name := M0} ->
+            M = struct_mod(M0, St),
             expr({struct,Anno0,{M,Name},Is}, St);
-        false ->
-    Anno = mark_record(Anno0, St),
-    expr({tuple,Anno,[{atom,Anno0,Name} |
-                      record_inits(record_fields(Name, Anno0, St), Is)]},
-         St)
+        #{} ->
+            Anno = mark_record(Anno0, St),
+            expr({tuple,Anno,[{atom,Anno0,Name} |
+                              record_inits(record_fields(Name, Anno0, St), Is)]},
+                 St)
     end;
 expr({record_field,A,R,Name,F}, St) ->
-    case is_native_record_defined(Name, St) of
-        true ->
-            M = case St#exprec.structype of
-                #{Name := {imported, M0}} -> M0;
-                #{Name := local} -> St#exprec.module
-            end,
+    case St#exprec.structmod of
+        #{Name := M0} ->
+            M = struct_mod(M0, St),
             {atom,_,FName} = F,
             expr({struct_field_expr,A,R,{M,Name},FName}, St);
-        false ->
-    Anno = erl_parse:first_anno(R),
-    get_record_field(Anno, R, F, Name, St)
+        #{} ->
+            Anno = erl_parse:first_anno(R),
+            get_record_field(Anno, R, F, Name, St)
     end;
 expr({record,Anno,R,Name,Us}, St0) ->
-    case is_native_record_defined(Name, St0) of
-        true ->
-            M = case St0#exprec.structype of
-                #{Name := {imported, M0}} -> M0;
-                #{Name := local} -> St0#exprec.module
-            end,
+    case St0#exprec.structmod of
+        #{Name := M0} ->
+            M = struct_mod(M0, St0),
             expr({struct_update,Anno,R,{M,Name},Us}, St0);
-        false ->
-    {Ue,St1} = record_update(R, Name, record_fields(Name, Anno, St0), Us, St0),
-    expr(Ue, St1)
+        #{} ->
+            {Ue,St1} = record_update(R, Name, record_fields(Name, Anno, St0), Us, St0),
+            expr(Ue, St1)
     end;
 expr({struct,Anno,{M,N},Inits},St0) ->
     Struct0 =
         {call,
-            Anno,
-            {remote,Anno,{atom,Anno,struct},{atom,Anno,create}},
-            [{atom, Anno, M},{atom, Anno, N}]},
+         Anno,
+         {remote,Anno,{atom,Anno,struct},{atom,Anno,create}},
+         [{atom, Anno, M},{atom, Anno, N}]},
     {Struct1,St1} = expr(Struct0, St0),
     {Ue,St2} = struct_init_update(Struct1, Anno, Inits, St1),
     expr(Ue, St2);
