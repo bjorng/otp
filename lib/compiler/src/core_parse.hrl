@@ -85,7 +85,7 @@
 		     val :: any()}).            % TODO
 
 -record(c_struct, {anno=[] :: list(),
-                   id :: {atom(), atom()} | {},
+                   id :: cerl:c_literal(),
                    es :: [cerl:c_struct_pair()]}).
 
 -record(c_struct_pair, {anno=[] :: list(),

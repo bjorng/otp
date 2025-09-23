@@ -3544,20 +3544,20 @@ find_field(_F, []) -> error.
     lint_state()
 ) -> {var_table(), var_table(), lint_state()}.
 pattern_struct_fields(Fs, Vt0, Old, St0) ->
-  CheckFun = fun (Val, Vt, St) -> pattern(Val, Vt, Old, St) end,
-  {_SeenFields,Uvt,Unew,St1} =
-    foldl(fun (Field, {Sfsa,Vta,Newa,Sta}) ->
-      case check_struct_field(Field, Vt0, Sta, Sfsa, CheckFun) of
-        {Sfsb,{Vtb,Stb}} ->
-          {Vt, St1} = vtmerge_pat(Vta, Vtb, Stb),
-          {Sfsb, Vt, [], St1};
-        {Sfsb,{Vtb,Newb,Stb}} ->
-          {Vt, Mst0} = vtmerge_pat(Vta, Vtb, Stb),
-          {New, Mst} = vtmerge_pat(Newa, Newb, Mst0),
-          {Sfsb, Vt, New, Mst}
-      end
-          end, {[],[],[],St0}, Fs),
-  {Uvt,Unew,St1}.
+    CheckFun = fun (Val, Vt, St) -> pattern(Val, Vt, Old, St) end,
+    {_SeenFields,Uvt,Unew,St1} =
+        foldl(fun (Field, {Sfsa,Vta,Newa,Sta}) ->
+                      case check_struct_field(Field, Vt0, Sta, Sfsa, CheckFun) of
+                          {Sfsb,{Vtb,Stb}} ->
+                              {Vt, St1} = vtmerge_pat(Vta, Vtb, Stb),
+                              {Sfsb, Vt, [], St1};
+                          {Sfsb,{Vtb,Newb,Stb}} ->
+                              {Vt, Mst0} = vtmerge_pat(Vta, Vtb, Stb),
+                              {New, Mst} = vtmerge_pat(Newa, Newb, Mst0),
+                              {Sfsb, Vt, New, Mst}
+                      end
+              end, {[],[],[],St0}, Fs),
+    {Uvt,Unew,St1}.
 
 %% check that there are no duplicate fields
 %% in struct usages.
@@ -3580,18 +3580,11 @@ check_struct_fields(Fs, Vt0, St0) ->
       Fs),
   {Uvt,St1}.
 
--spec check_struct_field(
-    erl_parse:af_record_field(erl_parse:abstract_expr()),
-    var_table(),
-    lint_state(),
-    [atom()],
-    fun((dynamic(), var_table(), lint_state()) -> {var_table(), lint_state()})
-) -> {[atom()], {var_table(), lint_state()}}.
 check_struct_field({record_field, Af, {atom, _, F}, Val}, Vt, St, Sfs, CheckFun) ->
-  case member(F, Sfs) of
-    true -> {Sfs, {[], add_error(Af, {redefine_struct_field, F}, St)}};
-    false -> {[F|Sfs],CheckFun(Val, Vt, St)}
-  end.
+    case member(F, Sfs) of
+        true -> {Sfs, {[], add_error(Af, {redefine_struct_field, F}, St)}};
+        false -> {[F|Sfs],CheckFun(Val, Vt, St)}
+    end.
 
 %% check struct fields against
 %% the struct definition. Issues warnings.
@@ -3644,16 +3637,17 @@ check_struct_fields_init(SName, Inits, St0, Anno) ->
 
 
 -spec check_struct_field_expr_usage(erl_parse:af_record_field_access(_), lint_state()) -> lint_state().
+%% -spec check_struct_field_expr_usage(tuple(), lint_state()) -> lint_state().
 check_struct_field_expr_usage({record_field, Anno, _Str, SName, {atom, _, FName}}, St) ->
-  case maps:find(SName, St#lint.structs) of
-    error ->
-      St;
-    {ok, {_A, FieldDefs}} ->
-      case exist_struct_field(FName, FieldDefs) of
-        true -> St;
-        false -> add_warning(Anno, {undefined_struct_field, FName, SName}, St)
-      end
-  end.
+    case maps:find(SName, St#lint.structs) of
+        error ->
+            St;
+        {ok, {_A, FieldDefs}} ->
+            case exist_struct_field(FName, FieldDefs) of
+                true -> St;
+                false -> add_warning(Anno, {undefined_struct_field, FName, SName}, St)
+            end
+    end.
 
 
 -spec local_structs(

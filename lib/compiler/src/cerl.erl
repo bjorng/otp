@@ -116,8 +116,9 @@ function `type/1`.
          primop_name/1, receive_action/1, receive_clauses/1,
          receive_timeout/1, seq_arg/1, seq_body/1, set_ann/2,
          string_lit/1, string_val/1,
-         ann_c_struct/3, struct_id/1, struct_es/1,
-         ann_c_struct_pair/3, struct_pair_key/1, struct_pair_val/1,
+         c_struct/2, ann_c_struct/3, struct_id/1, struct_es/1,
+         c_struct_pair/2, ann_c_struct_pair/3,
+         struct_pair_key/1, struct_pair_val/1,
          subtrees/1, to_records/1,
          try_arg/1, try_body/1, try_vars/1, try_evars/1, try_handler/1,
          tuple_arity/1, tuple_es/1, type/1, unfold_literal/1,
@@ -1554,10 +1555,6 @@ update_c_map(#c_map{is_pat = true}=Old, M, Es) ->
 update_c_map(#c_map{is_pat=false}=Old, M, Es) ->
     ann_c_map(get_ann(Old), M, Es).
 
--spec update_c_struct(Node :: c_struct(), Pairs :: [c_struct_pair()]) -> c_struct().
-update_c_struct(#c_struct{}=Old, Es) ->
-    Old#c_struct{es = Es}.
-
 %% ---------------------------------------------------------------------
 
 -doc """
@@ -1647,7 +1644,16 @@ map_pair_op(#c_map_pair{op=Op}) -> Op.
 
 %% ---------------------------------------------------------------------
 
--doc(#{since => <<"OTP 29.0">>}).
+-type struct_id() :: c_literal().
+
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec c_struct(Argument :: struct_id(),
+               Pairs :: [c_struct_pair()]) -> #c_struct{}.
+
+c_struct(Id, Es) ->
+    #c_struct{id=Id, es=Es}.
+
+-doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec ann_c_struct(Annotations :: [term()],
                    Argument :: c_map() | c_literal(),
                    Pairs :: [c_struct_pair()]) -> #c_struct{}.
@@ -1660,7 +1666,8 @@ Returns the list of struct pair subtrees of an abstract struct.
 
 _See also: _`ann_c_struct/3`.
 """.
--spec struct_es(Node :: c_struct | c_literal()) -> [c_struct_pair()].
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec struct_es(Node :: c_struct()) -> [c_struct_pair()].
 
 struct_es(#c_struct{es = Es}) ->
     Es.
@@ -1670,17 +1677,32 @@ Returns the id of of an abstract struct.
 
 _See also: _`ann_c_struct/3`.
 """.
--spec struct_id(Node :: c_struct | c_literal()) -> [c_struct_pair()].
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec struct_id(Node :: c_struct()) -> struct_id().
 
 struct_id(#c_struct{id = Id}) ->
     Id.
 
+-doc """
+
+_See also: _`c_struct/3`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec update_c_struct(Node :: c_struct(), Pairs :: [c_struct_pair()]) -> c_struct().
+update_c_struct(#c_struct{}=Old, Es) ->
+    Old#c_struct{es = Es}.
 
 %% ---------------------------------------------------------------------
 
--doc(#{since => <<"OTP 29.0">>}).
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec c_struct_pair(Key :: cerl(), Value :: cerl()) -> c_struct_pair().
+
+c_struct_pair(K, V) ->
+    #c_struct_pair{key = K, val=V}.
+
+-doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec ann_c_struct_pair(Annotations :: [term()],
-                        Key :: cerl(), Value :: cerl()) -> c_map_pair().
+                        Key :: cerl(), Value :: cerl()) -> c_struct_pair().
 
 ann_c_struct_pair(As, K, V) ->
     #c_struct_pair{key = K, val=V, anno = As}.
@@ -1690,7 +1712,7 @@ Returns the key subtree of an abstract struct pair.
 
 _See also: _`c_struct_pair/2`.
 """.
--doc(#{since => <<"OTP 29.0">>}).
+-doc(#{since => <<"OTP @OTP-19785@">>}).
 
 -spec struct_pair_key(Node :: c_struct_pair()) -> cerl().
 
@@ -1701,12 +1723,16 @@ Returns the value subtree of an abstract struct pair.
 
 _See also: _`c_struct_pair/2`.
 """.
--doc(#{since => <<"OTP 29.0">>}).
+-doc(#{since => <<"OTP @OTP-19785@">>}).
 
 -spec struct_pair_val(Node :: c_struct_pair()) -> cerl().
 
 struct_pair_val(#c_struct_pair{val=V}) -> V.
 
+-doc """
+_See also: _`c_struct_pair/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec update_c_struct_pair(Node :: c_struct_pair(),
                            Key :: cerl(),
                            Value :: cerl()) -> c_struct_pair().

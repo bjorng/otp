@@ -887,6 +887,7 @@ processed (see section [Error Information](#module-error-information)).
     af_pattern/0,
     af_record_decl/0,
     af_record_field/1,
+    af_record_field_access/1,
     af_variable/0,
     record_name/0
 ]).
