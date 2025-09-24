@@ -247,6 +247,7 @@ fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
     RPO0 = beam_ssa:rpo(Blocks0),
     CtxChain = beam_ssa:fold_instrs(F, RPO0, #{}, Blocks0),
     {Blocks, Count1} = bs_add_block(Blocks0, Count0, CtxChain),
+    io:format("CtxChain ~p~n", [CtxChain]),
     case map_size(CtxChain) of
         0 ->
             %% No binary matching in this function.
@@ -256,12 +257,12 @@ fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
 
             %% Insert position instructions where needed.
             RPO1 = beam_ssa:rpo(Blocks),
-            {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain, RPO1,
+            CtxChain1 = beam_ssa:fold_instrs(F, RPO1, #{}, Blocks),
+            {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain1, RPO1,
                                           FunArgs, Count1),
 
             %% Rename instructions.
-            Linear = bs_instrs(Linear1, CtxChain, []),
-
+            Linear = bs_instrs(Linear1, CtxChain1, []),
             St#st{ssa=maps:from_list(Linear),cnt=Count}
     end.
 
@@ -437,9 +438,11 @@ bs_add_block(BlockMap, Count0, CtxChain) ->
         [] -> {BlockMap, Count0};
         _  ->
             SSA = beam_ssa:linearize(BlockMap),
-            %% Find all bs_start_match instructions. If an Arg is used again after,
-            %% bs_match, that block is a fragile block. Find all blocks that can reach
-            %% a fragile block and count all of them as fragile.
+            %% Search from all bs_start_match instructions. If blocks either use
+            %% a changed match context or the original value, it must be
+            %% duplicated. If a block needs to use the original value but get a
+            %% changed match context, the variable needs to be renamed.
+            %% Renaming happens here.
             {BlockMap0, Map1, FragileBlks, ReachFrom} = bs_find_start_match(SSA, BlockMap, CtxChain, #{}, #{}, #{}),
             NeedDup = lists:uniq(maps:values(ReachFrom)),
             %% Duplicate blocks and redirect branches.
@@ -690,10 +693,15 @@ handle_implied_start_match([I|Is], InPos, CtxChain) ->
             InPos;
         {_, #{RefCtx := {context,Ctx}}} ->
             InPos#{Ctx => Ctx};
+        {_, #{RefCtx := {_,_Ctx}}} ->
+            InPos;
         {_, #{RefCtx := _}} ->
             InPos;
         {_, _} when RefCtx =:= none ->
             handle_implied_start_match(Is, InPos, CtxChain);
+        %% Added because of trim_bs_start_match_resume/1 in bs_match_SUITE
+        {#{}, _} ->
+            InPos;
         Other ->
             %% TODO: This clause is only here to help debugging
             %% crashes.
@@ -1172,6 +1180,8 @@ bs_subst_ctx(#b_var{}=Var, CtxChain) ->
             bs_subst_ctx(ParentCtx, CtxChain);
         #{Var:={nofail,ParentCtx}} ->
             bs_subst_ctx(ParentCtx, CtxChain);
+        #{Var:={context,ParentCtx}} ->
+            ParentCtx;
         #{Var:=ParentCtx} ->
             bs_subst_ctx(ParentCtx, CtxChain);
         #{} ->
@@ -3319,6 +3329,7 @@ reserve_regs(#st{args=Args,ssa=Blocks,intervals=Intervals,res=Res0}=St) ->
 
     %% Reserve all remaining unreserved variables as X registers.
     Res = maps:from_list(Res3),
+
     St#st{res=reserve_xregs(RPO, Blocks, Res)}.
 
 reserve_arg_regs([#b_var{}=Arg|Is], N, Acc) ->
@@ -3454,7 +3465,6 @@ reserve_xregs([L|Ls], Blocks, XsMap0, Res0) ->
     %% Add register hints for variables that are defined
     %% in the (reversed) instruction sequence.
     {Res,Xs} = reserve_xregs_is(Is, Res0, Xs0, []),
-
     XsMap = XsMap0#{L=>Xs},
     reserve_xregs(Ls, Blocks, XsMap, Res);
 reserve_xregs([], _, _, Res) -> Res.
