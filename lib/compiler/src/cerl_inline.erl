@@ -73,7 +73,7 @@
 	       map_arg/1, map_es/1, update_c_map/3,
 	       update_c_map_pair/4,
 	       map_pair_op/1, map_pair_key/1, map_pair_val/1,
-               struct_es/1, update_c_struct/2,
+               struct_id/1, struct_es/1, update_c_struct/3,
                struct_pair_key/1, struct_pair_val/1, update_c_struct_pair/3
 	   ]).
 
@@ -1446,7 +1446,7 @@ i_pattern(E, Ren, Env, Ren0, Env0, S) ->
                                                               Ren0, Env0, S_i)
                                 end, S, struct_es(E)),
 	    S2 = count_size(weight(struct), S1),
-	    {update_c_struct(E, Es), S2};
+	    {update_c_struct(E, struct_id(E), Es), S2};
 	_ ->
 	    case is_literal(E) of
 		true ->

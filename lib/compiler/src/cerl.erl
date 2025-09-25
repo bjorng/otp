@@ -101,7 +101,7 @@ function `type/1`.
          is_c_fun/1, is_c_int/1, is_c_let/1, is_c_letrec/1, is_c_list/1,
          is_c_map/1, is_c_map_empty/1, is_c_map_pattern/1,
          is_c_module/1, is_c_nil/1, is_c_primop/1, is_c_receive/1,
-         is_c_seq/1, is_c_string/1, is_c_try/1, is_c_tuple/1,
+         is_c_seq/1, is_c_string/1, is_c_struct/1, is_c_try/1, is_c_tuple/1,
          is_c_values/1, is_c_var/1, is_data/1, is_leaf/1, is_literal/1,
          is_literal_term/1, is_print_char/1, is_print_string/1,
          let_arg/1, let_arity/1, let_body/1, let_vars/1, letrec_body/1,
@@ -129,7 +129,7 @@ function `type/1`.
          update_c_letrec/3, update_c_map/3, update_c_map_pair/4,
          update_c_module/5, update_c_primop/3,
          update_c_receive/4, update_c_seq/3,
-         update_c_struct/2, update_c_struct_pair/3,
+         update_c_struct/3, update_c_struct_pair/3,
          update_c_try/6,
          update_c_tuple/2, update_c_tuple_skel/2, update_c_values/2,
          update_c_var/2, update_data/3, update_list/2, update_list/3,
@@ -232,6 +232,7 @@ Current node types are:
 - `primop`
 - `receive`
 - `seq`
+- `struct`
 - `try`
 - `tuple`
 - `values`
@@ -251,7 +252,7 @@ The only purpose of the `opaque` type is to facilitate testing of the compiler.
 _See also: _`abstract/1`, `c_alias/2`, `c_apply/2`, `c_binary/1`, `c_bitstr/5`,
 `c_call/3`, `c_case/2`, `c_catch/1`, `c_clause/3`, `c_cons/2`, `c_fun/2`,
 `c_let/3`, `c_letrec/2`, `c_module/3`, `c_primop/2`, `c_receive/1`, `c_seq/2`,
-`c_try/5`, `c_tuple/1`, `c_values/1`, `c_var/1`, `data_type/1`,
+`c_struct/2`, `c_try/5`, `c_tuple/1`, `c_values/1`, `c_var/1`, `data_type/1`,
 `from_records/1`, `get_ann/1`, `meta/1`, `subtrees/1`, `to_records/1`.
 """.
 -spec type(Node :: cerl()) -> ctype().
@@ -275,13 +276,13 @@ type(#c_module{}) -> module;
 type(#c_primop{}) -> primop;
 type(#c_receive{}) -> 'receive';
 type(#c_seq{}) -> seq;
+type(#c_struct{}) -> struct;
+type(#c_struct_pair{}) -> struct_pair;
 type(#c_try{}) -> 'try';
 type(#c_tuple{}) -> tuple;
 type(#c_values{}) -> values;
 type(#c_var{}) -> var;
-type(#c_opaque{}) -> opaque;
-type(#c_struct{}) -> struct;
-type(#c_struct_pair{}) -> struct_pair.
+type(#c_opaque{}) -> opaque.
 
 -doc """
 Returns `true` if `Node` is a leaf node, otherwise `false`.
@@ -1646,6 +1647,12 @@ map_pair_op(#c_map_pair{op=Op}) -> Op.
 
 -type struct_id() :: c_literal().
 
+-doc """
+Creates an abstract struct constructor.
+
+_See also: _`ann_c_struct/3`, `is_c_struct/1`, `struct_id/1`, `struct_es/1`,
+`c_struct_pair/2`, `update_c_struct/3`.
+""".
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec c_struct(Argument :: struct_id(),
                Pairs :: [c_struct_pair()]) -> #c_struct{}.
@@ -1653,6 +1660,7 @@ map_pair_op(#c_map_pair{op=Op}) -> Op.
 c_struct(Id, Es) ->
     #c_struct{id=Id, es=Es}.
 
+-doc "_See also: _`c_struct/2`.".
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec ann_c_struct(Annotations :: [term()],
                    Argument :: c_map() | c_literal(),
@@ -1664,7 +1672,7 @@ ann_c_struct(As, Id, Es) ->
 -doc """
 Returns the list of struct pair subtrees of an abstract struct.
 
-_See also: _`ann_c_struct/3`.
+_See also: _`c_struct/2`.
 """.
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec struct_es(Node :: c_struct()) -> [c_struct_pair()].
@@ -1673,9 +1681,9 @@ struct_es(#c_struct{es = Es}) ->
     Es.
 
 -doc """
-Returns the id of of an abstract struct.
+Returns the identifier of of an abstract struct.
 
-_See also: _`ann_c_struct/3`.
+_See also: _`c_struct/2`.
 """.
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec struct_id(Node :: c_struct()) -> struct_id().
@@ -1684,22 +1692,45 @@ struct_id(#c_struct{id = Id}) ->
     Id.
 
 -doc """
-
-_See also: _`c_struct/3`.
+_See also: _`c_struct/2`.
 """.
 -doc(#{since => <<"OTP @OTP-19785@">>}).
--spec update_c_struct(Node :: c_struct(), Pairs :: [c_struct_pair()]) -> c_struct().
-update_c_struct(#c_struct{}=Old, Es) ->
-    Old#c_struct{es = Es}.
+-spec update_c_struct(Node :: c_struct(), Id :: struct_id(),
+                      Pairs :: [c_struct_pair()]) -> c_struct().
+update_c_struct(#c_struct{}=Old, Id, Es) ->
+    Old#c_struct{id = Id, es = Es}.
+
+-doc """
+Returns `true` if `Node` is an abstract struct, otherwise `false`.
+
+_See also: _`c_struct/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec is_c_struct(Node :: cerl()) -> boolean().
+
+is_c_struct(#c_struct{}) ->
+    true;
+is_c_struct(_) ->
+    false.
 
 %% ---------------------------------------------------------------------
 
--doc(#{since => <<"OTP @OTP-19785@">>}).
--spec c_struct_pair(Key :: cerl(), Value :: cerl()) -> c_struct_pair().
+-doc """
+Creates an abstract struct pair.
+
+These can only occur as components of an abstract struct creation
+expression or an abstract update expression (see `c_struct/2`).
+
+The result represents "`Key = Value`".
+
+_See also: _`ann_c_struct_pair/3`, `struct_pair_key/1`, `struct_pair_val/1`.
+""".  -doc(#{since => <<"OTP @OTP-19785@">>}).  -spec
+c_struct_pair(Key :: c_literal(), Value :: cerl()) -> c_struct_pair().
 
 c_struct_pair(K, V) ->
     #c_struct_pair{key = K, val=V}.
 
+-doc "_See also: _`c_struct/2`.".
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec ann_c_struct_pair(Annotations :: [term()],
                         Key :: cerl(), Value :: cerl()) -> c_struct_pair().
@@ -1714,7 +1745,7 @@ _See also: _`c_struct_pair/2`.
 """.
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 
--spec struct_pair_key(Node :: c_struct_pair()) -> cerl().
+-spec struct_pair_key(Node :: c_struct_pair()) -> c_literal().
 
 struct_pair_key(#c_struct_pair{key=K}) -> K.
 
@@ -1734,7 +1765,7 @@ _See also: _`c_struct_pair/2`.
 """.
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec update_c_struct_pair(Node :: c_struct_pair(),
-                           Key :: cerl(),
+                           Key :: c_literal(),
                            Value :: cerl()) -> c_struct_pair().
 update_c_struct_pair(Node, K, V) ->
     Node#c_struct_pair{key = K, val = V}.
