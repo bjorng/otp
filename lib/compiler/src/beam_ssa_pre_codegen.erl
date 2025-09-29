@@ -247,7 +247,6 @@ fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
     RPO0 = beam_ssa:rpo(Blocks0),
     CtxChain = beam_ssa:fold_instrs(F, RPO0, #{}, Blocks0),
     {Blocks, Count1} = bs_add_block(Blocks0, Count0, CtxChain),
-    io:format("CtxChain ~p~n", [CtxChain]),
     case map_size(CtxChain) of
         0 ->
             %% No binary matching in this function.
@@ -260,7 +259,6 @@ fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
             CtxChain1 = beam_ssa:fold_instrs(F, RPO1, #{}, Blocks),
             {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain1, RPO1,
                                           FunArgs, Count1),
-
             %% Rename instructions.
             Linear = bs_instrs(Linear1, CtxChain1, []),
             St#st{ssa=maps:from_list(Linear),cnt=Count}
@@ -432,179 +430,88 @@ bs_update_successors(#b_ret{}, SPos, FPos, D) ->
     SPos = FPos,                                %Assertion.
     D.
 
-bs_add_block(BlockMap, Count0, CtxChain) ->
+bs_add_block(BlockMap0, Count0, CtxChain) ->
     Changed = [V || {changed, V} <- maps:values(CtxChain)],
     case Changed of
-        [] -> {BlockMap, Count0};
+        [] -> {BlockMap0, Count0};
         _  ->
-            SSA = beam_ssa:linearize(BlockMap),
-            %% Search from all bs_start_match instructions. If blocks either use
-            %% a changed match context or the original value, it must be
-            %% duplicated. If a block needs to use the original value but get a
-            %% changed match context, the variable needs to be renamed.
-            %% Renaming happens here.
-            {BlockMap0, Map1, FragileBlks, ReachFrom} = bs_find_start_match(SSA, BlockMap, CtxChain, #{}, #{}, #{}),
-            NeedDup = lists:uniq(maps:values(ReachFrom)),
-            %% Duplicate blocks and redirect branches.
-            {NewBlocks, Count1} = duplicate_block(BlockMap0, Map1, FragileBlks, NeedDup, Count0, ReachFrom),
-            %% io:format("NewBlocks ~p~n", [NewBlocks]),
-            %% io:format("Count1 ~p~n", [Count1]),
-            {NewBlocks, Count1}
+            SSA = beam_ssa:linearize(BlockMap0),
+            %% Search from all bs_start_match instructions.
+            {BlockMap, Count} = bs_find_start_match(SSA, BlockMap0, Count0, sets:new()),
+            {BlockMap, Count}
     end.
 
-bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}|_]}}|Bs], BlockMap, CtxChain, Map0, FragileBlks0, ReachFrom) ->
+bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}|_],
+                               last=#b_br{succ=Succ,fail=Fail}=Last0}=Block0}|Bs], BlockMap0, Count0,
+                               Seen0) ->
     %% Map Arg to Dst, so we know what to replace it with.
-    Map1 = case {CtxChain, Map0} of
-        {#{Dst := {origin,Arg}}, #{Arg := _Dst0}} ->
-            Map0;
-        {#{Dst := {origin,Arg}}, #{}} ->
-            Map0#{Arg => Dst};
-        _ -> Map0
-    end,
-    [L|Successors] = beam_ssa:rpo([L], BlockMap),
-    %% Find all fragile blocks that uses a changed match context.
-    %% Find dominator blocks that needs to be duplicated together with all
-    %% successors because of this.
-    {Destructives, Dominators, NeedRename1} = bs_find_dominator(Successors, BlockMap, CtxChain, [], [], []),
-    BlockMap1 = rename_context_var(BlockMap, Map1, NeedRename1),
-    %% Find all blocks that need to be redirected after duplication.
-    CanReachFragile = bs_find_redirect(Destructives, BlockMap1, Dominators, #{}),
-    FragileBlks = maps:merge(FragileBlks0, maps:from_keys(Dominators, Arg)),
-    bs_find_start_match(Bs, BlockMap1, CtxChain, Map1, FragileBlks, maps:merge(ReachFrom, CanReachFragile));
-bs_find_start_match([_B|Bs], BlockMap, CtxChain, Map1, FragileMap, ReachFrom) ->
-    bs_find_start_match(Bs, BlockMap, CtxChain, Map1, FragileMap, ReachFrom);
-bs_find_start_match([], BlockMap, _CtxChain, Map1, FragileMap, ReachFrom) ->
-    {BlockMap, Map1, FragileMap, ReachFrom}.
-
-bs_find_dominator([L|SuccessorLabels], BlockMap, CtxChain, SuccAcc, DomAcc, DesAcc) ->
-    Blk = map_get(L, BlockMap),
-    case Blk of
-        #b_blk{is=Is,last=#b_br{succ=Succ,fail=_Fail}} ->
-            %% Collect destinations of bs_match. If any corresponding value
-            %% is {changed,_} in CtxChain, the successor of the success label
-            %% has changed position.
-            MatchDsts = [Dst || #b_set{op=bs_match,dst=Dst} <- Is],
-            case bs_find_destructive(MatchDsts, CtxChain) of
-                changed ->
-                    {SuccPath, CommonDominators} = bs_find_common_dom(Blk, BlockMap),
-                    bs_find_dominator(SuccessorLabels, BlockMap, CtxChain, SuccAcc++SuccPath, DomAcc++CommonDominators, DesAcc++SuccPath);
-                last_nofail ->
-                    SuccPath = beam_ssa:rpo([Succ], BlockMap),
-                    bs_find_dominator(SuccessorLabels, BlockMap, CtxChain, SuccAcc, DomAcc, DesAcc++SuccPath);
-                nofail ->
-                    bs_find_dominator(SuccessorLabels, BlockMap, CtxChain, SuccAcc, DomAcc, DesAcc)
-            end;
-        _ ->
-            bs_find_dominator(SuccessorLabels, BlockMap, CtxChain, SuccAcc, DomAcc, DesAcc)
+    Map1 = #{Arg => Dst},
+    %% Rename all original var in the success path to the match context var.
+    %% Collect all RenamedBlks.
+    SuccPath0 = beam_ssa:rpo([Succ], BlockMap0),
+    %% What's seen cannot be renamed again
+    Seen = sets:add_element(L, Seen0),
+    case lists:any(fun(X) -> X =:= L end, SuccPath0) of
+        true ->
+            io:format("Skipped ~p~n", [L]),
+            bs_find_start_match(Bs, BlockMap0, Count0, Seen);
+        false ->
+            SuccPath = sets:to_list(sets:subtract(sets:from_list(SuccPath0), Seen)),
+            {BlockMap1, RenamedBlks} = rename_context_var(SuccPath, BlockMap0, Map1, []),
+            io:format("Map1 ~p~n", [Map1]),
+            io:format("L ~p~n", [L]),
+            io:format("RenamedBlks ~w~n", [RenamedBlks]),
+            %% In FailPath, match context var does not exist. ConvergedPaths must be
+            %% duplicated. The other copy uses the original var.
+            FailPath = beam_ssa:rpo([Fail], BlockMap0),
+            ConvergedPaths = ordsets:intersection(
+                                ordsets:from_list(RenamedBlks),
+                                ordsets:from_list(FailPath)),
+            io:format("ConvergedPaths ~w~n", [ConvergedPaths]),
+            %% Redirect the original failure label.
+            {BlockMap3, Count2} = case ConvergedPaths of
+                [] ->
+                    % io:format("no redirect\n"),
+                    {BlockMap1, Count0};
+                _ ->
+                    {RedirectLabel, BlockMap2, Count1} = aca_copy_successors(Fail, BlockMap0, Count0, Map1),
+                    io:format("Fail ~p~n", [Fail]),
+                    io:format("RedirectLabel ~p~n", [RedirectLabel]),
+                    Block = Block0#b_blk{last=Last0#b_br{fail=RedirectLabel}},
+                    {BlockMap2#{L => Block}, Count1}
+            end,
+            BlockMap4 = maps:merge(BlockMap3, BlockMap1),
+            bs_find_start_match(Bs, BlockMap4, Count2, Seen)
     end;
-bs_find_dominator([], _BlockMap, _CtxChain, SuccAcc, DomAcc, DesAcc) ->
-    {ordsets:from_list(SuccAcc),
-     ordsets:from_list(DomAcc),
-     ordsets:subtract(ordsets:from_list(DesAcc), ordsets:from_list(SuccAcc))}.
+bs_find_start_match([_B|Bs], BlockMap, Count, Seen) ->
+    bs_find_start_match(Bs, BlockMap, Count, Seen);
+bs_find_start_match([], BlockMap, Count, _Seen) ->
+    {BlockMap, Count}.
 
-bs_find_destructive([Dst|MatchDsts], CtxChain) ->
-    case CtxChain of
-        #{Dst := {changed, _}} ->
-            changed;
-        #{Dst := {last_nofail, _}} ->
-            last_nofail;
-        _ ->
-            bs_find_destructive(MatchDsts, CtxChain)
-    end;
-bs_find_destructive([], _) ->
-    nofail.
-
-bs_find_common_dom(Blk, BlockMap) ->
-    {Succ, Fail} = case Blk of
-        #b_blk{last=#b_br{succ=Succ0,fail=Fail0}} ->
-            {[Succ0], [Fail0]};
-        #b_blk{last=#b_switch{fail=Fail0,list=List}} ->
-            Succ0 = [S || {_,S} <- List],
-            {Succ0, [Fail0]};
-        #b_blk{last=#b_ret{}} ->
-            {[],[]}
-    end,
-    SuccPath = beam_ssa:rpo(Succ, BlockMap),
-    FailPath = beam_ssa:rpo(Fail, BlockMap),
-    ConvergedPaths = ordsets:intersection(
-                        ordsets:from_list(SuccPath),
-                        ordsets:from_list(FailPath)),
-    {SuccPath1, CommonDominators} = case ConvergedPaths of
-        [] -> {[],[]};
-        _ ->
-            ConvergedLabels = beam_ssa:rpo(ConvergedPaths, BlockMap),
-            RPO = beam_ssa:rpo(BlockMap),
-            {Dominators, Nums} = beam_ssa:dominators(RPO, BlockMap),
-            CommonDominators0 = beam_ssa:common_dominators(ConvergedLabels,
-                                                            Dominators,
-                                                            Nums),
-            CommonDominators1 = lists:droplast(CommonDominators0),
-            {SuccPath, CommonDominators1}
-        end,
-    {SuccPath1, CommonDominators}.
-
-bs_find_redirect([L|Destructive], BlockMap, FragileLabels, Redirect0) ->
-    Blk = map_get(L, BlockMap),
-    Redirect = foldl(fun(?EXCEPTION_BLOCK, R0) -> R0;
-                        (Successor, R0) ->
-                             case member(Successor, FragileLabels) of
-                                 true -> R0#{L => Successor};
-                                 false -> R0
-                             end
-                     end, Redirect0, beam_ssa:successors(Blk)),
-    bs_find_redirect(Destructive, BlockMap, FragileLabels, Redirect);
-bs_find_redirect([], _, _, Redirect) -> Redirect.
-
-rename_context_var(BlockMap0, Map, [L|NeedRename]) ->
+rename_context_var([L|NeedRename], BlockMap0, Map, RenamedBlks) ->
     OldBlock = map_get(L, BlockMap0),
     NewBlock = beam_ssa:rename_vars(Map, [L], #{L => OldBlock}),
     BlockMap1 = maps:merge(BlockMap0, NewBlock),
-    rename_context_var(BlockMap1, Map, NeedRename);
-rename_context_var(BlockMap, _Map, []) ->
-    BlockMap.
-
-duplicate_block(BlockMap0, Map, FragileBlks, [L|NeedDup], Count0, RedirectMap) ->
-    OldBlock = map_get(L, BlockMap0),
-    {BlockMap2, Count2} = case OldBlock of
-        #b_blk{is=[#b_set{op=bs_start_match}|_]} ->
-            %% No need to duplicate. Rename to use the correct position.
-            NewBlock = beam_ssa:rename_vars(Map, [L], #{L => OldBlock}),
-            BlockMap1 = maps:merge(BlockMap0, NewBlock),
-            {BlockMap1, Count0};
+    case NewBlock of
+        #{L := OldBlock} ->
+            rename_context_var(NeedRename, BlockMap1, Map, RenamedBlks);
         _ ->
-            {BlockMap1, Count} = aca_copy_successors(L, BlockMap0, Count0, Map),
-            BlocksToPatch = [K || K := VarName <- RedirectMap, VarName =:= L],
-            BlockMap = patch_blocks(BlocksToPatch, Count0, BlockMap1),
-            {BlockMap, Count}
-        end,
-    duplicate_block(BlockMap2, Map, FragileBlks, NeedDup, Count2, RedirectMap);
-duplicate_block(BlockMap, _Map, _FragileBlks, [], Count, _RedirectMap) ->
-    {BlockMap, Count}.
-
-
-patch_blocks([Lbl|BlocksToPatch], L, BlockMap) ->
-    B0 = map_get(Lbl, BlockMap),
-    #b_blk{last=Last} = B0,
-    B1 = case Last of
-        #b_br{} ->
-            B0#b_blk{last=Last#b_br{fail=L}};
-        #b_switch{} ->
-            B0#b_blk{last=Last#b_switch{fail=L}}
-    end,
-    patch_blocks(BlocksToPatch, L, BlockMap#{Lbl => B1});
-patch_blocks([], _L, BlockMap) ->
-    BlockMap.
+            rename_context_var(NeedRename, BlockMap1, Map, [L|RenamedBlks])
+    end;
+rename_context_var([], BlockMap, _Map, RenamedBlks) ->
+    {BlockMap, RenamedBlks}.
 
 %% Copies all successor blocks of Lbl, returning the label to the entry block
 %% of this copy. Since the copied blocks aren't referenced anywhere else, they
 %% are all guaranteed to be dominated by Lbl.
-aca_copy_successors(Lbl0, Blocks0, Counter0, VR) ->
+aca_copy_successors(Lbl0, Blocks0, Counter0, _VR) ->
     %% Building the block rename map up front greatly simplifies phi node
     %% handling.
     Path = beam_ssa:rpo([Lbl0], Blocks0),
     {BRs, Counter1} = aca_cs_build_brs(Path, Counter0, #{}),
-    {Blocks, Counter} = aca_cs_1(Path, Blocks0, Counter1, VR, BRs, #{}),
-    {Blocks, Counter}.
+    {Blocks, Counter} = aca_cs_1(Path, Blocks0, Counter1, #{}, BRs, #{}),
+    Lbl = maps:get(Lbl0, BRs),
+    {Lbl, Blocks, Counter}.
 
 aca_cs_build_brs([?EXCEPTION_BLOCK=Lbl | Path], Counter, Acc) ->
     %% ?EXCEPTION_BLOCK is a marker and not an actual block, so renaming it
@@ -699,9 +606,6 @@ handle_implied_start_match([I|Is], InPos, CtxChain) ->
             InPos;
         {_, _} when RefCtx =:= none ->
             handle_implied_start_match(Is, InPos, CtxChain);
-        %% Added because of trim_bs_start_match_resume/1 in bs_match_SUITE
-        {#{}, _} ->
-            InPos;
         Other ->
             %% TODO: This clause is only here to help debugging
             %% crashes.
@@ -892,14 +796,14 @@ bs_restores_is([#b_set{op=bs_extract,args=[FromPos|_]}|Is],
     FPos = SPos,
 
     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
-bs_restores_is([#b_set{op=call,dst=Dst,args=Args}|Is],
+bs_restores_is([#b_set{op=call,dst=_Dst,args=Args}|Is],
                CtxChain, SPos0, _FPos, Rs0) ->
-    {SPos1, Rs} = bs_restore_args(Args, SPos0, CtxChain, Dst, Rs0),
+    % {SPos1, Rs} = bs_restore_args(Args, SPos0, CtxChain, Dst, Rs0),
 
-    SPos = bs_invalidate_pos(Args, SPos1, CtxChain),
+    SPos = bs_invalidate_pos(Args, SPos0, CtxChain),
     FPos = SPos,
 
-    bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
+    bs_restores_is(Is, CtxChain, SPos, FPos, Rs0);
 bs_restores_is([#b_set{op=Op,dst=Dst,args=Args}|Is],
                CtxChain, SPos0, _FPos, Rs0)
   when Op =:= bs_test_tail;
@@ -1121,6 +1025,10 @@ bs_rewrite_skip_is([], _Acc) ->
     no.
 
 bs_instrs_is([#b_set{op={succeeded,_}}=I|Is], CtxChain, Acc) ->
+    %% This instruction refers to a specific operation, so we must not
+    %% substitute the context argument.
+    bs_instrs_is(Is, CtxChain, [I | Acc]);
+bs_instrs_is([#b_set{op=call}=I|Is], CtxChain, Acc) ->
     %% This instruction refers to a specific operation, so we must not
     %% substitute the context argument.
     bs_instrs_is(Is, CtxChain, [I | Acc]);
@@ -2982,6 +2890,7 @@ live_intervals(#st{args=Args,ssa=Blocks}=St) ->
     Intervals0 = live_interval_blk(PO, Blocks, #{}, #{}),
     Intervals1 = add_ranges([{V,{0,1}} || #b_var{}=V <- Args], Intervals0),
     Intervals = maps:to_list(Intervals1),
+    io:format("Intervals ~p~n", [Intervals]),
     St#st{intervals=Intervals}.
 
 live_interval_blk([L|Ls], Blocks, LiveMap0, Intervals0) ->
