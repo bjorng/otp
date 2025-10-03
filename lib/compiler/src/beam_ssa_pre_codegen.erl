@@ -223,19 +223,9 @@ fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
            (#b_set{op=bs_ensure,dst=Dst,args=[ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
                 fix_bs_ensure_root(ParentCtx, A#{Dst => ParentCtx});
-           (#b_set{anno=Anno,op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
+           (#b_set{op=bs_match,dst=Dst,args=[_,ParentCtx|_]}, A) ->
                 %% Link this match context to the previous match context.
-                case Anno of
-                    #{ensured := true} ->
-                        A1 = case A of
-                            #{ParentCtx := {last_nofail, Ctx}} ->
-                                A#{ParentCtx => {nofail,Ctx}};
-                            _ -> A
-                        end,
-                        fix_bs_ensure_root(ParentCtx, A1#{Dst => {last_nofail,ParentCtx}});
-                    _ ->
-                        fix_bs_ensure_root(ParentCtx, A#{Dst => {changed,ParentCtx}})
-                end;
+                fix_bs_ensure_root(ParentCtx, A#{Dst => {changed,ParentCtx}});
            (#b_set{op=bs_get_tail,args=[ParentCtx,#b_literal{val=0}]}, A) ->
                 %% We must not create a link here, because bs_get_tail
                 %% doesn't return a match context, but we must ensure
@@ -441,7 +431,8 @@ bs_add_block(BlockMap0, Count0, CtxChain) ->
             {BlockMap, Count}
     end.
 
-bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst}|_],
+bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],
+                                          dst=Dst,anno=#{arg_types:=#{1:=ArgType}}}|_],
                                last=#b_br{succ=Succ,fail=Fail}=Last0}=Block0}|Bs], BlockMap0, Count0,
                                Seen0) ->
     %% Map Arg to Dst, so we know what to replace it with.
@@ -451,37 +442,34 @@ bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],dst=Dst
     SuccPath0 = beam_ssa:rpo([Succ], BlockMap0),
     %% What's seen cannot be renamed again
     Seen = sets:add_element(L, Seen0),
-    case lists:any(fun(X) -> X =:= L end, SuccPath0) of
-        true ->
-            io:format("Skipped ~p~n", [L]),
+    case {ArgType, lists:any(fun(X) -> X =:= L end, SuccPath0)} of
+        {_, true} ->
+            %% Loop detected, stop here.
             bs_find_start_match(Bs, BlockMap0, Count0, Seen);
-        false ->
+        {#t_bitstring{},  _} ->
+            %% Bitstring always creates a new match context.
+            bs_find_start_match(Bs, BlockMap0, Count0, Seen);
+        {_, false} ->
             SuccPath = sets:to_list(sets:subtract(sets:from_list(SuccPath0), Seen)),
             {BlockMap1, RenamedBlks} = rename_context_var(SuccPath, BlockMap0, Map1, []),
-            io:format("Map1 ~p~n", [Map1]),
-            io:format("L ~p~n", [L]),
-            io:format("RenamedBlks ~w~n", [RenamedBlks]),
             %% In FailPath, match context var does not exist. ConvergedPaths must be
             %% duplicated. The other copy uses the original var.
             FailPath = beam_ssa:rpo([Fail], BlockMap0),
             ConvergedPaths = ordsets:intersection(
                                 ordsets:from_list(RenamedBlks),
                                 ordsets:from_list(FailPath)),
-            io:format("ConvergedPaths ~w~n", [ConvergedPaths]),
             %% Redirect the original failure label.
-            {BlockMap3, Count2} = case ConvergedPaths of
+            {BlockMap3, Block1, Count2} = case ConvergedPaths of
                 [] ->
-                    % io:format("no redirect\n"),
-                    {BlockMap1, Count0};
+                    {BlockMap1, Block0, Count0};
                 _ ->
                     {RedirectLabel, BlockMap2, Count1} = aca_copy_successors(Fail, BlockMap0, Count0, Map1),
-                    io:format("Fail ~p~n", [Fail]),
-                    io:format("RedirectLabel ~p~n", [RedirectLabel]),
                     Block = Block0#b_blk{last=Last0#b_br{fail=RedirectLabel}},
-                    {BlockMap2#{L => Block}, Count1}
+                    {BlockMap2, Block, Count1}
             end,
             BlockMap4 = maps:merge(BlockMap3, BlockMap1),
-            bs_find_start_match(Bs, BlockMap4, Count2, Seen)
+            BlockMap5 = BlockMap4#{L => Block1},
+            bs_find_start_match(Bs, BlockMap5, Count2, Seen)
     end;
 bs_find_start_match([_B|Bs], BlockMap, Count, Seen) ->
     bs_find_start_match(Bs, BlockMap, Count, Seen);
@@ -606,6 +594,9 @@ handle_implied_start_match([I|Is], InPos, CtxChain) ->
             InPos;
         {_, _} when RefCtx =:= none ->
             handle_implied_start_match(Is, InPos, CtxChain);
+        %% Added because of trim_bs_start_match_resume/1 in bs_match_SUITE
+        {#{}, _} ->
+            InPos;
         Other ->
             %% TODO: This clause is only here to help debugging
             %% crashes.
@@ -796,14 +787,14 @@ bs_restores_is([#b_set{op=bs_extract,args=[FromPos|_]}|Is],
     FPos = SPos,
 
     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
-bs_restores_is([#b_set{op=call,dst=_Dst,args=Args}|Is],
+bs_restores_is([#b_set{op=call,dst=Dst,args=Args}|Is],
                CtxChain, SPos0, _FPos, Rs0) ->
-    % {SPos1, Rs} = bs_restore_args(Args, SPos0, CtxChain, Dst, Rs0),
+    {SPos1, Rs} = bs_restore_args(Args, SPos0, CtxChain, Dst, Rs0),
 
-    SPos = bs_invalidate_pos(Args, SPos0, CtxChain),
+    SPos = bs_invalidate_pos(Args, SPos1, CtxChain),
     FPos = SPos,
 
-    bs_restores_is(Is, CtxChain, SPos, FPos, Rs0);
+    bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
 bs_restores_is([#b_set{op=Op,dst=Dst,args=Args}|Is],
                CtxChain, SPos0, _FPos, Rs0)
   when Op =:= bs_test_tail;
@@ -1028,10 +1019,6 @@ bs_instrs_is([#b_set{op={succeeded,_}}=I|Is], CtxChain, Acc) ->
     %% This instruction refers to a specific operation, so we must not
     %% substitute the context argument.
     bs_instrs_is(Is, CtxChain, [I | Acc]);
-bs_instrs_is([#b_set{op=call}=I|Is], CtxChain, Acc) ->
-    %% This instruction refers to a specific operation, so we must not
-    %% substitute the context argument.
-    bs_instrs_is(Is, CtxChain, [I | Acc]);
 bs_instrs_is([#b_set{anno=Anno0,op=Op,args=Args0}=I0|Is], CtxChain, Acc) ->
     Args = [bs_subst_ctx(A, CtxChain) || A <- Args0],
     I1 = I0#b_set{args=Args},
@@ -1083,10 +1070,6 @@ bs_subst_ctx(#b_var{}=Var, CtxChain) ->
         #{Var:={origin,_}} ->
             Var;
         #{Var:={changed,ParentCtx}} ->
-            bs_subst_ctx(ParentCtx, CtxChain);
-        #{Var:={last_nofail,ParentCtx}} ->
-            bs_subst_ctx(ParentCtx, CtxChain);
-        #{Var:={nofail,ParentCtx}} ->
             bs_subst_ctx(ParentCtx, CtxChain);
         #{Var:={context,ParentCtx}} ->
             ParentCtx;
@@ -2890,7 +2873,6 @@ live_intervals(#st{args=Args,ssa=Blocks}=St) ->
     Intervals0 = live_interval_blk(PO, Blocks, #{}, #{}),
     Intervals1 = add_ranges([{V,{0,1}} || #b_var{}=V <- Args], Intervals0),
     Intervals = maps:to_list(Intervals1),
-    io:format("Intervals ~p~n", [Intervals]),
     St#st{intervals=Intervals}.
 
 live_interval_blk([L|Ls], Blocks, LiveMap0, Intervals0) ->
