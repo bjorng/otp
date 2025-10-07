@@ -1909,8 +1909,8 @@ verify_local_args(X, ParamInfo, CtxRefs, Vst) ->
         #t_bs_context{}=Type ->
             VRef = get_reg_vref(Reg, Vst),
             case CtxRefs of
-                #{ VRef := Other } ->
-                    error({multiple_match_contexts, [Reg, Other]});
+                %% #{ VRef := Other } ->
+                %%     error({multiple_match_contexts, [Reg, Other]});
                 #{} ->
                     verify_arg_type(Reg, Type, ParamInfo, Vst),
                     verify_local_args(X - 1, ParamInfo,

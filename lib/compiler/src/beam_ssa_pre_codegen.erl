@@ -216,7 +216,77 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 %%  It is here we go from the functional style of binary matching in
 %%  SSA to the imperative style of the BEAM instructions.
 
-fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
+fix_bs(#st{ssa=Blocks0}=St) ->
+    RPO = beam_ssa:rpo(Blocks0),
+    Sub = #{},
+    {Dom, _} = beam_ssa:dominators(RPO, Blocks0),
+    Blocks = bjorn(RPO, Dom, Sub, Blocks0),
+    fix_bs_1(St#st{ssa=Blocks}).
+
+bjorn([L|Ls], Dom, Sub0, Blocks0) ->
+    #b_blk{is=Is0} = Blk0 = map_get(L, Blocks0),
+    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
+    Blk = Blk0#b_blk{is=Is},
+    Blocks = Blocks0#{L := Blk},
+    bjorn(Ls, Dom, Sub, Blocks);
+bjorn([], _Dom, _Sub, Blocks) ->
+    Blocks.
+
+bjorn_is([#b_set{op=bs_start_match,dst=Dst},
+          #b_set{op={succeeded,guard},args=[Dst]}]=Is, _Dom, _L, Sub) ->
+    {Is,Sub};
+bjorn_is([#b_set{op=bs_start_match,dst=Dst,args=[_,Matchable],
+                 anno=Anno}=I|Is0],
+         Dom, L, Sub0) ->
+    case bjorn_is_bitstring(1, Matchable, Anno) of
+        true ->
+            {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
+            {[I|Is],Sub};
+        false ->
+            case Sub0 of
+                #{Matchable := {Dominator,Ctx}} ->
+                    Sub1 = Sub0#{Dst => {Dominator,Ctx}},
+                    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub1),
+                    {[I|Is],Sub};
+                #{} ->
+                    Sub1 = Sub0#{Matchable => {L,Dst}},
+                    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub1),
+                    {[I|Is],Sub}
+            end
+    end;
+bjorn_is([#b_set{args=Args0}=I0|Is0], Dom, L, Sub0) ->
+    DominatedBy = map_get(L, Dom),
+    Args = [bjorn_sub_arg(A, DominatedBy, Sub0) || A <- Args0],
+    I = I0#b_set{args=Args},
+    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
+    {[I|Is],Sub};
+bjorn_is([], _Dom, _L, Sub) ->
+    {[],Sub}.
+
+bjorn_sub_arg(A, DominatedBy, Sub) ->
+    case Sub of
+        #{A := {Dominator,V}} ->
+            case member(Dominator, DominatedBy) of
+                true -> V;
+                false -> A
+            end;
+        #{} -> A
+    end.
+
+bjorn_is_bitstring(Pos, Arg, Anno) ->
+    case Anno of
+        #{arg_types := #{Pos := #t_bitstring{}}} ->
+            true;
+        #{} ->
+            case Arg of
+                #b_literal{val=Bs} when is_bitstring(Bs) ->
+                    true;
+                _ ->
+                    false
+            end
+    end.
+
+fix_bs_1(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
     F = fun(#b_set{op=bs_start_match,dst=Dst,args=[_,ParentCtx]}, A) ->
                 %% Mark the root of the match context list.
                 A#{Dst => {origin,ParentCtx}};
@@ -432,44 +502,52 @@ bs_add_block(BlockMap0, Count0, CtxChain) ->
     end.
 
 bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],
-                                          dst=Dst,anno=#{arg_types:=#{1:=ArgType}}}|_],
+                                          dst=Dst,anno=Anno},
+                                   #b_set{op={succeeded,guard}}|_],
                                last=#b_br{succ=Succ,fail=Fail}=Last0}=Block0}|Bs], BlockMap0, Count0,
                                Seen0) ->
     %% Map Arg to Dst, so we know what to replace it with.
     Map1 = #{Arg => Dst},
+
     %% Rename all original var in the success path to the match context var.
     %% Collect all RenamedBlks.
     SuccPath0 = beam_ssa:rpo([Succ], BlockMap0),
-    %% What's seen cannot be renamed again
+
+    %% What's seen cannot be renamed again.
     Seen = sets:add_element(L, Seen0),
-    case {ArgType, lists:any(fun(X) -> X =:= L end, SuccPath0)} of
-        {_, true} ->
+    case any(fun(X) -> X =:= L end, SuccPath0) of
+        true ->
             %% Loop detected, stop here.
             bs_find_start_match(Bs, BlockMap0, Count0, Seen);
-        {#t_bitstring{},  _} ->
-            %% Bitstring always creates a new match context.
-            bs_find_start_match(Bs, BlockMap0, Count0, Seen);
-        {_, false} ->
-            SuccPath = sets:to_list(sets:subtract(sets:from_list(SuccPath0), Seen)),
-            {BlockMap1, RenamedBlks} = rename_context_var(SuccPath, BlockMap0, Map1, []),
-            %% In FailPath, match context var does not exist. ConvergedPaths must be
-            %% duplicated. The other copy uses the original var.
-            FailPath = beam_ssa:rpo([Fail], BlockMap0),
-            ConvergedPaths = ordsets:intersection(
-                                ordsets:from_list(RenamedBlks),
-                                ordsets:from_list(FailPath)),
-            %% Redirect the original failure label.
-            {BlockMap3, Block1, Count2} = case ConvergedPaths of
-                [] ->
-                    {BlockMap1, Block0, Count0};
-                _ ->
-                    {RedirectLabel, BlockMap2, Count1} = aca_copy_successors(Fail, BlockMap0, Count0, Map1),
-                    Block = Block0#b_blk{last=Last0#b_br{fail=RedirectLabel}},
-                    {BlockMap2, Block, Count1}
-            end,
-            BlockMap4 = maps:merge(BlockMap3, BlockMap1),
-            BlockMap5 = BlockMap4#{L => Block1},
-            bs_find_start_match(Bs, BlockMap5, Count2, Seen)
+        false ->
+            case bjorn_is_bitstring(1, Arg, Anno) of
+                true ->
+                    %% A bitstring always creates a new match context.
+                    bs_find_start_match(Bs, BlockMap0, Count0, Seen);
+                false ->
+                    SuccPath = sets:to_list(sets:subtract(sets:from_list(SuccPath0), Seen)),
+                    {BlockMap1, RenamedBlks} = rename_context_var(SuccPath, BlockMap0, Map1, []),
+
+                    %% In FailPath, match context var does not exist. ConvergedPaths must be
+                    %% duplicated. The other copy uses the original var.
+                    FailPath = beam_ssa:rpo([Fail], BlockMap0),
+                    ConvergedPaths = ordsets:intersection(ordsets:from_list(RenamedBlks),
+                                                          ordsets:from_list(FailPath)),
+
+                    %% Redirect the original failure label.
+                    {BlockMap3, Block1, Count2} =
+                        case ConvergedPaths of
+                            [] ->
+                                {BlockMap1, Block0, Count0};
+                            [_|_] ->
+                                {RedirectLabel, BlockMap2, Count1} = aca_copy_successors(Fail, BlockMap0, Count0, Map1),
+                                Block = Block0#b_blk{last=Last0#b_br{fail=RedirectLabel}},
+                                {BlockMap2, Block, Count1}
+                        end,
+                    BlockMap4 = maps:merge(BlockMap3, BlockMap1),
+                    BlockMap5 = BlockMap4#{L => Block1},
+                    bs_find_start_match(Bs, BlockMap5, Count2, Seen)
+            end
     end;
 bs_find_start_match([_B|Bs], BlockMap, Count, Seen) ->
     bs_find_start_match(Bs, BlockMap, Count, Seen);
@@ -708,8 +786,8 @@ bs_restores_is([#b_set{op=bs_ensure,dst=NewPos,args=Args}|Is],
             FPos = SPos0,
             bs_restores_is(Is, CtxChain, SPos, FPos, Rs0);
         #{} ->
-            SPos = SPos0#{Start := NewPos},
-            FPos = SPos0#{Start := FromPos},
+            SPos = SPos0#{Start => NewPos},
+            FPos = SPos0#{Start => FromPos},
             Rs = Rs0#{NewPos=>{Start,FromPos}},
             bs_restores_is(Is, CtxChain, SPos, FPos, Rs)
     end;
