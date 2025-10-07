@@ -47,7 +47,7 @@
 %%         -- reference
 %%       -- #t_bs_matchable{} Binary-matchable types.
 %%         -- #t_bitstring{}    Bitstring.
-%%           -- #t_bs_context{} Match context.
+%%         -- #t_bs_context{}   Match context.
 %%
 %%  none                     No type (bottom element).
 %%
