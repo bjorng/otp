@@ -216,77 +216,7 @@ assert_no_ces(_, _, Blocks) -> Blocks.
 %%  It is here we go from the functional style of binary matching in
 %%  SSA to the imperative style of the BEAM instructions.
 
-fix_bs(#st{ssa=Blocks0}=St) ->
-    RPO = beam_ssa:rpo(Blocks0),
-    Sub = #{},
-    {Dom, _} = beam_ssa:dominators(RPO, Blocks0),
-    Blocks = bjorn(RPO, Dom, Sub, Blocks0),
-    fix_bs_1(St#st{ssa=Blocks}).
-
-bjorn([L|Ls], Dom, Sub0, Blocks0) ->
-    #b_blk{is=Is0} = Blk0 = map_get(L, Blocks0),
-    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
-    Blk = Blk0#b_blk{is=Is},
-    Blocks = Blocks0#{L := Blk},
-    bjorn(Ls, Dom, Sub, Blocks);
-bjorn([], _Dom, _Sub, Blocks) ->
-    Blocks.
-
-bjorn_is([#b_set{op=bs_start_match,dst=Dst},
-          #b_set{op={succeeded,guard},args=[Dst]}]=Is, _Dom, _L, Sub) ->
-    {Is,Sub};
-bjorn_is([#b_set{op=bs_start_match,dst=Dst,args=[_,Matchable],
-                 anno=Anno}=I|Is0],
-         Dom, L, Sub0) ->
-    case bjorn_is_bitstring(1, Matchable, Anno) of
-        true ->
-            {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
-            {[I|Is],Sub};
-        false ->
-            case Sub0 of
-                #{Matchable := {Dominator,Ctx}} ->
-                    Sub1 = Sub0#{Dst => {Dominator,Ctx}},
-                    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub1),
-                    {[I|Is],Sub};
-                #{} ->
-                    Sub1 = Sub0#{Matchable => {L,Dst}},
-                    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub1),
-                    {[I|Is],Sub}
-            end
-    end;
-bjorn_is([#b_set{args=Args0}=I0|Is0], Dom, L, Sub0) ->
-    DominatedBy = map_get(L, Dom),
-    Args = [bjorn_sub_arg(A, DominatedBy, Sub0) || A <- Args0],
-    I = I0#b_set{args=Args},
-    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
-    {[I|Is],Sub};
-bjorn_is([], _Dom, _L, Sub) ->
-    {[],Sub}.
-
-bjorn_sub_arg(A, DominatedBy, Sub) ->
-    case Sub of
-        #{A := {Dominator,V}} ->
-            case member(Dominator, DominatedBy) of
-                true -> V;
-                false -> A
-            end;
-        #{} -> A
-    end.
-
-bjorn_is_bitstring(Pos, Arg, Anno) ->
-    case Anno of
-        #{arg_types := #{Pos := #t_bitstring{}}} ->
-            true;
-        #{} ->
-            case Arg of
-                #b_literal{val=Bs} when is_bitstring(Bs) ->
-                    true;
-                _ ->
-                    false
-            end
-    end.
-
-fix_bs_1(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
+fix_bs(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
     F = fun(#b_set{op=bs_start_match,dst=Dst,args=[_,ParentCtx]}, A) ->
                 %% Mark the root of the match context list.
                 A#{Dst => {origin,ParentCtx}};
@@ -304,21 +234,19 @@ fix_bs_1(#st{ssa=Blocks0,cnt=Count0,args=FunArgs}=St) ->
            (_, A) ->
                 A
         end,
-    RPO0 = beam_ssa:rpo(Blocks0),
-    CtxChain = beam_ssa:fold_instrs(F, RPO0, #{}, Blocks0),
-    {Blocks, Count1} = bs_add_block(Blocks0, Count0, CtxChain),
+    RPO = beam_ssa:rpo(Blocks0),
+    CtxChain = beam_ssa:fold_instrs(F, RPO, #{}, Blocks0),
     case map_size(CtxChain) of
         0 ->
             %% No binary matching in this function.
             St;
         _ ->
-            Linear0 = beam_ssa:linearize(Blocks),
+            Linear0 = beam_ssa:linearize(Blocks0),
 
             %% Insert position instructions where needed.
-            RPO1 = beam_ssa:rpo(Blocks),
-            CtxChain1 = beam_ssa:fold_instrs(F, RPO1, #{}, Blocks),
-            {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain1, RPO1,
-                                          FunArgs, Count1),
+            CtxChain1 = beam_ssa:fold_instrs(F, RPO, #{}, Blocks0),
+            {Linear1,Count} = bs_pos_bsm3(Linear0, CtxChain1, RPO,
+                                          FunArgs, Count0),
             %% Rename instructions.
             Linear = bs_instrs(Linear1, CtxChain1, []),
             St#st{ssa=maps:from_list(Linear),cnt=Count}
@@ -489,173 +417,6 @@ bs_update_successors(#b_switch{fail=Fail,list=List}, SPos, FPos, D) ->
 bs_update_successors(#b_ret{}, SPos, FPos, D) ->
     SPos = FPos,                                %Assertion.
     D.
-
-bs_add_block(BlockMap0, Count0, CtxChain) ->
-    Changed = [V || {changed, V} <- maps:values(CtxChain)],
-    case Changed of
-        [] -> {BlockMap0, Count0};
-        _  ->
-            SSA = beam_ssa:linearize(BlockMap0),
-            %% Search from all bs_start_match instructions.
-            {BlockMap, Count} = bs_find_start_match(SSA, BlockMap0, Count0, sets:new()),
-            {BlockMap, Count}
-    end.
-
-bs_find_start_match([{L,#b_blk{is=[#b_set{op=bs_start_match,args=[_,Arg],
-                                          dst=Dst,anno=Anno},
-                                   #b_set{op={succeeded,guard}}|_],
-                               last=#b_br{succ=Succ,fail=Fail}=Last0}=Block0}|Bs], BlockMap0, Count0,
-                               Seen0) ->
-    %% Map Arg to Dst, so we know what to replace it with.
-    Map1 = #{Arg => Dst},
-
-    %% Rename all original var in the success path to the match context var.
-    %% Collect all RenamedBlks.
-    SuccPath0 = beam_ssa:rpo([Succ], BlockMap0),
-
-    %% What's seen cannot be renamed again.
-    Seen = sets:add_element(L, Seen0),
-    case any(fun(X) -> X =:= L end, SuccPath0) of
-        true ->
-            %% Loop detected, stop here.
-            bs_find_start_match(Bs, BlockMap0, Count0, Seen);
-        false ->
-            case bjorn_is_bitstring(1, Arg, Anno) of
-                true ->
-                    %% A bitstring always creates a new match context.
-                    bs_find_start_match(Bs, BlockMap0, Count0, Seen);
-                false ->
-                    SuccPath = sets:to_list(sets:subtract(sets:from_list(SuccPath0), Seen)),
-                    {BlockMap1, RenamedBlks} = rename_context_var(SuccPath, BlockMap0, Map1, []),
-
-                    %% In FailPath, match context var does not exist. ConvergedPaths must be
-                    %% duplicated. The other copy uses the original var.
-                    FailPath = beam_ssa:rpo([Fail], BlockMap0),
-                    ConvergedPaths = ordsets:intersection(ordsets:from_list(RenamedBlks),
-                                                          ordsets:from_list(FailPath)),
-
-                    %% Redirect the original failure label.
-                    {BlockMap3, Block1, Count2} =
-                        case ConvergedPaths of
-                            [] ->
-                                {BlockMap1, Block0, Count0};
-                            [_|_] ->
-                                {RedirectLabel, BlockMap2, Count1} = aca_copy_successors(Fail, BlockMap0, Count0, Map1),
-                                Block = Block0#b_blk{last=Last0#b_br{fail=RedirectLabel}},
-                                {BlockMap2, Block, Count1}
-                        end,
-                    BlockMap4 = maps:merge(BlockMap3, BlockMap1),
-                    BlockMap5 = BlockMap4#{L => Block1},
-                    bs_find_start_match(Bs, BlockMap5, Count2, Seen)
-            end
-    end;
-bs_find_start_match([_B|Bs], BlockMap, Count, Seen) ->
-    bs_find_start_match(Bs, BlockMap, Count, Seen);
-bs_find_start_match([], BlockMap, Count, _Seen) ->
-    {BlockMap, Count}.
-
-rename_context_var([L|NeedRename], BlockMap0, Map, RenamedBlks) ->
-    OldBlock = map_get(L, BlockMap0),
-    NewBlock = beam_ssa:rename_vars(Map, [L], #{L => OldBlock}),
-    BlockMap1 = maps:merge(BlockMap0, NewBlock),
-    case NewBlock of
-        #{L := OldBlock} ->
-            rename_context_var(NeedRename, BlockMap1, Map, RenamedBlks);
-        _ ->
-            rename_context_var(NeedRename, BlockMap1, Map, [L|RenamedBlks])
-    end;
-rename_context_var([], BlockMap, _Map, RenamedBlks) ->
-    {BlockMap, RenamedBlks}.
-
-%% Copies all successor blocks of Lbl, returning the label to the entry block
-%% of this copy. Since the copied blocks aren't referenced anywhere else, they
-%% are all guaranteed to be dominated by Lbl.
-aca_copy_successors(Lbl0, Blocks0, Counter0, _VR) ->
-    %% Building the block rename map up front greatly simplifies phi node
-    %% handling.
-    Path = beam_ssa:rpo([Lbl0], Blocks0),
-    {BRs, Counter1} = aca_cs_build_brs(Path, Counter0, #{}),
-    {Blocks, Counter} = aca_cs_1(Path, Blocks0, Counter1, #{}, BRs, #{}),
-    Lbl = maps:get(Lbl0, BRs),
-    {Lbl, Blocks, Counter}.
-
-aca_cs_build_brs([?EXCEPTION_BLOCK=Lbl | Path], Counter, Acc) ->
-    %% ?EXCEPTION_BLOCK is a marker and not an actual block, so renaming it
-    %% will break exception handling.
-    aca_cs_build_brs(Path, Counter, Acc#{ Lbl => Lbl });
-aca_cs_build_brs([Lbl | Path], Counter0, Acc) ->
-    aca_cs_build_brs(Path, Counter0 + 1, Acc#{ Lbl => Counter0 });
-aca_cs_build_brs([], Counter, Acc) ->
-    {Acc, Counter}.
-
-aca_cs_1([Lbl0 | Path], Blocks, Counter0, VRs0, BRs, Acc0) ->
-    Block0 = maps:get(Lbl0, Blocks),
-    Lbl = maps:get(Lbl0, BRs),
-    {VRs, Block, Counter} = aca_cs_block(Block0, Counter0, VRs0, BRs),
-    Acc = maps:put(Lbl, Block, Acc0),
-    aca_cs_1(Path, Blocks, Counter, VRs, BRs, Acc);
-aca_cs_1([], Blocks, Counter, _VRs, _BRs, Acc) ->
-    {maps:merge(Blocks, Acc), Counter}.
-
-aca_cs_block(#b_blk{is=Is0,last=Last0}=Block0, Counter0, VRs0, BRs) ->
-    {VRs, Is, Counter} = aca_cs_is(Is0, Counter0, VRs0, BRs, []),
-    Last1 = aca_cs_last(Last0, VRs, BRs),
-    Last = beam_ssa:normalize(Last1),
-    Block = Block0#b_blk{is=Is,last=Last},
-    {VRs, Block, Counter}.
-
-aca_cs_is([#b_set{op=Op,
-                  dst=Dst0,
-                  args=Args0}=I0 | Is],
-          Counter0, VRs0, BRs, Acc) ->
-    Args = case Op of
-               phi -> aca_cs_args_phi(Args0, VRs0, BRs);
-               _ -> aca_cs_args(Args0, VRs0)
-           end,
-    Counter = Counter0 + 1,
-    Dst = #b_var{name=Counter0},
-    I = I0#b_set{dst=Dst,args=Args},
-    VRs = maps:put(Dst0, Dst, VRs0),
-    aca_cs_is(Is, Counter, VRs, BRs, [I | Acc]);
-aca_cs_is([], Counter, VRs, _BRs, Acc) ->
-    {VRs, reverse(Acc), Counter}.
-
-aca_cs_last(#b_switch{arg=Arg0,list=Switch0,fail=Fail0}=Sw, VRs, BRs) ->
-    Switch = [{Literal, maps:get(Lbl, BRs)} || {Literal, Lbl} <:- Switch0],
-    Sw#b_switch{arg=aca_cs_arg(Arg0, VRs),
-                fail=maps:get(Fail0, BRs),
-                list=Switch};
-aca_cs_last(#b_br{bool=Arg0,succ=Succ0,fail=Fail0}=Br, VRs, BRs) ->
-    Br#b_br{bool=aca_cs_arg(Arg0, VRs),
-            succ=maps:get(Succ0, BRs),
-            fail=maps:get(Fail0, BRs)};
-aca_cs_last(#b_ret{arg=Arg0}=Ret, VRs, _BRs) ->
-    Ret#b_ret{arg=aca_cs_arg(Arg0, VRs)}.
-
-aca_cs_args_phi([{Arg, Lbl} | Args], VRs, BRs) ->
-    case BRs of
-        #{ Lbl := New } ->
-            [{aca_cs_arg(Arg, VRs), New} | aca_cs_args_phi(Args, VRs, BRs)];
-        #{} ->
-            aca_cs_args_phi(Args, VRs, BRs)
-    end;
-aca_cs_args_phi([], _VRs, _BRs) ->
-    [].
-
-aca_cs_args([Arg | Args], VRs) ->
-    [aca_cs_arg(Arg, VRs) | aca_cs_args(Args, VRs)];
-aca_cs_args([], _VRs) ->
-    [].
-
-aca_cs_arg(#b_remote{mod=Mod0,name=Name0}=Rem, VRs) ->
-    Mod = aca_cs_arg(Mod0, VRs),
-    Name = aca_cs_arg(Name0, VRs),
-    Rem#b_remote{mod=Mod,name=Name};
-aca_cs_arg(Arg, VRs) ->
-    case VRs of
-        #{ Arg := New } -> New;
-        #{} -> Arg
-    end.
 
 handle_implied_start_match([], InPos, _CtxChain) ->
     InPos;
