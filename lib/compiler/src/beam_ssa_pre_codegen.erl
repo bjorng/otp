@@ -273,10 +273,10 @@ bjorn_sub_arg(A, DominatedBy, Sub) ->
         #{} -> A
     end.
 
-bjorn_is_bitstring(Pos, Arg, Anno) ->
+bjorn_is_bitstring(_Pos, Arg, Anno) ->
     case Anno of
-        #{arg_types := #{Pos := #t_bitstring{}}} ->
-            true;
+        %% #{arg_types := #{Pos := #t_bitstring{}}} ->
+        %%     true;
         #{} ->
             case Arg of
                 #b_literal{val=Bs} when is_bitstring(Bs) ->
@@ -917,8 +917,8 @@ bs_restores_is(
         #{} ->
             bs_restores_is(Is, CtxChain, SPos0, SPos0, Rs)
     end;
-bs_restores_is([_ | Is], CtxChain, SPos, _FPos, Rs) ->
-    FPos = SPos,
+bs_restores_is([#b_set{dst=Dst,args=Args0}|Is], CtxChain, SPos0, FPos, Rs0) ->
+    {SPos, Rs} = bs_restore_args(Args0, SPos0, CtxChain, Dst, Rs0),
     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
 bs_restores_is([], _CtxChain, SPos, _FPos, Rs) ->
     FPos = SPos,
