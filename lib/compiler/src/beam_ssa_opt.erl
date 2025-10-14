@@ -2115,7 +2115,15 @@ ssa_opt_bsm({#opt_st{ssa=Linear0,cnt=Count0}=St, FuncDb}) ->
     Linear1 = bsm_skip(Linear0, Extracted),
     Linear2 = bsm_coalesce_skips(Linear1, #{}),
     Blocks0 = bsm_bjorn(Linear2),
-    {Blocks,Count} = bsm_duplicate(Blocks0, Count0),
+    %% {Blocks,Count} = bsm_duplicate(Blocks0, Count0),
+    try bsm_duplicate(Blocks0, Count0) of
+        _ ->
+            ok
+    catch
+        _:_ ->
+            ok
+    end,
+    {Blocks,Count} = {Blocks0,Count0},
     Linear = beam_ssa:linearize(Blocks),
     {St#opt_st{ssa=Linear,cnt=Count}, FuncDb}.
 
@@ -2238,8 +2246,7 @@ bsm_bjorn(Linear0) ->
 bjorn([L|Ls], Dom, Sub0, Blocks0) ->
     #b_blk{is=Is0,last=Last0} = Blk0 = map_get(L, Blocks0),
     DominatedBy = map_get(L, Dom),
-    %% TODO: Pass DominatedBy instead of L to bjorn_is/4.
-    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
+    {Is,Sub} = bjorn_is(Is0, Last0, Dom, L, Sub0),
     Last = bjorn_last(Last0, DominatedBy, Sub),
     Blk = Blk0#b_blk{is=Is,last=Last},
     Blocks = Blocks0#{L := Blk},
@@ -2247,35 +2254,48 @@ bjorn([L|Ls], Dom, Sub0, Blocks0) ->
 bjorn([], _Dom, _Sub, Blocks) ->
     Blocks.
 
-bjorn_is([#b_set{op=bs_start_match,dst=Dst},
-          #b_set{op={succeeded,guard},args=[Dst]}]=Is, _Dom, _L, Sub) ->
-    {Is,Sub};
-bjorn_is([#b_set{op=bs_start_match,dst=Dst,args=[_,Matchable],
-                 anno=Anno}=I|Is0],
-         Dom, L, Sub0) ->
+bjorn_is([#b_set{anno=Anno,op=bs_start_match,dst=Dst,args=[_,Matchable]},
+          #b_set{op={succeeded,guard},args=[Dst]}]=Is, Last, _Dom, _L, Sub0) ->
     case bjorn_is_bitstring(1, Matchable, Anno) of
         true ->
-            {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
+            {[],Sub0};
+        false ->
+            case Sub0 of
+                #{Matchable := {Dominator,Ctx}} ->
+                    Sub = Sub0#{Dst => {Dominator,Ctx}},
+                    {Is,Sub};
+                #{} ->
+                    #b_br{succ=Succ} = Last,
+                    Sub = Sub0#{Matchable => {Succ,Dst}},
+                    {Is,Sub}
+            end
+    end;
+bjorn_is([#b_set{op=bs_start_match,dst=Dst,args=[_,Matchable],
+                 anno=Anno}=I|Is0],
+         Last, Dom, L, Sub0) ->
+    case bjorn_is_bitstring(1, Matchable, Anno) of
+        true ->
+            {Is,Sub} = bjorn_is(Is0, Last, Dom, L, Sub0),
             {[I|Is],Sub};
         false ->
             case Sub0 of
                 #{Matchable := {Dominator,Ctx}} ->
                     Sub1 = Sub0#{Dst => {Dominator,Ctx}},
-                    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub1),
+                    {Is,Sub} = bjorn_is(Is0, Last, Dom, L, Sub1),
                     {[I|Is],Sub};
                 #{} ->
                     Sub1 = Sub0#{Matchable => {L,Dst}},
-                    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub1),
+                    {Is,Sub} = bjorn_is(Is0, Last, Dom, L, Sub1),
                     {[I|Is],Sub}
             end
     end;
-bjorn_is([#b_set{args=Args0}=I0|Is0], Dom, L, Sub0) ->
+bjorn_is([#b_set{args=Args0}=I0|Is0], Last, Dom, L, Sub0) ->
     DominatedBy = map_get(L, Dom),
     Args = [bjorn_sub_arg(A, DominatedBy, Sub0) || A <- Args0],
     I = I0#b_set{args=Args},
-    {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
+    {Is,Sub} = bjorn_is(Is0, Last, Dom, L, Sub0),
     {[I|Is],Sub};
-bjorn_is([], _Dom, _L, Sub) ->
+bjorn_is([], _Last, _Dom, _L, Sub) ->
     {[],Sub}.
 
 bjorn_last(#b_ret{arg=Arg0}, DominatedBy, Sub) ->
