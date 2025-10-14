@@ -224,9 +224,12 @@ fix_bs(#st{ssa=Blocks0}=St) ->
     fix_bs_1(St#st{ssa=Blocks}).
 
 bjorn([L|Ls], Dom, Sub0, Blocks0) ->
-    #b_blk{is=Is0} = Blk0 = map_get(L, Blocks0),
+    #b_blk{is=Is0,last=Last0} = Blk0 = map_get(L, Blocks0),
+    DominatedBy = map_get(L, Dom),
+    %% TODO: Pass DominatedBy instead of L to bjorn_is/4.
     {Is,Sub} = bjorn_is(Is0, Dom, L, Sub0),
-    Blk = Blk0#b_blk{is=Is},
+    Last = bjorn_last(Last0, DominatedBy, Sub),
+    Blk = Blk0#b_blk{is=Is,last=Last},
     Blocks = Blocks0#{L := Blk},
     bjorn(Ls, Dom, Sub, Blocks);
 bjorn([], _Dom, _Sub, Blocks) ->
@@ -262,6 +265,12 @@ bjorn_is([#b_set{args=Args0}=I0|Is0], Dom, L, Sub0) ->
     {[I|Is],Sub};
 bjorn_is([], _Dom, _L, Sub) ->
     {[],Sub}.
+
+bjorn_last(#b_ret{arg=Arg0}, DominatedBy, Sub) ->
+    Arg = bjorn_sub_arg(Arg0, DominatedBy, Sub),
+    #b_ret{arg=Arg};
+bjorn_last(Last, _, _) ->
+    Last.
 
 bjorn_sub_arg(A, DominatedBy, Sub) ->
     case Sub of
