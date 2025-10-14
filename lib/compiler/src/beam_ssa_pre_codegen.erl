@@ -275,8 +275,8 @@ bjorn_sub_arg(A, DominatedBy, Sub) ->
 
 bjorn_is_bitstring(_Pos, Arg, Anno) ->
     case Anno of
-        %% #{arg_types := #{Pos := #t_bitstring{}}} ->
-        %%     true;
+        #{created_for := _} ->
+            true;
         #{} ->
             case Arg of
                 #b_literal{val=Bs} when is_bitstring(Bs) ->
