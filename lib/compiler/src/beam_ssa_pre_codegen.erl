@@ -468,7 +468,7 @@ bs_restores_last(L, #b_ret{arg=Arg}, CtxChain, SuccPos0, FailPos0, Rs0) ->
         true ->
             Ctx = bs_subst_ctx(Arg, CtxChain),
             case SuccPos0 of
-                #{Ctx := Ctx} ->
+                #{Ctx := Arg} ->
                     {SuccPos0, FailPos0, Rs0};
                 #{} ->
                     Rs = Rs0#{{ret,L} => {Ctx,Arg}},
