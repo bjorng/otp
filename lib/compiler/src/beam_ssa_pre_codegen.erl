@@ -321,7 +321,7 @@ make_bs_getpos_map([], _, Count, Acc) ->
 make_bs_setpos_map([{Bef,Restores0}|T], SavePoints, Count0, Acc) ->
     Sub0 = #{},
     {Restores,Count,Sub} =
-        make_bs_setpos_map_list(Restores0, SavePoints, Count0, Sub0, []),
+        make_bs_setpos_map_list(reverse(Restores0), SavePoints, Count0, Sub0, []),
     make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,{Restores,Sub}}|Acc]);
 make_bs_setpos_map([], _, Count, Acc) ->
     {maps:from_list(Acc),Count}.
