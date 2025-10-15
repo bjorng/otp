@@ -322,7 +322,7 @@ make_bs_setpos_map([{Bef,[{Ctx,_}=Ps|_]}|T], SavePoints, Count, Acc) ->
     Ignored = #b_var{name=Count},
     Args = [Ctx, get_savepoint(Ps, SavePoints)],
     I = #b_set{op=bs_set_position,dst=Ignored,args=Args},
-    make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,I}|Acc]);
+    make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,[I]}|Acc]);
 make_bs_setpos_map([], _, Count, Acc) ->
     {maps:from_list(Acc),Count}.
 
@@ -746,8 +746,8 @@ bs_insert_1([{L,#b_blk{is=Is0,last=Last}=Blk} | Bs],
     Is3 = case Last of
               #b_ret{} ->
                   case Restores of
-                      #{{ret,L} := Restore} ->
-                          Is2 ++ [Restore];
+                      #{{ret,L} := [_|_]=Restores} ->
+                          Is2 ++ Restores;
                       #{} ->
                           Is2
                   end;
@@ -772,7 +772,7 @@ bs_insert_deferred(Is, Deferred) ->
 
 bs_insert_is([#b_set{dst=Dst}=I|Is], Saves, Restores, Acc0) ->
     Pre0 = case Restores of
-               #{Dst:=R} -> [R];
+               #{Dst := [_|_]=R} -> R;
                #{} -> []
            end,
     Pre = bs_eliminate_start_match(Pre0, I),
