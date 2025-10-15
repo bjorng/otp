@@ -265,14 +265,16 @@ fix_bs_ensure_root(Ctx, CtxChain) ->
 %% Insert bs_get_position and bs_set_position instructions as needed.
 bs_pos_bsm3(Linear0, CtxChain, RPO, FunArgs, Count0) ->
     Rs0 = bs_restores(Linear0, CtxChain),
-    Rs = maps:values(Rs0),
-    S0 = sofs:relation(Rs, [{context,save_point}]),
-    S1 = sofs:relation_to_family(S0),
-    S = sofs:to_external(S1),
+    Rs1 = maps:values(Rs0),
+    S0 = sofs:from_external(Rs1, [[{context,save_point}]]),
+    S1 = sofs:union(S0),
+    S2 = sofs:relation_to_family(S1),
+    S = sofs:to_external(S2),
 
     {SavePoints,Count1} = make_bs_pos_dict(S, Count0, []),
 
-    {Gets,Count2} = make_bs_getpos_map(Rs, SavePoints, Count1, []),
+    {Gets,Count2} = make_bs_getpos_map(append(Rs1), SavePoints, Count1, []),
+
     {Sets,Count} =
         make_bs_setpos_map(maps:to_list(Rs0), SavePoints, Count2, []),
 
@@ -316,7 +318,7 @@ make_bs_getpos_map([{Ctx,Save}=Ps|T], SavePoints, Count, Acc) ->
 make_bs_getpos_map([], _, Count, Acc) ->
     {maps:from_list(Acc),Count}.
 
-make_bs_setpos_map([{Bef,{Ctx,_}=Ps}|T], SavePoints, Count, Acc) ->
+make_bs_setpos_map([{Bef,[{Ctx,_}=Ps|_]}|T], SavePoints, Count, Acc) ->
     Ignored = #b_var{name=Count},
     Args = [Ctx, get_savepoint(Ps, SavePoints)],
     I = #b_set{op=bs_set_position,dst=Ignored,args=Args},
@@ -398,7 +400,7 @@ bs_restores_last(L, #b_ret{arg=Arg}, CtxChain, SuccPos0, FailPos0, Rs0) ->
                 #{Ctx := Arg} ->
                     {SuccPos0, FailPos0, Rs0};
                 #{} ->
-                    Rs = Rs0#{{ret,L} => {Ctx,Arg}},
+                    Rs = Rs0#{{ret,L} => [{Ctx,Arg}]},
                     {SuccPos0, FailPos0, Rs}
             end;
         false ->
@@ -527,7 +529,7 @@ bs_restores_is([#b_set{op=bs_start_match,dst=Start,args=[_,BinOrCtx]}|Is],
     SPos = SPos0#{Start => Start},
     Rs = case CtxChain of
              #{BinOrCtx := _} ->
-                 Rs0#{Start => {BinOrCtx,BinOrCtx}};
+                 Rs0#{Start => [{BinOrCtx,BinOrCtx}]};
              #{} ->
                  Rs0
          end,
@@ -548,7 +550,7 @@ bs_restores_is([#b_set{op=bs_ensure,dst=NewPos,args=Args}|Is],
         #{} ->
             SPos = SPos0#{Start => NewPos},
             FPos = SPos0#{Start => FromPos},
-            Rs = Rs0#{NewPos=>{Start,FromPos}},
+            Rs = Rs0#{NewPos => [{Start,FromPos}]},
             bs_restores_is(Is, CtxChain, SPos, FPos, Rs)
     end;
 bs_restores_is([#b_set{anno=#{ensured := _},
@@ -607,13 +609,13 @@ bs_restores_is([#b_set{op=bs_match,dst=NewPos,args=Args}=I|Is],
                     %% restored to (NOT NewPos).
                     SPos = SPos0#{Start:=FromPos},
                     FPos = SPos,
-                    Rs = Rs0#{NewPos=>{Start,FromPos}},
+                    Rs = Rs0#{NewPos => [{Start,FromPos}]},
                     bs_restores_is(Is, CtxChain, SPos, FPos, Rs);
                 plain ->
                     %% Match or skip. Position will be changed.
                     SPos = SPos0#{Start:=NewPos},
                     FPos = SPos0#{Start:=FromPos},
-                    Rs = Rs0#{NewPos=>{Start,FromPos}},
+                    Rs = Rs0#{NewPos => [{Start,FromPos}]},
                     bs_restores_is(Is, CtxChain, SPos, FPos, Rs)
             end
     end;
@@ -720,7 +722,8 @@ bs_restore_args([#b_var{}=Arg|Args], Pos0, CtxChain, Dst, Rs0) ->
         #{Start:=_} ->
             %% Different positions, need a restore instruction.
             Pos = Pos0#{Start:=Arg},
-            Rs = Rs0#{Dst=>{Start,Arg}},
+            Restores = [{Start,Arg}|maps:get(Dst, Rs0, [])],
+            Rs = Rs0#{Dst => Restores},
             bs_restore_args(Args, Pos, CtxChain, Dst, Rs);
         #{} ->
             %% Not a match context.
