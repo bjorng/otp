@@ -318,13 +318,25 @@ make_bs_getpos_map([{Ctx,Save}=Ps|T], SavePoints, Count, Acc) ->
 make_bs_getpos_map([], _, Count, Acc) ->
     {maps:from_list(Acc),Count}.
 
-make_bs_setpos_map([{Bef,[{Ctx,_}=Ps|_]}|T], SavePoints, Count, Acc) ->
+make_bs_setpos_map([{Bef,Restores0}|T], SavePoints, Count0, Acc) ->
+    case Restores0 of
+        [_,_|_] ->
+            io:format("~p\n", [Restores0]);
+        _ ->
+            ok
+    end,
+    {Restores,Count} = make_bs_setpos_map_list(Restores0, SavePoints, Count0, []),
+    make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,Restores}|Acc]);
+make_bs_setpos_map([], _, Count, Acc) ->
+    {maps:from_list(Acc),Count}.
+
+make_bs_setpos_map_list([{Ctx,_}=Ps|T], SavePoints, Count, Acc) ->
     Ignored = #b_var{name=Count},
     Args = [Ctx, get_savepoint(Ps, SavePoints)],
     I = #b_set{op=bs_set_position,dst=Ignored,args=Args},
-    make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,[I]}|Acc]);
-make_bs_setpos_map([], _, Count, Acc) ->
-    {maps:from_list(Acc),Count}.
+    make_bs_setpos_map_list(T, SavePoints, Count+1, [I|Acc]);
+make_bs_setpos_map_list([], _, Count, Acc) ->
+    {Acc,Count}.
 
 get_savepoint({_,_}=Ps, SavePoints) ->
     Name = map_get(Ps, SavePoints),
@@ -746,8 +758,8 @@ bs_insert_1([{L,#b_blk{is=Is0,last=Last}=Blk} | Bs],
     Is3 = case Last of
               #b_ret{} ->
                   case Restores of
-                      #{{ret,L} := [_|_]=Restores} ->
-                          Is2 ++ Restores;
+                      #{{ret,L} := [_|_]=Rs} ->
+                          Is2 ++ Rs;
                       #{} ->
                           Is2
                   end;
@@ -796,8 +808,8 @@ bs_eliminate_start_match([], I) ->
 bs_eliminate_start_match([#b_set{}=SetPosition], #b_set{op=bs_start_match,dst=Dst,args=[_,Ctx]}) ->
     Copy = #b_set{op=copy,dst=Dst,args=[Ctx]},
     [Copy,SetPosition];
-bs_eliminate_start_match([I0], I1) ->
-    [I1,I0].
+bs_eliminate_start_match(Is, I1) ->
+    [I1|reverse(Is)].
 
 %% Translate bs_match instructions to one of:
 %%
