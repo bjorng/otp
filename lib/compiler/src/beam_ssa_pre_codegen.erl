@@ -319,24 +319,25 @@ make_bs_getpos_map([], _, Count, Acc) ->
     {maps:from_list(Acc),Count}.
 
 make_bs_setpos_map([{Bef,Restores0}|T], SavePoints, Count0, Acc) ->
-    case Restores0 of
-        [_,_|_] ->
-            io:format("~p\n", [Restores0]);
-        _ ->
-            ok
-    end,
-    {Restores,Count} = make_bs_setpos_map_list(Restores0, SavePoints, Count0, []),
-    make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,Restores}|Acc]);
+    Sub0 = #{},
+    {Restores,Count,Sub} =
+        make_bs_setpos_map_list(Restores0, SavePoints, Count0, Sub0, []),
+    make_bs_setpos_map(T, SavePoints, Count+1, [{Bef,{Restores,Sub}}|Acc]);
 make_bs_setpos_map([], _, Count, Acc) ->
     {maps:from_list(Acc),Count}.
 
-make_bs_setpos_map_list([{Ctx,_}=Ps|T], SavePoints, Count, Acc) ->
+make_bs_setpos_map_list([{Ctx,_}=Ps], SavePoints, Count, Sub, Acc) ->
     Ignored = #b_var{name=Count},
     Args = [Ctx, get_savepoint(Ps, SavePoints)],
     I = #b_set{op=bs_set_position,dst=Ignored,args=Args},
-    make_bs_setpos_map_list(T, SavePoints, Count+1, [I|Acc]);
-make_bs_setpos_map_list([], _, Count, Acc) ->
-    {Acc,Count}.
+    {reverse(Acc, [I]),Count,Sub};
+make_bs_setpos_map_list([{Ctx,Pos}=Ps|T], SavePoints, Count0, Sub0, Acc) ->
+    {[Ignored,Tail],Count} = new_vars(2, Count0),
+    SetArgs = [Ctx, get_savepoint(Ps, SavePoints)],
+    Set = #b_set{op=bs_set_position,dst=Ignored,args=SetArgs},
+    GetTail = #b_set{op=bs_get_tail,dst=Tail,args=[Ctx]},
+    Sub = Sub0#{Pos => Tail},
+    make_bs_setpos_map_list(T, SavePoints, Count, Sub, [GetTail,Set|Acc]).
 
 get_savepoint({_,_}=Ps, SavePoints) ->
     Name = map_get(Ps, SavePoints),
@@ -758,7 +759,7 @@ bs_insert_1([{L,#b_blk{is=Is0,last=Last}=Blk} | Bs],
     Is3 = case Last of
               #b_ret{} ->
                   case Restores of
-                      #{{ret,L} := [_|_]=Rs} ->
+                      #{{ret,L} := {[_|_]=Rs,_Sub}} ->
                           Is2 ++ Rs;
                       #{} ->
                           Is2
@@ -782,10 +783,18 @@ bs_insert_deferred([#b_set{op=bs_extract}=I | Is], Deferred) ->
 bs_insert_deferred(Is, Deferred) ->
     Deferred ++ Is.
 
-bs_insert_is([#b_set{dst=Dst}=I|Is], Saves, Restores, Acc0) ->
-    Pre0 = case Restores of
-               #{Dst := [_|_]=R} -> R;
-               #{} -> []
+bs_insert_is([#b_set{dst=Dst}=I0|Is], Saves, Restores, Acc0) ->
+    {Pre0,I} = case Restores of
+                   #{Dst := {[_|_]=Rs,Sub}} ->
+                       Args0 = I0#b_set.args,
+                       Args = [case Sub of
+                                   #{A := Replacement} -> Replacement;
+                                   #{} -> A
+                               end || A <- Args0],
+                       I1 = I0#b_set{args=Args},
+                       {Rs,I1};
+                   #{} ->
+                       {[],I0}
            end,
     Pre = bs_eliminate_start_match(Pre0, I),
     Post = case Saves of
