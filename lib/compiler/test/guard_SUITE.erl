@@ -3440,6 +3440,12 @@ is_integer_3_guard(_Config) ->
     false = is_integer_3_guard_3(id(1024)),
     true = is_integer_3_guard_3(id(1025)),
 
+    true = is_integer_3_guard_4(id(2), id(5)),
+    false = is_integer_3_guard_4(id(2), id(0)),
+    false = is_integer_3_guard_4(id(5), id(3)),
+    false = is_integer_3_guard_4(id(1024), id(1023)),
+    true = is_integer_3_guard_4(id(1025), id(1026)),
+
     ok.
 
 is_integer_3_guard_1(X, LB, UB) when is_integer(X, LB, UB) ->
@@ -3456,6 +3462,12 @@ is_integer_3_guard_3(X) when not is_integer(X, 1, 1024) ->
     true = not is_integer(X, 1, 1024);
 is_integer_3_guard_3(X) ->
     not is_integer(X, 1, 1024).
+
+is_integer_3_guard_4(X, Y) when is_integer(X, 1, Y) ->
+    true = is_integer(X, 1, Y);
+is_integer_3_guard_4(X, Y) when is_integer(X, Y, 1)->
+    is_integer(X, Y, 1);
+is_integer_3_guard_4(_, _) -> false.
 
 %% Call this function to turn off constant propagation.
 id(I) -> I.

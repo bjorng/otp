@@ -2819,6 +2819,14 @@ infer_type({bif,is_integer}, [#b_var{}=Arg,
                               #b_literal{val=Max}], _Ts, _Ds) when Min =< Max ->
     T = {Arg, beam_types:make_integer(Min, Max)},
     {[T], [T]};
+infer_type({bif,is_integer}, [#b_var{}=Arg,
+                              #b_literal{val=Min},_], _Ts, _Ds) ->
+    T = {Arg, make_number({Min,'+inf'})},
+    {[T], [T]};
+infer_type({bif,is_integer}, [#b_var{}=Arg,_,
+                              #b_literal{val=Max}], _Ts, _Ds) ->
+    T = {Arg, make_number({'-inf',Max})},
+    {[T], [T]};
 infer_type({bif,is_integer}, [#b_var{}=Arg, _, _], _Ts, _Ds) ->
     %% We cannot subtract the type when the bounds are unknown: `Arg` may still
     %% be an integer if it is not in the tested range.
