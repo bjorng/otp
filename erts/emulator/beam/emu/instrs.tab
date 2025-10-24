@@ -1338,7 +1338,7 @@ get_struct_element(Fail, Src, Key, Dst) {
     $Dst = res;
 }
 
-put_struct(Fail, Id, Src, Dst, Live, N) {
+i_put_struct(Id, Src, Dst, Live, N) {
     Eterm res;
     Uint live = $Live;
 

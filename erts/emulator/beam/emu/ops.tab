@@ -1629,4 +1629,8 @@ is_struct f? xy
 is_tagged_struct f? xy a a
 get_struct_element f? xy a xy
 
-put_struct j c s d t I *
+put_struct p Id Src Dst Live Size Updates=* =>
+    i_put_struct Id Src Dst Live Size Updates
+
+i_put_struct c s d t I *
+
