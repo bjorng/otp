@@ -23,6 +23,7 @@
 
 #include "sys.h"
 #include "code_ix.h"
+#include "erl_process.h"
 
 /* Struct entry, these are always allocated with an alignment that allows them
  * to be IMMED1-tagged, letting us keep struct definitions as transparent heap
@@ -70,6 +71,9 @@ Eterm struct_get_element(Eterm obj, Eterm key);
 
 void erts_struct_start_staging(void);
 void erts_struct_end_staging(int commit);
+
+Eterm erl_struct_update(Process* c_p, Eterm* reg, Eterm id, Eterm src,
+                        Uint live, Uint size, const Eterm* new_p);
 
 extern erts_mtx_t struct_staging_lock;
 #define erts_struct_staging_lock()   erts_mtx_lock(&struct_staging_lock)

@@ -77,7 +77,7 @@
 		reverse/1,reverse/2,member/2,flatten/1,
 		unzip/1,keyfind/3]).
 
--import(cerl, [ann_c_cons/3,ann_c_map/3,ann_c_tuple/2]).
+-import(cerl, [ann_c_cons/3,ann_c_map/3,ann_c_struct/4,ann_c_tuple/2]).
 
 -include("core_parse.hrl").
 
@@ -231,6 +231,16 @@ expr(#c_map{anno=Anno,arg=V0,es=Es0}=Map, Ctxt, Sub) ->
     Es = pair_list(Es0, descend(Map, Sub)),
     V = expr(V0, value, Sub),
     ann_c_map(Anno, V, Es);
+expr(#c_struct{anno=Anno,arg=V0,id=Id,es=Es0}=Struct, Ctxt, Sub) ->
+    %% Warn for useless building, but always build the struct
+    %% anyway to preserve a possible exception.
+    case Ctxt of
+        effect -> warn_useless_building(Struct, Sub);
+        value -> ok
+    end,
+    Es = pair_list(Es0, descend(Struct, Sub)),
+    V = expr(V0, value, Sub),
+    ann_c_struct(Anno, V, Id, Es);
 expr(#c_binary{segments=Ss}=Bin0, Ctxt, Sub) ->
     %% Warn for useless building, but always build the binary
     %% anyway to preserve a possible exception.
@@ -497,7 +507,11 @@ pair_list(Es, Sub) ->
 pair(#c_map_pair{key=K0,val=V0}=Pair, Sub) ->
     K = expr(K0, value, Sub),
     V = expr(V0, value, Sub),
-    Pair#c_map_pair{key=K,val=V}.
+    Pair#c_map_pair{key=K,val=V};
+pair(#c_struct_pair{key=K0,val=V0}=Pair, Sub) ->
+    K = expr(K0, value, Sub),
+    V = expr(V0, value, Sub),
+    Pair#c_struct_pair{key=K,val=V}.
 
 bitstr_list(Es, Sub) ->
     [bitstr(E, Sub) || E <- Es].

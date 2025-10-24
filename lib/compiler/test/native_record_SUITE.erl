@@ -86,7 +86,10 @@ local_basic(_Config) ->
     a = NameFun(ARec),
     b = NameFun(BRec),
 
-    ?assertError(badarg, #b{bad_field = some_value}),
+    ?assertError({badrecord,b}, #b{bad_field = some_value}),
+
+    ?assertError({badrecord,b}, ARec#b{x=99}),
+    ?assertError({badrecord,b}, BRec#b{bad_field = some_value}),
 
     true = is_int_ax(ARec),
     false = is_int_ax(id(#a{x=a,y=b})),

@@ -312,6 +312,8 @@ expr(#c_tuple{es=Ces}, Sub, St0) ->
     {#b_set{op=put_tuple,args=Kes},Ep,St1};
 expr(#c_map{anno=A,arg=Var,es=Ces}, Sub, St0) ->
     expr_map(A, Var, Ces, Sub, St0);
+expr(#c_struct{anno=A,arg=Var,id=Id,es=Ces}, Sub, St0) ->
+    expr_struct(A, Var, Id, Ces, Sub, St0);
 expr(#c_binary{anno=A,segments=Cv}, Sub, St0) ->
     try
         expr_binary(A, Cv, Sub, St0)
@@ -541,6 +543,41 @@ expr_map(A, Var0, Ces, Sub, St0) ->
     {Var,Mps,St1} = expr(Var0, Sub, St0),
     {Km,Eps,St2} = map_split_pairs(A, Var, Ces, Sub, St1),
     {Km,Eps++Mps,St2}.
+
+expr_struct(A, Var0, Id0, Ces, Sub, St0) ->
+    {Var,Mps,St1} = expr(Var0, Sub, St0),
+    {Id,Eps1,St2} = atomic(Id0, Sub, St1),
+    {Km,Eps2,St3} = struct_split_pairs(A, Var, Id, Ces, Sub, St2),
+    {Km,Eps2++Eps1++Mps,St3}.
+
+struct_split_pairs(A, Var, Id, Ces, Sub, St0) ->
+    %% 1. Force variables.
+    %% 2. Group adjacent pairs with literal keys.
+    %% 3. Within each such group, remove multiple assignments to
+    %%    the same key.
+    {Pairs,Esp,St1} =
+        foldr(fun(#c_struct_pair{key=K0,val=V0},{KVs,Espi,Sti0}) ->
+                      {K,Eps1,Sti1} = atomic(K0, Sub, Sti0),
+                      {V,Eps2,Sti2} = atomic(V0, Sub, Sti1),
+                      {[{K,V}|KVs],Eps1 ++ Eps2 ++ Espi,Sti2}
+              end, {[],[],St0}, Ces),
+    struct_split_pairs_1(A, Var, Id, Pairs, Esp, St1).
+
+struct_split_pairs_1(A, Struct0, Id, Pairs0, Esp0, St0) ->
+    {Struct1,Em,St1} = force_atomic(Struct0, St0),
+    {Struct,Esp,St2} = struct_group_pairs(A, Struct1, Id, Pairs0, Esp0 ++ Em, St1),
+    {Struct,Esp,St2}.
+
+struct_group_pairs(A, Var, Id, Pairs0, Esp, St0) ->
+    Pairs = ordsets:from_list(Pairs0),
+    Flatten = append([[K,V] || {K,V} <- Pairs]),
+    {ssa_struct(A, Var, Id, Flatten),Esp,St0}.
+
+ssa_struct(A, SrcStruct, Id, Pairs) ->
+    Args = [SrcStruct,Id|Pairs],
+    LineAnno = line_anno(A),
+    Set = #b_set{anno=LineAnno,op=put_struct,args=Args},
+    #cg_succeeded{set=Set}.
 
 map_split_pairs(A, Var, Ces, Sub, St0) ->
     %% 1. Force variables.

@@ -570,6 +570,8 @@ aa_is([_I=#b_set{dst=Dst,op=Op,args=Args,anno=Anno0}|Is], SS0,
                 {aa_construct_pair(Dst, Args, Types, SS1, AAS0), AAS0};
             put_map ->
                 {aa_construct_term(Dst, Args, SS0, AAS0), AAS0};
+            put_struct ->
+                {aa_construct_term(Dst, Args, SS0, AAS0), AAS0};
             put_tuple ->
                 SS1 = beam_ssa_ss:add_var(Dst, unique, SS0),
                 Types = aa_map_arg_to_type(Args,

@@ -863,6 +863,13 @@ vi({put_map_assoc=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
 vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
     verify_put_map(Op, Fail, Src, Dst, Live, List, Vst);
 
+
+%%
+%% Struct (native record) instructions.
+%%
+vi({put_struct,{f,Fail},Id,Src,Dst,Live,{list,List}}, Vst) ->
+    verify_put_struct(Fail, Id, Src, Dst, Live, List, Vst);
+
 %%
 %% Bit syntax matching
 %%
@@ -1261,7 +1268,7 @@ init_try_catch_branch(Kind, Dst, Fail, Vst0) ->
 
 verify_has_map_fields(Lbl, Src, List, Vst) ->
     assert_type(#t_map{}, Src, Vst),
-    assert_unique_map_keys(List),
+    assert_unique_keys(map, List),
     verify_map_fields(List, Src, Lbl, Vst).
 
 verify_map_fields([Key | Keys], Map, Lbl, Vst) ->
@@ -1284,7 +1291,7 @@ verify_get_map(Fail, Src, List, Vst0) ->
            end,
            fun(SuccVst) ->
                    Keys = extract_map_keys(List, SuccVst),
-                   assert_unique_map_keys(Keys),
+                   assert_unique_keys(map, Keys),
                    extract_map_vals(List, Src, SuccVst)
            end).
 
@@ -1362,7 +1369,7 @@ verify_put_map(Op, Fail, Src, Dst, Live, List, Vst0) ->
     SuccFun = fun(SuccVst0) ->
                       SuccVst = prune_x_regs(Live, SuccVst0),
                       Keys = extract_map_keys(List, SuccVst),
-                      assert_unique_map_keys(Keys),
+                      assert_unique_keys(map, Keys),
 
                       Type = put_map_type(Src, List, Vst),
                       create_term(Type, Op, [Src], Dst, SuccVst, SuccVst0)
@@ -1387,6 +1394,42 @@ pmt_1([Key0, Value0 | List], Vst, Acc0) ->
     {Acc, _, _} = beam_call_types:types(maps, put, [Key, Value, Acc0]),
     pmt_1(List, Vst, Acc);
 pmt_1([], _Vst, Acc) ->
+    Acc.
+
+verify_put_struct(Fail, Id, Src, Dst, Live, List, Vst0) ->
+    case Id of
+        {literal,{Mod,Name}} when is_atom(Mod), is_atom(Name) ->
+            ok;
+        _ ->
+            error({bad_struct_id,Id})
+    end,
+    assert_term(Src, Vst0),
+    verify_live(Live, Vst0),
+    verify_y_init(Vst0),
+
+    _ = [assert_term(Term, Vst0) || Term <- List],
+    Vst = heap_alloc(0, Vst0),
+
+    SuccFun = fun(SuccVst0) ->
+                    SuccVst = prune_x_regs(Live, SuccVst0),
+                    Keys = extract_map_keys(List, SuccVst),
+                    assert_unique_keys(struct, Keys),
+
+                    Type = put_struct_type(Src, List, Vst),
+                    create_term(Type, put_struct, [Src], Dst, SuccVst, SuccVst0)
+            end,
+    branch(Fail, Vst, SuccFun).
+
+put_struct_type(Struct0, List, Vst) ->
+    Struct = get_term_type(Struct0, Vst),
+    pst_1(List, Vst, Struct).
+
+pst_1([Key0, Value0 | List], Vst, Acc0) ->
+    Key = get_term_type(Key0, Vst),
+    Value = get_term_type(Value0, Vst),
+    {Acc, _, _} = beam_call_types:types(struct, put, [Key, Value, Acc0]),
+    pst_1(List, Vst, Acc);
+pst_1([], _Vst, Acc) ->
     Acc.
 
 verify_get_struct_element(Fail, Src, _Key, Dst, Vst0) ->
@@ -2084,13 +2127,15 @@ assert_freg_set(Fr, _) -> error({bad_source,Fr}).
 %%
 %% An empty list is not allowed.
 
-assert_unique_map_keys([]) ->
+assert_unique_keys(map,[]) ->
     %% There is no reason to use the get_map_elements and
     %% has_map_fields instructions with empty lists.
     error(empty_field_list);
-assert_unique_map_keys([_]) ->
+assert_unique_keys(struct,[]) ->
     ok;
-assert_unique_map_keys([_,_|_]=Ls) ->
+assert_unique_keys(_,[_]) ->
+    ok;
+assert_unique_keys(_,[_,_|_]=Ls) ->
     Vs = [begin
               assert_literal(L),
               L
