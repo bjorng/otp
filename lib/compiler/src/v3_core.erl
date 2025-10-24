@@ -93,7 +93,7 @@
 -import(ordsets, [add_element/2,del_element/2,is_element/2,
 		  union/1,union/2,intersection/2,subtract/2]).
 -import(cerl, [ann_c_cons/3,ann_c_tuple/2,c_tuple/1,
-	       ann_c_map/3,cons_hd/1,cons_tl/1]).
+	       ann_c_map/3,ann_c_struct/4,cons_hd/1,cons_tl/1]).
 
 -include("core_parse.hrl").
 
@@ -727,6 +727,10 @@ expr({map,L,Es0}, St0) ->
     map_build_pairs(#c_literal{val=#{}}, Es0, full_anno(L, St0), St0);
 expr({map,L,M,Es}, St) ->
     expr_map(M, Es, L, St);
+expr({struct,L,Id,Es0}, St0) ->
+    struct_build_pairs(#c_literal{val=empty}, #c_literal{val=Id}, Es0, full_anno(L, St0), St0);
+expr({struct,L,Id,S,Es}, St) ->
+    expr_struct(S, #c_literal{val=Id}, Es, L, St);
 expr({bin,L,Es0}, St0) ->
     try expr_bin(Es0, full_anno(L, St0), St0) of
 	{_,_,_}=Res -> Res
@@ -1194,6 +1198,68 @@ maybe_warn_repeated_keys(Ck, K0, Used, St) ->
 
 map_op(map_field_assoc) -> #c_literal{val=assoc};
 map_op(map_field_exact) -> #c_literal{val=exact}.
+
+expr_struct(S0, Id, Es0, L, St0) ->
+    {S1,Eps0,St1} = safe_struct(S0, St0),
+    Badstruct = badstruct_term(S1, St1),
+    A = lineno_anno(L, St1),
+    Fc = fail_clause([], [{eval_failure,badstruct}|A], Badstruct),
+    {S2,Eps1,St2} = struct_build_pairs(S1, Id, Es0, full_anno(L, St1), St1),
+    S3 = case Es0 of
+             [] -> S1;
+             [_|_] -> S2
+         end,
+    Cs = [#iclause{
+             anno=#a{anno=[compiler_generated|A]},
+             pats=[],
+             guard=[#icall{anno=#a{anno=A},
+                           module=#c_literal{anno=A,val=erlang},
+                           name=#c_literal{anno=A,val=is_struct},
+                           args=[S1]}],
+             body=[S3]}],
+    Eps = Eps0 ++ Eps1,
+    {#icase{anno=#a{anno=A},args=[],clauses=Cs,fc=Fc},Eps,St2}.
+
+safe_struct(S0, St0) ->
+    case safe(S0, St0) of
+        {#c_var{},_,_}=Res ->
+            Res;
+        {#c_literal{val=_Struct},_,_}=Res ->
+            %% TODO: when is_struct(Struct) needs to be guard
+            Res;
+        {NotStruct,Eps0,St1} ->
+            %% Not a struct. There will be a syntax error if we try to
+            %% pretty-print the Core Erlang code and then try to parse
+            %% it. To avoid the syntax error, force the term into a
+            %% variable.
+	    {V,St2} = new_var(St1),
+            Anno = cerl:get_ann(NotStruct),
+            Eps1 = [#iset{anno=#a{anno=Anno},var=V,arg=NotStruct}],
+	    {V,Eps0++Eps1,St2}
+    end.
+
+badstruct_term(_Struct, #core{in_guard=true}) ->
+    %% The code generator cannot handle complex error reasons
+    %% in guards. But the exact error reason does not matter anyway
+    %% since it is not user-visible.
+    #c_literal{val=badstruct};
+badstruct_term(Struct, #core{in_guard=false}) ->
+    c_tuple([#c_literal{val=badstruct},Struct]).
+
+struct_build_pairs(Arg, Id, Es0, Ann, St0) ->
+    {Es,Pre,_,St1} = struct_build_pairs_1(Es0, sets:new(), St0),
+    {ann_c_struct(Ann, Arg, Id, Es),Pre,St1}.
+
+struct_build_pairs_1([{record_field,L,K0,V0}|Es], Used0, St0) ->
+    {K,Pre0,St1} = safe(K0, St0),
+    {V,Pre1,St2} = safe(V0, St1),
+    {Pairs,Pre2,Used1,St3} = struct_build_pairs_1(Es, Used0, St2),
+    As = lineno_anno(L, St3),
+    %% Need to check if a field exists?
+    Pair = cerl:ann_c_struct_pair(As, K, V),
+    {[Pair|Pairs],Pre0++Pre1++Pre2,Used1,St3};
+struct_build_pairs_1([], Used, St) ->
+    {[],[],Used,St}.
 
 %% try_exception([ExcpClause], St) -> {[ExcpVar],Handler,St}.
 

@@ -447,6 +447,7 @@ classify_heap_need(nop) -> neutral;
 classify_heap_need(new_try_tag) -> neutral;
 classify_heap_need(peek_message) -> gc;
 classify_heap_need(put_map) -> gc;
+classify_heap_need(put_struct) -> gc;
 classify_heap_need(raw_raise) -> gc;
 classify_heap_need(recv_marker_bind) -> neutral;
 classify_heap_need(recv_marker_clear) -> neutral;
@@ -731,6 +732,7 @@ need_live_anno(Op) ->
         call -> true;
         debug_line -> true;
         put_map -> true;
+        put_struct -> true;
         update_record -> true;
         _ -> false
     end.
@@ -859,6 +861,7 @@ need_y_init(#cg_set{op=bs_skip,args=[#b_literal{val=Type}|_]}) ->
 need_y_init(#cg_set{op=bs_start_match}) -> true;
 need_y_init(#cg_set{op=debug_line}) -> true;
 need_y_init(#cg_set{op=put_map}) -> true;
+need_y_init(#cg_set{op=put_struct}) -> true;
 need_y_init(#cg_set{op=update_record}) -> true;
 need_y_init(#cg_set{}) -> false.
 
@@ -2238,6 +2241,12 @@ cg_test(peek_message, Fail, [], Dst, _I) ->
 cg_test(put_map, Fail, [{atom,exact},SrcMap|Ss], Dst, #cg_set{anno=Anno}=Set) ->
     Live = get_live(Set),
     [line(Anno),{put_map_exact,Fail,SrcMap,Dst,Live,{list,Ss}}];
+cg_test(put_struct, Fail, [{atom,empty},Id|Ss], Dst, #cg_set{anno=Anno}=Set) ->
+    Live = get_live(Set),
+    [line(Anno),{put_struct,Fail,Id,nil,Dst,Live,{list,Ss}}];
+cg_test(put_struct, Fail, [Arg,Id|Ss], Dst, #cg_set{anno=Anno}=Set) ->
+    Live = get_live(Set),
+    [line(Anno),{put_struct,Fail,Id,Arg,Dst,Live,{list,Ss}}];
 cg_test(set_tuple_element=Op, Fail, Args, Dst, Set) ->
     {f,0} = Fail,                               %Assertion.
     cg_instr(Op, Args, Dst, Set);

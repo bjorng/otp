@@ -433,20 +433,18 @@ expr({record,Anno,R,Name,Us}, St0) ->
             expr(Ue, St1)
     end;
 expr({struct,Anno,{M,N},Inits},St0) ->
-    Struct0 =
-        {call,
-         Anno,
-         {remote,Anno,{atom,Anno,struct},{atom,Anno,create}},
-         [{atom, Anno, M},{atom, Anno, N}]},
-    {Struct1,St1} = expr(Struct0, St0),
-    {Ue,St2} = struct_init_update(Struct1, Anno, Inits, St1),
-    expr(Ue, St2);
-expr({struct_update,_A,Str,{M,N},Updates}, St0) ->
-    Anno = erl_parse:first_anno(Str),
-    update_struct_fields(Anno, Str, {M, N}, Updates, St0);
-expr({struct_update,_A,Str,{},Updates}, St0) ->
-    Anno = erl_parse:first_anno(Str),
-    update_struct_fields(Anno, Str, {}, Updates, St0);
+    {Es1, St1} = expr_list(Inits, St0),
+    {{struct,Anno,{M,N},Es1},St1};
+expr({struct_update,_A,Arg0,{M,N},Updates}, St0) ->
+    Anno = erl_parse:first_anno(Arg0),
+    {Arg1,St1} = expr(Arg0, St0),
+    {Es1, St2} = expr_list(Updates, St1),
+    {{struct,Anno,{M,N},Arg1,Es1},St2};
+expr({struct_update,_A,Arg0,{},Updates}, St0) ->
+    Anno = erl_parse:first_anno(Arg0),
+    {Arg1,St1} = expr(Arg0, St0),
+    {Es1, St1} = expr_list(Updates, St0),
+    {{struct,Anno,{},Arg1,Es1},St1};
 expr({record_field,Anno,K,E0}, St0) ->
     {E1,St1} = expr(E0, St0),
     {{record_field,Anno,K,E1}, St1};
@@ -1054,81 +1052,81 @@ get_struct_field(Anno0, Str, F, Id, St0) ->
               [{atom,Anno0,F},ExpS]},St2}
     end.
 
--spec update_struct_fields(
-    erl_anno:anno(),
-    erl_parse:abstract_expr(),
-    {atom(), atom()} | {},
-    [erl_parse:af_record_field(erl_parse:abstract_expr())],
-    #exprec{}
-) -> {erl_parse:abstract_expr(), #exprec{}}.
-update_struct_fields(Anno, Str, Id, Us, St0) ->
-    {Var,St1} = new_var(Anno, St0),
-    NAnno = no_compiler_warning(Anno),
-    {UEs, St2} = struct_update_update(Var, NAnno, Us, St1),
-    E = {'case',Anno,Str,
-        [{clause,NAnno,[{match, NAnno, Var, {struct,NAnno,Id, []}}],[],UEs},
-            {clause,NAnno,[Var],[],
-                [{call,NAnno,{remote,NAnno,
-                    {atom,NAnno,erlang},
-                    {atom,NAnno,error}},
-                    [{tuple,NAnno,[{atom,NAnno,badstruct},Var]}]}]}]},
-    expr(E, St2).
+% -spec update_struct_fields(
+%     erl_anno:anno(),
+%     erl_parse:abstract_expr(),
+%     {atom(), atom()} | {},
+%     [erl_parse:af_record_field(erl_parse:abstract_expr())],
+%     #exprec{}
+% ) -> {erl_parse:abstract_expr(), #exprec{}}.
+% update_struct_fields(Anno, Str, Id, Us, St0) ->
+%     {Var,St1} = new_var(Anno, St0),
+%     NAnno = no_compiler_warning(Anno),
+%     {UEs, St2} = struct_update_update(Var, NAnno, Us, St1),
+%     E = {'case',Anno,Str,
+%         [{clause,NAnno,[{match, NAnno, Var, {struct,NAnno,Id, []}}],[],UEs},
+%             {clause,NAnno,[Var],[],
+%                 [{call,NAnno,{remote,NAnno,
+%                     {atom,NAnno,erlang},
+%                     {atom,NAnno,error}},
+%                     [{tuple,NAnno,[{atom,NAnno,badstruct},Var]}]}]}]},
+%     expr(E, St2).
 
--spec struct_init_update(
-    erl_parse:abstract_expr(),
-    erl_anno:anno(),
-    [erl_parse:af_record_field(erl_parse:abstract_expr())],
-    #exprec{}
-) -> {erl_parse:abstract_expr(), #exprec{}}.
-struct_init_update(Str, Anno, Us0, St0) ->
-    {Pre,Us,St1} = struct_exprs(Us0, St0),
-    {Var,St2} = new_var(Anno, St1),
-    Update =
-        foldr(fun ({record_field,A,N,Val}, Acc) ->
-            {call,A,{remote,A,{atom,A,struct}, {atom,A,update}},[Acc,N,Val]} end,
-            Var,
-            Us),
-    {{block,Anno,Pre ++ [{match,Anno,Var,Str},Update]},St2}.
+% -spec struct_init_update(
+%     erl_parse:abstract_expr(),
+%     erl_anno:anno(),
+%     [erl_parse:af_record_field(erl_parse:abstract_expr())],
+%     #exprec{}
+% ) -> {erl_parse:abstract_expr(), #exprec{}}.
+% struct_init_update(Str, Anno, Us0, St0) ->
+%     {Pre,Us,St1} = struct_exprs(Us0, St0),
+%     {Var,St2} = new_var(Anno, St1),
+%     Update =
+%         foldr(fun ({record_field,A,N,Val}, Acc) ->
+%             {call,A,{remote,A,{atom,A,struct}, {atom,A,update}},[Acc,N,Val]} end,
+%             Var,
+%             Us),
+%     {{block,Anno,Pre ++ [{match,Anno,Var,Str},Update]},St2}.
 
--spec struct_update_update(
-    erl_parse:af_variable(),
-    erl_anno:anno(),
-    [erl_parse:af_record_field(erl_parse:abstract_expr())],
-    #exprec{}
-) -> {[erl_parse:abstract_expr()], #exprec{}}.
-struct_update_update(Var, A, Us0, St0) ->
-    {Pre,Us,St1} = struct_exprs(Us0, St0),
-    Update =
-        foldr(fun ({record_field,_,N,Val}, Acc) ->
-            {call,A,{remote,A,{atom,A,struct}, {atom,A,update}},[Acc,N,Val]} end,
-            Var,
-            Us),
-    {Pre ++ [Update],St1}.
+% -spec struct_update_update(
+%     erl_parse:af_variable(),
+%     erl_anno:anno(),
+%     [erl_parse:af_record_field(erl_parse:abstract_expr())],
+%     #exprec{}
+% ) -> {[erl_parse:abstract_expr()], #exprec{}}.
+% struct_update_update(Var, A, Us0, St0) ->
+%     {Pre,Us,St1} = struct_exprs(Us0, St0),
+%     Update =
+%         foldr(fun ({record_field,_,N,Val}, Acc) ->
+%             {call,A,{remote,A,{atom,A,struct}, {atom,A,update}},[Acc,N,Val]} end,
+%             Var,
+%             Us),
+%     {Pre ++ [Update],St1}.
 
--spec struct_exprs(
-    [erl_parse:af_record_field(erl_parse:abstract_expr())], #exprec{}
-) -> {[erl_parse:abstract_expr()], [erl_parse:af_record_field(erl_parse:abstract_expr())], #exprec{}}.
-struct_exprs(Us, St) ->
-    struct_exprs(Us, St, [], []).
+% -spec struct_exprs(
+%     [erl_parse:af_record_field(erl_parse:abstract_expr())], #exprec{}
+% ) -> {[erl_parse:abstract_expr()], [erl_parse:af_record_field(erl_parse:abstract_expr())], #exprec{}}.
+% struct_exprs(Us, St) ->
+%     struct_exprs(Us, St, [], []).
 
--spec struct_exprs(
-    [erl_parse:af_record_field(erl_parse:abstract_expr())],
-    #exprec{},
-    [erl_parse:abstract_expr()],
-    [erl_parse:af_record_field(erl_parse:abstract_expr())]
-) -> {[erl_parse:abstract_expr()], [erl_parse:af_record_field(erl_parse:abstract_expr())], #exprec{}}.
-struct_exprs([{record_field,Anno,Name,Val}=Field0 | Us], St0, Pre, Fs) ->
-    case is_simple_val(Val) of
-        true ->
-            struct_exprs(Us, St0, Pre, [Field0 | Fs]);
-        false ->
-            {Var,St} = new_var(Anno, St0),
-            Bind = {match,Anno,Var,Val},
-            Field = {record_field,Anno,Name,Var},
-            struct_exprs(Us, St, [Bind | Pre], [Field | Fs])
-    end;
-struct_exprs([], St, Pre, Fs) ->
-    {reverse(Pre),Fs,St}.
+% -spec struct_exprs(
+%     [erl_parse:af_record_field(erl_parse:abstract_expr())],
+%     #exprec{},
+%     [erl_parse:abstract_expr()],
+%     [erl_parse:af_record_field(erl_parse:abstract_expr())]
+% ) -> {[erl_parse:abstract_expr()], [erl_parse:af_record_field(erl_parse:abstract_expr())], #exprec{}}.
+% struct_exprs([{record_field,Anno,Name,Val}=Field0 | Us], St0, Pre, Fs) ->
+%     case is_simple_val(Val) of
+%         true ->
+%             struct_exprs(Us, St0, Pre, [Field0 | Fs]);
+%         false ->
+%             {Var,St} = new_var(Anno, St0),
+%             Bind = {match,Anno,Var,Val},
+%             Field = {record_field,Anno,Name,Var},
+%             struct_exprs(Us, St, [Bind | Pre], [Field | Fs])
+%     end;
+% struct_exprs([], St, Pre, Fs) ->
+%     {reverse(Pre),Fs,St}.
 
 is_simple_val({var,_,_}) -> true;
 is_simple_val(Val) ->

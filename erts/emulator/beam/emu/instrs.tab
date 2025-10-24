@@ -1337,3 +1337,19 @@ get_struct_element(Fail, Src, Key, Dst) {
     }
     $Dst = res;
 }
+
+put_struct(Fail, Id, Src, Dst, Live, N) {
+    Eterm res;
+    Uint live = $Live;
+
+    HEAVY_SWAPOUT;
+    res = erl_struct_update(c_p, reg, $Id, $Src, live, $N, $NEXT_INSTRUCTION);
+    HEAVY_SWAPIN;
+    if (is_non_value(res)) {
+        $FAIL_BODY();
+    } else {
+        $REFRESH_GEN_DEST();
+        $Dst = res;
+        $NEXT($NEXT_INSTRUCTION+$N);
+    }
+}

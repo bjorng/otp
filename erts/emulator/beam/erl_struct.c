@@ -325,98 +325,6 @@ void erts_struct_end_staging(int commit)
     IF_DEBUG(debug_struct_load_ix = ~0);
 }
 
-BIF_RETTYPE struct_create_2(BIF_ALIST_2) {
-    /* Module, Name */
-    Eterm module, name;
-    ErtsStructEntry *entry;
-    Uint code_ix;
-
-    module = BIF_ARG_1;
-    name = BIF_ARG_2;
-
-    if (!is_atom(module) ||
-        !is_atom(name)) {
-        BIF_ERROR(BIF_P, BADARG);
-    }
-
-    code_ix = erts_active_code_ix();
-    entry = erts_struct_find_entry(module,
-                                   name,
-                                   code_ix);
-
-    if (entry != NULL) {
-        Eterm def = entry->definitions[code_ix];
-
-        if (def != THE_NON_VALUE) {
-            ErtsStructDefinition *defp;
-            int field_count;
-            Eterm *hp;
-
-            defp = (ErtsStructDefinition*)boxed_val(def);
-            field_count = (arityval(defp->thing_word) - 1) / 2;
-            hp = HAlloc(BIF_P, 2 + field_count);
-            hp[0] = MAKE_STRUCT_HEADER(field_count);
-            hp[1] = def;
-
-            for (int i = 0; i < field_count; i++) {
-                hp[2 + i] = defp->fields[i].value;
-            }
-
-            BIF_RET(make_struct(hp));
-        }
-    }
-
-    /* No canonical struct definition, bail out. */
-    BIF_ERROR(BIF_P, BADARG);
-}
-
-BIF_RETTYPE struct_update_3(BIF_ALIST_3) {
-    /* Struct term, Key, Value */
-    ErtsStructDefinition *defp;
-    ErtsStructEntry *entry;
-    int field_count;
-    Uint code_ix;
-
-    Eterm obj, *objp;
-    Eterm key, value;
-    Eterm *hp;
-
-    obj = BIF_ARG_1;
-    key = BIF_ARG_2;
-    value = BIF_ARG_3;
-
-    if (!is_struct(obj) ||
-        !is_atom(key)) {
-        BIF_ERROR(BIF_P, BADARG);
-    }
-
-    objp = struct_val(obj);
-    field_count = header_arity(objp[0]) - 1;
-    defp = (ErtsStructDefinition*)boxed_val(objp[1]);
-    entry = (ErtsStructEntry*)unsigned_val(defp->entry);
-
-    code_ix = erts_active_code_ix();
-
-    if (entry->definitions[code_ix] == objp[1]) {
-        /* Definition is current, go ahead with update */
-        for (int i = 0; i < field_count; i++) {
-            if (eq(key, defp->fields[i].key)) {
-                hp = HAlloc(BIF_P, 2 + field_count);
-                sys_memcpy(hp,
-                           objp,
-                           (2 + field_count) * sizeof(Eterm));
-                hp[2 + i] = value;
-                BIF_RET(make_struct(hp));
-            }
-        }
-    } else {
-        /* Definition is old, upgrade the struct. */
-        BIF_ERROR(BIF_P, SYSTEM_LIMIT);
-    }
-
-    BIF_ERROR(BIF_P, BADARG);
-}
-
 BIF_RETTYPE struct_get_2(BIF_ALIST_2) {
     /* Struct term, Key */
     ErtsStructDefinition *defp;
@@ -483,6 +391,104 @@ Eterm struct_get_element(Eterm obj, Eterm key) {
     return THE_NON_VALUE;
 }
 
+Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
+                        Uint live, Uint size, const Eterm* new_p) {
+#define GET_TERM(term, dest)			\
+do {						\
+    Eterm src = (Eterm)(term);			\
+    switch (loader_tag(src)) {			\
+    case LOADER_X_REG:				\
+        dest = reg[loader_x_reg_index(src)];	\
+	break;					\
+    case LOADER_Y_REG:				\
+        dest = E[loader_y_reg_index(src)];	\
+	break;					\
+    default:					\
+	dest = src;				\
+	break;					\
+    }						\
+} while(0)
+
+    /* Module, Name */
+    Eterm module, name;
+    ErtsStructEntry *entry;
+    Uint code_ix;
+    Eterm* tuple_ptr = boxed_val(id);
+    Eterm* E = p->stop;
+    
+    module = tuple_ptr[1];
+    name = tuple_ptr[2];
+
+    if (!is_atom(module) ||
+        !is_atom(name)) {
+        return THE_NON_VALUE;
+    }
+
+    code_ix = erts_active_code_ix();
+    entry = erts_struct_find_entry(module,
+                                   name,
+                                   code_ix);
+
+    if (entry != NULL) {
+        Eterm def = entry->definitions[code_ix];
+
+        if (def != THE_NON_VALUE) {
+            ErtsStructDefinition *defp;
+            int field_count;
+            Eterm *hp;
+
+            defp = (ErtsStructDefinition*)boxed_val(def);
+            field_count = (arityval(defp->thing_word) - 1) / 2;
+            hp = HAlloc(p, 2 + field_count);
+
+            if (is_nil(src)) {
+                hp[0] = MAKE_STRUCT_HEADER(field_count);
+                hp[1] = def;
+
+                for (int i = 0; i < field_count; i++) {
+                    hp[2 + i] = defp->fields[i].value;
+                }
+            } else {
+                Eterm *objp;
+
+                objp = struct_val(src);
+                if (objp[1] == def) {
+                    sys_memcpy(hp,
+                               objp,
+                               (2 + field_count) * sizeof(Eterm));
+                } else {
+                    p->fvalue = name;
+                    p->freason = EXC_BADRECORD;
+                    return THE_NON_VALUE;
+                }
+            }
+            
+            for (int i = 0; i < size; i += 2) {
+                int j;
+                for (j = 0; j < field_count; j++) {
+                    if (eq(new_p[i], defp->fields[j].key)) {
+                        GET_TERM(new_p[i+1], hp[2 + j]);
+                        break;
+                    }
+                }
+                if (j == field_count) {
+                    p->fvalue = name;
+                    p->freason = EXC_BADRECORD;
+                    return THE_NON_VALUE;
+                }
+            }
+            
+            return make_struct(hp);
+        }
+    }
+
+    /* No canonical struct definition, bail out. */
+    p->fvalue = name;
+    p->freason = EXC_BADRECORD;
+    return THE_NON_VALUE;
+
+#undef GET_TERM
+}
 
 BIF_RETTYPE struct_module_1(BIF_ALIST_1) {
     Eterm obj, *objp;

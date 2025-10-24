@@ -116,7 +116,7 @@ function `type/1`.
          primop_name/1, receive_action/1, receive_clauses/1,
          receive_timeout/1, seq_arg/1, seq_body/1, set_ann/2,
          string_lit/1, string_val/1,
-         c_struct/2, ann_c_struct/3, struct_id/1, struct_es/1,
+         c_struct/2, ann_c_struct/4, struct_id/1, struct_es/1,
          c_struct_pair/2, ann_c_struct_pair/3,
          struct_pair_key/1, struct_pair_val/1,
          subtrees/1, to_records/1,
@@ -1663,11 +1663,12 @@ c_struct(Id, Es) ->
 -doc "_See also: _`c_struct/2`.".
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec ann_c_struct(Annotations :: [term()],
-                   Argument :: c_map() | c_literal(),
+                   Argument :: c_struct() | c_literal(),
+                   Id :: term(),
                    Pairs :: [c_struct_pair()]) -> #c_struct{}.
 
-ann_c_struct(As, Id, Es) ->
-    #c_struct{id=Id, es=Es, anno=As}.
+ann_c_struct(As, Arg, Id, Es) ->
+    #c_struct{arg=Arg, id=Id, es=Es, anno=As}.
 
 -doc """
 Returns the list of struct pair subtrees of an abstract struct.

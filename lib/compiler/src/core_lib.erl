@@ -63,6 +63,10 @@ vu_expr(V, #c_map{arg=M,es=Es}) ->
     vu_expr(V, M) orelse vu_expr_list(V, Es);
 vu_expr(V, #c_map_pair{key=Key,val=Val}) ->
     vu_expr_list(V, [Key,Val]);
+vu_expr(V, #c_struct{arg=Arg,es=Es}) ->
+    vu_expr(V, Arg) orelse vu_expr_list(V, Es);
+vu_expr(V, #c_struct_pair{key=Key,val=Val}) ->
+    vu_expr_list(V, [Key,Val]);
 vu_expr(V, #c_binary{segments=Ss}) ->
     vu_seg_list(V, Ss);
 vu_expr(V, #c_fun{vars=Vs,body=B}) ->
