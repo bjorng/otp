@@ -133,11 +133,15 @@ opt_start_1([], _CommittedArgs, StMap, FuncDb, _MetaCache) ->
 %% [1] http://www.it.uu.se/research/group/hipe/papers/succ_types.pdf
 %%
 
+-type uvs() :: #{beam_ssa:b_var() => {_,non_neg_integer()}}.
+
 -record(sig_st,
         { wl = wl_new() :: worklist(),
           committed = #{} :: #{ func_id() => [type()] },
           updates = #{} :: #{ func_id() => [type()] },
-          meta_cache = #{} :: meta_cache()}).
+          meta_cache = #{} :: meta_cache(),
+          unstable = #{} :: #{beam_ssa:label() => uvs()},
+          uvs = #{} :: uvs()}).
 
 signatures(StMap, FuncDb0) ->
     State0 = init_sig_st(StMap, FuncDb0),
@@ -220,7 +224,15 @@ sig_function_1(Id, StMap, State0, FuncDb) ->
 
     Wl0 = State1#sig_st.wl,
 
-    {State, SuccTypes} = sig_bs(Linear, Ds, Ls, FuncDb, #{}, [], Meta, State2),
+    Unstable0 = State1#sig_st.unstable,
+    Uvs0 = maps:get(Id, Unstable0, #{}),
+    State3 = State2#sig_st{uvs=Uvs0},
+
+    {State4, SuccTypes} = sig_bs(Linear, Ds, Ls, FuncDb, #{}, [], Meta, State3),
+
+    Uvs = State4#sig_st.uvs,
+    Unstable = Unstable0#{Id => Uvs},
+    State = State4#sig_st{unstable=Unstable,uvs=#{}},
 
     WlChanged = wl_changed(Wl0, State#sig_st.wl),
     #{ Id := #func_info{succ_types=SuccTypes0}=Entry0 } = FuncDb,
@@ -307,12 +319,16 @@ sig_is([#b_set{op=make_fun,args=Args0,dst=Dst}=I0|Is],
     Ts = update_types(I, Ts0, Ds0),
     Ds = Ds0#{ Dst => I },
     sig_is(Is, Ts, Ds, Ls, Fdb, Sub0, State);
-sig_is([I0 | Is], Ts0, Ds0, Ls, Fdb, Sub0, State) ->
-    case simplify(I0, Ts0, Ds0, Ls, Sub0) of
+sig_is([I0 | Is], Ts0, Ds0, Ls, Fdb, Sub0, State0) ->
+    Uvs0 = State0#sig_st.uvs,
+    case simplify(I0, Uvs0, Ts0, Ds0, Ls, Sub0) of
         {#b_set{}, Ts, Ds} ->
+            sig_is(Is, Ts, Ds, Ls, Fdb, Sub0, State0);
+        {#b_set{}, Ts, Ds, Uvs} ->
+            State = State0#sig_st{uvs=Uvs},
             sig_is(Is, Ts, Ds, Ls, Fdb, Sub0, State);
         Sub when is_map(Sub) ->
-            sig_is(Is, Ts0, Ds0, Ls, Fdb, Sub, State)
+            sig_is(Is, Ts0, Ds0, Ls, Fdb, Sub, State0)
     end;
 sig_is([], Ts, Ds, _Ls, _Fdb, Sub, State) ->
     {Ts, Ds, Sub, State}.
@@ -579,8 +595,11 @@ opt_is([#b_set{op=make_fun,args=Args0,dst=Dst}=I0|Is],
     Ds = Ds0#{ Dst => I },
     opt_is(Is, Ts, Ds, Ls, Fdb, Sub0, Meta, [I|Acc]);
 opt_is([I0 | Is], Ts0, Ds0, Ls, Fdb, Sub0, Meta, Acc) ->
-    case simplify(I0, Ts0, Ds0, Ls, Sub0) of
+    case simplify(I0, none, Ts0, Ds0, Ls, Sub0) of
         {#b_set{}=I1, Ts, Ds} ->
+            I = opt_anno_types(I1, Ts),
+            opt_is(Is, Ts, Ds, Ls, Fdb, Sub0, Meta, [I | Acc]);
+        {#b_set{}=I1, Ts, Ds, _} ->
             I = opt_anno_types(I1, Ts),
             opt_is(Is, Ts, Ds, Ls, Fdb, Sub0, Meta, [I | Acc]);
         Sub when is_map(Sub) ->
@@ -1012,7 +1031,7 @@ simplify_terminator(#b_ret{arg=Arg,anno=Anno0}=Ret0, Ts, Ds, Sub) ->
 %% was redundant.
 %%
 
-simplify(#b_set{op=phi,dst=Dst,args=Args0}=I0, Ts0, Ds0, Ls, Sub) ->
+simplify(#b_set{op=phi,dst=Dst,args=Args0}=I0, _Uvs, Ts0, Ds0, Ls, Sub) ->
     %% Simplify the phi node by removing all predecessor blocks that no
     %% longer exists or no longer branches to this block.
     {Type, Args} = simplify_phi_args(Args0, Ls, Sub, none, []),
@@ -1030,7 +1049,7 @@ simplify(#b_set{op=phi,dst=Dst,args=Args0}=I0, Ts0, Ds0, Ls, Sub) ->
             {I, Ts, Ds}
     end;
 simplify(#b_set{op={succeeded,Kind},args=[Arg],dst=Dst}=I,
-         Ts0, Ds0, _Ls, Sub) ->
+         _Uvs, Ts0, Ds0, _Ls, Sub) ->
     Type = case will_succeed(I, Ts0, Ds0, Sub) of
                yes -> beam_types:make_atom(true);
                no -> beam_types:make_atom(false);
@@ -1056,7 +1075,7 @@ simplify(#b_set{op={succeeded,Kind},args=[Arg],dst=Dst}=I,
             Ds = Ds0#{ Dst => I },
             {I, Ts, Ds}
     end;
-simplify(#b_set{op=bs_match,dst=Dst,args=Args0}=I0, Ts0, Ds0, _Ls, Sub) ->
+simplify(#b_set{op=bs_match,dst=Dst,args=Args0}=I0, _Uvs, Ts0, Ds0, _Ls, Sub) ->
     Args = simplify_args(Args0, Ts0, Sub),
     I1 = I0#b_set{args=Args},
     I2 = case {Args0,Args} of
@@ -1075,7 +1094,7 @@ simplify(#b_set{op=bs_match,dst=Dst,args=Args0}=I0, Ts0, Ds0, _Ls, Sub) ->
     Ds = Ds0#{ Dst => I },
     {I, Ts, Ds};
 simplify(#b_set{op=bs_create_bin=Op,dst=Dst,args=Args0,anno=Anno}=I0,
-         Ts0, Ds0, _Ls, Sub) ->
+         _Uvs, Ts0, Ds0, _Ls, Sub) ->
     Args = simplify_args(Args0, Ts0, Sub),
 
     case Args of
@@ -1099,10 +1118,15 @@ simplify(#b_set{op=bs_create_bin=Op,dst=Dst,args=Args0,anno=Anno}=I0,
             Ds = Ds0#{ Dst => I },
             {I, Ts, Ds}
     end;
-simplify(#b_set{dst=Dst,args=Args0}=I0, Ts0, Ds0, _Ls, Sub) ->
+simplify(#b_set{dst=Dst,args=Args0}=I0, Uvs0, Ts0, Ds0, _Ls, Sub) ->
     Args = simplify_args(Args0, Ts0, Sub),
     I1 = beam_ssa:normalize(I0#b_set{args=Args}),
     case simplify(I1, Ts0, Ds0) of
+        #b_set{op={bif,Op}}=I when Op =:= '+'; Op =:= '-';
+                                   Op =:= '*'; Op =:= 'bnot' ->
+            {Ts,Uvs} = update_arith_types(I, Ts0, Ds0, Uvs0),
+            Ds = Ds0#{ Dst => I },
+            {I, Ts, Ds, Uvs};
         #b_set{}=I ->
             Ts = update_types(I, Ts0, Ds0),
             Ds = Ds0#{ Dst => I },
@@ -1111,6 +1135,65 @@ simplify(#b_set{dst=Dst,args=Args0}=I0, Ts0, Ds0, _Ls, Sub) ->
             Sub#{ Dst => Lit };
         #b_var{}=Var ->
             Sub#{ Dst => Var }
+    end.
+
+update_arith_types(#b_set{dst=Dst}=I, Ts0, Ds, UnstableVars0) ->
+    case update_arith_types_1(I, Ts0, UnstableVars0) of
+        {any,UnstableVars} ->
+            Ts = update_types(I, Ts0, Ds),
+            {Ts,UnstableVars};
+        {Type,UnstableVars} ->
+            Ts = Ts0#{Dst => Type},
+            {Ts,UnstableVars}
+    end.
+
+update_arith_types_1(#b_set{op={bif,_}=Op,args=BifArgs}=I,
+                     Ts0, UnstableVars0) ->
+    ArgTypes = concrete_types(BifArgs, Ts0),
+    case beam_call_types:arith_type(Op, ArgTypes) of
+        any ->
+            {any,UnstableVars0};
+        #t_float{elements=any} ->
+            {any,UnstableVars0};
+        #t_integer{elements=any} ->
+            {any,UnstableVars0};
+        #t_number{elements=any} ->
+            {any,UnstableVars0};
+        T0 ->
+            case update_arith_types_safe(I, T0, UnstableVars0) of
+                {true,UnstableVars} ->
+                    {T0,UnstableVars};
+                {false,UnstableVars1} ->
+                    update_arith_types_2(I, ArgTypes, UnstableVars1)
+            end
+    end.
+
+update_arith_types_2(#b_set{op={bif,'-'}=Op,dst=Dst,args=[_,#b_literal{val=1}]},
+                     [#t_integer{elements={Min,_Max}}=ArgType|_], UnstableVars0)
+  when is_integer(Min), Min > 0 ->
+    Args = [ArgType,#t_integer{elements={Min,Min}}],
+    T = beam_call_types:arith_type(Op, Args),
+    UnstableVars = maps:remove(Dst, UnstableVars0),
+    {T,UnstableVars};
+update_arith_types_2(#b_set{}, _, UnstableVars) ->
+    {any,UnstableVars}.
+
+update_arith_types_safe(#b_set{}, _Type, none) ->
+    %% Not running the signatures sub pass; types will only be
+    %% propagated within the current function.
+    {true,none};
+update_arith_types_safe(#b_set{dst=Dst}, Type0, UnstableVars0) ->
+    case UnstableVars0 of
+        #{Dst := {Type,_}} when Type =:= Type0 ->
+            {true,UnstableVars0};
+        #{Dst := {_,0}} ->
+            {false,UnstableVars0};
+        #{Dst := {_,Count}} when is_integer(Count) ->
+            UnstableVars = UnstableVars0#{Dst := {Type0,Count-1}},
+            {true,UnstableVars};
+        #{} ->
+            UnstableVars = UnstableVars0#{Dst => {Type0,16}},
+            {true,UnstableVars}
     end.
 
 simplify(#b_set{op={bif,'band'},args=Args}=I, Ts, Ds) ->
