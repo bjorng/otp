@@ -1834,6 +1834,29 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
         }
     }
 
+    /* If the first argument can only be one of two consecutive values
+     * and the second is an immediate small operand, rewrite to a bit
+     * test. */
+    if (always_small(X) && Y.isImmed() && always_small(Y)) {
+        auto [min, max] = getClampedRange(X);
+        if (max - min == 1) {
+            int bit_number = _TAG_IMMED1_SIZE;
+            auto resolved = resolve_beam_label(Fail, disp32K);
+
+            comment("simplified since one argument is either %ld or %ld",
+                    min,
+                    max);
+            preserve_cache([&]() {
+                if (unsigned_val(Y.as<ArgSmall>().get()) & 1) {
+                    a.tbz(x.reg, imm(bit_number), resolved);
+                } else {
+                    a.tbnz(x.reg, imm(bit_number), resolved);
+                }
+            });
+            return;
+        }
+    }
+
     /* If either argument is known to be an immediate, we can fail immediately
      * if they're not equal. */
     if (always_immediate(X) || always_immediate(Y)) {
