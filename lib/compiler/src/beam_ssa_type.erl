@@ -1857,6 +1857,32 @@ eval_bif_1(#b_set{args=Args}=I, Op, Ts, Ds) ->
                 false ->
                     I
             end;
+        [#t_integer{elements={Min,Max}},#t_integer{elements={N,N}}] ->
+            FirstArg = hd(Args),
+            if
+                Op =:= '<', Min + 1 =:= N ->
+                    I#b_set{op={bif,'=:='},args=[FirstArg,#b_literal{val=Min}]};
+                Op =:= '<', Max =:= N ->
+                    I#b_set{op={bif,'=/='},args=[FirstArg,#b_literal{val=Max}]};
+
+                Op =:= '=<', Min =:= N ->
+                    I#b_set{op={bif,'=:='},args=[FirstArg,#b_literal{val=Min}]};
+                Op =:= '=<', Max - 1 =:= N ->
+                    I#b_set{op={bif,'=/='},args=[FirstArg,#b_literal{val=Max}]};
+
+                Op =:= '>', Min =:= N ->
+                    I#b_set{op={bif,'=/='},args=[FirstArg,#b_literal{val=Min}]};
+                Op =:= '>', Max =:= N + 1 ->
+                    I#b_set{op={bif,'=:='},args=[FirstArg,#b_literal{val=Max}]};
+
+                Op =:= '>=', Min + 1 =:= N ->
+                    I#b_set{op={bif,'=/='},args=[FirstArg,#b_literal{val=Min}]};
+                Op =:= '>=', Max =:= N ->
+                    I#b_set{op={bif,'=:='},args=[FirstArg,#b_literal{val=Max}]};
+
+                true ->
+                    reassociate(I, Ts, Ds)
+            end;
         [#t_integer{},#t_integer{}] ->
             reassociate(I, Ts, Ds);
         _ ->
