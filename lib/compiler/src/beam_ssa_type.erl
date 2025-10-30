@@ -1775,6 +1775,12 @@ eval_bif_1(#b_set{args=Args}=I, Op, Ts, Ds) ->
                 false ->
                     I
             end;
+        [#t_integer{elements={_,Max}},#t_integer{elements={N,N}}]
+          when Op =:= '>', N + 1 =:= Max ->
+            I#b_set{op={bif,'=:='},args=[hd(Args),#b_literal{val=Max}]};
+        [#t_integer{elements={Min,_}},#t_integer{elements={N,N}}]
+          when Op =:= '<', N - 1 =:= Min ->
+            I#b_set{op={bif,'=:='},args=[hd(Args),#b_literal{val=Min}]};
         [#t_integer{},#t_integer{}] ->
             reassociate(I, Ts, Ds);
         _ ->
