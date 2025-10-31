@@ -1330,12 +1330,11 @@ is_tagged_struct(Fail, Src, Mod, Name) {
     }
 }
 
-get_struct_element(Fail, Src, Key, Dst) {
-    Eterm res = struct_get_element($Src, $Key);
-    if (is_non_value(res)) {
+get_struct_elements(Fail, Src, N) {
+    if (!erl_struct_get_elements(c_p, reg, $Src, $N, $NEXT_INSTRUCTION)) {
         $FAIL($Fail);
     }
-    $Dst = res;
+    $NEXT($NEXT_INSTRUCTION+$N);
 }
 
 i_put_struct(Id, Src, Dst, Live, N) {

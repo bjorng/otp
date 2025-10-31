@@ -29,6 +29,8 @@
 
 #include "bif.h"
 
+#include "beam_common.h"
+
 #define STRUCT_INITIAL_SIZE   4000
 #define STRUCT_LIMIT          (512*1024)
 
@@ -367,54 +369,54 @@ Eterm struct_name(Eterm obj) {
     return entry->name;
 }
 
-Eterm struct_get_element(Eterm obj, Eterm key) {
+bool erl_struct_get_elements(Process* p, Eterm* reg, Eterm src,
+                             Uint size, const Eterm* new_p) {
     /* Struct term, Key */
     ErtsStructDefinition *defp;
     int field_count;
     Eterm *objp;
+    Eterm* E = p->stop;
 
-    if (!is_struct(obj) ||
-        !is_atom(key)) {
-        return THE_NON_VALUE;
+    if (!is_struct(src)) {
+        return false;
     }
 
-    objp = struct_val(obj);
+    objp = struct_val(src);
     field_count = header_arity(objp[0]) - 1;
     defp = (ErtsStructDefinition*)boxed_val(objp[1]);
 
-    for (int i = 0; i < field_count; i++) {
-        if (eq(key, defp->fields[i].key)) {
-            return objp[2 + i];
+    for (int i = 0; i < size; i += 2) {
+        int j;
+
+        if(!is_atom(new_p[i])) {
+            p->fvalue = new_p[i];
+            p->freason = EXC_BADFIELD;
+            return false;
+        }
+
+        for (j = 0; j < field_count; j++) {
+            if (eq(new_p[i], defp->fields[j].key)) {
+                PUT_TERM_REG(objp[2+j], new_p[i+1]);
+                break;
+            }
+        }
+        if (j == field_count) {
+            p->fvalue = new_p[i];
+            p->freason = EXC_BADFIELD;
+            return false;
         }
     }
 
-    return THE_NON_VALUE;
+    return true;
 }
 
 Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
                         Uint live, Uint size, const Eterm* new_p) {
-#define GET_TERM(term, dest)			\
-do {						\
-    Eterm src = (Eterm)(term);			\
-    switch (loader_tag(src)) {			\
-    case LOADER_X_REG:				\
-        dest = reg[loader_x_reg_index(src)];	\
-	break;					\
-    case LOADER_Y_REG:				\
-        dest = E[loader_y_reg_index(src)];	\
-	break;					\
-    default:					\
-	dest = src;				\
-	break;					\
-    }						\
-} while(0)
-
     /* Module, Name */
     Eterm module, name;
     ErtsStructEntry *entry;
     Uint code_ix;
     Eterm* tuple_ptr = boxed_val(id);
-    Eterm* E = p->stop;
     
     module = tuple_ptr[1];
     name = tuple_ptr[2];
@@ -436,10 +438,21 @@ do {						\
             ErtsStructDefinition *defp;
             int field_count;
             Eterm *hp;
+            Eterm* E;
+            Uint num_words_needed;
 
             defp = (ErtsStructDefinition*)boxed_val(def);
             field_count = (arityval(defp->thing_word) - 1) / 2;
-            hp = HAlloc(p, 2 + field_count);
+
+            num_words_needed = 2 + field_count;
+            if (HeapWordsLeft(p) < num_words_needed) {
+                reg[live] = src;
+                erts_garbage_collect(p, num_words_needed, reg, live+1);
+                src = reg[live];
+            }
+            defp = (ErtsStructDefinition*)boxed_val(def);
+            hp = p->htop;
+            E = p->stop;
 
             if (is_nil(src)) {
                 hp[0] = MAKE_STRUCT_HEADER(field_count);
@@ -462,12 +475,12 @@ do {						\
                     return THE_NON_VALUE;
                 }
             }
-            
+
             for (int i = 0; i < size; i += 2) {
                 int j;
                 for (j = 0; j < field_count; j++) {
                     if (eq(new_p[i], defp->fields[j].key)) {
-                        GET_TERM(new_p[i+1], hp[2 + j]);
+                        GetSource(new_p[i+1], hp[2 + j]);
                         break;
                     }
                 }
@@ -477,7 +490,9 @@ do {						\
                     return THE_NON_VALUE;
                 }
             }
-            
+
+            p->htop = hp + num_words_needed;
+
             return make_struct(hp);
         }
     }
@@ -486,8 +501,6 @@ do {						\
     p->fvalue = name;
     p->freason = EXC_BADRECORD;
     return THE_NON_VALUE;
-
-#undef GET_TERM
 }
 
 BIF_RETTYPE struct_module_1(BIF_ALIST_1) {

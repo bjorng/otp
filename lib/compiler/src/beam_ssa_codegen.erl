@@ -1561,7 +1561,7 @@ cg_block([#cg_set{op=get_struct_element,dst=Dst0,args=Args0,anno=Anno},
   [Str,Key] = typed_args(Args0, Anno, St),
   Dst = beam_arg(Dst0, St),
   Fail = ensure_label(Fail0, St),
-  {[{get_struct_element,Fail,Str,Key,Dst}],St};
+  {[{get_struct_elements,Fail,Str,{list,[Key,Dst]}}],St};
 cg_block([#cg_set{op={float,convert},dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     {f,0} = bif_fail(Fail),                     %Assertion.

@@ -856,8 +856,8 @@ vi(build_stacktrace, Vst0) ->
 vi({get_map_elements,{f,Fail},Src0,{list,List}}, Vst) ->
     Src = unpack_typed_arg(Src0, Vst),
     verify_get_map(Fail, Src, List, Vst);
-vi({get_struct_element,{f,Fail},Src,Key,Dst}, Vst) ->
-  verify_get_struct_element(Fail, Src, Key, Dst, Vst);
+vi({get_struct_elements,{f,Fail},Src,{list,List}}, Vst) ->
+  verify_get_struct_elements(Fail, Src, List, Vst);
 vi({put_map_assoc=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
     verify_put_map(Op, Fail, Src, Dst, Live, List, Vst);
 vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
@@ -1292,7 +1292,7 @@ verify_get_map(Fail, Src, List, Vst0) ->
            fun(SuccVst) ->
                    Keys = extract_map_keys(List, SuccVst),
                    assert_unique_keys(map, Keys),
-                   extract_map_vals(List, Src, SuccVst)
+                   extract_vals(map, List, Src, SuccVst)
            end).
 
 %% get_map_elements may leave its destinations in an inconsistent state when
@@ -1316,6 +1316,18 @@ clobber_map_vals([Key0, Dst | T], Map, Vst0) ->
 clobber_map_vals([], _Map, Vst) ->
     Vst.
 
+clobber_struct_vals([Key0, Dst | T], Struct, Vst0) ->
+    Key = unpack_typed_arg(Key0, Vst0),
+    case is_reg_initialized(Dst, Vst0) of
+        true ->
+            Vst = extract_term(any, {bif,struct_get}, [Key, Struct], Dst, Vst0),
+            clobber_struct_vals(T, Struct, Vst);
+        false ->
+            clobber_struct_vals(T, Struct, Vst0)
+    end;
+clobber_struct_vals([], _Struct, Vst) ->
+    Vst.
+
 is_reg_initialized({x,_}=Reg, #vst{current=#st{xs=Xs}}) ->
     is_map_key(Reg, Xs);
 is_reg_initialized({y,_}=Reg, #vst{current=#st{ys=Ys}}) ->
@@ -1333,9 +1345,12 @@ extract_map_keys([], _Vst) ->
     [].
 
 
-extract_map_vals(List, Src, SuccVst) ->
+extract_vals(map, List, Src, SuccVst) ->
     Seen = sets:new(),
-    extract_map_vals(List, Src, Seen, SuccVst, SuccVst).
+    extract_map_vals(List, Src, Seen, SuccVst, SuccVst);
+extract_vals(struct, List, Src, SuccVst) ->
+    Seen = sets:new(),
+    extract_struct_vals(List, Src, Seen, SuccVst, SuccVst).
 
 extract_map_vals([Key0, Dst | Vs], Map, Seen0, Vst0, Vsti0) ->
     case sets:is_element(Dst, Seen0) of
@@ -1356,6 +1371,27 @@ extract_map_vals([Key0, Dst | Vs], Map, Seen0, Vst0, Vsti0) ->
             end
     end;
 extract_map_vals([], _Map, _Seen, _Vst0, Vst) ->
+    Vst.
+
+extract_struct_vals([Key0, Dst | Vs], Struct, Seen0, Vst0, Vsti0) ->
+    case sets:is_element(Dst, Seen0) of
+        true ->
+            %% The destinations must not overwrite each other.
+            error(conflicting_destinations);
+        false ->
+            Key = unpack_typed_arg(Key0, Vsti0),
+            assert_term(Key, Vst0),
+            case bif_types(struct_get, [Key, Struct], Vst0) of
+                {none, _, _} ->
+                    kill_state(Vsti0);
+                {DstType, _, _} ->
+                    Vsti = extract_term(DstType, {bif,struct_get},
+                                        [Key, Struct], Dst, Vsti0),
+                    Seen = sets:add_element(Dst, Seen0),
+                    extract_struct_vals(Vs, Struct, Seen, Vst0, Vsti)
+            end
+    end;
+extract_struct_vals([], _Struct, _Seen, _Vst0, Vst) ->
     Vst.
 
 verify_put_map(Op, Fail, Src, Dst, Live, List, Vst0) ->
@@ -1432,15 +1468,17 @@ pst_1([Key0, Value0 | List], Vst, Acc0) ->
 pst_1([], _Vst, Acc) ->
     Acc.
 
-verify_get_struct_element(Fail, Src, _Key, Dst, Vst0) ->
+verify_get_struct_elements(Fail, Src, List, Vst0) ->
   assert_no_exception(Fail),
   assert_not_literal(Src),
   branch(Fail, Vst0,
     fun(FailVst) ->
-      FailVst
+      clobber_struct_vals(List, Src, FailVst)
     end,
     fun(SuccVst) ->
-      create_term(any, get_struct_element, [Src], Dst, SuccVst)
+        Keys = extract_map_keys(List, SuccVst),
+        assert_unique_keys(struct, Keys),
+        extract_vals(struct, List, Src, SuccVst)
     end).
 
 verify_update_record(Size, Src0, Dst, List0, Vst0) ->
