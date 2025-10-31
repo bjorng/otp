@@ -1626,6 +1626,6 @@ i_update_record_in_place_done
 
 is_struct f? xy
 is_tagged_struct f? xy a a
-get_struct_element f? xy a xy
+get_struct_elements f? xy I *
 
 put_struct j c s d t I *
