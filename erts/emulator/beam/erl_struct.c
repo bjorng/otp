@@ -367,14 +367,17 @@ Eterm struct_name(Eterm obj) {
     return entry->name;
 }
 
-Eterm struct_get_element(Process* p, Eterm* reg, Eterm src,
-                         Uint size, Eterm* new_p) {
+Eterm erl_struct_get_element(Process* p, Eterm* reg, Eterm src,
+                             Uint size, const Eterm* new_p) {
 
 #define PUT_TERM_REG(term, desc)		\
 do {						\
     switch (loader_tag(desc)) {			\
     case LOADER_X_REG:				\
 	reg[loader_x_reg_index(desc)] = (term);	\
+	break;					\
+    case LOADER_Y_REG:				\
+	E[loader_y_reg_index(desc)] = (term);	\
 	break;					\
     default:					\
 	ASSERT(0);				\
@@ -386,6 +389,7 @@ do {						\
     ErtsStructDefinition *defp;
     int field_count;
     Eterm *objp;
+    Eterm* E = p->stop;
 
     if (!is_struct(src)) {
         return THE_NON_VALUE;
@@ -400,26 +404,24 @@ do {						\
 
         if(!is_atom(new_p[i])) {
             p->fvalue = new_p[i];
-            p->freason = EXC_BADRECORD;
+            p->freason = EXC_BADFIELD;
             return THE_NON_VALUE;
         }
 
         for (j = 0; j < field_count; j++) {
             if (eq(new_p[i], defp->fields[j].key)) {
-                erts_printf("Defp[%d]: %T\n", j, defp->fields[j].key);
-                // erts_printf("value: %T\n", j, defp->fields[j].value);
-                PUT_TERM_REG(defp->fields[j].value, new_p[i+1]);
+                PUT_TERM_REG(objp[2+j], new_p[i+1]);
                 break;
             }
         }
         if (j == field_count) {
             p->fvalue = new_p[i];
-            p->freason = EXC_BADRECORD;
+            p->freason = EXC_BADFIELD;
             return THE_NON_VALUE;
         }
     }
 
-    return THE_NON_VALUE;
+    return 1;
 #undef PUT_TERM_REG
 }
 
