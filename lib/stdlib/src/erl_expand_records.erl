@@ -295,7 +295,7 @@ not_in_guard(F) ->
     Res.
 
 %% record_test(Anno, Term, Name, Vs, St) -> TransformedExpr
-%%  Generate code for is_record/1.
+%%  Generate code for is_record/2.
 
 record_test(Anno, Term, Name, St) ->
     case is_in_guard() of
@@ -344,6 +344,21 @@ record_test_in_body(Anno, Expr, Name, St0) ->
            {call,NAnno,{remote,NAnno,{atom,NAnno,erlang},
                         {atom,NAnno,is_record}},
             [Var,{atom,Anno,Name},{integer,Anno,length(Fs)+1}]}]}, St).
+
+native_record_test(Anno, Term, Name0, St) ->
+    {Mod,Name} =
+        case Name0 of
+            {_,_}=ModName ->
+                ModName;
+            _ when is_atom(Name0) ->
+                {St#exprec.module,Name0}
+        end,
+    NAnno = no_compiler_warning(Anno),
+    Expr = {call,NAnno,
+            {remote,NAnno,{atom,Anno,erlang},
+             {atom,NAnno,is_tagged_struct}},
+            [Term,{atom,NAnno,Mod},{atom,NAnno,Name}]},
+    expr(Expr, St).
 
 exprs([E0 | Es0], St0) ->
     {E,St1} = expr(E0, St0),
@@ -519,6 +534,8 @@ expr({named_fun,Anno,Name,Cs0}, St0) ->
                  end);
 expr({call,Anno,{atom,_,is_record},[A,{atom,_,Name}]}, St) ->
     record_test(Anno, A, Name, St);
+expr({call,Anno,{atom,_,is_record},[A,{struct_id,_,Name}]}, St) ->
+    native_record_test(Anno, A, Name, St);
 expr({call,Anno,{remote,_,{atom,_,erlang},{atom,_,is_record}},
       [A,{atom,_,Name}]}, St) ->
     record_test(Anno, A, Name, St);

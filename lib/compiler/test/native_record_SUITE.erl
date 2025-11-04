@@ -25,7 +25,7 @@
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
          local_basic/1,local_updates/1,non_atomic_names/1,
-         matching_any_record/1]).
+         matching_any_record/1,is_record_bif/1]).
 
 -record #empty{}.
 -record #a{x, y}.
@@ -53,7 +53,8 @@ groups() ->
        local_basic,
        local_updates,
        non_atomic_names,
-       matching_any_record
+       matching_any_record,
+       is_record_bif
       ]}].
 
 init_per_suite(Config) ->
@@ -229,6 +230,18 @@ get_any_xy(#_{x=X,y=Y}=R) ->
     {X,Y};
 get_any_xy(_) ->
     none.
+
+is_record_bif(Config) ->
+    false = is_record(Config, #empty),
+    false = is_record(Config, #?MODULE:empty),
+    false = is_record(Config, #a),
+    false = is_record(Config, #?MODULE:a),
+
+    BR = id(#b{}),
+    true = is_record(BR, #b),
+    true = is_record(BR, #?MODULE:b),
+
+    ok.
 
 %%% Common utilities.
 

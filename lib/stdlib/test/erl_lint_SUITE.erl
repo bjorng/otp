@@ -95,7 +95,7 @@
          illegal_zip_generator/1,
          record_info_0/1,
          coverage/1,
-         structs/1]).
+         native_records/1]).
 
 suite() ->
     [{ct_hooks,[ts_install_cth]},
@@ -137,7 +137,7 @@ all() ->
      illegal_zip_generator,
      record_info_0,
      coverage,
-     structs].
+     native_records].
 
 groups() -> 
     [{unused_vars_warn, [],
@@ -2019,6 +2019,7 @@ otp_4886(Config) when is_list(Config) ->
            {errors,[{{3,32},erl_lint,{undefined_record,foo}},
                     {{4,39},erl_lint,{undefined_record,foo}},
                     {{5,41},erl_lint,{undefined_record,foo}}],
+
             []}}],
     [] = run(Config, Ts),
     ok.
@@ -5723,7 +5724,7 @@ do_coverage() ->
     io:format("~p\n", [Res]),
     ok.
 
-structs(Config) ->
+native_records(Config) ->
     Ts = [{redefine_struct,
            <<"-struct(a, {}).
              -struct(a, {}).">>,
@@ -5742,16 +5743,17 @@ structs(Config) ->
           {redefine_struct_3,
            <<"-import_struct(a, [a]).
               -import_struct(b, [a]).">>,
-          [],
-          {errors,[{{2,16},erl_lint,{redefine_struct_import,{a,a}}}],[]}},
-          % expressions
+           [],
+           {errors,[{{2,16},erl_lint,{redefine_struct_import,{a,a}}}],[]}},
+
+          %% expressions
           {redefine_struct_field_3,
            <<"-import_struct(a, [a]).
               mk_a() -> #a{a = 1, a = b}.
               get_a(#a{b = b, b = c}) -> ok.">>,
-          [],
-          {errors,[{{2,35},erl_lint,{redefine_struct_field,a}},
-                   {{3,31},erl_lint,{redefine_struct_field,b}}],[]}},
+           [],
+           {errors,[{{2,35},erl_lint,{redefine_struct_field,a}},
+                    {{3,31},erl_lint,{redefine_struct_field,b}}],[]}},
           {redefine_struct_field_def,
            <<"-struct(s1, {a, a}).
               -struct(s2, {a=atom, a}).
@@ -5760,28 +5762,39 @@ structs(Config) ->
            [],
            {errors,[{{1,37},erl_lint,{redefine_struct_field_def,s1,a}},
                     {{2,36},erl_lint,{redefine_struct_field_def,s2,a}},
-                    {{3,31},erl_lint,{redefine_struct_field_def,s3,a}}], []}},
-           {undefined_struct_field,
-            <<"-struct(s, {a=a, c=c}).
+                    {{3,31},erl_lint,{redefine_struct_field_def,s3,a}}],
+            []}},
+          {undefined_struct_field,
+           <<"-struct(s, {a=a, c=c}).
                mk() -> #s{a = a, b = b}.
                pat(#s{a = A, b = B}) -> {A, B}.
                update(S) -> S#s{b = b}.
                get1(S) -> S#s.b.
                get2(S, B) when B == S#s.b -> ok.">>,
-            [],
-            {warnings,[{{2,34},erl_lint,{undefined_struct_field,b,s}},
-                       {{3,30},erl_lint,{undefined_struct_field,b,s}},
-                       {{4,33},erl_lint,{undefined_struct_field,b,s}},
-                       {{5,28},erl_lint,{undefined_struct_field,b,s}},
-                       {{6,38},erl_lint,{undefined_struct_field,b,s}}]}},
-            {redefine_struct_field_3,
-             <<"-struct(s, {a, b, c = c}).
+           [],
+           {warnings,[{{2,34},erl_lint,{undefined_struct_field,b,s}},
+                      {{3,30},erl_lint,{undefined_struct_field,b,s}},
+                      {{4,33},erl_lint,{undefined_struct_field,b,s}},
+                      {{5,28},erl_lint,{undefined_struct_field,b,s}},
+                      {{6,38},erl_lint,{undefined_struct_field,b,s}}]}},
+          {redefine_struct_field_3,
+           <<"-struct(s, {a, b, c = c}).
                 mk1() -> #s{}.
                 mk2() -> #s{a = a}.">>,
-            [],
-             {warnings,[{{2,26},erl_lint,{not_inited_struct_field,a,s}},
-                        {{2,26},erl_lint,{not_inited_struct_field,b,s}},
-                        {{3,26},erl_lint,{not_inited_struct_field,b,s}}]}}
+           [],
+           {warnings,[{{2,26},erl_lint,{not_inited_struct_field,a,s}},
+                      {{2,26},erl_lint,{not_inited_struct_field,b,s}},
+                      {{3,26},erl_lint,{not_inited_struct_field,b,s}}]}},
+          {undefined_record_1,
+           <<"t() ->
+                  X = no_record,
+                  is_record(X, #foo),
+                  erlang:is_record(X, #foo).
+             ">>,
+           [],
+           {errors,[{{3,32},erl_lint,{undefined_record,foo}},
+                    {{4,39},erl_lint,{undefined_record,foo}}],
+            []}}
          ],
     [] = run(Config, Ts),
     ok.
