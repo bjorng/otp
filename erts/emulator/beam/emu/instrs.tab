@@ -1331,7 +1331,7 @@ is_tagged_struct(Fail, Src, Mod, Name) {
 }
 
 get_struct_elements(Fail, Src, N) {
-    Eterm res = struct_get_element($Src, $N);
+    Eterm res = struct_get_element(c_p, reg, $Src, $N, $NEXT_INSTRUCTION);
     if (is_non_value(res)) {
         $FAIL($Fail);
     }

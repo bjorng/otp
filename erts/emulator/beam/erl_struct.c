@@ -367,28 +367,60 @@ Eterm struct_name(Eterm obj) {
     return entry->name;
 }
 
-Eterm struct_get_element(Eterm obj, Eterm key) {
+Eterm struct_get_element(Process* p, Eterm* reg, Eterm src,
+                         Uint size, Eterm* new_p) {
+
+#define PUT_TERM_REG(term, desc)		\
+do {						\
+    switch (loader_tag(desc)) {			\
+    case LOADER_X_REG:				\
+	reg[loader_x_reg_index(desc)] = (term);	\
+	break;					\
+    default:					\
+	ASSERT(0);				\
+	break;					\
+    }						\
+} while(0)
+
     /* Struct term, Key */
     ErtsStructDefinition *defp;
     int field_count;
     Eterm *objp;
 
-    if (!is_struct(obj) ||
-        !is_atom(key)) {
+    if (!is_struct(src)) {
         return THE_NON_VALUE;
     }
 
-    objp = struct_val(obj);
+    objp = struct_val(src);
     field_count = header_arity(objp[0]) - 1;
     defp = (ErtsStructDefinition*)boxed_val(objp[1]);
 
-    for (int i = 0; i < field_count; i++) {
-        if (eq(key, defp->fields[i].key)) {
-            return objp[2 + i];
+    for (int i = 0; i < size; i+=2) {
+        int j;
+
+        if(!is_atom(new_p[i])) {
+            p->fvalue = new_p[i];
+            p->freason = EXC_BADRECORD;
+            return THE_NON_VALUE;
+        }
+
+        for (j = 0; j < field_count; j++) {
+            if (eq(new_p[i], defp->fields[j].key)) {
+                erts_printf("Defp[%d]: %T\n", j, defp->fields[j].key);
+                // erts_printf("value: %T\n", j, defp->fields[j].value);
+                PUT_TERM_REG(defp->fields[j].value, new_p[i+1]);
+                break;
+            }
+        }
+        if (j == field_count) {
+            p->fvalue = new_p[i];
+            p->freason = EXC_BADRECORD;
+            return THE_NON_VALUE;
         }
     }
 
     return THE_NON_VALUE;
+#undef PUT_TERM_REG
 }
 
 Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
