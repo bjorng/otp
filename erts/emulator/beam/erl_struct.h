@@ -73,6 +73,8 @@ bool erl_struct_get_elements(Process* P, Eterm* reg, Eterm src,
 void erts_struct_start_staging(void);
 void erts_struct_end_staging(int commit);
 
+Eterm erl_struct_put(Process* c_p, Eterm* reg, Eterm id,
+                     Uint live, Uint size, const Eterm* new_p);
 Eterm erl_struct_update(Process* c_p, Eterm* reg, Eterm id, Eterm src,
                         Uint live, Uint size, const Eterm* new_p);
 

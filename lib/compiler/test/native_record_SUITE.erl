@@ -105,7 +105,6 @@ local_basic(_Config) ->
 
     %% Test garbage collection.
     N = 10000,
-    NSqr = N * N,
     Seq = lists:seq(1, N),
     RecList = [#a{x=I,y=I*I} || I <- Seq],
     [] = [{I,R#a.x,R#a.y} || I <- Seq && R <- RecList,

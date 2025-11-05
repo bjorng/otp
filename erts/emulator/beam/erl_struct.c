@@ -410,14 +410,14 @@ bool erl_struct_get_elements(Process* p, Eterm* reg, Eterm src,
     return true;
 }
 
-Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
-                        Uint live, Uint size, const Eterm* new_p) {
+Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
+                     Uint live, Uint size, const Eterm* new_p) {
     /* Module, Name */
     Eterm module, name;
     ErtsStructEntry *entry;
     Uint code_ix;
     Eterm* tuple_ptr = boxed_val(id);
-    
+
     module = tuple_ptr[1];
     name = tuple_ptr[2];
 
@@ -446,34 +446,17 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
 
             num_words_needed = 2 + field_count;
             if (HeapWordsLeft(p) < num_words_needed) {
-                reg[live] = src;
-                erts_garbage_collect(p, num_words_needed, reg, live+1);
-                src = reg[live];
+                erts_garbage_collect(p, num_words_needed, reg, live);
             }
             defp = (ErtsStructDefinition*)boxed_val(def);
             hp = p->htop;
             E = p->stop;
 
-            if (is_nil(src)) {
-                hp[0] = MAKE_STRUCT_HEADER(field_count);
-                hp[1] = def;
+            hp[0] = MAKE_STRUCT_HEADER(field_count);
+            hp[1] = def;
 
-                for (int i = 0; i < field_count; i++) {
-                    hp[2 + i] = defp->fields[i].value;
-                }
-            } else {
-                Eterm *objp;
-
-                objp = struct_val(src);
-                if (objp[1] == def) {
-                    sys_memcpy(hp,
-                               objp,
-                               (2 + field_count) * sizeof(Eterm));
-                } else {
-                    p->fvalue = name;
-                    p->freason = EXC_BADRECORD;
-                    return THE_NON_VALUE;
-                }
+            for (int i = 0; i < field_count; i++) {
+                hp[2 + i] = defp->fields[i].value;
             }
 
             for (int i = 0; i < size; i += 2) {
@@ -501,6 +484,75 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
     p->fvalue = name;
     p->freason = EXC_BADRECORD;
     return THE_NON_VALUE;
+}
+
+Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
+                        Uint live, Uint size, const Eterm* new_p) {
+    /* Module, Name */
+    Eterm module, name;
+    ErtsStructEntry *entry;
+    Eterm* tuple_ptr = boxed_val(id);
+    Eterm* objp;
+    ErtsStructDefinition *defp;
+    int field_count;
+    Eterm *hp;
+    Eterm* E;
+    Uint num_words_needed;
+
+    module = tuple_ptr[1];
+    name = tuple_ptr[2];
+
+    if (!is_atom(module) ||
+        !is_atom(name)) {
+        return THE_NON_VALUE;
+    }
+
+    objp = struct_val(src);
+    defp = (ErtsStructDefinition*)tuple_val(objp[1]);
+    entry = (ErtsStructEntry*)unsigned_val(defp->entry);
+
+    if (entry->module != module || entry->name != name) {
+        /* Record name mismatch. */
+        p->fvalue = name;
+        p->freason = EXC_BADRECORD;
+        return THE_NON_VALUE;
+    }
+
+    field_count = (arityval(defp->thing_word) - 1) / 2;
+
+    num_words_needed = 2 + field_count;
+    if (HeapWordsLeft(p) < num_words_needed) {
+        reg[live] = src;
+        erts_garbage_collect(p, num_words_needed, reg, live+1);
+        src = reg[live];
+    }
+    hp = p->htop;
+    E = p->stop;
+
+    objp = struct_val(src);
+    defp = (ErtsStructDefinition*)tuple_val(objp[1]);
+    sys_memcpy(hp,
+               objp,
+               num_words_needed * sizeof(Eterm));
+
+    for (int i = 0; i < size; i += 2) {
+        int j;
+        for (j = 0; j < field_count; j++) {
+            if (eq(new_p[i], defp->fields[j].key)) {
+                GetSource(new_p[i+1], hp[2 + j]);
+                break;
+            }
+        }
+        if (j == field_count) {
+            p->fvalue = name;
+            p->freason = EXC_BADRECORD;
+            return THE_NON_VALUE;
+        }
+    }
+
+    p->htop = hp + num_words_needed;
+
+    return make_struct(hp);
 }
 
 BIF_RETTYPE struct_module_1(BIF_ALIST_1) {
