@@ -102,6 +102,14 @@ local_basic(_Config) ->
             ok
     end,
 
+    %% Test garbage collection.
+    N = 10000,
+    NSqr = N * N,
+    Seq = lists:seq(1, N),
+    RecList = [#a{x=I,y=I*I} || I <- Seq],
+    [] = [{I,R#a.x,R#a.y} || I <- Seq && R <- RecList,
+                             not(R#a.x =:= I andalso R#a.y =:= I*I)],
+
     %% Cover v3_core:sanitize/1.
     ?assertError({badmatch, ARec}, (#a{}=[_]) = id(ARec)),
 
@@ -145,6 +153,12 @@ local_updates(_Config) ->
     foo = R2#?MODULE:b.x,
     bar = R2#?MODULE:b.y,
     baz = R2#?MODULE:b.z,
+
+    N = 10000,
+    #a{x=N,y=0} =
+        lists:foldl(fun(_, #a{x=X,y=Y}=R) ->
+                            R#a{x=X+1,y=Y-1}
+                    end, #a{x=0,y=N}, lists:seq(1, N)),
 
     ok.
 

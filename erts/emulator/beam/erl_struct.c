@@ -477,10 +477,12 @@ do {						\
 
             num_words_needed = 2 + field_count;
             if (HeapWordsLeft(p) < num_words_needed) {
-                abort();
-                erts_printf("gc\n");
-                erts_garbage_collect(p, num_words_needed, reg, live);
+                erts_printf("gc: %ld\n", num_words_needed);
+                reg[live] = src;
+                erts_garbage_collect(p, num_words_needed, reg, live+1);
+                src = reg[live];
             }
+            defp = (ErtsStructDefinition*)boxed_val(def);
             hp = p->htop;
             E = p->stop;
 
