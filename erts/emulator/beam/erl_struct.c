@@ -448,7 +448,7 @@ do {						\
     ErtsStructEntry *entry;
     Uint code_ix;
     Eterm* tuple_ptr = boxed_val(id);
-    Eterm* E = p->stop;
+    Eterm* E;
     
     module = tuple_ptr[1];
     name = tuple_ptr[2];
@@ -473,7 +473,12 @@ do {						\
 
             defp = (ErtsStructDefinition*)boxed_val(def);
             field_count = (arityval(defp->thing_word) - 1) / 2;
-            hp = HAlloc(p, 2 + field_count);
+
+            if (HeapWordsLeft(p) < 2 + field_count) {
+                erts_garbage_collect(p, 2 + field_count, reg, live+1);
+            }
+            hp = p->htop;
+            E = p->stop;
 
             if (is_nil(src)) {
                 hp[0] = MAKE_STRUCT_HEADER(field_count);
@@ -511,7 +516,8 @@ do {						\
                     return THE_NON_VALUE;
                 }
             }
-            
+
+            p->htop = hp;
             return make_struct(hp);
         }
     }
