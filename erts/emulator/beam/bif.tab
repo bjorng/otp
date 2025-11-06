@@ -849,3 +849,10 @@ ubif erlang:is_tagged_struct/3
 ubif erlang:struct_get/2
 ubif erlang:struct_module/1
 ubif erlang:struct_name/1
+
+ubif records:get_module/1
+ubif records:get_name/1
+ubif records:get/2
+ubif records:get_field_names/1
+ubif records:create/4
+ubif records:update/4

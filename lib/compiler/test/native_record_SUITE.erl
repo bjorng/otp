@@ -25,7 +25,8 @@
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
          local_basic/1,local_updates/1,non_atomic_names/1,
-         any_record/1,is_record_bif/1]).
+         any_record/1,is_record_bif/1,
+         get_field_names_bif/1]).
 
 -record #empty{}.
 -record #a{x, y}.
@@ -55,7 +56,8 @@ groups() ->
        local_updates,
        non_atomic_names,
        any_record,
-       is_record_bif
+       is_record_bif,
+       get_field_names_bif
       ]}].
 
 init_per_suite(Config) ->
@@ -76,6 +78,13 @@ local_basic(_Config) ->
     ARec = id(#a{x=1, y=2}),
     BRec = id(#b{}),
     CRec = id(#c{x=42, y=100}),
+
+    ~"ARec: #native_record_SUITE:a{x = 1, y = 2}\n" =
+        iolist_to_binary(io_lib:format("ARec: ~p~n", [ARec])),
+    ~"BRec: #native_record_SUITE:b{x = none, y = none, z = none}\n" =
+        iolist_to_binary(io_lib:format("BRec: ~w~n", [BRec])),
+    ~"CRec: #native_record_SUITE:c{x = 42, y = 100, z = []}\n" =
+        iolist_to_binary(io_lib:format("CRec: ~p~n", [CRec])),
 
     empty = name(id(#empty{})),
     a = name(ARec),
@@ -275,6 +284,31 @@ is_record_bif(Config) ->
     true = is_record(BR, #b),
     true = is_record(BR, #?MODULE:b),
 
+    ok.
+
+get_field_names_bif(_Config) ->
+    ARec = id(#a{x=1, y=2}),
+    BRec = id(#b{}),
+    CRec = id(#c{x=42, y=100}),
+
+    ARec = records:create(?MODULE, a, #{x=>1, y=>2}),
+    BRec = records:create(?MODULE, b, #{}),
+    CRec = records:create(?MODULE, c, #{x=>42, y=>100}),
+
+    [x,y] = records:get_field_names(ARec),
+    [x,y,z] = records:get_field_names(BRec),
+    [x,y,z] = records:get_field_names(CRec),
+
+    R0 = #b{},
+    R1 = records:update(R0, ?MODULE, b, #{x=>foo}),
+    #b{x=foo, y=none, z=none} = id(R1),
+    #?MODULE:b{x=foo, y=none, z=none} = id(R1),
+
+    N = 10000,
+    #a{x=N,y=0} =
+        lists:foldl(fun(_, #a{x=X,y=Y}=R) ->
+                            records:update(R, ?MODULE, a, #{x=>X+1,y=>Y-1})
+                    end, #a{x=0,y=N}, lists:seq(1, N)),
     ok.
 
 %%% Common utilities.
