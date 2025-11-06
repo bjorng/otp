@@ -51,6 +51,16 @@ typedef struct {
     } fields[];
 } ErtsStructDefinition;
 
+/* A native-record value (instance). */
+typedef struct {
+    Eterm thing_word;
+
+    /* Boxed-tagged ErtsStructDefinition* */
+    Eterm struct_definition;
+
+    Eterm values[];
+} ErtsStructInstance;
+
 /* Struct objects on the heap have the following structure:
  *
  * [MAKE_STRUCT_HEADER(FieldCount), struct definition, values ...]*/
