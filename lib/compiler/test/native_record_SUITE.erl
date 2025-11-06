@@ -25,7 +25,7 @@
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
          local_basic/1,local_updates/1,non_atomic_names/1,
-         matching_any_record/1,is_record_bif/1]).
+         any_record/1,is_record_bif/1]).
 
 -record #empty{}.
 -record #a{x, y}.
@@ -33,6 +33,7 @@
 -record #c{x::integer, y=0::integer, z=[]}.
 -record #d{f=3.1416, l=[a,b,c], t={a,b,c},
            m=#{a => 1}}.
+-record #e{x=0.0}.
 
 %% Records with non-atomic names.
 -record #div{attr=0}.
@@ -53,7 +54,7 @@ groups() ->
        local_basic,
        local_updates,
        non_atomic_names,
-       matching_any_record,
+       any_record,
        is_record_bif
       ]}].
 
@@ -87,10 +88,10 @@ local_basic(_Config) ->
     a = NameFun(ARec),
     b = NameFun(BRec),
 
-    ?assertError({badrecord,b}, #b{bad_field = some_value}),
+    ?assertError({badfield,foobar}, #b{foobar = some_value}),
 
     ?assertError({badrecord,b}, ARec#b{x=99}),
-    ?assertError({badrecord,b}, BRec#b{bad_field = some_value}),
+    ?assertError({badfield,bad_field}, BRec#b{bad_field = some_value}),
 
     true = is_int_ax(ARec),
     false = is_int_ax(id(#a{x=a,y=b})),
@@ -231,10 +232,23 @@ non_atomic_names_match(R) ->
             Point
     end.
 
-matching_any_record(_Config) ->
+any_record(_Config) ->
     {777,888} = get_any_xy(#a{x=777,y=888}),
     {77,88} = get_any_xy(#Point{x=77,y=88}),
     none = get_any_xy(#div{}),
+
+    ARec0 = id(#a{x=1,y=0}),
+    CRec0 = id(#c{x=1,y=0,z=[]}),
+
+    #a{x=7,y=13} = ARec = update_any_xy(ARec0, 7, 13),
+    #_{x=7,y=13} = ARec,
+
+    #c{x=100,y=200} = CRec = update_any_xy(CRec0, 100, 200),
+    #_{x=100,y=200} = CRec,
+
+    ?assertError({badfield,x}, update_any_xy(id(#d{}), 0, 0)),
+    ?assertError({badfield,y}, update_any_xy(id(#e{}), 0, 0)),
+
     ok.
 
 get_any_xy(#_{x=X,y=Y}=R) ->
@@ -243,6 +257,9 @@ get_any_xy(#_{x=X,y=Y}=R) ->
     {X,Y};
 get_any_xy(_) ->
     none.
+
+update_any_xy(R, X, Y) ->
+    R#_{x=X,y=Y}.
 
 is_record_bif(Config) ->
     false = is_record(Config, #empty),

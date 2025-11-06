@@ -421,11 +421,6 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
     module = tuple_ptr[1];
     name = tuple_ptr[2];
 
-    if (!is_atom(module) ||
-        !is_atom(name)) {
-        return THE_NON_VALUE;
-    }
-
     code_ix = erts_active_code_ix();
     entry = erts_struct_find_entry(module,
                                    name,
@@ -468,8 +463,8 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
                     }
                 }
                 if (j == field_count) {
-                    p->fvalue = name;
-                    p->freason = EXC_BADRECORD;
+                    p->fvalue = new_p[i];
+                    p->freason = EXC_BADFIELD;
                     return THE_NON_VALUE;
                 }
             }
@@ -491,7 +486,6 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
     /* Module, Name */
     Eterm module, name;
     ErtsStructEntry *entry;
-    Eterm* tuple_ptr = boxed_val(id);
     Eterm* objp;
     ErtsStructDefinition *defp;
     int field_count;
@@ -499,23 +493,25 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
     Eterm* E;
     Uint num_words_needed;
 
-    module = tuple_ptr[1];
-    name = tuple_ptr[2];
-
-    if (!is_atom(module) ||
-        !is_atom(name)) {
-        return THE_NON_VALUE;
-    }
-
     objp = struct_val(src);
     defp = (ErtsStructDefinition*)tuple_val(objp[1]);
-    entry = (ErtsStructEntry*)unsigned_val(defp->entry);
 
-    if (entry->module != module || entry->name != name) {
-        /* Record name mismatch. */
-        p->fvalue = name;
-        p->freason = EXC_BADRECORD;
-        return THE_NON_VALUE;
+    if (id == am_Underscore) {
+        ;
+    } else if (is_boxed(id)) {
+        Eterm* tuple_ptr = boxed_val(id);
+
+        module = tuple_ptr[1];
+        name = tuple_ptr[2];
+
+        entry = (ErtsStructEntry*)unsigned_val(defp->entry);
+
+        if (entry->module != module || entry->name != name) {
+            /* Record name mismatch. */
+            p->fvalue = name;
+            p->freason = EXC_BADRECORD;
+            return THE_NON_VALUE;
+        }
     }
 
     field_count = (arityval(defp->thing_word) - 1) / 2;
@@ -525,12 +521,12 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
         reg[live] = src;
         erts_garbage_collect(p, num_words_needed, reg, live+1);
         src = reg[live];
+        objp = struct_val(src);
+        defp = (ErtsStructDefinition*)tuple_val(objp[1]);
     }
+
     hp = p->htop;
     E = p->stop;
-
-    objp = struct_val(src);
-    defp = (ErtsStructDefinition*)tuple_val(objp[1]);
     sys_memcpy(hp,
                objp,
                num_words_needed * sizeof(Eterm));
@@ -544,8 +540,8 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
             }
         }
         if (j == field_count) {
-            p->fvalue = name;
-            p->freason = EXC_BADRECORD;
+            p->fvalue = new_p[i];
+            p->freason = EXC_BADFIELD;
             return THE_NON_VALUE;
         }
     }

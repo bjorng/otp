@@ -1436,6 +1436,8 @@ verify_put_struct(Fail, Id, Src, Dst, Live, List, Vst0) ->
     case Id of
         {literal,{Mod,Name}} when is_atom(Mod), is_atom(Name) ->
             ok;
+        {atom,'_'} ->
+            ok;
         _ ->
             error({bad_struct_id,Id})
     end,

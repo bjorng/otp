@@ -573,7 +573,11 @@ struct_group_pairs(A, Var, Id, Pairs0, Esp, St0) ->
     Flatten = append([[K,V] || {K,V} <- Pairs]),
     {ssa_struct(A, Var, Id, Flatten),Esp,St0}.
 
-ssa_struct(A, SrcStruct, Id, Pairs) ->
+ssa_struct(A, SrcStruct, Id0, Pairs) ->
+    Id = case Id0 of
+             #b_literal{val={}} -> #b_literal{val='_'};
+             #b_literal{} -> Id0
+         end,
     Args = [SrcStruct,Id|Pairs],
     LineAnno = line_anno(A),
     Set = #b_set{anno=LineAnno,op=put_struct,args=Args},
