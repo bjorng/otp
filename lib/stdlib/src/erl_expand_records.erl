@@ -1025,13 +1025,14 @@ record_exprs([{record_field,Anno,{atom,_AnnoA,_F}=Name,Val}=Field0 | Us], St0, P
 record_exprs([], St, Pre, Fs) ->
     {reverse(Pre),Fs,St}.
 
+
 -spec get_native_record_field(
-    erl_anno:anno(),
-    erl_parse:abstract_expr(),
-    atom(),
-    {atom(), atom()} | {},
-    #exprec{}
-) -> {erl_parse:abstract_expr(), #exprec{}}.
+        erl_anno:anno(),
+        erl_parse:abstract_expr(),
+        atom(),
+        {atom(), atom()} | {},
+        #exprec{}) ->
+          {erl_parse:abstract_expr(), #exprec{}}.
 get_native_record_field(Anno0, Str, F, Id, St0) ->
     case is_in_guard() of
         false ->
@@ -1041,11 +1042,16 @@ get_native_record_field(Anno0, Str, F, Id, St0) ->
                  [{clause,NAnno,[{native_record,NAnno,Id,
                                   [{record_field, NAnno, {atom, NAnno, F}, Var}]}],
                    [],[Var]},
+                  {clause,NAnno,[{native_record,NAnno,Id,[]}],[],
+                   [{call,NAnno,{remote,NAnno,
+                                 {atom,NAnno,erlang},
+                                 {atom,NAnno,error}},
+                     [{tuple,NAnno,[{atom,NAnno,badfield},{atom, NAnno, F}]}]}]},
                   {clause,NAnno,[Var],[],
                    [{call,NAnno,{remote,NAnno,
                                  {atom,NAnno,erlang},
                                  {atom,NAnno,error}},
-                     [{tuple,NAnno,[{atom,NAnno,badstruct},Var]}]}]}]},
+                     [{tuple,NAnno,[{atom,NAnno,badrecord},Var]}]}]}]},
             expr(E, St);
         true ->
             {ExpS,St1} = expr(Str, St0),

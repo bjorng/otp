@@ -102,6 +102,7 @@ local_basic(_Config) ->
     a = NameFun(ARec),
     b = NameFun(BRec),
 
+    %% Test errors when constructing or updating native records.
     ?assertError({badfield,foobar}, #b{foobar = some_value}),
 
     ?assertError({badrecord,b}, ARec#b{x=99}),
@@ -110,6 +111,11 @@ local_basic(_Config) ->
     ?assertError({novalue,x}, #a{}),
     ?assertError({novalue,y}, #a{x=1}),
     ?assertError({novalue,x}, #a{y=1}),
+
+    %% Test errors when accessing native records
+    ?assertError({badfield,zoo}, BRec#b.zoo),
+    ?assertError({badrecord,ARec}, ARec#b.x),
+    ?assertError({badrecord,ARec}, ARec#non_existing_module:rec.x),
 
     true = is_int_ax(ARec),
     false = is_int_ax(id(#a{x=a,y=b})),

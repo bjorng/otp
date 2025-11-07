@@ -1709,8 +1709,8 @@ find_key_intersection(Ps) ->
 %% group_value([Clause]) -> [[Clause]].
 %%  Group clauses according to value.  Here we know that:
 %%  1. Some types are singled valued
-%%  2. The clauses in maps and bin_segs cannot be reordered,
-%%     only grouped
+%%  2. The clauses in maps, bin_segs, and native_records cannot
+%%     be reordered, only grouped
 %%  3. Other types are disjoint and can be reordered
 
 group_value(cg_cons, Us, Cs)    -> [{Us,Cs}];  %These are single valued
@@ -1720,6 +1720,7 @@ group_value(cg_bin_end, Us, Cs) -> [{Us,Cs}];
 group_value(cg_bin_seg, Us, Cs) -> group_keeping_order(Us, Cs);
 group_value(cg_bin_int, Us, Cs) -> [{Us,Cs}];
 group_value(cg_map, Us, Cs)     -> group_keeping_order(Us, Cs);
+group_value(cg_struct, Us, Cs)  -> group_keeping_order(Us, Cs);
 group_value(_, Us, Cs) ->
     Map = group_values(Cs),
 
@@ -1763,7 +1764,7 @@ group_keeping_order_fun(C1) ->
                     end
             end;
         false ->
-            %% Handle map or "unsuitable" binary segment.
+            %% Handle map, native record, or "unsuitable" binary segment.
             V1 = clause_val(C1),
             fun(C) ->
                     V1 =:= clause_val(C)
