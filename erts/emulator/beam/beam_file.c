@@ -990,7 +990,7 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
             switch (arg[1].type) {
             case TAG_u:
                 *fp++ = THE_NON_VALUE;
-                tmp_def->fields[field_index].value = NIL;
+                tmp_def->fields[field_index].value = make_catch(0);
                 break;
             case TAG_a:
             case TAG_n:

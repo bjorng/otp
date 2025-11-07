@@ -93,6 +93,10 @@ local_basic(_Config) ->
     ?assertError({badrecord,b}, ARec#b{x=99}),
     ?assertError({badfield,bad_field}, BRec#b{bad_field = some_value}),
 
+    ?assertError({novalue,x}, #a{}),
+    ?assertError({novalue,y}, #a{x=1}),
+    ?assertError({novalue,x}, #a{y=1}),
+
     true = is_int_ax(ARec),
     false = is_int_ax(id(#a{x=a,y=b})),
 

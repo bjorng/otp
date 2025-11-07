@@ -429,36 +429,46 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
     if (entry != NULL) {
         Eterm def = entry->definitions[code_ix];
 
-        if (def != THE_NON_VALUE) {
+        if (is_value(def)) {
             ErtsStructDefinition *defp;
+            ErtsStructInstance *instance;
             int field_count;
             Eterm *hp;
             Eterm* E;
             Uint num_words_needed;
+            Eterm res;
 
             defp = (ErtsStructDefinition*)boxed_val(def);
             field_count = (arityval(defp->thing_word) - 1) / 2;
 
-            num_words_needed = 2 + field_count;
+            num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
             if (HeapWordsLeft(p) < num_words_needed) {
                 erts_garbage_collect(p, num_words_needed, reg, live);
             }
-            defp = (ErtsStructDefinition*)boxed_val(def);
             hp = p->htop;
             E = p->stop;
 
-            hp[0] = MAKE_STRUCT_HEADER(field_count);
-            hp[1] = def;
+            p->htop = hp + num_words_needed;
 
+            instance = (ErtsStructInstance*)hp;
+            res = make_struct(hp);
+
+            instance->thing_word = MAKE_STRUCT_HEADER(field_count);
+            instance->struct_definition = def;
+
+            hp = (Eterm*) &(instance->values);
+
+            /* Get default values for all fields. */
             for (int i = 0; i < field_count; i++) {
-                hp[2 + i] = defp->fields[i].value;
+                hp[i] = defp->fields[i].value;
             }
 
+            /* Initialize fields. */
             for (int i = 0; i < size; i += 2) {
                 int j;
                 for (j = 0; j < field_count; j++) {
                     if (eq(new_p[i], defp->fields[j].key)) {
-                        GetSource(new_p[i+1], hp[2 + j]);
+                        GetSource(new_p[i+1], hp[j]);
                         break;
                     }
                 }
@@ -469,9 +479,16 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
                 }
             }
 
-            p->htop = hp + num_words_needed;
+            /* Ensure that all fields now have a value. */
+            for (int i = 0; i < field_count; i++) {
+                if (is_catch(hp[i])) {
+                    p->fvalue = defp->fields[i].key;
+                    p->freason = EXC_NOVALUE;
+                    return THE_NON_VALUE;
+                }
+            }
 
-            return make_struct(hp);
+            return res;
         }
     }
 
@@ -488,10 +505,12 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
     ErtsStructEntry *entry;
     Eterm* objp;
     ErtsStructDefinition *defp;
+    ErtsStructInstance *instance;
     int field_count;
     Eterm *hp;
     Eterm* E;
     Uint num_words_needed;
+    Eterm res;
 
     objp = struct_val(src);
     defp = (ErtsStructDefinition*)tuple_val(objp[1]);
@@ -516,7 +535,7 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
 
     field_count = (arityval(defp->thing_word) - 1) / 2;
 
-    num_words_needed = 2 + field_count;
+    num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
     if (HeapWordsLeft(p) < num_words_needed) {
         reg[live] = src;
         erts_garbage_collect(p, num_words_needed, reg, live+1);
@@ -527,15 +546,19 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
 
     hp = p->htop;
     E = p->stop;
-    sys_memcpy(hp,
-               objp,
-               num_words_needed * sizeof(Eterm));
+    res = make_struct(hp);
+    p->htop = hp + num_words_needed;
+
+    sys_memcpy(hp, objp, num_words_needed * sizeof(Eterm));
+
+    instance = (ErtsStructInstance*)hp;
+    hp = (Eterm*) &(instance->values);
 
     for (int i = 0; i < size; i += 2) {
         int j;
         for (j = 0; j < field_count; j++) {
             if (eq(new_p[i], defp->fields[j].key)) {
-                GetSource(new_p[i+1], hp[2 + j]);
+                GetSource(new_p[i+1], hp[j]);
                 break;
             }
         }
@@ -546,9 +569,7 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
         }
     }
 
-    p->htop = hp + num_words_needed;
-
-    return make_struct(hp);
+    return res;
 }
 
 BIF_RETTYPE struct_module_1(BIF_ALIST_1) {

@@ -170,9 +170,11 @@
 #define EXC_BADRECORD		((20 << EXC_OFFSET) | EXC_ERROR)
 					/* Bad key in map */
 #define EXC_BADFIELD		((21 << EXC_OFFSET) | EXC_ERROR)
-					/* Bad field in struct */
+					/* Bad field in native record */
+#define EXC_NOVALUE		((22 << EXC_OFFSET) | EXC_ERROR)
+					/* Missing value in native record */
 
-#define NUMBER_EXIT_CODES 22	/* The number of exit code indices */
+#define NUMBER_EXIT_CODES 23	/* The number of exit code indices */
 
 /*
  * Internal pseudo-error codes.
