@@ -1317,10 +1317,10 @@ resolve_inst({debug_line,[Kind,Location,Index,Live]},_,_,_) ->
 %% OTP 29.
 %%
 
-resolve_inst({is_struct,[Fail,Src]},_,_,_) ->
-    {is_struct,Fail,Src};
+resolve_inst({is_record,[Fail,Src]},_,_,_) ->
+    {is_record,Fail,Src};
 resolve_inst({is_tagged_struct,[Fail,Src,Module,Name]},_,_,_) ->
-    {is_struct,Fail,Src,Module,Name};
+    {is_record,Fail,Src,Module,Name};
 resolve_inst({get_struct_elements,[Fail,Src,List]},_,_,_) ->
     {get_struct_elements,Fail,Src,List};
 

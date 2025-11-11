@@ -438,7 +438,7 @@ lattribute(record, {Name,Is}, Opts) ->
     Nl = [leaf("-record("),{atom,Name},$,],
     [{first,Nl,record_fields(Is, Opts)},$)];
 lattribute(struct, {Name,Is}, Opts) ->
-  Nl = [leaf("-struct("),{atom,Name},$,],
+  Nl = [leaf("-record("),{atom,Name},$,],
   [{first,Nl,record_fields(Is, Opts)},$)];
 lattribute(Name, Arg, Options) ->
     attr(Name, [abstract(Arg, Options)]).

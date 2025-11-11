@@ -5725,66 +5725,78 @@ do_coverage() ->
     ok.
 
 native_records(Config) ->
-    Ts = [{redefine_struct,
-           <<"-struct(a, {}).
-             -struct(a, {}).">>,
+    Ts = [{redefine_native_record_1,
+           <<"-record #a{}.
+             -record #a{}.">>,
            [],
-           {errors,[{{2,15},erl_lint,{redefine_struct,a}}],[]}},
-          {redefine_struct_1,
-           <<"-struct(a, {}).
-              -import_struct(a, [a]).">>,
+           {errors,[{{2,15},erl_lint,{redefine_native_record,a}}],[]}},
+           {redefine_native_record_2,
+           <<"-compile(nowarn_unused_record).
+             -record #a{}.
+             -record(a, {}).">>,
            [],
-           {errors,[{{2,16},erl_lint,{redefine_struct_import,a}}],[]}},
-          {redefine_struct_2,
-           <<"-import_struct(a, [a]).
-              -struct(a, {}).">>,
+           {errors,[{{3,15},erl_lint,{redefine_native_record,a}}],[]}},
+           {redefine_native_record_3,
+           <<"-compile(nowarn_unused_record).
+              -record(a, {}).
+              -record #a{}.">>,
            [],
-           {errors,[{{1,22},erl_lint,{redefine_struct_import,a}}],[]}},
-          {redefine_struct_3,
-           <<"-import_struct(a, [a]).
-              -import_struct(b, [a]).">>,
+           {errors,[{{3,16},erl_lint,{redefine_record,a}}],[]}},
+          {redefine_native_record_1,
+           <<"-record #a{}.
+              -import_record(a, [a]).">>,
            [],
-           {errors,[{{2,16},erl_lint,{redefine_struct_import,{a,a}}}],[]}},
+           {errors,[{{2,16},erl_lint,{redefine_native_record_import,a}}],[]}},
+          {redefine_native_record_2,
+           <<"-import_record(a, [a]).
+              -record #a{}.">>,
+           [],
+           {errors,[{{1,22},erl_lint,{redefine_native_record_import,a}}],[]}},
+          {redefine_native_record_3,
+           <<"-import_record(a, [a]).
+              -import_record(b, [a]).">>,
+           [],
+           {errors,[{{2,16},erl_lint,{redefine_native_record_import,{a,a}}}],[]}},
 
-          %% expressions
-          {redefine_struct_field_3,
-           <<"-import_struct(a, [a]).
+          % expressions
+          {redefine_native_record_field_3,
+           <<"-import_record(a, [a]).
               mk_a() -> #a{a = 1, a = b}.
               get_a(#a{b = b, b = c}) -> ok.">>,
            [],
-           {errors,[{{2,35},erl_lint,{redefine_struct_field,a}},
-                    {{3,31},erl_lint,{redefine_struct_field,b}}],[]}},
-          {redefine_struct_field_def,
-           <<"-struct(s1, {a, a}).
-              -struct(s2, {a=atom, a}).
-              -struct(s3, {a, a=atom}).
-              -struct(s4, {a=atom, b}).">>,
+           {errors,[{{2,35},erl_lint,{redefine_native_record_field,a}},
+                    {{3,31},erl_lint,{redefine_native_record_field,b}}],[]}},
+          {redefine_native_record_field_def,
+           <<"-record #s1{a, a}.
+              -record #s2{a=atom, a}.
+              -record #s3{a, a=atom}.
+              -record #s4{a=atom, b}.">>,
            [],
-           {errors,[{{1,37},erl_lint,{redefine_struct_field_def,s1,a}},
-                    {{2,36},erl_lint,{redefine_struct_field_def,s2,a}},
-                    {{3,31},erl_lint,{redefine_struct_field_def,s3,a}}],
+           {errors,[{{1,36},erl_lint,{redefine_native_record_field_def,s1,a}},
+                    {{2,35},erl_lint,{redefine_native_record_field_def,s2,a}},
+                    {{3,30},erl_lint,{redefine_native_record_field_def,s3,a}}],
             []}},
-          {undefined_struct_field,
-           <<"-struct(s, {a=a, c=c}).
+          {undefined_native_record_field,
+           <<"-record #s{a=a, c=c}.
                mk() -> #s{a = a, b = b}.
                pat(#s{a = A, b = B}) -> {A, B}.
                update(S) -> S#s{b = b}.
                get1(S) -> S#s.b.
                get2(S, B) when B == S#s.b -> ok.">>,
            [],
-           {warnings,[{{2,34},erl_lint,{undefined_struct_field,b,s}},
-                      {{3,30},erl_lint,{undefined_struct_field,b,s}},
-                      {{4,33},erl_lint,{undefined_struct_field,b,s}},
-                      {{5,28},erl_lint,{undefined_struct_field,b,s}},
-                      {{6,38},erl_lint,{undefined_struct_field,b,s}}]}},
-          {redefine_struct_field_3,
-           <<"-struct(s, {a, b, c = c}).
+           {warnings,[{{2,34},erl_lint,{undefined_native_record_field,b,s}},
+                      {{3,30},erl_lint,{undefined_native_record_field,b,s}},
+                      {{4,33},erl_lint,{undefined_native_record_field,b,s}},
+                      {{5,28},erl_lint,{undefined_native_record_field,b,s}},
+                      {{6,38},erl_lint,{undefined_native_record_field,b,s}}]}},
+          {redefine_native_record_field_3,
+           <<"-record #s{a, b, c = c}.
                 mk1() -> #s{}.
                 mk2() -> #s{a = a}.">>,
            [],
-           {warnings,[{{2,26},erl_lint,{not_inited_struct_field,a,s}},
-                      {{2,26},erl_lint,{not_inited_struct_field,b,s}},
-                      {{3,26},erl_lint,{not_inited_struct_field,b,s}}]}},
+           {warnings,[{{2,26},erl_lint,{no_init_native_record_field,a,s}},
+                      {{2,26},erl_lint,{no_init_native_record_field,b,s}},
+                      {{3,26},erl_lint,{no_init_native_record_field,b,s}}]}},
           {undefined_record_1,
            <<"t() ->
                   X = no_record,

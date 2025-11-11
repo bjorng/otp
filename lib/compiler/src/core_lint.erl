@@ -275,6 +275,9 @@ gexpr(#c_call{module=#c_literal{val=erlang},name=#c_literal{val=is_record},
               args=[Arg,#c_literal{val=Tag},#c_literal{val=Size}]},
       Def, Rt, St) when is_atom(Tag), is_integer(Size) ->
     return_match(Rt, 1, gexpr(Arg, Def, 1, St));
+gexpr(#c_call{module=#c_literal{val=erlang},name=#c_literal{val=is_record},
+              args=[Arg]},Def, Rt, St)->
+    return_match(Rt, 1, gexpr(Arg, Def, 1, St));
 gexpr(#c_call{module=#c_literal{val=erlang},name=#c_literal{val=is_record}},
       _Def, Rt, St) ->
     return_match(Rt, 1, add_error({illegal_guard,St#lint.func}, St));

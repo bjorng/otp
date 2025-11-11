@@ -440,22 +440,22 @@ format_error_1({redefine_record,T}) ->
     {~"record ~tw already defined", [T]};
 format_error_1({redefine_field,T,F}) ->
     {~"field ~tw already defined in record ~tw", [F,T]};
-format_error_1({redefine_struct_import,{S,M}}) ->
-    {~"struct ~tw already imported from ~w", [S,M]};
-format_error_1({redefine_struct_import,S}) when is_atom(S) ->
-    {~"struct ~tw defined locally", [S]};
-format_error_1({undefined_struct,T}) ->
-    {~"struct ~tw undefined", [T]};
-format_error_1({redefine_struct,S}) ->
-    {~"struct ~tw already defined", [S]};
-format_error_1({redefine_struct_field,F}) ->
-    {~"field ~tw already defined in struct", [F]};
-format_error_1({redefine_struct_field_def,F,N}) ->
-    {~"field ~tw already defined in struct ~tw", [F,N]};
-format_error_1({undefined_struct_field,F,N}) ->
-    {~"field ~tw not defined in struct ~tw", [F,N]};
-format_error_1({not_inited_struct_field,Fs,N}) ->
-    {~"field ~tw is not initialized in struct ~tw", [Fs,N]};
+format_error_1({redefine_native_record_import,{S,M}}) ->
+    {~"native record ~tw already imported from ~w", [S,M]};
+format_error_1({redefine_native_record_import,S}) when is_atom(S) ->
+    {~"native record ~tw defined locally", [S]};
+format_error_1({undefined_native_record,T}) ->
+    {~"native record ~tw undefined", [T]};
+format_error_1({redefine_native_record,S}) ->
+    {~"native record ~tw already defined", [S]};
+format_error_1({redefine_native_record_field,F}) ->
+    {~"field ~tw already defined in native record", [F]};
+format_error_1({redefine_native_record_field_def,F,N}) ->
+    {~"field ~tw already defined in native record ~tw", [F,N]};
+format_error_1({undefined_native_record_field,F,N}) ->
+    {~"field ~tw not defined in native record ~tw", [F,N]};
+format_error_1({no_init_native_record_field,Fs,N}) ->
+    {~"field ~tw is not initialized in native record ~tw", [Fs,N]};
 format_error_1(bad_multi_field_init) ->
     {~"'_' initializes no omitted fields", []};
 format_error_1({undefined_field,T,F}) ->
@@ -966,11 +966,11 @@ forms(Forms0, St0) ->
     Forms = eval_file_attribute(Forms0, St0),
     %% Annotations from now on include the 'file' item.
     Locals = local_functions(Forms),
-    StructLocals = local_structs(Forms),
+    NNLocals = local_native_records(Forms),
     AutoImportSuppressed = auto_import_suppressed(St0#lint.compile),
     StDeprecated = disallowed_compile_flags(Forms,St0),
     St1 = includes_qlc_hrl(Forms, StDeprecated#lint{locals = Locals,
-                                                    struct_locals = StructLocals,
+                                                    struct_locals = NNLocals,
 						    no_auto = AutoImportSuppressed}),
     St2 = bif_clashes(Forms, St1),
     St3 = not_deprecated(Forms, St2),
@@ -1075,12 +1075,12 @@ attribute_state({attribute,A,export_type,Es}, St) ->
     export_type(A, Es, St);
 attribute_state({attribute,A,import,Is}, St) ->
     import(A, Is, St);
-attribute_state({attribute,A,import_struct,Ss}, St) ->
-    import_struct(A, Ss, St);
+attribute_state({attribute,A,import_record,Ss}, St) ->
+    import_native_record(A, Ss, St);
 attribute_state({attribute,A,record,{Name,Fields}}, St) ->
     record_def(A, Name, Fields, St);
-attribute_state({attribute,A,struct,{Name,Fields}}, St) ->
-    struct_def(A, Name, Fields, St);
+attribute_state({attribute,A,native_record,{Name,Fields}}, St) ->
+    native_record_def(A, Name, Fields, St);
 attribute_state({attribute,Aa,behaviour,Behaviour}, St) ->
     St#lint{behaviour=St#lint.behaviour ++ [{Aa,Behaviour}]};
 attribute_state({attribute,Aa,behavior,Behaviour}, St) ->
@@ -1930,24 +1930,24 @@ check_imports(_Anno, Fs, Is) ->
 add_imports(Mod, Fs, Is) ->
     foldl(fun (F, Is0) -> orddict:store(F, Mod, Is0) end, Is, Fs).
 
--spec import_struct(anno(), {module(), [atom()]}, lint_state()) -> lint_state().
-import_struct(Anno, {Mod, Ss}, #lint{struct_imports=Imports,
+-spec import_native_record(anno(), {module(), [atom()]}, lint_state()) -> lint_state().
+import_native_record(Anno, {Mod, Ss}, #lint{struct_imports=Imports,
                                      struct_locals=Locals}=St0) ->
     St = check_module_name(Mod, Anno, St0),
     Mss = ordsets:from_list(Ss),
-    case check_struct_imports(Anno, Mss, Imports, Locals) of
+    case check_nn_imports(Anno, Mss, Imports, Locals) of
         [] ->
-            St#lint{struct_imports = add_struct_imports(Mod, Mss, Imports)};
+            St#lint{struct_imports = add_nn_imports(Mod, Mss, Imports)};
         Es ->
-            foldl(fun(E, S0) -> add_error(Anno, {redefine_struct_import, E}, S0) end, St, Es)
+            foldl(fun(E, S0) -> add_error(Anno, {redefine_native_record_import, E}, S0) end, St, Es)
     end.
 
--spec check_struct_imports(anno(),
-                           ordsets:ordset(atom()),
-                           orddict:orddict(atom(), atom()),
-                           gb_sets:set(atom())) ->
+-spec check_nn_imports(anno(),
+                       ordsets:ordset(atom()),
+                       orddict:orddict(atom(), atom()),
+                       gb_sets:set(atom())) ->
           [atom() | {atom(), atom()}].
-check_struct_imports(_Anno, Ss, Is, Locals) ->
+check_nn_imports(_Anno, Ss, Is, Locals) ->
     foldl(fun (S, Efs) ->
                   case gb_sets:is_element(S, Locals) of
                       true -> [S|Efs];
@@ -1959,9 +1959,9 @@ check_struct_imports(_Anno, Ss, Is, Locals) ->
                   end
           end, [], Ss).
 
--spec add_struct_imports(module(), ordsets:ordset(atom()), orddict:orddict(atom(), atom())) ->
+-spec add_nn_imports(module(), ordsets:ordset(atom()), orddict:orddict(atom(), atom())) ->
           orddict:orddict(atom(), atom()).
-add_struct_imports(Mod, Ss, Is) ->
+add_nn_imports(Mod, Ss, Is) ->
     foldl(fun (S, Is0) -> orddict:store(S, Mod, Is0) end, Is, Ss).
 
 -spec imported(atom(), arity(), lint_state()) -> {'yes',module()} | 'no'.
@@ -2142,9 +2142,9 @@ pattern({record_index,Anno,Name,Field}, _Vt, _Old, St) ->
 pattern({record,Anno,Name,Pfs}, Vt, Old, St) ->
     case is_native_record_defined(Name, St) of
         true ->
-            St1 = call_struct(Anno, Name, St),
-            St2 = check_struct_fields_usage(Name, Pfs, St1),
-            pattern_struct_fields(Pfs, Vt, Old, St2);
+            St1 = call_native_record(Anno, Name, St),
+            St2 = check_native_record_fields_usage(Name, Pfs, St1),
+            pattern_native_record_fields(Pfs, Vt, Old, St2);
         false ->
             case maps:find(Name, St#lint.records) of
                 {ok,{_Anno,Fields}} ->
@@ -2159,10 +2159,10 @@ pattern({record,Anno,Name,Pfs}, Vt, Old, St) ->
                     end
             end
     end;
-pattern({struct, _Anno, {_Mod, _Name}, Fs}, Vt, Old, St) ->
-    pattern_struct_fields(Fs, Vt, Old, St);
-pattern({struct, _Anno, {}, Fs}, Vt, Old, St) ->
-    pattern_struct_fields(Fs, Vt, Old, St);
+pattern({native_record, _Anno, {_Mod, _Name}, Fs}, Vt, Old, St) ->
+    pattern_native_record_fields(Fs, Vt, Old, St);
+pattern({native_record, _Anno, {}, Fs}, Vt, Old, St) ->
+    pattern_native_record_fields(Fs, Vt, Old, St);
 pattern({bin,_,Fs}, Vt, Old, St) ->
     pattern_bin(Fs, Vt, Old, St);
 pattern({op,_Anno,'++',{nil,_},R}, Vt, Old, St) ->
@@ -2509,9 +2509,9 @@ gexpr({record_index,Anno,Name,Field}, _Vt, St) ->
 gexpr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) ->
     case is_native_record_defined(Name, St0) of
         true ->
-            St1 = call_struct(Anno, Name, St0),
+            St1 = call_native_record(Anno, Name, St0),
             {Rvt,St2} = gexpr(Rec, Vt, St1),
-            St3 = check_struct_field_expr_usage(E, St2),
+            St3 = check_native_record_field_expr_usage(E, St2),
             {Rvt,St3};
         false ->
             {Rvt,St1} = gexpr(Rec, Vt, St0),
@@ -2526,16 +2526,16 @@ gexpr({record,Anno,Name,Inits}, Vt, St) ->
                  fun (Dfs, St1) ->
                          ginit_fields(Inits, Anno, Name, Dfs, Vt, St1)
                  end);
-gexpr({struct_field_expr, _Anno, Str, _Id, FieldName}, Vt, St0) when is_atom(FieldName) ->
+gexpr({native_record_field_expr, _Anno, Str, _Id, FieldName}, Vt, St0) when is_atom(FieldName) ->
     gexpr(Str, Vt, St0);
 gexpr({bin,_Anno,Fs}, Vt,St) ->
     expr_bin(Fs, Vt, St, fun gexpr/3);
 gexpr({call,_Anno,{atom,_Ar,is_record},[E,{atom,An,Name}]}, Vt, St0) ->
     {Rvt,St1} = gexpr(E, Vt, St0),
     {Rvt,exist_record(An, Name, St1)};
-gexpr({call,_Anno,{atom,_Ar,is_record},[E,{struct_id,_An,{_,_}}]}, Vt, St0) ->
+gexpr({call,_Anno,{atom,_Ar,is_record},[E,{native_record_id,_An,{_,_}}]}, Vt, St0) ->
     gexpr(E, Vt, St0);
-gexpr({call,_Anno,{atom,_Ar,is_record},[E,{struct_id,An,Name}]}, Vt, St0) ->
+gexpr({call,_Anno,{atom,_Ar,is_record},[E,{native_record_id,An,Name}]}, Vt, St0) ->
     {Rvt,St1} = gexpr(E, Vt, St0),
     {Rvt,exist_native_record(An, Name, St1)};
 gexpr({call,Anno,{atom,_Ar,is_record},[E,R]}, Vt, St0) ->
@@ -2732,7 +2732,7 @@ is_gexpr({record_index,_A,_Name,Field}, Info) ->
     is_gexpr(Field, Info);
 is_gexpr({record_field,_A,Rec,_Name,Field}, Info) ->
     is_gexpr_list([Rec,Field], Info);
-is_gexpr({struct_field_expr,_A,Str,_Name,_FieldName}, Info) ->
+is_gexpr({native_record_field_expr,_A,Str,_Name,_FieldName}, Info) ->
     is_gexpr(Str, Info);
 is_gexpr({record,A,Name,Inits}, Info0) ->
     Info = case Info0 of
@@ -2841,10 +2841,10 @@ expr({record_index,Anno,Name,Field}, _Vt, St) ->
 expr({record,Anno,Name,Inits}, Vt, St) ->
     case is_native_record_defined(Name, St) of
         true ->
-            {Usvt, St1} = check_struct_fields(Inits, Vt, St),
-            St2 = call_struct(Anno, Name, St1),
-            St3 = check_struct_fields_usage(Name, Inits, St2),
-            St4 = check_struct_fields_init(Name, Inits, St3, Anno),
+            {Usvt, St1} = check_nn_fields(Inits, Vt, St),
+            St2 = call_native_record(Anno, Name, St1),
+            St3 = check_native_record_fields_usage(Name, Inits, St2),
+            St4 = check_native_record_fields_init(Name, Inits, St3, Anno),
             {Usvt, St4};
         false ->
             check_record(Anno, Name, St,
@@ -2852,28 +2852,28 @@ expr({record,Anno,Name,Inits}, Vt, St) ->
                                  init_fields(Inits, Anno, Name, Dfs, Vt, St1)
                          end)
     end;
-expr({struct, _Anno, {MName, Name}, Inits}, Vt, St) when is_atom(MName),is_atom(Name) ->
-    check_struct_fields(Inits, Vt, St);
-expr({struct_update, _Anno, Expr, {MName, Name}, Updates}, Vt, St) when is_atom(MName),is_atom(Name) ->
+expr({native_record, _Anno, {MName, Name}, Inits}, Vt, St) when is_atom(MName),is_atom(Name) ->
+    check_nn_fields(Inits, Vt, St);
+expr({native_record_update, _Anno, Expr, {MName, Name}, Updates}, Vt, St) when is_atom(MName),is_atom(Name) ->
     {Rvt, St1} = expr(Expr, Vt, St),
-    {Usvt, St2} = check_struct_fields(Updates, Vt, St1),
+    {Usvt, St2} = check_nn_fields(Updates, Vt, St1),
     Usvt1 = vtmerge(Rvt, Usvt),
     {Usvt1, St2};
-expr({struct_update, _Anno, Expr, {}, Updates}, Vt, St) ->
+expr({native_record_update, _Anno, Expr, {}, Updates}, Vt, St) ->
     {Rvt, St1} = expr(Expr, Vt, St),
-    {Usvt, St2} = check_struct_fields(Updates, Vt, St1),
+    {Usvt, St2} = check_nn_fields(Updates, Vt, St1),
     Usvt1 = vtmerge(Rvt, Usvt),
     {Usvt1, St2};
-expr({struct_field_expr, _Anno, Str, {_MName,_Name}, FieldName}, Vt, St) when is_atom(FieldName) ->
+expr({native_record_field_expr, _Anno, Str, {_MName,_Name}, FieldName}, Vt, St) when is_atom(FieldName) ->
     expr(Str, Vt, St);
-expr({struct_field_expr, _Anno, Str, {}, FieldName}, Vt, St) when is_atom(FieldName) ->
+expr({native_record_field_expr, _Anno, Str, {}, FieldName}, Vt, St) when is_atom(FieldName) ->
     expr(Str, Vt, St);
 expr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) ->
     case is_native_record_defined(Name, St0) of
         true ->
             {Usvt, St1} = expr(Rec, Vt, St0),
-            St2 = call_struct(Anno, Name, St1),
-            St3 = check_struct_field_expr_usage(E, St2),
+            St2 = call_native_record(Anno, Name, St1),
+            St3 = check_native_record_field_expr_usage(E, St2),
             {Usvt, St3};
         false ->
             {Rvt,St1} = record_expr(Anno, Rec, Vt, St0),
@@ -2887,10 +2887,10 @@ expr({record,Anno,Rec,Name,Upds}, Vt, St0) ->
     case is_native_record_defined(Name, St0) of
         true ->
             {Rvt, St1} = expr(Rec, Vt, St0),
-            {Usvt, St2} = check_struct_fields(Upds, Vt, St1),
+            {Usvt, St2} = check_nn_fields(Upds, Vt, St1),
             Usvt1 = vtmerge(Rvt, Usvt),
-            St3 = call_struct(Anno, Name, St2),
-            St4 = check_struct_fields_usage(Name, Upds, St3),
+            St3 = call_native_record(Anno, Name, St2),
+            St4 = check_native_record_fields_usage(Name, Upds, St3),
             {Usvt1, St4};
         false ->
             {Rvt,St1} = record_expr(Anno, Rec, Vt, St0),
@@ -2971,7 +2971,7 @@ expr({named_fun,Anno,Name,Cs}, Vt, St0) ->
 expr({call,_Anno,{atom,_Ar,is_record},[E,{atom,An,Name}]}, Vt, St0) ->
     {Rvt,St1} = expr(E, Vt, St0),
     {Rvt,exist_record(An, Name, St1)};
-expr({call,_Anno,{atom,_Ar,is_record},[E,{struct_id,An,Name}]}, Vt, St0) ->
+expr({call,_Anno,{atom,_Ar,is_record},[E,{native_record_id,An,Name}]}, Vt, St0) ->
     {Rvt,St1} = expr(E, Vt, St0),
     {Rvt,exist_native_record(An, Name, St1)};
 expr({call,Anno,{remote,_Ar,{atom,_Am,erlang},{atom,Af,is_record}},[E,A]},
@@ -3238,9 +3238,13 @@ check_remote_self_call(_Anno, _M, _F, _A, St) ->
 %%  so that all fields have explicit initial value.
 
 record_def(Anno, Name, Fs0, St0) ->
-    case is_map_key(Name, St0#lint.records) of
-        true -> add_error(Anno, {redefine_record,Name}, St0);
-        false ->
+    case {is_map_key(Name, St0#lint.records),
+          is_map_key(Name, St0#lint.structs)} of
+        {true, _} ->
+            add_error(Anno, {redefine_record,Name}, St0);
+        {_, true} ->
+            add_error(Anno, {redefine_native_record,Name}, St0);
+        _ ->
             {Fs1,St1} = def_fields(normalise_fields(Fs0), Name, St0),
             St2 = St1#lint{records=maps:put(Name, {Anno,Fs1},
                                             St1#lint.records)},
@@ -3249,14 +3253,17 @@ record_def(Anno, Name, Fs0, St0) ->
             check_type({type, nowarn(), product, Types}, St3)
     end.
 
--spec struct_def(anno(), atom(), [erl_parse:af_field_decl()], lint_state()) -> lint_state().
-struct_def(Anno, Name, Fs0, St0) ->
-    case is_map_key(Name, St0#lint.structs) of
-        true ->
-            add_error(Anno, {redefine_struct,Name}, St0);
-        false ->
-            Fs1 = normalise_struct_fields(Fs0),
-            {Fs, St1} = struct_def_fields(Fs1, Name, St0),
+-spec native_record_def(anno(), atom(), [erl_parse:af_field_decl()], lint_state()) -> lint_state().
+native_record_def(Anno, Name, Fs0, St0) ->
+    case {is_map_key(Name, St0#lint.structs),
+          is_map_key(Name, St0#lint.records)} of
+        {true, _} ->
+            add_error(Anno, {redefine_native_record,Name}, St0);
+        {_, true} ->
+            add_error(Anno, {redefine_record,Name}, St0);
+        _ ->
+            Fs1 = normalise_native_record_fields(Fs0),
+            {Fs, St1} = native_record_def_fields(Fs1, Name, St0),
             St1#lint{structs=maps:put(Name, {Anno,Fs}, St1#lint.structs)}
     end.
 
@@ -3288,29 +3295,29 @@ def_fields(Fs0, Name, St0) ->
                   end
           end, {[],St0}, Fs0).
 
--spec struct_def_fields([erl_parse:af_field_decl()],
+-spec native_record_def_fields([erl_parse:af_field_decl()],
                         atom(),
                         lint_state()) ->
           {[erl_parse:af_field_decl()], lint_state()}.
-struct_def_fields(Fs0, Name, St0) ->
+native_record_def_fields(Fs0, Name, St0) ->
     foldl(fun
               ({record_field, Af, {atom, _Aa, F}}=Field, {Fs, St}) ->
-                 case exist_struct_field(F, Fs) of
+                 case exist_native_record_field(F, Fs) of
                      true ->
-                         {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
+                         {Fs, add_error(Af, {redefine_native_record_field_def,Name,F}, St)};
                      false ->
                          {[Field|Fs],St}
                  end;
               ({record_field, Af, {atom, _Aa, F}, _Init}=Field, {Fs, St}) ->
-                 case exist_struct_field(F, Fs) of
+                 case exist_native_record_field(F, Fs) of
                      true ->
-                         {Fs, add_error(Af, {redefine_struct_field_def,Name,F}, St)};
+                         {Fs, add_error(Af, {redefine_native_record_field_def,Name,F}, St)};
                      false ->
                          {[Field|Fs],St}
                  end
          end, {[],St0}, Fs0).
 
-normalise_struct_fields(Fs) ->
+normalise_native_record_fields(Fs) ->
     map(fun ({typed_record_field,{record_field,Af,Field},_Type}) ->
 		{record_field,Af,Field,{atom,Af,undefined}};
 	    ({typed_record_field,Field,_Type}) ->
@@ -3393,15 +3400,15 @@ check_record(Anno, Name, St, CheckFun) ->
 is_native_record_defined(Name, St) ->
     is_map_key(Name, St#lint.structs) orelse orddict:is_key(Name, St#lint.struct_imports).
 
--spec call_struct(anno(), atom(), lint_state()) -> lint_state().
-call_struct(Anno, Name, St) ->
+-spec call_native_record(anno(), atom(), lint_state()) -> lint_state().
+call_native_record(Anno, Name, St) ->
     case is_map_key(Name, St#lint.structs) of
         true ->
             St;
         false ->
             case orddict:find(Name, St#lint.struct_imports) of
                 {ok, _} -> St;
-                error -> add_error(Anno, {undefined_struct,Name}, St)
+                error -> add_error(Anno, {undefined_record,Name}, St)
             end
     end.
 
@@ -3547,18 +3554,18 @@ exist_field(F, [{record_field,_Af,{atom,_Aa,F},_Val}|_Fs]) -> true;
 exist_field(F, [_|Fs]) -> exist_field(F, Fs);
 exist_field(_F, []) -> false.
 
--spec exist_struct_field(atom(), [erl_parse:af_field_decl()]) -> boolean().
-exist_struct_field(F, [{record_field,_Af,{atom,_Aa,F},_Val}|_Fs]) -> true;
-exist_struct_field(F, [{record_field,_Af,{atom,_Aa,F}}|_Fs]) -> true;
-exist_struct_field(F, [_|Fs]) -> exist_struct_field(F, Fs);
-exist_struct_field(_F, []) -> false.
+-spec exist_native_record_field(atom(), [erl_parse:af_field_decl()]) -> boolean().
+exist_native_record_field(F, [{record_field,_Af,{atom,_Aa,F},_Val}|_Fs]) -> true;
+exist_native_record_field(F, [{record_field,_Af,{atom,_Aa,F}}|_Fs]) -> true;
+exist_native_record_field(F, [_|Fs]) -> exist_native_record_field(F, Fs);
+exist_native_record_field(_F, []) -> false.
 
--spec not_inited_struct_fields([erl_parse:af_field_decl()]) -> [atom()].
-not_inited_struct_fields([{record_field,_Af,{atom,_Aa,F}}|Fs]) ->
-    [F | not_inited_struct_fields(Fs)];
-not_inited_struct_fields([_|Fs]) ->
-    not_inited_struct_fields(Fs);
-not_inited_struct_fields([]) ->
+-spec no_init_native_record_field([erl_parse:af_field_decl()]) -> [atom()].
+no_init_native_record_field([{record_field,_Af,{atom,_Aa,F}}|Fs]) ->
+    [F | no_init_native_record_field(Fs)];
+no_init_native_record_field([_|Fs]) ->
+    no_init_native_record_field(Fs);
+no_init_native_record_field([]) ->
     [].
 
 %% find_field(FieldName, [Field]) -> {ok,Val} | error.
@@ -3568,16 +3575,16 @@ find_field(F, [{record_field,_Af,{atom,_Aa,F},Val}|_Fs]) -> {ok,Val};
 find_field(F, [_|Fs]) -> find_field(F, Fs);
 find_field(_F, []) -> error.
 
--spec pattern_struct_fields([erl_parse:af_record_field(erl_parse:af_pattern())],
+-spec pattern_native_record_fields([erl_parse:af_record_field(erl_parse:af_pattern())],
                             var_table(),
                             var_table(),
                             lint_state()) ->
           {var_table(), var_table(), lint_state()}.
-pattern_struct_fields(Fs, Vt0, Old, St0) ->
+pattern_native_record_fields(Fs, Vt0, Old, St0) ->
     CheckFun = fun (Val, Vt, St) -> pattern(Val, Vt, Old, St) end,
     {_SeenFields,Uvt,Unew,St1} =
         foldl(fun (Field, {Sfsa,Vta,Newa,Sta}) ->
-                      case check_struct_field(Field, Vt0, Sta, Sfsa, CheckFun) of
+                      case check_nn_field(Field, Vt0, Sta, Sfsa, CheckFun) of
                           {Sfsb,{Vtb,Stb}} ->
                               {Vt, St1} = vtmerge_pat(Vta, Vtb, Stb),
                               {Sfsb, Vt, [], St1};
@@ -3589,86 +3596,86 @@ pattern_struct_fields(Fs, Vt0, Old, St0) ->
               end, {[],[],[],St0}, Fs),
     {Uvt,Unew,St1}.
 
-%% Check that there are no duplicate fields in struct usages. We
-%% don't have the definition of the struct here.
--spec check_struct_fields([erl_parse:af_record_field(erl_parse:abstract_expr())],
+%% Check that there are no duplicate fields in native record usages. We
+%% don't have the definition of the native record here.
+-spec check_nn_fields([erl_parse:af_record_field(erl_parse:abstract_expr())],
                           var_table(),
                           lint_state()) ->
           {var_table(), lint_state()}.
-check_struct_fields(Fs, Vt0, St0) ->
+check_nn_fields(Fs, Vt0, St0) ->
     CheckFun = fun expr/3,
     {_SeenFields,Uvt,St1} =
         foldl(fun (Field, {Sfsa,Vta,Sta}) ->
-                      {Sfsb,{Vtb,Stb}} = check_struct_field(Field, Vt0, Sta, Sfsa, CheckFun),
+                      {Sfsb,{Vtb,Stb}} = check_nn_field(Field, Vt0, Sta, Sfsa, CheckFun),
                       {Vt1, St1} = vtmerge_pat(Vta, Vtb, Stb),
                       {Sfsb, Vt1, St1}
               end, {[],[], St0}, Fs),
     {Uvt,St1}.
 
-check_struct_field({record_field, Af, {atom, _, F}, Val}, Vt, St, Sfs, CheckFun) ->
+check_nn_field({record_field, Af, {atom, _, F}, Val}, Vt, St, Sfs, CheckFun) ->
     case member(F, Sfs) of
         true ->
-            {Sfs, {[], add_error(Af, {redefine_struct_field, F}, St)}};
+            {Sfs, {[], add_error(Af, {redefine_native_record_field, F}, St)}};
         false ->
             {[F|Sfs],CheckFun(Val, Vt, St)}
     end.
 
-%% Check struct fields against the struct definition and issue
+%% Check native record fields against the definition and issue
 %% warnings.
--spec check_struct_fields_usage(atom(),
+-spec check_native_record_fields_usage(atom(),
                                 [erl_parse:af_record_field(erl_parse:abstract_expr())],
                                 lint_state()) ->
           lint_state().
-check_struct_fields_usage(SName, Fs, St0) ->
+check_native_record_fields_usage(SName, Fs, St0) ->
     case St0#lint.structs of
         #{SName := {_A, FieldDefs}} ->
             foldl(fun({record_field, Af, {atom, _, FName}, _Val}, St) ->
-                          case exist_struct_field(FName, FieldDefs) of
+                          case exist_native_record_field(FName, FieldDefs) of
                               true -> St;
-                              false -> add_warning(Af, {undefined_struct_field, FName, SName}, St)
+                              false -> add_warning(Af, {undefined_native_record_field, FName, SName}, St)
                           end
                   end, St0, Fs);
         #{} ->
             St0
     end.
 
--spec check_struct_fields_init(atom(),
+-spec check_native_record_fields_init(atom(),
                                [erl_parse:af_record_field(erl_parse:abstract_expr())],
                                lint_state(),
                                anno()) ->
           lint_state().
-check_struct_fields_init(SName, Inits, St0, Anno) ->
+check_native_record_fields_init(SName, Inits, St0, Anno) ->
     case St0#lint.structs of
         #{SName := {_A, FieldDefs}} ->
-            NotInitedInDef = not_inited_struct_fields(FieldDefs),
+            NotInitedInDef = no_init_native_record_field(FieldDefs),
             Inited = [FName || {record_field, _Aa, {atom, _, FName}, _Val} <- Inits],
             NotInited = NotInitedInDef -- Inited,
             foldl(fun(F, St) ->
-                          add_warning(Anno, {not_inited_struct_field, F, SName}, St)
+                          add_warning(Anno, {no_init_native_record_field, F, SName}, St)
                   end, St0, NotInited);
         #{} ->
             St0
     end.
 
 
--spec check_struct_field_expr_usage(erl_parse:af_record_field_access(_), lint_state()) ->
+-spec check_native_record_field_expr_usage(erl_parse:af_record_field_access(_), lint_state()) ->
           lint_state().
-check_struct_field_expr_usage({record_field, Anno, _Str, SName, {atom, _, FName}}, St) ->
+check_native_record_field_expr_usage({record_field, Anno, _Str, SName, {atom, _, FName}}, St) ->
     case St#lint.structs of
         #{SName := {_A, FieldDefs}} ->
-            case exist_struct_field(FName, FieldDefs) of
+            case exist_native_record_field(FName, FieldDefs) of
                 true -> St;
-                false -> add_warning(Anno, {undefined_struct_field, FName, SName}, St)
+                false -> add_warning(Anno, {undefined_native_record_field, FName, SName}, St)
             end;
         #{} ->
             St
     end.
 
 
--spec local_structs([erl_parse:abstract_form() | erl_parse:form_info()]) ->
+-spec local_native_records([erl_parse:abstract_form() | erl_parse:form_info()]) ->
           gb_sets:set(atom()).
-local_structs(Forms) ->
-    gb_sets:from_list([Name || {attribute, _, struct, {Name,_StrTuple}} <- Forms]).
+local_native_records(Forms) ->
+    gb_sets:from_list([Name || {attribute, _, native_record, {Name,_StrTuple}} <- Forms]).
 
 
 %% type_def(Attr, Anno, TypeName, PatField, Args, State) -> State.

@@ -1826,8 +1826,8 @@ bif_to_test_1(is_list,     [_]=Ops, Fail) ->
     {test,is_list,Fail,Ops};
 bif_to_test_1(is_map,      [_]=Ops, Fail) ->
     {test,is_map,Fail,Ops};
-bif_to_test_1(is_struct, [_]=Ops, Fail) ->
-  {test,is_struct,Fail,Ops};
+bif_to_test_1(is_record, [_]=Ops, Fail) ->
+  {test,is_record,Fail,Ops};
 bif_to_test_1(is_tagged_struct, [_,_,_]=Ops, Fail) ->
   {test,is_tagged_struct,Fail,Ops};
 bif_to_test_1(is_number,   [_]=Ops, Fail) ->

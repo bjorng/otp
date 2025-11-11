@@ -844,7 +844,7 @@ ubif erlang:is_integer/3
 # STRUCT PROTOTYPE
 #
 
-ubif erlang:is_struct/1
+ubif erlang:is_record/1
 ubif erlang:is_tagged_struct/3
 ubif erlang:struct_get/2
 ubif erlang:struct_module/1

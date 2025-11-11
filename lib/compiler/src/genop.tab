@@ -719,7 +719,7 @@ BEAM_FORMAT_NUMBER=0
 ##      On failure jump to Lbl.
 185: bif3/6
 
-186: is_struct/2
+186: is_record/2
 187: is_tagged_struct/4
 188: get_struct_elements/3
 189: put_struct/6

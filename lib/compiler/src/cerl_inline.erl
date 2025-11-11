@@ -73,7 +73,7 @@
 	       map_arg/1, map_es/1, update_c_map/3,
 	       update_c_map_pair/4,
 	       map_pair_op/1, map_pair_key/1, map_pair_val/1,
-               struct_id/1, struct_es/1, update_c_struct/3,
+               struct_arg/1, struct_id/1, struct_es/1, update_c_struct/4,
                struct_pair_key/1, struct_pair_val/1, update_c_struct_pair/3
 	   ]).
 
@@ -352,7 +352,9 @@ i(E, Ctxt, Ren, Env, S0) ->
 		map ->
 		    i_map(E, Ctxt, Ren, Env, S);
                 module ->
-                    i_module(E, Ctxt, Ren, Env, S)
+                    i_module(E, Ctxt, Ren, Env, S);
+                struct ->
+                    i_struct(E, Ctxt, Ren, Env, S)
             end
     end.
 
@@ -1381,6 +1383,19 @@ i_map_pair(E, Ctx, Ren, Env, S0) ->
     S3 = count_size(weight(map_pair), S2),
     {update_c_map_pair(E, Op, Key, Val), S3}.
 
+i_struct(E, Ctx, Ren, Env, S0) ->
+    {Arg, S1} = i(struct_arg(E), value, Ren, Env, S0),
+    {Es, S2} = mapfoldl(fun (E_i, S_i) ->
+        i_struct_pair(E_i, Ctx, Ren, Env, S_i)
+    end, S1, struct_es(E)),
+    S3 = count_size(weight(struct), S2),
+    {update_c_struct(E, Arg, struct_id(E), Es), S3}.
+
+i_struct_pair(E, _Ctx, Ren, Env, S0) ->
+    Key = struct_pair_key(E),
+    {Val, S1} = i(struct_pair_val(E), value, Ren, Env, S0),
+    S2 = count_size(weight(struct_pair), S1),
+    {update_c_struct_pair(E, Key, Val), S2}.
 
 %% This is a simplified version of `i_pattern', for lists of parameter
 %% variables only. It does not modify the state.
@@ -1454,7 +1469,7 @@ i_pattern(E, Ren, Env, Ren0, Env0, S) ->
                                                               Ren0, Env0, S_i)
                                 end, S, struct_es(E)),
 	    S2 = count_size(weight(struct), S1),
-	    {update_c_struct(E, struct_id(E), Es), S2};
+	    {update_c_struct(E, void(), struct_id(E), Es), S2};
 	_ ->
 	    case is_literal(E) of
 		true ->

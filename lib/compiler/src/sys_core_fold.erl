@@ -1819,9 +1819,10 @@ case_opt_compiler_generated(Core) ->
 		    alias -> C;
 		    var -> C;
                     struct ->
+                        Arg = cerl:struct_arg(C),
                         Id = cerl:set_ann(cerl:struct_id(C), []),
                         Es = cerl:struct_es(C),
-                        cerl:update_c_struct(C, Id, Es);
+                        cerl:update_c_struct(C, Arg, Id, Es);
 		    _ ->
                         cerl:set_ann(C, [compiler_generated])
 		end

@@ -116,7 +116,7 @@ function `type/1`.
          primop_name/1, receive_action/1, receive_clauses/1,
          receive_timeout/1, seq_arg/1, seq_body/1, set_ann/2,
          string_lit/1, string_val/1,
-         c_struct/2, ann_c_struct/4, struct_id/1, struct_es/1,
+         c_struct/2, ann_c_struct/4, struct_id/1, struct_es/1, struct_arg/1,
          c_struct_pair/2, ann_c_struct_pair/3,
          struct_pair_key/1, struct_pair_val/1,
          subtrees/1, to_records/1,
@@ -129,7 +129,7 @@ function `type/1`.
          update_c_letrec/3, update_c_map/3, update_c_map_pair/4,
          update_c_module/5, update_c_primop/3,
          update_c_receive/4, update_c_seq/3,
-         update_c_struct/3, update_c_struct_pair/3,
+         update_c_struct/4, update_c_struct_pair/3,
          update_c_try/6,
          update_c_tuple/2, update_c_tuple_skel/2, update_c_values/2,
          update_c_var/2, update_data/3, update_list/2, update_list/3,
@@ -1651,7 +1651,7 @@ map_pair_op(#c_map_pair{op=Op}) -> Op.
 Creates an abstract struct constructor.
 
 _See also: _`ann_c_struct/3`, `is_c_struct/1`, `struct_id/1`, `struct_es/1`,
-`c_struct_pair/2`, `update_c_struct/3`.
+`c_struct_pair/2`, `update_c_struct/4`.
 """.
 -doc(#{since => <<"OTP @OTP-19785@">>}).
 -spec c_struct(Argument :: struct_id(),
@@ -1693,13 +1693,28 @@ struct_id(#c_struct{id = Id}) ->
     Id.
 
 -doc """
+Returns the argument subtree of an abstract struct.
+
 _See also: _`c_struct/2`.
 """.
 -doc(#{since => <<"OTP @OTP-19785@">>}).
--spec update_c_struct(Node :: c_struct(), Id :: struct_id(),
+
+-spec struct_arg(Node :: c_struct()) -> c_struct() | c_literal().
+
+struct_arg(#c_struct{arg = M}) ->
+    M.
+
+-doc """
+_See also: _`c_struct/2`.
+""".
+-doc(#{since => <<"OTP @OTP-19785@">>}).
+-spec update_c_struct(Node :: c_struct() | c_literal(),
+                      Arg :: c_var() | c_literal(),
+                      Id :: struct_id(),
                       Pairs :: [c_struct_pair()]) -> c_struct().
-update_c_struct(#c_struct{}=Old, Id, Es) ->
-    Old#c_struct{id = Id, es = Es}.
+
+update_c_struct(#c_struct{}=Old, Arg, Id, Es) ->
+    Old#c_struct{arg=Arg, id = Id, es = Es}.
 
 -doc """
 Returns `true` if `Node` is an abstract struct, otherwise `false`.

@@ -1318,7 +1318,7 @@ padding() {
 
 // structs
 
-is_struct(Fail, Src) {
+is_record(Fail, Src) {
     if (!is_struct($Src)) {
         $FAIL($Fail);
     }

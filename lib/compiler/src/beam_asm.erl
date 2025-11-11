@@ -510,13 +510,13 @@ bdi_name_to_term(Atom) when is_atom(Atom) ->
 %%%
 
 build_record_chunk(Attr0, Dict0) ->
-    {Defs0,Attr} = partition(fun({Tag,_}) -> Tag =:= struct end,
+    {Defs0,Attr} = partition(fun({Tag,_}) -> Tag =:= native_record end,
                              Attr0),
     case Defs0 of
         [] ->
             {[],Attr0,Dict0};
         [_|_] ->
-            Defs1 = [Def || {struct,[Def]} <:- Defs0],
+            Defs1 = [Def || {native_record,[Def]} <:- Defs0],
             {Defs,Dict} = build_record_def(Defs1, Dict0),
             NumFields = lists:sum([length(Fs) || {_,Fs} <:- Defs1]),
             NumItems = length(Defs),

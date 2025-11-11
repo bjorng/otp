@@ -727,9 +727,9 @@ expr({map,L,Es0}, St0) ->
     map_build_pairs(#c_literal{val=#{}}, Es0, full_anno(L, St0), St0);
 expr({map,L,M,Es}, St) ->
     expr_map(M, Es, L, St);
-expr({struct,L,Id,Es0}, St0) ->
+expr({native_record,L,Id,Es0}, St0) ->
     struct_build_pairs(#c_literal{val=empty}, #c_literal{val=Id}, Es0, full_anno(L, St0), St0);
-expr({struct,L,Id,S,Es}, St) ->
+expr({native_record,L,Id,S,Es}, St) ->
     expr_struct(S, #c_literal{val=Id}, Es, L, St);
 expr({bin,L,Es0}, St0) ->
     try expr_bin(Es0, full_anno(L, St0), St0) of
@@ -1103,7 +1103,7 @@ sanitize({bin,L,Segs0}) ->
 sanitize({map,L,Ps0}) ->
     Ps = [sanitize(V) || {map_field_exact,_,_,V} <- Ps0],
     {tuple,L,Ps};
-sanitize({struct,L,_,Ps0}) ->
+sanitize({native_record,L,_,Ps0}) ->
     Ps = [sanitize(V) || {record_field,_,_,V} <- Ps0],
     {tuple,L,Ps};
 sanitize({op,L,_Name,P1,P2}) ->
@@ -1214,7 +1214,7 @@ expr_struct(S0, Id, Es0, L, St0) ->
              pats=[],
              guard=[#icall{anno=#a{anno=A},
                            module=#c_literal{anno=A,val=erlang},
-                           name=#c_literal{anno=A,val=is_struct},
+                           name=#c_literal{anno=A,val=is_record},
                            args=[S1]}],
              body=[S3]}],
     Eps = Eps0 ++ Eps1,
@@ -1225,9 +1225,11 @@ safe_struct(S0, St0) ->
         {#c_var{},_,_}=Res ->
             Res;
         {#c_literal{val=_Struct},_,_}=Res ->
-            %% TODO: when is_struct(Struct) needs to be guard
+            %% TODO: when is_record(Struct) needs to be guard
             Res;
         {NotStruct,Eps0,St1} ->
+            %% TODO: Doesn't seem to be reached.
+            %%
             %% Not a struct. There will be a syntax error if we try to
             %% pretty-print the Core Erlang code and then try to parse
             %% it. To avoid the syntax error, force the term into a
@@ -2676,10 +2678,10 @@ pattern({tuple,L,Ps}, St) ->
 pattern({map,L,Pairs}, St0) ->
     {Ps,St1} = pattern_map_pairs(Pairs, St0),
     {#imap{anno=#a{anno=lineno_anno(L, St1)},es=Ps},St1};
-pattern({struct,L,{M,N},Pairs}, St0) ->
+pattern({native_record,L,{M,N},Pairs}, St0) ->
     {Ps,St1} = pattern_struct_pairs(Pairs, St0),
     {#c_struct{anno=lineno_anno(L, St1),id=#c_literal{val={M,N}},es=Ps},St1};
-pattern({struct,L,{},Pairs}, St0) ->
+pattern({native_record,L,{},Pairs}, St0) ->
     {Ps,St1} = pattern_struct_pairs(Pairs, St0),
     {#c_struct{anno=lineno_anno(L, St1),id=#c_literal{val={}},es=Ps},St1};
 pattern({bin,L,Ps}, St0) ->

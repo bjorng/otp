@@ -79,12 +79,17 @@ local_basic(_Config) ->
     BRec = id(#b{}),
     CRec = id(#c{x=42, y=100}),
 
-    ~"ARec: #native_record_SUITE:a{x = 1, y = 2}\n" =
-        iolist_to_binary(io_lib:format("ARec: ~p~n", [ARec])),
-    ~"BRec: #native_record_SUITE:b{x = none, y = none, z = none}\n" =
-        iolist_to_binary(io_lib:format("BRec: ~w~n", [BRec])),
-    ~"CRec: #native_record_SUITE:c{x = 42, y = 100, z = []}\n" =
-        iolist_to_binary(io_lib:format("CRec: ~p~n", [CRec])),
+    case ?MODULE of
+        native_record_SUITE ->
+            ~"ARec: #native_record_SUITE:a{x = 1, y = 2}\n" =
+                iolist_to_binary(io_lib:format("ARec: ~p~n", [ARec])),
+            ~"BRec: #native_record_SUITE:b{x = none, y = none, z = none}\n" =
+                iolist_to_binary(io_lib:format("BRec: ~w~n", [BRec])),
+            ~"CRec: #native_record_SUITE:c{x = 42, y = 100, z = []}\n" =
+                iolist_to_binary(io_lib:format("CRec: ~p~n", [CRec]));
+        _ ->
+            ok
+    end,
 
     empty = name(id(#empty{})),
     a = name(ARec),

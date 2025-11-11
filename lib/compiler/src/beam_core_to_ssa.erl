@@ -2979,7 +2979,7 @@ select_struct(Scs, StructSrc, Tf, Vf, St0) ->
         select_struct_val(StructSrc, Id, Es, B, Fail, St1)
       end,
     {Is,St1} = match_fmf(F, Vf, St0, Scs),
-    {TestIs,St} = make_cond_branch({bif,is_struct}, [StructSrc], Tf, St1),
+    {TestIs,St} = make_cond_branch({bif,is_record}, [StructSrc], Tf, St1),
     {TestIs++Is,St}.
 
 select_struct_val(StrSrc, {M, N}, Es, B, Fail, St0) ->
@@ -3148,7 +3148,7 @@ internal_cg(_Anno, is_tagged_struct, [Struct,ModVal,NameVal], [Dst], St0) ->
   {Module,St2} = new_ssa_var(St1),
   {Phi,St3} = new_label(St2),
   {False,St4} = new_label(St3),
-  {Is0,St5} = make_cond_branch({bif,is_struct}, [Struct], False, St4),
+  {Is0,St5} = make_cond_branch({bif,is_record}, [Struct], False, St4),
   GetArity = #b_set{op={bif,struct_name},dst=Name,args=[Struct]},
   {Is1,St6} = make_cond_branch({bif,'=:='}, [Name,NameVal], False, St5),
   GetModule = #b_set{op={bif,struct_module},dst=Module, args=[Struct]},

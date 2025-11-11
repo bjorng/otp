@@ -812,7 +812,7 @@ write1(T, D, E, O) when is_tuple(T) ->
 	     $}]
     end;
 write1(T, D, E, O) ->
-    true = erlang:is_struct(T),
+    true = erlang:is_record(T),
     write_struct(T, D, E, O).
 
 %% write_tail(List, Depth, Encoding)

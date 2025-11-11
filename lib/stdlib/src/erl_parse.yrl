@@ -30,7 +30,7 @@ function function_clauses function_clause
 clause_args clause_guard clause_body
 expr expr_max expr_remote
 pat_expr pat_expr_max map_pat_expr record_pat_expr
-struct_pat_expr
+native_record_pat_expr
 pat_argument_list pat_exprs
 list tail
 list_comprehension lc_expr lc_exprs
@@ -39,7 +39,7 @@ map_comprehension
 binary_comprehension
 tuple
 record_expr record_tuple record_field record_fields
-struct_expr
+native_record_expr
 map_expr map_tuple map_field map_field_assoc map_field_exact map_fields map_key
 if_expr if_clause if_clauses case_expr cr_clause cr_clauses receive_expr
 fun_expr fun_clause fun_clauses atom_or_var integer_or_var
@@ -160,12 +160,12 @@ record_spec -> atom ',' exprs: {record, ['$1' | '$3']}.
 record_spec -> '(' atom ',' exprs ')': {record, ['$2' | '$4']}.
 
 %% More record-like record declaration that allows record_name.
-record_spec -> '#' record_name : {struct, ['$2']}.
-record_spec -> '#' record_name exprs: {struct, ['$2' | '$3']}.
-record_spec -> '(' '#' record_name exprs ')': {struct, ['$3' | '$4']}.
+record_spec -> '#' record_name : {native_record, ['$2']}.
+record_spec -> '#' record_name exprs: {native_record, ['$2' | '$3']}.
+record_spec -> '(' '#' record_name exprs ')': {native_record, ['$3' | '$4']}.
 
 typed_record_spec -> atom ',' typed_record_fields : {typed_record, '$1', '$3'}.
-typed_record_spec -> '#' record_name typed_record_fields : {typed_struct, '$2', '$3'}.
+typed_record_spec -> '#' record_name typed_record_fields : {typed_native_record, '$2', '$3'}.
 
 typed_record_fields -> '{' typed_exprs '}' : {tuple, ?anno('$1'), '$2'}.
 
@@ -295,7 +295,7 @@ expr -> prefix_op expr : ?mkop1('$1', '$2').
 expr -> map_expr : '$1'.
 expr -> function_call : '$1'.
 expr -> record_expr : '$1'.
-expr -> struct_expr : '$1'.
+expr -> native_record_expr : '$1'.
 expr -> expr_remote : '$1'.
 
 expr_remote -> expr_max ':' expr_max : {remote,?anno('$2'),'$1','$3'}.
@@ -327,7 +327,7 @@ pat_expr -> pat_expr mult_op pat_expr : ?mkop2('$1', '$2', '$3').
 pat_expr -> prefix_op pat_expr : ?mkop1('$1', '$2').
 pat_expr -> map_pat_expr : '$1'.
 pat_expr -> record_pat_expr : '$1'.
-pat_expr -> struct_pat_expr : '$1'.
+pat_expr -> native_record_pat_expr : '$1'.
 pat_expr -> pat_expr_max : '$1'.
 
 pat_expr_max -> var : '$1'.
@@ -346,10 +346,10 @@ record_pat_expr -> '#' atom '.' atom :
 record_pat_expr -> '#' record_name record_tuple :
                        {record,?anno('$1'),element(3, '$2'),'$3'}.
 
-struct_pat_expr -> '#' atom ':' record_name record_tuple :
-	{struct,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
-struct_pat_expr -> '#_' record_tuple :
-	{struct,?anno('$1'), {},'$2'}.
+native_record_pat_expr -> '#' atom ':' record_name record_tuple :
+	{native_record,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
+native_record_pat_expr -> '#_' record_tuple :
+	{native_record,?anno('$1'), {},'$2'}.
 
 list -> '[' ']' : {nil,?anno('$1')}.
 list -> '[' expr tail : {cons,?anno('$1'),'$2','$3'}.
@@ -465,26 +465,26 @@ record_fields -> record_field ',' record_fields : ['$1' | '$3'].
 record_field -> var '=' expr : {record_field,?anno('$1'),'$1','$3'}.
 record_field -> atom '=' expr : {record_field,?anno('$1'),'$1','$3'}.
 
-struct_expr -> '#' atom ':' record_name record_tuple :
-	{struct,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
-struct_expr -> '#_' record_tuple :
-	{struct,?anno('$1'), {},'$2'}.
+native_record_expr -> '#' atom ':' record_name record_tuple :
+	{native_record,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
+native_record_expr -> '#_' record_tuple :
+	{native_record,?anno('$1'), {},'$2'}.
 
-struct_expr -> expr_max '#' atom ':' record_name '.' atom :
-	{struct_field_expr,?anno('$2'),'$1',{element(3, '$3'),element(3, '$5')},element(3, '$7')}.
-struct_expr -> expr_max '#_' '.' atom :
-	{struct_field_expr,?anno('$2'),'$1',{},element(3, '$4')}.
+native_record_expr -> expr_max '#' atom ':' record_name '.' atom :
+	{native_record_field_expr,?anno('$2'),'$1',{element(3, '$3'),element(3, '$5')},element(3, '$7')}.
+native_record_expr -> expr_max '#_' '.' atom :
+	{native_record_field_expr,?anno('$2'),'$1',{},element(3, '$4')}.
 
-struct_expr -> expr_max '#' atom ':' record_name record_tuple :
-	{struct_update,?anno('$2'),'$1',{element(3, '$3'),element(3, '$5')},'$6'}.
-struct_expr -> expr_max '#_' record_tuple :
-	{struct_update,?anno('$2'),'$1',{},'$3'}.
-struct_expr -> struct_expr '#_' record_tuple :
-        {struct_update,?anno('$2'),'$1',{},'$3'}.
-struct_expr -> '#' record_name :
-        {struct_id,?anno('$1'),element(3, '$2')}.
-struct_expr -> '#' atom ':' record_name :
-        {struct_id,?anno('$1'),{element(3, '$2'),element(3, '$4')}}.
+native_record_expr -> expr_max '#' atom ':' record_name record_tuple :
+	{native_record_update,?anno('$2'),'$1',{element(3, '$3'),element(3, '$5')},'$6'}.
+native_record_expr -> expr_max '#_' record_tuple :
+	{native_record_update,?anno('$2'),'$1',{},'$3'}.
+native_record_expr -> native_record_expr '#_' record_tuple :
+        {native_record_update,?anno('$2'),'$1',{},'$3'}.
+native_record_expr -> '#' record_name :
+        {native_record_id,?anno('$1'),element(3, '$2')}.
+native_record_expr -> '#' atom ':' record_name :
+        {native_record_id,?anno('$1'),{element(3, '$2'),element(3, '$4')}}.
 
 %% N.B. This is called from expr.
 
@@ -911,12 +911,12 @@ processed (see section [Error Information](#module-error-information)).
                        | af_behaviour()
                        | af_export()
                        | af_import()
-                       | af_import_struct()
+                       | af_import_record()
                        | af_export_type()
                        | af_compile()
                        | af_file()
                        | af_record_decl()
-                       | af_struct_decl()
+                       | af_native_record_decl()
                        | af_type_decl()
                        | af_function_spec()
                        | af_wild_attribute()
@@ -934,7 +934,7 @@ processed (see section [Error Information](#module-error-information)).
 
 -type af_import() :: {'attribute', anno(), 'import', {module(), af_fa_list()}}.
 
--type af_import_struct() :: {'attribute', anno(), 'import_struct', {module(), [atom()]}}.
+-type af_import_record() :: {'attribute', anno(), 'import_record', {module(), [atom()]}}.
 
 -type af_fa_list() :: [{function_name(), arity()}].
 
@@ -958,8 +958,8 @@ processed (see section [Error Information](#module-error-information)).
 -type af_field() :: {'record_field', anno(), af_field_name()}
                   | {'record_field', anno(), af_field_name(), abstract_expr()}.
 
--type af_struct_decl() ::
-        {'attribute', anno(), 'struct', {StructName :: atom(), [af_field()]}}.
+-type af_native_record_decl() ::
+        {'attribute', anno(), 'native_record', {NativeRecordName :: atom(), [af_field()]}}.
 
 -type af_type_decl() :: {'attribute', anno(), type_attr(),
                          {type_name(), abstract_type(), [af_variable()]}}.
@@ -995,9 +995,9 @@ processed (see section [Error Information](#module-error-information)).
                        | af_record_update(abstract_expr())
                        | af_record_index()
                        | af_record_field_access(abstract_expr())
-                       | af_struct_creation()
-                       | af_struct_update()
-                       | af_struct_field_access()
+                       | af_native_record_creation()
+                       | af_native_record_update()
+                       | af_native_record_field_access()
                        | af_map_creation(abstract_expr())
                        | af_map_update(abstract_expr())
                        | af_catch()
@@ -1159,7 +1159,7 @@ processed (see section [Error Information](#module-error-information)).
                     | af_unary_op(af_pattern())
                     | af_record_creation(af_pattern())
                     | af_record_index()
-                    | af_struct_pattern()
+                    | af_native_record_pattern()
                     | af_map_pattern().
 
 -type af_record_index() ::
@@ -1170,17 +1170,17 @@ processed (see section [Error Information](#module-error-information)).
 
 -type af_record_field(T) :: {'record_field', anno(), af_field_name(), T}.
 
--type af_struct_creation() ::
-        {'struct', anno(), {atom(), atom()} | {}, [af_record_field(abstract_expr())]}.
+-type af_native_record_creation() ::
+        {'native_record', anno(), {atom(), atom()} | {}, [af_record_field(abstract_expr())]}.
 
--type af_struct_update() ::
-        {'struct_update', anno(), abstract_expr(), {atom(), atom()} | {}, [af_record_field(abstract_expr())]}.
+-type af_native_record_update() ::
+        {'native_record_update', anno(), abstract_expr(), {atom(), atom()} | {}, [af_record_field(abstract_expr())]}.
 
--type af_struct_field_access() ::
-        {'struct_field_expr', anno(), abstract_expr(), {atom(), atom()} | {}, atom()}.
+-type af_native_record_field_access() ::
+        {'native_record_field_expr', anno(), abstract_expr(), {atom(), atom()} | {}, atom()}.
 
--type af_struct_pattern() ::
-        {'struct', anno(), {atom(), atom()} | {}, [af_record_field(af_pattern())]}.
+-type af_native_record_pattern() ::
+        {'native_record', anno(), {atom(), atom()} | {}, [af_record_field(af_pattern())]}.
 
 -type af_map_pattern() ::
         {'map', anno(), [af_assoc_exact(af_pattern())]}.
@@ -1503,7 +1503,8 @@ parse_term(Tokens) ->
     end.
 
 -type attributes() :: 'export' | 'file' | 'import' | 'module'
-		    | 'nominal' | 'opaque' | 'record' | 'type'.
+		    | 'nominal' | 'opaque' | 'record' | 'native_record'
+		    | 'type'.
 
 build_typed_attribute({atom,Aa,record},
 		      {typed_record, {atom,_An,RecordName}, RecTuple}) ->
@@ -1524,7 +1525,7 @@ build_typed_attribute({atom,Aa,Attr}=Abstr,_) ->
         record -> error_bad_decl(Abstr, record);
         type   -> error_bad_decl(Abstr, type);
         nominal -> error_bad_decl(Abstr, nominal);
-        struct -> error_bad_decl(Abstr, struct);
+        native_record -> error_bad_decl(Abstr, native_record);
 	opaque -> error_bad_decl(Abstr, opaque);
         _      -> ret_err(Aa, "bad attribute")
     end.
@@ -1598,11 +1599,11 @@ build_atom({ReservedWord, Aa}) -> {atom, Aa, ReservedWord}.
 build_record({record, Aa}, {typed_record,Name0,Tuple}) ->
     {atom,_,Name} = build_atom(Name0),
     {attribute,Aa,record,{Name,record_tuple(Tuple)}};
-build_record({record, Aa}, {typed_struct,Name0,Tuple}) ->
+build_record({record, Aa}, {typed_native_record,Name0,Tuple}) ->
     {atom,_,Name} = build_atom(Name0),
-    {attribute,Aa,struct,{Name,record_tuple(Tuple)}};
+    {attribute,Aa,native_record,{Name,record_tuple(Tuple)}};
 build_record({record, Aa}, {Tag,[Name0,Fs]}) ->
-    true = Tag =:= record orelse Tag =:= struct, %Assertion.
+    true = Tag =:= record orelse Tag =:= native_record, %Assertion.
     {atom,_,Name} = build_atom(Name0),
     {attribute,Aa,Tag,{Name,record_tuple(Fs)}}.
 
@@ -1648,26 +1649,22 @@ build_attribute({atom,Aa,import}, Val) ->
 	    {attribute,Aa,import,{Mod,farity_list(ImpList)}};
         [_,Other|_] -> error_bad_decl(Other, import)
     end;
-build_attribute({atom,Aa,import_struct}, Val) ->
+build_attribute({atom,Aa,import_record}, Val) ->
     case Val of
 	[{atom,_Am,Mod},StrList] ->
-	    {attribute,Aa,import_struct,{Mod,struct_name_list(StrList)}};
-        [_,Other|_] -> error_bad_decl(Other, import_struct)
+	    {attribute,Aa,import_record,{Mod,native_record_name_list(StrList)}};
+        [_,Other|_] -> error_bad_decl(Other, import_record)
     end;
 build_attribute({atom,Aa,record}, Val) ->
     case Val of
 	[{atom,_An,Record},RecTuple] ->
 	    {attribute,Aa,record,{Record,record_tuple(RecTuple)}};
 	[{record,_Ar,Record,Fields}] ->
-	    {attribute,Aa,struct,{Record,Fields}};
+	    {attribute,Aa,native_record,{Record,Fields}};
         [Other|_] -> error_bad_decl(Other, record)
     end;
-build_attribute({atom,Aa,struct}, Val) ->
-    case Val of
-	[{atom,_An,Struct},StructTuple] ->
-	    {attribute,Aa,struct,{Struct,record_tuple(StructTuple)}};
-        [Other|_] -> error_bad_decl(Other, struct)
-    end;
+build_attribute({atom,Aa,native_record}, _Val) ->
+    ret_err(Aa, "bad native record definition");
 build_attribute({atom,Aa,file}, Val) ->
     case Val of
 	[{string,_An,Name},{integer,_Al,Line}] ->
@@ -1763,11 +1760,11 @@ farity_list({nil,_An}) -> [];
 farity_list(Other) ->
     ret_abstr_err(Other, "bad Name/Arity").
 
-struct_name_list({cons,_Ac,{atom,_Aa,A},Tail}) ->
-    [A|struct_name_list(Tail)];
-struct_name_list({nil,_An}) -> [];
-struct_name_list(Other) ->
-    ret_abstr_err(Other, "bad struct name").
+native_record_name_list({cons,_Ac,{atom,_Aa,A},Tail}) ->
+    [A|native_record_name_list(Tail)];
+native_record_name_list({nil,_An}) -> [];
+native_record_name_list(Other) ->
+    ret_abstr_err(Other, "bad native record name").
 
 record_tuple({tuple,_At,Fields}) ->
     record_fields(Fields);
@@ -2441,19 +2438,19 @@ modify_anno1({Tag,A,E1}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {E11,Ac2} = modify_anno1(E1, Ac1, Mf),
     {{Tag,A1,E11},Ac2};
-modify_anno1({struct,A,N,Fs}, Ac, Mf) ->
+modify_anno1({native_record,A,N,Fs}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {Fs1,Ac2} = modify_anno1(Fs, Ac1, Mf),
-    {{struct,A1,N,Fs1},Ac2};
-modify_anno1({struct_update,A,E,N,Fs}, Ac, Mf) ->
+    {{native_record,A1,N,Fs1},Ac2};
+modify_anno1({native_record_update,A,E,N,Fs}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {E1,Ac2} = modify_anno1(E, Ac1, Mf),
     {Fs1,Ac3} = modify_anno1(Fs, Ac2, Mf),
-    {{struct_update,A1,E1,N,Fs1},Ac3};
-modify_anno1({struct_field_expr,A,E,N,FN}, Ac, Mf) ->
+    {{native_record_update,A1,E1,N,Fs1},Ac3};
+modify_anno1({native_record_field_expr,A,E,N,FN}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {E1,Ac2} = modify_anno1(E, Ac1, Mf),
-    {{struct_field_expr,A1,E1,N,FN},Ac2};
+    {{native_record_field_expr,A1,E1,N,FN},Ac2};
 modify_anno1({Tag,A,E1,E2}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {E11,Ac2} = modify_anno1(E1, Ac1, Mf),
