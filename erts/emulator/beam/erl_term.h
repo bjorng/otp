@@ -434,6 +434,7 @@ _ET_DECLARE_CHECKED(Eterm*,fun_val,Eterm)
     (((x) & _HEADER_SUBTAG_MASK) == STRUCT_SUBTAG)
 #define is_struct(x)                                                          \
     (is_boxed((x)) && is_struct_header(*boxed_val((x))))
+#define is_not_struct(x) (!is_struct(x))
 #define _unchecked_struct_val(x)                                              \
     _unchecked_boxed_val((x))
 _ET_DECLARE_CHECKED(Eterm*,struct_val,Eterm)

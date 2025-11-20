@@ -875,6 +875,24 @@ static int parse_debug_chunk(BeamFile *beam, IFF_Chunk *chunk) {
     }
 }
 
+struct erl_record_field {
+    int order;
+    Eterm key;
+    Eterm value;
+};
+
+static int record_compare(const struct erl_record_field *a, const struct erl_record_field *b) {
+    Sint res = erts_cmp_flatmap_keys(a->key, b->key);
+
+    if (res < 0) {
+        return -1;
+    } else if (res > 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
 static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
     Sint32 record_count;
     Sint32 total_field_count;
@@ -882,8 +900,7 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
     BeamCodeReader *op_reader;
     BeamOp *op = NULL;
     BeamFile_RecordTable *rec = &beam->record;
-    ErtsStructDefinition *tmp_def;
-    Eterm *fp;
+    struct erl_record_field *fields = NULL;
 
     LoadAssert(beamreader_read_i32(p_reader, &record_count));
     LoadAssert(beamreader_read_i32(p_reader, &total_field_count));
@@ -906,14 +923,16 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
     rec->total_field_count = 2 * total_field_count;
     rec->records = erts_alloc(ERTS_ALC_T_PREPARED_CODE,
                               record_count * sizeof(BeamFile_Record));
-    rec->fields = erts_alloc(ERTS_ALC_T_PREPARED_CODE,
-                             2 * total_field_count * sizeof(Eterm));
-    fp = rec->fields;
 
     for (Sint32 i = 0; i < record_count; i++) {
         BeamOpArg *arg;
         int extra_args;
         int field_index;
+        Uint tmp_size;
+        Uint struct_def_size;
+        Uint num_fields;
+        Eterm *order_tuple;
+        ErtsStructDefinition *tmp_def;
 
         if (!beamcodereader_next(op_reader, &op)) {
             goto error;
@@ -967,21 +986,19 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
             goto error;
         }
 
-        rec->records[i].num_fields = extra_args / 2;
-        rec->records[i].first = fp;
+        rec->records[i].num_fields = num_fields = extra_args / 2;
 
-        tmp_def = (ErtsStructDefinition *) erts_alloc(ERTS_ALC_T_TMP,
-                                                      (extra_args + 2) * sizeof(Eterm));
-        tmp_def->thing_word = make_arityval(extra_args + 1);
-        tmp_def->entry = NIL;
-
+        /* Collect field names and default values. Put it into an
+         * array of erl_record_fields structs, which are suitable for
+         * sorting. */
+        fields = erts_alloc(ERTS_ALC_T_TMP, num_fields * sizeof(struct erl_record_field));
         field_index = 0;
-
         while (extra_args > 0) {
+            fields[field_index].order = field_index;
+
             switch (arg[0].type) {
             case TAG_a:
-                *fp++ = arg[0].val;
-                tmp_def->fields[field_index].key = arg[0].val;
+                fields[field_index].key = arg[0].val;
                 break;
             default:
                 goto error;
@@ -989,22 +1006,17 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
 
             switch (arg[1].type) {
             case TAG_u:
-                *fp++ = THE_NON_VALUE;
-                tmp_def->fields[field_index].value = make_catch(0);
+                fields[field_index].value = make_catch(0);
                 break;
             case TAG_a:
             case TAG_n:
-                *fp++ = arg[1].val;
-                tmp_def->fields[field_index].value = arg[1].val;
+                fields[field_index].value = arg[1].val;
                 break;
             case TAG_i:
-                *fp++ = arg[1].val;
-                tmp_def->fields[field_index].value = make_small(arg[1].val);
+                fields[field_index].value = make_small(arg[1].val);
                 break;
             case TAG_q:
-                *fp++ = beamfile_get_literal(beam, arg[1].val);
-                tmp_def->fields[field_index].value =
-                    beamfile_get_literal(beam, arg[1].val);
+                fields[field_index].value = beamfile_get_literal(beam, arg[1].val);
                 break;
             default:
                 goto error;
@@ -1015,9 +1027,46 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
             extra_args -= 2;
         }
 
-        rec->records[i].def_literal = beamfile_add_literal(beam, make_boxed(tmp_def), 0);
+        qsort((void *) fields, num_fields, sizeof(struct erl_record_field),
+              (int (*)(const void *, const void *)) record_compare);
+
+        /* Separate the fields into an array of field names and default values,
+         * and a tuple mapping from original position to current position. */
+
+        tmp_size = sizeof(ErtsStructDefinition);
+        tmp_size += 2 * num_fields * sizeof(Eterm); /* Fields & default values */
+
+        struct_def_size = tmp_size;
+        tmp_size += (num_fields + 1) * sizeof(Eterm); /* Order tuple */
+
+        tmp_def = (ErtsStructDefinition *) erts_alloc(ERTS_ALC_T_TMP, tmp_size);
+        tmp_def->thing_word = make_arityval(struct_def_size/sizeof(Eterm) - 1);
+        tmp_def->entry = NIL;
+
+        order_tuple = &tmp_def->fields[num_fields].key;
+
+        if (rec->records[i].num_fields == 0) {
+            *order_tuple = NIL;
+            tmp_def->field_order = ERTS_GLOBAL_LIT_EMPTY_TUPLE;
+        } else {
+            tmp_def->field_order = make_tuple(order_tuple);
+            *order_tuple++ = make_arityval(num_fields);
+        }
+
+        for (field_index = 0; field_index < num_fields; field_index++) {
+            tmp_def->fields[field_index].key = fields[field_index].key;
+            tmp_def->fields[field_index].value = fields[field_index].value;
+            order_tuple[fields[field_index].order] = make_small(field_index);
+        }
+
+        /* Save everything into a literal. */
+        rec->records[i].def_literal =
+            beamfile_add_literal(beam, make_tuple((Eterm *)tmp_def), 0);
 
         erts_free(ERTS_ALC_T_TMP, tmp_def);
+
+        erts_free(ERTS_ALC_T_TMP, fields);
+        fields = NULL;
 
         beamopallocator_free_op(&op_allocator, op);
         op = NULL;
@@ -1033,17 +1082,16 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
         beamopallocator_free_op(&op_allocator, op);
     }
 
+    if (fields != NULL) {
+        erts_free(ERTS_ALC_T_TMP, fields);
+    }
+
     beamcodereader_close(op_reader);
     beamopallocator_dtor(&op_allocator);
 
     if (rec->records) {
         erts_free(ERTS_ALC_T_PREPARED_CODE, rec->records);
         rec->records = NULL;
-    }
-
-    if (rec->fields) {
-        erts_free(ERTS_ALC_T_PREPARED_CODE, rec->fields);
-        rec->fields = NULL;
     }
 
     return 0;

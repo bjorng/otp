@@ -175,14 +175,12 @@ typedef struct {
     bool is_exported;
     Sint def_literal;
     Sint32 num_fields;
-    Eterm *first;
 } BeamFile_Record;
 
 typedef struct {
     Sint32 record_count;
     Sint32 total_field_count;
     BeamFile_Record *records;
-    Eterm *fields;
 } BeamFile_RecordTable;
 
 typedef struct {

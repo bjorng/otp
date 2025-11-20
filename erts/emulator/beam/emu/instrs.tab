@@ -1330,7 +1330,7 @@ is_tagged_struct(Fail, Src, Mod, Name) {
     }
 }
 
-get_struct_elements(Fail, Src, N) {
+i_get_record_elements(Fail, Src, N) {
     if (!erl_struct_get_elements(c_p, reg, $Src, $N, $NEXT_INSTRUCTION)) {
         $FAIL($Fail);
     }

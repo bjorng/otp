@@ -36,6 +36,8 @@
            m=#{a => 1}}.
 -record #e{x=0.0}.
 
+-record #order{zzzz=0, true=1, aaaa=2, wwww=3}.
+
 %% Records with non-atomic names.
 -record #div{attr=0}.
 -record #rem{n=0}.
@@ -78,6 +80,13 @@ local_basic(_Config) ->
     ARec = id(#a{x=1, y=2}),
     BRec = id(#b{}),
     CRec = id(#c{x=42, y=100}),
+    DRec = id(#d{f=3.0}),
+    Order = id(#order{}),
+
+    #d{l=[a,b,c],t={a,b,c}} = DRec,
+    #d{m=#{a := 1}} = DRec,
+
+    #order{zzzz=0, true=1, aaaa=2, wwww=3} = Order,
 
     case ?MODULE of
         native_record_SUITE ->
@@ -86,7 +95,11 @@ local_basic(_Config) ->
             ~"BRec: #native_record_SUITE:b{x = none, y = none, z = none}\n" =
                 iolist_to_binary(io_lib:format("BRec: ~w~n", [BRec])),
             ~"CRec: #native_record_SUITE:c{x = 42, y = 100, z = []}\n" =
-                iolist_to_binary(io_lib:format("CRec: ~p~n", [CRec]));
+                iolist_to_binary(io_lib:format("CRec: ~p~n", [CRec])),
+            ~"DRec: #native_record_SUITE:d{f = 3.0, l = [a,b,c], t = {a,b,c}, m = #{a => 1}}\n" =
+                iolist_to_binary(io_lib:format("DRec: ~p~n", [DRec])),
+            ~"Order: #native_record_SUITE:order{zzzz = 0, true = 1, aaaa = 2, wwww = 3}\n" =
+                iolist_to_binary(io_lib:format("Order: ~p~n", [Order]));
         _ ->
             ok
     end,
@@ -160,7 +173,8 @@ is_int_ax_guard_2(#a{}=A) when is_integer(A#a.x) -> true;
 is_int_ax_guard_2(_) -> false.
 
 local_updates(_Config) ->
-    R0 = #b{},
+    R0 = id(#b{}),
+    R0 = R0#b{},
     R1 = id(R0#b{x=foo}),
     #b{x=foo, y=none, z=none} = id(R1),
     #?MODULE:b{x=foo, y=none, z=none} = id(R1),
@@ -169,7 +183,7 @@ local_updates(_Config) ->
     none = R1#b.z,
 
     R2 = id(R1#b{y=bar, z=baz}),
-    R2 = id(R1#?MODULE:b{y=bar, z=baz}),
+    R2 = id(R1#?MODULE:b{z=baz, y=bar}),
     #b{x=foo, y=bar, z=baz} = id(R2),
     foo = R2#b.x,
     bar = R2#b.y,
@@ -306,14 +320,33 @@ get_field_names_bif(_Config) ->
     BRec = records:create(?MODULE, b, #{}),
     CRec = records:create(?MODULE, c, #{x=>42, y=>100}),
 
+    ?assertError({badmap,{a,b,c}}, records:create(?MODULE, b, {a,b,c})),
+    ?assertError({badfield,qqq}, records:create(?MODULE, b, #{qqq => aaa})),
+    ?assertError({badfield,{really,bad}},
+                 records:create(?MODULE, b, #{{really,bad} => value})),
+    ?assertError({novalue,x}, records:create(?MODULE, c, #{})),
+
+    %% TODO: A large map should be properly handled.
+    LargeMap = #{I => I || I <- lists:seq(1, 64)},
+    ?assertError(system_limit, records:create(?MODULE, c, LargeMap)),
+
     [x,y] = records:get_field_names(ARec),
     [x,y,z] = records:get_field_names(BRec),
     [x,y,z] = records:get_field_names(CRec),
 
     R0 = #b{},
+    R0 = R0#b{},
     R1 = records:update(R0, ?MODULE, b, #{x=>foo}),
     #b{x=foo, y=none, z=none} = id(R1),
     #?MODULE:b{x=foo, y=none, z=none} = id(R1),
+
+    ?assertError({badmap,not_a_map}, records:update(CRec, ?MODULE, c, not_a_map)),
+    ?assertError({badfield,a}, records:update(CRec, ?MODULE, c, #{a => b})),
+    ?assertError({badfield,{really,bad}},
+                 records:update(CRec, ?MODULE, c, #{{really,bad} => b})),
+
+    %% TODO: A large map should be properly handled.
+    ?assertError(system_limit, records:update(CRec, ?MODULE, c, LargeMap)),
 
     N = 10000,
     #a{x=N,y=0} =

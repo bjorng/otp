@@ -338,8 +338,8 @@ BIF_RETTYPE struct_get_2(BIF_ALIST_2) {
     key = BIF_ARG_1;
     obj = BIF_ARG_2;
 
-    if (!is_struct(obj) ||
-        !is_atom(key)) {
+    if (is_not_struct(obj) ||
+        is_not_atom(key)) {
         BIF_ERROR(BIF_P, BADARG);
     }
 
@@ -366,8 +366,8 @@ BIF_RETTYPE records_get_2(BIF_ALIST_2) {
     key = BIF_ARG_1;
     obj = BIF_ARG_2;
 
-    if (!is_struct(obj) ||
-        !is_atom(key)) {
+    if (is_not_struct(obj) ||
+        is_not_atom(key)) {
         BIF_ERROR(BIF_P, BADARG);
     }
 
@@ -399,44 +399,35 @@ Eterm struct_name(Eterm obj) {
 }
 
 bool erl_struct_get_elements(Process* p, Eterm* reg, Eterm src,
-                             Uint size, const Eterm* new_p) {
+                             Uint size, const Eterm* elems) {
     /* Struct term, Key */
     ErtsStructDefinition *defp;
+    ErtsStructInstance *instance;
+    const Eterm *elems_end;
+    Eterm *values;
     int field_count;
-    Eterm *objp;
     Eterm* E = p->stop;
 
-    if (!is_struct(src)) {
-        return false;
-    }
+    ASSERT(is_struct(src));
 
-    objp = struct_val(src);
-    field_count = header_arity(objp[0]) - 1;
-    defp = (ErtsStructDefinition*)boxed_val(objp[1]);
+    instance = (ErtsStructInstance*)struct_val(src);
+    field_count = header_arity(instance->thing_word) - 1;
+    defp = (ErtsStructDefinition*)boxed_val(instance->struct_definition);
+    values = instance->values;
 
-    for (int i = 0; i < size; i += 2) {
-        int j;
+    elems_end = elems + size;
 
-        if(!is_atom(new_p[i])) {
-            p->fvalue = new_p[i];
-            p->freason = EXC_BADFIELD;
-            return false;
-        }
-
-        for (j = 0; j < field_count; j++) {
-            if (eq(new_p[i], defp->fields[j].key)) {
-                PUT_TERM_REG(objp[2+j], new_p[i+1]);
-                break;
+    for (int i = 0; i < field_count; i++) {
+        if (elems[0] == defp->fields[i].key) {
+            PUT_TERM_REG(values[i], elems[1]);
+            elems += 2;
+            if (elems >= elems_end) {
+                return true;
             }
         }
-        if (j == field_count) {
-            p->fvalue = new_p[i];
-            p->freason = EXC_BADFIELD;
-            return false;
-        }
     }
 
-    return true;
+    return false;
 }
 
 Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
@@ -466,6 +457,8 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
             Eterm* E;
             Uint num_words_needed;
             Eterm res;
+            Eterm sentinel = NIL;
+            const Eterm *new_end = new_p + size;
 
             defp = (ErtsStructDefinition*)boxed_val(def);
             field_count = (arityval(defp->thing_word) - 1) / 2;
@@ -477,8 +470,6 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
             hp = p->htop;
             E = p->stop;
 
-            p->htop = hp + num_words_needed;
-
             instance = (ErtsStructInstance*)hp;
             res = make_struct(hp);
 
@@ -487,35 +478,36 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
 
             hp = (Eterm*) &(instance->values);
 
-            /* Get default values for all fields. */
-            for (int i = 0; i < field_count; i++) {
-                hp[i] = defp->fields[i].value;
+            if (new_p == new_end) {
+                new_p = &sentinel;
             }
 
-            /* Initialize fields. */
-            for (int i = 0; i < size; i += 2) {
-                int j;
-                for (j = 0; j < field_count; j++) {
-                    if (eq(new_p[i], defp->fields[j].key)) {
-                        GetSource(new_p[i+1], hp[j]);
-                        break;
+            for (int i = 0; i < field_count; i++) {
+                if (new_p[0] == defp->fields[i].key) {
+                    GetSource(new_p[1], *hp);
+                    hp++;
+                    new_p += 2;
+                    if (new_p >= new_end) {
+                        new_p = &sentinel;
                     }
-                }
-                if (j == field_count) {
-                    p->fvalue = new_p[i];
-                    p->freason = EXC_BADFIELD;
-                    return THE_NON_VALUE;
+                } else {
+                    Eterm value = defp->fields[i].value;
+                    if (is_catch(value)) {
+                        p->fvalue = defp->fields[i].key;
+                        p->freason = EXC_NOVALUE;
+                        return THE_NON_VALUE;
+                    }
+                    *hp++ = value;
                 }
             }
 
-            /* Ensure that all fields now have a value. */
-            for (int i = 0; i < field_count; i++) {
-                if (is_catch(hp[i])) {
-                    p->fvalue = defp->fields[i].key;
-                    p->freason = EXC_NOVALUE;
-                    return THE_NON_VALUE;
-                }
+            if (new_p != &sentinel) {
+                p->fvalue = new_p[0];
+                p->freason = EXC_BADFIELD;
+                return THE_NON_VALUE;
             }
+
+            p->htop += num_words_needed;
 
             return res;
         }
@@ -533,8 +525,8 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     ErtsStructEntry *entry;
     Uint code_ix;
 
-    if (!is_atom(BIF_ARG_1) ||
-        !is_atom(BIF_ARG_2)) {
+    if (is_not_atom(BIF_ARG_1) ||
+        is_not_atom(BIF_ARG_2)) {
         BIF_P->fvalue = BIF_ARG_2;
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
@@ -554,6 +546,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             ErtsStructInstance *instance;
             int field_count;
             Eterm *hp;
+            Eterm *hp_end;
             Uint num_words_needed;
             Eterm res;
 
@@ -574,43 +567,54 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             instance->struct_definition = def;
 
             hp = (Eterm*) &(instance->values);
+            hp_end = hp + field_count;
 
-            /* Get default values for all fields. */
-            for (int i = 0; i < field_count; i++) {
-                hp[i] = defp->fields[i].value;
-            }
-
-            if(!is_map(BIF_ARG_3)) {
+            if (is_not_map(BIF_ARG_3)) {
                 BIF_P->fvalue = BIF_ARG_3;
                 BIF_ERROR(BIF_P, BADMAP);
-            } else {
+            } else if (is_flatmap(BIF_ARG_3)) {
+                const Eterm *ks_end;
+                Eterm sentinel = NIL;
+
                 mp = (flatmap_t *)flatmap_val(BIF_ARG_3);
                 ks = flatmap_get_keys(mp);
                 vs = flatmap_get_values(mp);
                 n  = flatmap_get_size(mp);
-            }
 
-            /* Initialize fields. */
-            for (int i = 0; i < n; i++) {
-                int j;
-                for (j = 0; j < field_count; j++) {
-                    if (eq(ks[i], defp->fields[j].key)) {
-                        hp[j] = vs[i];
-                        break;
+                ks_end = ks + n;
+
+                if (ks == ks_end) {
+                    ks = &sentinel;
+                }
+
+                for (int i = 0; i < field_count; i++) {
+                    if (ks[0] == defp->fields[i].key) {
+                        *hp++ = *vs;
+                        ks++, vs++;
+                        if (ks >= ks_end) {
+                            ks = &sentinel;
+                        }
+                    } else {
+                        Eterm value = defp->fields[i].value;
+                        if (is_catch(value)) {
+                            HRelease(BIF_P, hp_end, hp);
+                            BIF_P->fvalue = defp->fields[i].key;
+                            BIF_ERROR(BIF_P, EXC_NOVALUE);
+                        }
+                        *hp++ = value;
                     }
                 }
-                if (j == field_count) {
-                    BIF_P->fvalue = ks[i];
-                    BIF_ERROR(BIF_P, EXC_BADFIELD);
-                }
-            }
 
-            /* Ensure that all fields now have a value. */
-            for (int i = 0; i < field_count; i++) {
-                if (is_catch(hp[i])) {
-                    BIF_P->fvalue = defp->fields[i].key;
-                    BIF_ERROR(BIF_P, EXC_NOVALUE);
+                if (ks != &sentinel) {
+                    HRelease(BIF_P, hp_end, hp);
+                    BIF_P->fvalue = ks[0];
+                    BIF_ERROR(BIF_P, EXC_BADFIELD);
+                    return THE_NON_VALUE;
                 }
+            } else {
+                /* TODO: Need to handle a large map. */
+                HRelease(BIF_P, hp_end, hp);
+                BIF_ERROR(BIF_P, EXC_SYSTEM_LIMIT);
             }
 
             BIF_RET(res);
@@ -627,22 +631,28 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
     /* Module, Name */
     Eterm module, name;
     ErtsStructEntry *entry;
-    Eterm* objp;
     ErtsStructDefinition *defp;
-    ErtsStructInstance *instance;
+    ErtsStructInstance *instance, *old_instance;
+    Eterm *old_values;
     int field_count;
     Eterm *hp;
     Eterm* E;
     Uint num_words_needed;
     Eterm res;
+    Eterm sentinel = NIL;
+    const Eterm *new_end = new_p + size;
 
-    objp = struct_val(src);
-    defp = (ErtsStructDefinition*)tuple_val(objp[1]);
+    ASSERT(size != 0);
+
+    old_instance = (ErtsStructInstance*)struct_val(src);
+    defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
 
     if (id == am_Underscore) {
         ;
-    } else if (is_boxed(id)) {
+    } else {
         Eterm* tuple_ptr = boxed_val(id);
+
+        ASSERT(is_tuple(id));
 
         module = tuple_ptr[1];
         name = tuple_ptr[2];
@@ -664,34 +674,42 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
         reg[live] = src;
         erts_garbage_collect(p, num_words_needed, reg, live+1);
         src = reg[live];
-        objp = struct_val(src);
-        defp = (ErtsStructDefinition*)tuple_val(objp[1]);
+        old_instance = (ErtsStructInstance*)struct_val(src);
+        defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
     }
 
     hp = p->htop;
     E = p->stop;
     res = make_struct(hp);
-    p->htop = hp + num_words_needed;
-
-    sys_memcpy(hp, objp, num_words_needed * sizeof(Eterm));
 
     instance = (ErtsStructInstance*)hp;
-    hp = (Eterm*) &(instance->values);
+    instance->thing_word = old_instance->thing_word;
+    instance->struct_definition = old_instance->struct_definition;
 
-    for (int i = 0; i < size; i += 2) {
-        int j;
-        for (j = 0; j < field_count; j++) {
-            if (eq(new_p[i], defp->fields[j].key)) {
-                GetSource(new_p[i+1], hp[j]);
-                break;
+    old_values = old_instance->values;
+    hp = (Eterm*) instance->values;
+
+    ASSERT(new_p < new_end);
+    for (int i = 0; i < field_count; i++) {
+        if (new_p[0] != defp->fields[i].key) {
+            *hp++ = old_values[i];
+        } else {
+            GetSource(new_p[1], *hp);
+            hp++;
+            new_p += 2;
+            if (new_p >= new_end) {
+                new_p = &sentinel;
             }
         }
-        if (j == field_count) {
-            p->fvalue = new_p[i];
-            p->freason = EXC_BADFIELD;
-            return THE_NON_VALUE;
-        }
     }
+
+    if (new_p != &sentinel) {
+        p->fvalue = new_p[0];
+        p->freason = EXC_BADFIELD;
+        return THE_NON_VALUE;
+    }
+
+    p->htop += num_words_needed;
 
     return res;
 }
@@ -700,31 +718,27 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
     /* Module, Name */
     Eterm module, name;
     ErtsStructEntry *entry;
-    Eterm* objp;
     ErtsStructDefinition *defp;
-    ErtsStructInstance *instance;
+    ErtsStructInstance *instance, *old_instance;
+    Eterm *old_values;
     int field_count;
-    Eterm *hp;
+    Eterm *hp, *hp_end;
     Uint num_words_needed;
     Eterm res;
 
-    const Eterm *vs;
-    flatmap_t *mp;
-    Eterm *ks;
-    Uint n;
-
-    if (!is_struct(BIF_ARG_1)) {
+    if (is_not_struct(BIF_ARG_1)) {
         BIF_P->fvalue = BIF_ARG_1;
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
-    objp = struct_val(BIF_ARG_1);
-    defp = (ErtsStructDefinition*)tuple_val(objp[1]);
+
+    old_instance = (ErtsStructInstance*)struct_val(BIF_ARG_1);
+    defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
 
     if (BIF_ARG_3 == am_Underscore) {
         ;
     } else {
-        if (!is_atom(BIF_ARG_2) ||
-            !is_atom(BIF_ARG_3)) {
+        if (is_not_atom(BIF_ARG_2) ||
+            is_not_atom(BIF_ARG_3)) {
             BIF_P->fvalue = BIF_ARG_3;
             BIF_ERROR(BIF_P, EXC_BADRECORD);
         }
@@ -741,40 +755,71 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
         }
     }
 
+    if (is_not_map(BIF_ARG_4)) {
+        BIF_P->fvalue = BIF_ARG_4;
+        BIF_ERROR(BIF_P, BADMAP);
+    }
+
+    if (erts_map_size(BIF_ARG_4) == 0) {
+        return BIF_ARG_1;
+    }
+
     field_count = (arityval(defp->thing_word) - 1) / 2;
 
     num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
 
     hp = HAlloc(BIF_P, num_words_needed);
+    hp_end = hp + num_words_needed;
+
     res = make_struct(hp);
 
-    sys_memcpy(hp, objp, num_words_needed * sizeof(Eterm));
-
     instance = (ErtsStructInstance*)hp;
+    instance->thing_word = old_instance->thing_word;
+    instance->struct_definition = old_instance->struct_definition;
+
+    old_values = old_instance->values;
     hp = (Eterm*) &(instance->values);
 
-    if(!is_map(BIF_ARG_4)) {
-        BIF_P->fvalue = BIF_ARG_4;
-        BIF_ERROR(BIF_P, BADMAP);
-    } else {
+    if (is_flatmap(BIF_ARG_4)) {
+        const Eterm *ks_end;
+        Eterm sentinel = NIL;
+        flatmap_t *mp;
+        const Eterm *vs;
+        Eterm *ks;
+        Uint n;
+
+        /* We KNOW that the keys for a flatmap have the same order as
+         * a native record. */
         mp = (flatmap_t *)flatmap_val(BIF_ARG_4);
         ks = flatmap_get_keys(mp);
         vs = flatmap_get_values(mp);
         n  = flatmap_get_size(mp);
-    }
 
-    for (int i = 0; i < n; i ++) {
-        int j;
-        for (j = 0; j < field_count; j++) {
-            if (eq(ks[i], defp->fields[j].key)) {
-                hp[j] = vs[i];
-                break;
+        ks_end = ks + n;
+
+        ASSERT(ks < ks_end);
+        for (int i = 0; i < field_count; i++) {
+            if (ks[0] != defp->fields[i].key) {
+                *hp++ = old_values[i];
+            } else {
+                *hp++ = vs[0];
+                ks++, vs++;
+                if (ks == ks_end) {
+                    ks = &sentinel;
+                }
             }
         }
-        if (j == field_count) {
-            BIF_P->fvalue = ks[i];
+
+        if (ks != &sentinel) {
+            HRelease(BIF_P, hp_end, hp);
+            BIF_P->fvalue = ks[0];
             BIF_ERROR(BIF_P, EXC_BADFIELD);
+            return THE_NON_VALUE;
         }
+    } else {
+        /* TODO: Need to handle a large map. */
+        HRelease(BIF_P, hp_end, hp);
+        BIF_ERROR(BIF_P, EXC_SYSTEM_LIMIT);
     }
 
     BIF_RET(res);
@@ -786,7 +831,7 @@ BIF_RETTYPE struct_module_1(BIF_ALIST_1) {
     ErtsStructEntry *entry;
 
     obj = BIF_ARG_1;
-    if (!is_struct(obj)) {
+    if (is_not_struct(obj)) {
         BIF_ERROR(BIF_P, BADARG);
     }
     objp = struct_val(obj);
@@ -803,7 +848,7 @@ BIF_RETTYPE struct_name_1(BIF_ALIST_1) {
     ErtsStructEntry *entry;
 
     obj = BIF_ARG_1;
-    if (!is_struct(obj)) {
+    if (is_not_struct(obj)) {
         BIF_ERROR(BIF_P, BADARG);
     }
     objp = struct_val(obj);
@@ -820,7 +865,7 @@ BIF_RETTYPE records_get_module_1(BIF_ALIST_1) {
     ErtsStructEntry *entry;
 
     obj = BIF_ARG_1;
-    if (!is_struct(obj)) {
+    if (is_not_struct(obj)) {
         BIF_ERROR(BIF_P, BADARG);
     }
     objp = struct_val(obj);
@@ -837,7 +882,7 @@ BIF_RETTYPE records_get_name_1(BIF_ALIST_1) {
     ErtsStructEntry *entry;
 
     obj = BIF_ARG_1;
-    if (!is_struct(obj)) {
+    if (is_not_struct(obj)) {
         BIF_ERROR(BIF_P, BADARG);
     }
     objp = struct_val(obj);
@@ -854,9 +899,10 @@ BIF_RETTYPE records_get_field_names_1(BIF_ALIST_1) {
     int field_count;
     Eterm *hp;
     Eterm list;
+    Eterm *order;
 
     obj = BIF_ARG_1;
-    if (!is_struct(obj)) {
+    if (is_not_struct(obj)) {
         BIF_P->fvalue = BIF_ARG_1;
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
@@ -865,10 +911,12 @@ BIF_RETTYPE records_get_field_names_1(BIF_ALIST_1) {
     field_count = header_arity(objp[0]) - 1;
     defp = (ErtsStructDefinition*)boxed_val(objp[1]);
 
+    order = tuple_val(defp->field_order) + 1;
+
     hp = HAlloc(BIF_P, field_count * 2);
     list = NIL;
-    while(field_count--) {
-        list = CONS(hp, defp->fields[field_count].key, list);
+    while (field_count--) {
+        list = CONS(hp, defp->fields[unsigned_val(order[field_count])].key, list);
         hp += 2;
     }
 
