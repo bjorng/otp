@@ -78,7 +78,7 @@ Syntax trees are defined in the module `m:cerl`.
 	       ann_c_map_pair/4,
 	       update_c_map_pair/4,
 
-	       ann_c_struct/3, struct_arg/1, struct_id/1, struct_es/1,
+	       ann_c_struct/4, struct_arg/1, struct_id/1, struct_es/1,
                update_c_struct/4,
                ann_c_struct_pair/3,
                struct_pair_key/1, struct_pair_val/1,
@@ -915,10 +915,11 @@ label(T, N, Env) ->
 	    {As,  N4} = label_ann(T, N3),
 	    {ann_c_map_pair(As,Op,Key,Val), N4};
         struct ->
-            {Id, N1} = label(struct_id(T), N, Env),
-            {Ts, N2} = label_list(struct_es(T), N1, Env),
-            {As, N3} = label_ann(T, N2),
-            {ann_c_struct(As, Id, Ts), N3};
+            {Arg, N1} = label(struct_arg(T), N, Env),
+            {Id, N2} = label(struct_id(T), N1, Env),
+            {Ts, N3} = label_list(struct_es(T), N2, Env),
+            {As, N4} = label_ann(T, N3),
+            {ann_c_struct(As, Arg, Id, Ts), N4};
 	struct_pair ->
 	    {Key, N1} = label(struct_pair_key(T), N, Env),
 	    {Val, N2} = label(struct_pair_val(T), N1, Env),
