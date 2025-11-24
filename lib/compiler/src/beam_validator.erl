@@ -51,10 +51,8 @@
       Level :: strong | weak,
       Result :: ok | {error, [{atom(), list()}]}.
 
-validate({Mod,Exp,Attr,Fs,Lc}, Level) when is_atom(Mod),
-                                           is_list(Exp),
-                                           is_list(Attr),
-                                           is_integer(Lc) ->
+validate({Mod,Exp,Attr,Anno, Fs,Lc}, Level)
+  when is_atom(Mod), is_list(Exp), is_list(Attr), is_map(Anno), is_integer(Lc) ->
     Ft = build_function_table(Fs, #{}),
     case validate_0(Fs, Mod, Level, Ft) of
         [] ->

@@ -159,6 +159,8 @@ get_anno(#cg_select{anno=Anno}) -> Anno.
           {'ok', #b_module{}, [warning()]}.
 
 module(#c_module{name=#c_literal{val=Mod},exports=Es,attrs=As,defs=Fs}, Options) ->
+    Records = records(As),
+    Anno = #{records => Records},
     Kas = attributes(As),
     Kes = map(fun (#c_var{name={_,_}=Fname}) -> Fname end, Es),
     DebugInfo = proplists:get_bool(beam_debug_info, Options),
@@ -166,7 +168,7 @@ module(#c_module{name=#c_literal{val=Mod},exports=Es,attrs=As,defs=Fs}, Options)
                 beam_debug_info=DebugInfo},
     {Kfs,St} = mapfoldl(fun function/2, St0, Fs),
     Body = Kfs ++ St#kern.funs,
-    Code = #b_module{name=Mod,exports=Kes,attributes=Kas,body=Body},
+    Code = #b_module{anno=Anno,name=Mod,exports=Kes,attributes=Kas,body=Body},
     {ok,Code,sort(St#kern.ws)}.
 
 -spec format_error(warning()) -> string() | binary().
@@ -191,16 +193,39 @@ attributes([{#c_literal{val=Name},#c_literal{val=Val}}|As]) ->
     end;
 attributes([]) -> [].
 
-include_attribute(type) -> false;
-include_attribute(spec) -> false;
 include_attribute(callback) -> false;
-include_attribute(opaque) -> false;
-include_attribute(export_type) -> false;
-include_attribute(record) -> false;
-include_attribute(optional_callbacks) -> false;
-include_attribute(file) -> false;
 include_attribute(compile) -> false;
+include_attribute(export_record) -> false;
+include_attribute(export_type) -> false;
+include_attribute(file) -> false;
+include_attribute(native_record) -> false;
+include_attribute(opaque) -> false;
+include_attribute(optional_callbacks) -> false;
+include_attribute(record) -> false;
+include_attribute(spec) -> false;
+include_attribute(type) -> false;
 include_attribute(_) -> true.
+
+records(Attrs) ->
+    Exports0 = [sets:from_list(E) ||
+                   {#c_literal{val=export_record},
+                    #c_literal{val=E}} <- Attrs],
+    Exports = sets:union(Exports0),
+    [record(R, Exports) ||
+        {#c_literal{val=native_record},R} <- Attrs].
+
+record(#c_literal{val=[{Name,Fs0}]}, Exports) ->
+    Fs = [record_field(F) || F <- Fs0],
+    {Name,sets:is_element(Name, Exports),Fs}.
+
+record_field({record_field,_,{atom,_,Key},E}) ->
+    Bs = erl_eval:new_bindings(),
+    {value,Val,[]} = erl_eval:exprs([E], Bs),
+    {Key,Val};
+record_field({record_field,_,{atom,_,Key}}) ->
+    Key;
+record_field({typed_record_field,F,_}) ->
+    record_field(F).
 
 function({#c_var{anno=Anno,name={F,Arity}=FA},Body0}, St0) ->
     try

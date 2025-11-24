@@ -753,7 +753,7 @@ call_in_call_args(Config) ->
 
     ok = file:write_file(SrcName, S),
     {ok,M,Asm} = compile:file(SrcName, [report,beam_debug_info,binary,to_asm]),
-    {M,_,_,[{function,f,1,_,Is}|_],_} = Asm,
+    {M,_,_,_,[{function,f,1,_,Is}|_],_} = Asm,
 
     DebugLines = [I || I <- Is, element(1, I) =:= debug_line],
     io:format("~p\n", [DebugLines]),
@@ -783,7 +783,7 @@ missing_vars(Config) ->
 
     ok = file:write_file(SrcName, S),
     {ok,M,Asm} = compile:file(SrcName, [report,beam_debug_info,binary,to_asm]),
-    {M,_,_,[{function,f,3,_,Is}|_],_} = Asm,
+    {M,_,_,_,[{function,f,3,_,Is}|_],_} = Asm,
     DebugLines0 = [begin
                        {location,_File,Line} = lists:keyfind(location, 1, Anno),
                        {Kind,Line,FrameSz,[Name || {Name,_} <- Vars]}

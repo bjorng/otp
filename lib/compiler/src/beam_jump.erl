@@ -143,9 +143,9 @@
 -spec module(beam_utils:module_code(), [compile:option()]) ->
                     {'ok',beam_utils:module_code()}.
 
-module({Mod,Exp,Attr,Fs0,Lc0}, _Opt) ->
+module({Mod,Exp,Attr,Anno,Fs0,Lc0}, _Opt) ->
     {Fs,Lc} = mapfoldl(fun function/2, Lc0, Fs0),
-    {ok,{Mod,Exp,Attr,Fs,Lc}}.
+    {ok,{Mod,Exp,Attr,Anno,Fs,Lc}}.
 
 %% function(Function) -> Function'
 %%  Optimize jumps and branches.

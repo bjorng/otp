@@ -51,10 +51,10 @@
 -spec module(beam_ssa:b_module(), [compile:option()]) ->
           {'ok',beam_asm:module_code()}.
 
-module(#b_module{name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
+module(#b_module{anno=Anno,name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) ->
     DebugInfo = member(beam_debug_info, Opts),
     {Asm,St} = functions(Fs, {atom,Mod}, DebugInfo),
-    {ok,{Mod,Es,Attrs,Asm,St#cg.lcount}}.
+    {ok,{Mod,Es,Attrs,Anno,Asm,St#cg.lcount}}.
 
 -record(need, {h=0 :: non_neg_integer(),   % heap words
                l=0 :: non_neg_integer(),   % lambdas (funs)

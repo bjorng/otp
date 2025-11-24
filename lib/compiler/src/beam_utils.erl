@@ -39,8 +39,10 @@
 -type int_function() :: {'function',beam_asm:function_name(),arity(),
                          beam_asm:label(),[instruction()]}.
 
+-type beam_anno() :: #{'native_record' => tuple()}.
+
 -type module_code() ::
-        {module(),[_],[_],[int_function()],pos_integer()}.
+        {module(),[_],[_],beam_anno(),[int_function()],pos_integer()}.
 
 %% replace_labels(FunctionIs, Tail, ReplaceDb, Fallback) -> FunctionIs.
 %%  Replace all labels in instructions according to the ReplaceDb.
