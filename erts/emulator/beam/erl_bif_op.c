@@ -321,7 +321,7 @@ BIF_RETTYPE is_record_3(BIF_ALIST_3)
     }
     BIF_RET(am_false);
 }
-	
+
 BIF_RETTYPE is_map_1(BIF_ALIST_1)
 {
     if (is_map(BIF_ARG_1)) {
@@ -341,7 +341,7 @@ BIF_RETTYPE is_record_1(BIF_ALIST_1)
 BIF_RETTYPE is_tagged_struct_3(BIF_ALIST_3)
 {
     Eterm obj = BIF_ARG_1;
-    if (is_struct(obj) && BIF_ARG_2 == struct_module(obj) && BIF_ARG_3 == struct_name(obj)) {
+    if (is_struct(obj) && erl_is_native_record(obj, BIF_ARG_2, BIF_ARG_3)) {
         BIF_RET(am_true);
     }
     BIF_RET(am_false);

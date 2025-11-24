@@ -229,3 +229,19 @@ pred.equal(Val1, Val2) {
         return Val1.val == Val2.val;
     }
 }
+
+// Test whether the module of the record id is the current module.
+pred.local_record(Id) {
+    if (Id.type == TAG_q) {
+        Eterm tuple = beamfile_get_literal(&S->beam, Id.val);
+        ASSERT(tuple_size(tuple) == 2);
+        return (tuple_val(tuple))[1] == S->module;
+    } else {
+        return false;
+    }
+}
+
+// Test whether the module of record id is the current module.
+pred.is_current_module(Mod) {
+    return Mod.type == TAG_a && Mod.val == S->module;
+}

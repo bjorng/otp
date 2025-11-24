@@ -442,6 +442,8 @@ _ET_DECLARE_CHECKED(Eterm*,struct_val,Eterm)
     _ET_APPLY(struct_val,(x))
 #define make_struct(x)                                                        \
     make_boxed((x))
+#define struct_field_count(x)                                                 \
+    (header_arity(*struct_val(x)) - sizeof(ErtsStructInstance)/sizeof(Eterm) + 1)
 
 /* bignum access methods */
 #define make_pos_bignum_header(sz)	_make_header((sz),_TAG_HEADER_POS_BIG)

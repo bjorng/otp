@@ -25,7 +25,7 @@
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
          local_basic/1,local_updates/1,non_atomic_names/1,
-         any_record/1,is_record_bif/1,
+         external_records/1,any_record/1,is_record_bif/1,
          get_field_names_bif/1]).
 
 -record #empty{}.
@@ -44,6 +44,8 @@
 -record #Seq{elements=[]}.
 -record #Point{x=0,y=0,z=0}.
 
+-import_record(ext_records, [local,vector]).
+
 suite() ->
     [{ct_hooks,[ts_install_cth]},
      {timetrap,{minutes,1}}].
@@ -58,6 +60,7 @@ groups() ->
        local_updates,
        non_atomic_names,
        any_record,
+       external_records,
        is_record_bif,
        get_field_names_bif
       ]}].
@@ -65,6 +68,7 @@ groups() ->
 init_per_suite(Config) ->
     id(Config),
     %% test_lib:recompile(?MODULE),
+    {module,ext_records} = code:ensure_loaded(ext_records),
     Config.
 
 end_per_suite(_Config) ->
@@ -118,7 +122,7 @@ local_basic(_Config) ->
     %% Test errors when constructing or updating native records.
     ?assertError({badfield,foobar}, #b{foobar = some_value}),
 
-    ?assertError({badrecord,b}, ARec#b{x=99}),
+    ?assertError({badrecord,a}, ARec#b{x=99}),
     ?assertError({badfield,bad_field}, BRec#b{bad_field = some_value}),
 
     ?assertError({novalue,x}, #a{}),
@@ -270,6 +274,33 @@ non_atomic_names_match(R) ->
             Point
     end.
 
+external_records(_Config) ->
+    DefVector = id(#vector{}),
+    DefVector = id(#ext_records:vector{}),
+
+    #vector{x=10, y=1, z=5} = DefVector,
+    #ext_records:vector{x=10, y=1, z=5} = DefVector,
+    true = records:is_exported(DefVector),
+
+    ExtLocal = ext_records:local([1,2,3], {a,b,c}),
+    false = records:is_exported(ExtLocal),
+
+    ?assertError({badrecord,{ext_records,local}}, #local{a=1, b=2}),
+    ?assertError({badrecord,{ext_records,foreign}}, #ext_records:foreign{a=1, b=2}),
+    ?assertError({badrecord,{ext_records,local}}, ExtLocal#local{a=42,b=99}),
+
+    #local{} = ExtLocal,
+    #ext_records:local{} = ExtLocal,
+
+    %% case ExtLocal of
+    %%     #local{x=X, y=Y} ->
+    %%         error({should_fail,X,Y});
+    %%     _ ->
+    %%         ok
+    %% end,
+
+    ok.
+
 any_record(_Config) ->
     {777,888} = get_any_xy(#a{x=777,y=888}),
     {77,88} = get_any_xy(#Point{x=77,y=88}),
@@ -286,6 +317,14 @@ any_record(_Config) ->
 
     ?assertError({badfield,x}, update_any_xy(id(#d{}), 0, 0)),
     ?assertError({badfield,y}, update_any_xy(id(#e{}), 0, 0)),
+
+    {10,1} = get_any_xy(#ext_records:vector{}),
+    {77,88} = get_any_xy(#ext_records:vector{x=77,y=88}),
+
+    ExtLocal = ext_records:local(7, 13),
+    ?assertError({badrecord,{ext_records,local}}, update_any_xy(ExtLocal, 1, 1)),
+
+    %% none = get_any_xy(ext_records:local(1, 2)),
 
     ok.
 
@@ -315,6 +354,10 @@ get_field_names_bif(_Config) ->
     ARec = id(#a{x=1, y=2}),
     BRec = id(#b{}),
     CRec = id(#c{x=42, y=100}),
+
+    false = records:is_exported(ARec),
+    false = records:is_exported(BRec),
+    false = records:is_exported(CRec),
 
     ARec = records:create(?MODULE, a, #{x=>1, y=>2}),
     BRec = records:create(?MODULE, b, #{}),

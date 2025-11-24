@@ -384,18 +384,27 @@ BIF_RETTYPE records_get_2(BIF_ALIST_2) {
     BIF_ERROR(BIF_P, BADARG);
 }
 
-Eterm struct_module(Eterm obj) {
-    Eterm *objp = struct_val(obj);
-    ErtsStructDefinition *defp = (ErtsStructDefinition*)boxed_val(objp[1]);
-    ErtsStructEntry *entry = (ErtsStructEntry*)unsigned_val(defp->entry);
-    return entry->module;
+bool erl_is_native_record(Eterm src, Eterm mod, Eterm name) {
+    ErtsStructDefinition *defp;
+    ErtsStructInstance *instance;
+
+    ASSERT(is_struct(src));
+    instance = (ErtsStructInstance*)struct_val(src);
+    defp = (ErtsStructDefinition*)boxed_val(instance->struct_definition);
+
+    return defp->module == mod && defp->name == name;
 }
 
-Eterm struct_name(Eterm obj) {
-    Eterm *objp = struct_val(obj);
-    ErtsStructDefinition *defp = (ErtsStructDefinition*)boxed_val(objp[1]);
-    ErtsStructEntry *entry = (ErtsStructEntry*)unsigned_val(defp->entry);
-    return entry->name;
+bool erl_is_ext_native_record(Eterm src, Eterm mod, Eterm name) {
+    ErtsStructDefinition *defp;
+    ErtsStructInstance *instance;
+
+    ASSERT(is_struct(src));
+    instance = (ErtsStructInstance*)struct_val(src);
+    defp = (ErtsStructDefinition*)boxed_val(instance->struct_definition);
+
+    return defp->is_exported == am_true &&
+        defp->module == mod && defp->name == name;
 }
 
 bool erl_struct_get_elements(Process* p, Eterm* reg, Eterm src,
@@ -430,8 +439,8 @@ bool erl_struct_get_elements(Process* p, Eterm* reg, Eterm src,
     return false;
 }
 
-Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
-                     Uint live, Uint size, const Eterm* new_p) {
+Eterm erl_create_native_record(Process* p, Eterm* reg, Uint local, Eterm id,
+                               Uint live, Uint size, const Eterm* new_p) {
     /* Module, Name */
     Eterm module, name;
     ErtsStructEntry *entry;
@@ -461,7 +470,12 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
             const Eterm *new_end = new_p + size;
 
             defp = (ErtsStructDefinition*)boxed_val(def);
-            field_count = (arityval(defp->thing_word) - 1) / 2;
+
+            if (!local && defp->is_exported == am_false) {
+                goto badrecord;
+            }
+
+            field_count = (header_arity(defp->thing_word) - sizeof(ErtsStructDefinition)/sizeof(Eterm) + 1) / 2;
 
             num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
             if (HeapWordsLeft(p) < num_words_needed) {
@@ -513,8 +527,8 @@ Eterm erl_struct_put(Process* p, Eterm* reg, Eterm id,
         }
     }
 
-    /* No canonical struct definition, bail out. */
-    p->fvalue = name;
+ badrecord:
+    p->fvalue = local ? name : id;
     p->freason = EXC_BADRECORD;
     return THE_NON_VALUE;
 }
@@ -556,7 +570,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             Uint n;
 
             defp = (ErtsStructDefinition*)boxed_val(def);
-            field_count = (arityval(defp->thing_word) - 1) / 2;
+            field_count = (header_arity(defp->thing_word) - sizeof(ErtsStructDefinition)/sizeof(Eterm) + 1) / 2;
             num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
             hp = HAlloc(BIF_P, num_words_needed);
 
@@ -626,11 +640,10 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     BIF_ERROR(BIF_P, EXC_BADRECORD);
 }
 
-Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
-                        Uint live, Uint size, const Eterm* new_p) {
+Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm current_module, Eterm id,
+                               Eterm src, Uint live, Uint size, const Eterm* new_p) {
     /* Module, Name */
     Eterm module, name;
-    ErtsStructEntry *entry;
     ErtsStructDefinition *defp;
     ErtsStructInstance *instance, *old_instance;
     Eterm *old_values;
@@ -644,6 +657,7 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
 
     ASSERT(size != 0);
 
+    field_count = struct_field_count(src);
     old_instance = (ErtsStructInstance*)struct_val(src);
     defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
 
@@ -657,17 +671,17 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
         module = tuple_ptr[1];
         name = tuple_ptr[2];
 
-        entry = (ErtsStructEntry*)unsigned_val(defp->entry);
-
-        if (entry->module != module || entry->name != name) {
+        if (defp->module != module || defp->name != name) {
             /* Record name mismatch. */
-            p->fvalue = name;
-            p->freason = EXC_BADRECORD;
-            return THE_NON_VALUE;
+            goto badrecord;
         }
     }
 
-    field_count = (arityval(defp->thing_word) - 1) / 2;
+    if (defp->module != current_module && defp->is_exported == am_false) {
+        /* Attempt to update a non-exported record outside of its
+         * defining module. */
+        goto badrecord;
+    }
 
     num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
     if (HeapWordsLeft(p) < num_words_needed) {
@@ -712,12 +726,26 @@ Eterm erl_struct_update(Process* p, Eterm* reg, Eterm id, Eterm src,
     p->htop += num_words_needed;
 
     return res;
+
+ badrecord:
+    if (defp->module == current_module) {
+        p->fvalue = defp->name;
+    } else {
+        num_words_needed = 3;
+        if (HeapWordsLeft(p) < num_words_needed) {
+            erts_garbage_collect(p, num_words_needed, reg, live);
+        }
+        hp = p->htop;
+        p->fvalue = TUPLE2(hp, defp->module, defp->name);
+        p->htop += num_words_needed;
+    }
+    p->freason = EXC_BADRECORD;
+    return THE_NON_VALUE;
 }
 
 BIF_RETTYPE records_update_4(BIF_ALIST_4) {
     /* Module, Name */
     Eterm module, name;
-    ErtsStructEntry *entry;
     ErtsStructDefinition *defp;
     ErtsStructInstance *instance, *old_instance;
     Eterm *old_values;
@@ -731,6 +759,7 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
 
+    field_count = struct_field_count(BIF_ARG_1);
     old_instance = (ErtsStructInstance*)struct_val(BIF_ARG_1);
     defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
 
@@ -746,9 +775,7 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
         module = BIF_ARG_2;
         name = BIF_ARG_3;
 
-        entry = (ErtsStructEntry*)unsigned_val(defp->entry);
-
-        if (entry->module != module || entry->name != name) {
+        if (defp->module != module || defp->name != name) {
             /* Record name mismatch. */
             BIF_P->fvalue = BIF_ARG_3;
             BIF_ERROR(BIF_P, EXC_BADRECORD);
@@ -763,8 +790,6 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
     if (erts_map_size(BIF_ARG_4) == 0) {
         return BIF_ARG_1;
     }
-
-    field_count = (arityval(defp->thing_word) - 1) / 2;
 
     num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
 
@@ -894,7 +919,8 @@ BIF_RETTYPE records_get_name_1(BIF_ALIST_1) {
 }
 
 BIF_RETTYPE records_get_field_names_1(BIF_ALIST_1) {
-    Eterm obj, *objp;
+    Eterm obj;
+    ErtsStructInstance *instance;
     ErtsStructDefinition *defp;
     int field_count;
     Eterm *hp;
@@ -907,10 +933,9 @@ BIF_RETTYPE records_get_field_names_1(BIF_ALIST_1) {
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
 
-    objp = struct_val(obj);
-    field_count = header_arity(objp[0]) - 1;
-    defp = (ErtsStructDefinition*)boxed_val(objp[1]);
-
+    field_count = struct_field_count(BIF_ARG_1);
+    instance = (ErtsStructInstance*) struct_val(BIF_ARG_1);
+    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
     order = tuple_val(defp->field_order) + 1;
 
     hp = HAlloc(BIF_P, field_count * 2);
@@ -921,4 +946,20 @@ BIF_RETTYPE records_get_field_names_1(BIF_ALIST_1) {
     }
 
     BIF_RET(list);
+}
+
+BIF_RETTYPE records_is_exported_1(BIF_ALIST_1) {
+    Eterm obj;
+    ErtsStructInstance *instance;
+    ErtsStructDefinition *defp;
+
+    obj = BIF_ARG_1;
+    if (is_not_struct(obj)) {
+        BIF_P->fvalue = BIF_ARG_1;
+        BIF_ERROR(BIF_P, EXC_BADRECORD);
+    }
+
+    instance = (ErtsStructInstance*) struct_val(BIF_ARG_1);
+    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+    BIF_RET(defp->is_exported);
 }

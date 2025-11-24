@@ -172,7 +172,6 @@ typedef struct {
 
 typedef struct {
     Eterm name;
-    bool is_exported;
     Sint def_literal;
     Sint32 num_fields;
 } BeamFile_Record;

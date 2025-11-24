@@ -1626,15 +1626,26 @@ i_update_record_in_place_done
 #
 
 is_record f? xy
-is_tagged_struct f? xy a a
+
+is_tagged_struct Fail Src Mod Name | is_current_module(Mod) =>
+    i_is_native_record Fail Src Mod Name
+is_tagged_struct Fail Src Mod Name =>
+    i_is_native_record Fail Src Mod Name
+
+i_is_native_record f? xy a a
+
 get_struct_elements Fail Src Size Matches=* | map_key_sort(Size, Matches) =>
     i_get_record_elements Fail Src Size Matches
 
+put_struct p Id n Dst Live Size Updates=* |
+  local_record(Id) | map_key_sort(Size, Updates) =>
+    i_create_native_record u=1 Id Dst Live Size Updates
 put_struct p Id n Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
-    i_put_struct Id Dst Live Size Updates
+    i_create_native_record u Id Dst Live Size Updates
+
 put_struct p Id Src=xy Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
-    i_update_struct Id Src Dst Live Size Updates
+    i_update_native_record a=$MODULE Id Src Dst Live Size Updates
 
 i_get_record_elements f? xy I *
-i_put_struct c d t I *
-i_update_struct c s d t I *
+i_create_native_record t c d t I *
+i_update_native_record a c s d t I *

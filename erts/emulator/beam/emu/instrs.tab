@@ -1316,7 +1316,9 @@ i_lambda_error(Dummy) {
 padding() {
 }
 
-// structs
+//
+// Native records.
+//
 
 is_record(Fail, Src) {
     if (!is_struct($Src)) {
@@ -1324,8 +1326,8 @@ is_record(Fail, Src) {
     }
 }
 
-is_tagged_struct(Fail, Src, Mod, Name) {
-    if (!is_struct($Src) || $Mod != struct_module($Src) || $Name != struct_name($Src)) {
+i_is_native_record(Fail, Src, Mod, Name) {
+    if (!erl_is_native_record($Src, $Mod, $Name)) {
         $FAIL($Fail);
     }
 }
@@ -1337,12 +1339,11 @@ i_get_record_elements(Fail, Src, N) {
     $NEXT($NEXT_INSTRUCTION+$N);
 }
 
-i_put_struct(Id, Dst, Live, N) {
+i_create_native_record(Local, Id, Dst, Live, N) {
     Eterm res;
-    Uint live = $Live;
 
     HEAVY_SWAPOUT;
-    res = erl_struct_put(c_p, reg, $Id, live, $N, $NEXT_INSTRUCTION);
+    res = erl_create_native_record(c_p, reg, $Local, $Id, $Live, $N, $NEXT_INSTRUCTION);
     HEAVY_SWAPIN;
     if (is_non_value(res)) {
         $FAIL_BODY();
@@ -1353,12 +1354,11 @@ i_put_struct(Id, Dst, Live, N) {
     }
 }
 
-i_update_struct(Id, Src, Dst, Live, N) {
+i_update_native_record(Mod, Id, Src, Dst, Live, N) {
     Eterm res;
-    Uint live = $Live;
 
     HEAVY_SWAPOUT;
-    res = erl_struct_update(c_p, reg, $Id, $Src, live, $N, $NEXT_INSTRUCTION);
+    res = erl_update_native_record(c_p, reg, $Mod, $Id, $Src, $Live, $N, $NEXT_INSTRUCTION);
     HEAVY_SWAPIN;
     if (is_non_value(res)) {
         $FAIL_BODY();

@@ -48,6 +48,10 @@ typedef struct {
     /* Tuple mapping from original field order to sorted field order. */
     Eterm field_order;
 
+    Eterm module;
+    Eterm name;
+    Eterm is_exported;
+
     struct {
         Eterm key;
         Eterm value;
@@ -78,18 +82,19 @@ ErtsStructEntry *erts_struct_put(Eterm module,
 ErtsStructEntry *erts_struct_get_or_make_stub(Eterm module,
                                               Eterm name);
 
-Eterm struct_module(Eterm obj);
-Eterm struct_name(Eterm obj);
+bool erl_is_native_record(Eterm Src, Eterm Mod, Eterm Name);
+bool erl_is_ext_native_record(Eterm Src, Eterm Mod, Eterm Name);
+
 bool erl_struct_get_elements(Process* P, Eterm* reg, Eterm src,
                              Uint size, const Eterm* new_p);
 
 void erts_struct_start_staging(void);
 void erts_struct_end_staging(int commit);
 
-Eterm erl_struct_put(Process* c_p, Eterm* reg, Eterm id,
-                     Uint live, Uint size, const Eterm* new_p);
-Eterm erl_struct_update(Process* c_p, Eterm* reg, Eterm id, Eterm src,
-                        Uint live, Uint size, const Eterm* new_p);
+Eterm erl_create_native_record(Process* p, Eterm* reg, Uint local, Eterm id,
+                               Uint live, Uint size, const Eterm* new_p);
+Eterm erl_update_native_record(Process* c_p, Eterm* reg, Eterm mod, Eterm id,
+                               Eterm src, Uint live, Uint size, const Eterm* new_p);
 
 extern erts_mtx_t struct_staging_lock;
 #define erts_struct_staging_lock()   erts_mtx_lock(&struct_staging_lock)

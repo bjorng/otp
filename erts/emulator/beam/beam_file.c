@@ -933,6 +933,7 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
         Uint num_fields;
         Eterm *order_tuple;
         ErtsStructDefinition *tmp_def;
+        Eterm is_exported;
 
         if (!beamcodereader_next(op_reader, &op)) {
             goto error;
@@ -962,7 +963,7 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
         switch (arg->type) {
         case TAG_a:
             if (arg->val == am_true || arg->val == am_false) {
-                rec->records[i].is_exported = arg->val == am_true;
+                is_exported = arg->val;
             } else {
                 goto error;
             }
@@ -1042,6 +1043,9 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
         tmp_def = (ErtsStructDefinition *) erts_alloc(ERTS_ALC_T_TMP, tmp_size);
         tmp_def->thing_word = make_arityval(struct_def_size/sizeof(Eterm) - 1);
         tmp_def->entry = NIL;
+        tmp_def->module = beam->module;
+        tmp_def->name = rec->records[i].name;
+        tmp_def->is_exported = is_exported;
 
         order_tuple = &tmp_def->fields[num_fields].key;
 

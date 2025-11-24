@@ -55,6 +55,7 @@ MODULES= \
 	compilation_SUITE \
 	core_SUITE \
 	error_SUITE \
+	ext_records \
 	float_SUITE \
 	fun_SUITE \
 	guard_SUITE \

@@ -23,22 +23,26 @@
 
 %% BIFs (implemented in the runtime system).
 -export([get/2, get_module/1, get_name/1, get_field_names/1,
-         create/3, create/4, update/4]).
+         is_exported/1, create/3, create/4, update/4]).
 
 -spec get(atom(), term()) -> term().
-get(_Key, _Struct) ->
+get(_Key, _Record) ->
     erlang:nif_error(undefined).
 
 -spec get_module(term()) -> module().
-get_module(_Struct) ->
+get_module(_Record) ->
     erlang:nif_error(undefined).
 
 -spec get_name(term()) -> atom().
-get_name(_Struct) ->
+get_name(_Record) ->
     erlang:nif_error(undefined).
 
 -spec get_field_names(term()) -> [atom()].
-get_field_names(_Struct) ->
+get_field_names(_Record) ->
+    erlang:nif_error(undefined).
+
+-spec is_exported(term()) -> boolean().
+is_exported(_Record) ->
     erlang:nif_error(undefined).
 
 -spec create(Module :: module(), RecordName :: atom(),
