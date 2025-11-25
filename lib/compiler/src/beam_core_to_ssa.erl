@@ -98,8 +98,10 @@
 -record(cg_tuple, {es,keep=ordsets:new()}).
 -record(cg_map, {var=#b_literal{val=#{}},op,es}).
 -record(cg_map_pair, {key,val}).
--record(cg_struct, {id, es}).
--record(cg_struct_pair, {key,val}).
+-record(cg_record, {rec}).
+-record(cg_record_id, {id, es}).
+-record(cg_record_pairs, {es}).
+-record(cg_record_pair, {key,val}).
 -record(cg_cons, {hd,tl}).
 -record(cg_binary, {segs}).
 -record(cg_bin_seg, {size,unit,type,flags,seg,next}).
@@ -858,12 +860,10 @@ pattern(#c_tuple{es=Ces}, Sub0, St0) ->
 pattern(#c_map{es=Ces}, Sub0, St0) ->
     {Kes,Sub1,St1} = pattern_map_pairs(Ces, Sub0, St0),
     {#cg_map{op=exact,es=Kes},Sub1,St1};
-pattern(#c_struct{id=#c_literal{val={M,N}}, es=Ces}, Sub0, St0) ->
-    {Kes,Sub1,St1} = pattern_struct_pairs(Ces, Sub0, St0),
-    {#cg_struct{id={M,N},es=Kes},Sub1,St1};
-pattern(#c_struct{id=#c_literal{val={}}, es=Ces}, Sub0, St0) ->
-    {Kes,Sub1,St1} = pattern_struct_pairs(Ces, Sub0, St0),
-    {#cg_struct{id={},es=Kes},Sub1,St1};
+pattern(#c_struct{id=#c_literal{val=Id}, es=Ces}, Sub0, St0) ->
+    {Kes,Sub1,St1} = pattern_record_pairs(Ces, Sub0, St0),
+    Pairs = #cg_record_pairs{es=Kes},
+    {#cg_record{rec=#cg_record_id{id=Id,es=Pairs}},Sub1,St1};
 pattern(#c_binary{segments=Cv}, Sub0, St0) ->
     {Kv,Sub1,St1} = pattern_bin(Cv, Sub0, St0),
     {#cg_binary{segs=Kv},Sub1,St1};
@@ -893,13 +893,14 @@ pattern_map_pairs(Ces0, Sub0, St0) ->
                 end, Kes),
     {Kes1,Sub1,St1}.
 
-pattern_struct_pairs(Ces0, Sub0, St0) ->
-    {Kes,{Sub1,St1}} =
+pattern_record_pairs(Ces0, Sub0, St0) ->
+    {Kes0,{Sub1,St1}} =
         mapfoldl(fun(#c_struct_pair{key=K,val=Cv},{Subi0,Sti0}) ->
                          {Kk,Subi1,Sti1} = pattern(K, Subi0, Sti0),
                          {Kv,Subi2,Sti2} = pattern(Cv, Subi1, Sti1),
-                         {#cg_struct_pair{key=Kk,val=Kv},{Subi2,Sti2}}
+                         {#cg_record_pair{key=Kk,val=Kv},{Subi2,Sti2}}
                  end, {Sub0, St0}, Ces0),
+    Kes = sort(Kes0),
     {Kes,Sub1,St1}.
 
 pattern_bin([#c_bitstr{val=E0,size=S0,unit=U0,type=T,flags=Fs0}|Es0],
@@ -1143,13 +1144,13 @@ is_guard_bif(erlang, is_record, [_,Tag,Sz]) ->
             false
     end;
 is_guard_bif(erlang, is_tagged_struct, [_,Mod,Name]) ->
-  case {Mod,Name} of
-    {#c_literal{val=M},#c_literal{val=N}}
-      when is_atom(M), is_atom(N) ->
-      true;
-    {_,_} ->
-      false
-  end;
+    case {Mod,Name} of
+        {#c_literal{val=M},#c_literal{val=N}}
+          when is_atom(M), is_atom(N) ->
+            true;
+        {_,_} ->
+            false
+    end;
 is_guard_bif(erlang, N, As) ->
     Arity = length(As),
     case erl_internal:guard_bif(N, Arity) of
@@ -1329,10 +1330,18 @@ select_types([NoExpC|Cs], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, 
             select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, [C|Float], Int, Nil, Struct);
         cg_int ->
             select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, [C|Int], Nil, Struct);
-        cg_struct ->
+        cg_record ->
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Struct]);
+        cg_record_id ->
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Struct]);
+        cg_record_pairs ->
             select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Struct])
     end;
-select_types([], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Struct) ->
+select_types([], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Struct0) ->
+    Struct1 = reverse(Struct0),
+    Struct2 = maps:groups_from_list(fun(C) -> clause_con(C) end, Struct1),
+    Structs = maps:to_list(Struct2),
+
     [{cg_binary, reverse(Bin)}] ++ handle_bin_con(reverse(BinCon)) ++
         [
          {cg_cons, reverse(Cons)},
@@ -1341,8 +1350,8 @@ select_types([], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Struct) -
          {{bif,is_atom}, reverse(Atom)},
          {{bif,is_float}, reverse(Float)},
          {{bif,is_integer}, reverse(Int)},
-         {cg_nil, reverse(Nil)},
-         {cg_struct, reverse(Struct)}
+         {cg_nil, reverse(Nil)} |
+         Structs
         ].
 
 -spec expand_pat_lit_clause(#iclause{}) -> #iclause{}.
@@ -1636,7 +1645,9 @@ match_value(Us0, T, Cs0, Def, St0) ->
 
 do_match_value(Us0, T, Cs0, Def, St0) ->
     UCss = group_value(T, Us0, Cs0),
-    mapfoldl(fun ({Us,Cs}, St) -> match_clause(Us, Cs, Def, St) end, St0, UCss).
+    mapfoldl(fun ({Us,Cs}, St) ->
+                     match_clause(Us, Cs, Def, St)
+             end, St0, UCss).
 
 %% remove_unreachable([Clause], State) -> {[Clause],State}
 %%  Remove all clauses after a clause that will always match any
@@ -1745,7 +1756,9 @@ group_value(cg_bin_end, Us, Cs) -> [{Us,Cs}];
 group_value(cg_bin_seg, Us, Cs) -> group_keeping_order(Us, Cs);
 group_value(cg_bin_int, Us, Cs) -> [{Us,Cs}];
 group_value(cg_map, Us, Cs)     -> group_keeping_order(Us, Cs);
-group_value(cg_struct, Us, Cs)  -> group_keeping_order(Us, Cs);
+group_value(cg_record, Us, Cs)  -> [{Us,Cs}];
+group_value(cg_record_id, Us, Cs) -> group_native_records(Us, Cs);
+group_value(cg_record_pairs, Us, Cs) -> group_keeping_order(Us, Cs);
 group_value(_, Us, Cs) ->
     Map = group_values(Cs),
 
@@ -1762,6 +1775,49 @@ group_keeping_order(Us, [C1|Cs]) ->
     {More,Rest} = splitwith(SplitFun, Cs),
     [{Us,[C1|More]}|group_keeping_order(Us, Rest)];
 group_keeping_order(_, []) -> [].
+
+group_native_records(Us, [C1|Cs]) ->
+    %% Consider:
+    %%
+    %%   case R of
+    %%     #r1{f1=_,f2=_} -> ... ;
+    %%     #r2{f1=_} -> ... ;
+    %%     #r1{f3_=} -> ... ;
+    %%
+    %%     #_{...} -> ... ;
+    %%
+    %%     #r1{f4...} -> ...
+    %%   end
+    %%
+    %% We can group clauses matching the same record, but we must keep
+    %% the order of within each group. Also, since an anonymous record
+    %% match can match any record, we must not move any clause across
+    %% an anonymous match. Thus, the clauses can be re-arranged like
+    %% so:
+    %%
+    %%   case R of
+    %%     #r1{f1=_,f2=_} -> ... ;
+    %%     #r1{f3_=} -> ... ;
+    %%     #r2{f1=_} -> ... ;
+    %%
+    %%     #_{...} -> ... ;
+    %%
+    %%     #r1{f4...} -> ...
+    %%   end
+
+    Size = tuple_size((arg_arg(clause_arg(C1)))#cg_record_id.id),
+    SplitFun = fun(C) -> tuple_size((arg_arg(clause_arg(C)))#cg_record_id.id) =:= Size end,
+    {More,Rest} = splitwith(SplitFun, Cs),
+    Part = [C1|More],
+
+    %% The clauses in `Part` all match definite records or they all match any record.
+    %% Group clauses matching the same record.
+    Gs0 = maps:groups_from_list(fun(C) -> (arg_arg(clause_arg(C)))#cg_record_id.id end, Part),
+    Gs = [{Us,C} || _ := C <- maps:iterator(Gs0, ordered)],
+
+    %% Partition the rest of the clauses.
+    Gs ++ group_native_records(Us, Rest);
+group_native_records(_Us, []) -> [].
 
 group_keeping_order_fun(C1) ->
     case is_suitable_bin_seg(C1) of
@@ -1887,14 +1943,17 @@ get_match(#cg_map{op=exact,es=Es0}, St0) ->
                               {Pair#cg_map_pair{val=V},Vs}
                       end, Mes, Es0),
     {#cg_map{op=exact,es=Es},Mes,St1};
-get_match(#cg_struct{id=Id, es=Es0}, St0) ->
+get_match(#cg_record{}, St0) ->
+    {V,St1} = new_var(St0),
+    {#cg_record{rec=V},[V],St1};
+get_match(#cg_record_id{id=Id}, St0) ->
+    {V,St1} = new_var(St0),
+    {#cg_record_id{id=Id,es=V},[V],St1};
+get_match(#cg_record_pairs{es=Es0}, St0) ->
     {Mes,St1} = new_vars(length(Es0), St0),
-    F =
-      fun(#cg_struct_pair{}=Pair, [V|Vs]) ->
-        {Pair#cg_struct_pair{val=V},Vs}
-      end,
-    {Es,_} = mapfoldl(F, Mes, Es0),
-    {#cg_struct{id=Id,es=Es},Mes,St1};
+    Es = [Pair#cg_record_pair{val=V} ||
+             #cg_record_pair{}=Pair <:- Es0 && V <- Mes],
+    {#cg_record_pairs{es=Es},Mes,St1};
 get_match(M, St) ->
     {M,[],St}.
 
@@ -1914,8 +1973,12 @@ new_clauses(Cs, #b_var{name=U}) ->
                            #cg_map{op=exact,es=Es} ->
                                Vals = [V || #cg_map_pair{val=V} <:- Es],
                                Vals ++ As;
-                           #cg_struct{es=Es} ->
-                               Vals = [V || #cg_struct_pair{val=V} <- Es],
+                           #cg_record{rec=#cg_record_id{}=R} ->
+                               [R|As];
+                           #cg_record_id{es=#cg_record_pairs{}=Es} ->
+                               [Es|As];
+                           #cg_record_pairs{es=Es} ->
+                               Vals = [V || #cg_record_pair{val=V} <:- Es],
                                Vals ++ As;
                            _Other ->
                                As
@@ -2110,7 +2173,9 @@ arg_con(Arg) ->
         #cg_cons{} -> cg_cons;
         #cg_tuple{} -> cg_tuple;
         #cg_map{} -> cg_map;
-        #cg_struct{} -> cg_struct;
+        #cg_record{} -> cg_record;
+        #cg_record_id{} -> cg_record_id;
+        #cg_record_pairs{} -> cg_record_pairs;
         #cg_binary{} -> cg_binary;
         #cg_bin_end{} -> cg_bin_end;
         #cg_bin_seg{} -> cg_bin_seg;
@@ -2146,8 +2211,8 @@ arg_val(Arg, C) ->
                          %% as intended.
                          erts_internal:cmp_term(A, B) < 0
                  end, [Key || #cg_map_pair{key=Key} <:- Es]);
-        #cg_struct{id = Id, es=Es} ->
-            {Id, sort([K || #cg_struct_pair{key = K} <:- Es])}
+        #cg_record_pairs{es=Es} ->
+            sort([K || #cg_record_pair{key=K} <:- Es])
     end.
 
 %%%
@@ -2537,11 +2602,14 @@ pat_vars(#cg_map_pair{key=K,val=V}) ->
     {U1,New} = pat_vars(V),
     {[],U2} = pat_vars(K),
     {union(U1, U2),New};
-pat_vars(#cg_struct{es=Es}) ->
+pat_vars(#cg_record{rec=R}) ->
+    pat_vars(R);
+pat_vars(#cg_record_id{es=E}) ->
+    pat_list_vars([E]);
+pat_vars(#cg_record_pairs{es=Es}) ->
     pat_list_vars(Es);
-pat_vars(#cg_struct_pair{val=V}) ->
-    {U1,New} = pat_vars(V),
-    {U1,New}.
+pat_vars(#cg_record_pair{val=V}) ->
+    pat_vars(V).
 
 pat_list_vars(Ps) ->
     foldl(fun (P, {Used0,New0}) ->
@@ -2726,8 +2794,8 @@ select_cg(cg_bin_end, [S], Var, Tf, _Vf, St) ->
     select_bin_end(S, Var, Tf, St);
 select_cg(cg_map, Vs, Var, Tf, Vf, St) ->
     select_map(Vs, Var, Tf, Vf, St);
-select_cg(cg_struct, Vs, Var, Tf, Vf, St) ->
-    select_struct(Vs, Var, Tf, Vf, St);
+select_cg(cg_record, Vs, Var, Tf, Vf, St) ->
+    select_record(Vs, Var, Tf, Vf, St);
 select_cg(cg_cons, [S], Var, Tf, Vf, St) ->
     select_cons(S, Var, Tf, Vf, St);
 select_cg(cg_nil, [_]=Vs, Var, Tf, Vf, St) ->
@@ -2999,32 +3067,61 @@ select_extract_map([P|Ps], MapSrc, Fail, St0) ->
 select_extract_map([], _, _, St) ->
     {[],St}.
 
-select_struct(Scs, StructSrc, Tf, Vf, St0) ->
-    F =
-      fun(#cg_val_clause{val=#cg_struct{id=Id,es=Es}, body=B}, Fail, St1) ->
-        select_struct_val(StructSrc, Id, Es, B, Fail, St1)
-      end,
-    {Is,St1} = match_fmf(F, Vf, St0, Scs),
-    {TestIs,St} = make_cond_branch({bif,is_record}, [StructSrc], Tf, St1),
+select_record(Scs, Src, Tf, Vf, St0) ->
+    [#cg_val_clause{val=#cg_record{rec=Rec},
+                    body=#cg_select{var=Rec,types=Types}}] = Scs,
+    {Is,St1} = select_record_id(Types, Src, Tf, Vf, St0),
+    {TestIs,St} = make_cond_branch({bif,is_record}, [Src], Tf, St1),
     {TestIs++Is,St}.
 
-select_struct_val(StrSrc, {M, N}, Es, B, Fail, St0) ->
-    {TestIs,St1} = make_cond_branch({bif,is_tagged_struct}, [StrSrc, #b_literal{val = M}, #b_literal{val = N}], Fail, St0),
-    {Eis,St2} = select_extract_struct(Es, StrSrc, Fail, St1),
-    {Bis,St3} = match_cg(B, Fail, St2),
-    {TestIs++Eis++Bis,St3};
-select_struct_val(StrSrc, {}, Es, B, Fail, St0) ->
-    {Eis,St1} = select_extract_struct(Es, StrSrc, Fail, St0),
+select_record_id([#cg_type_clause{type=cg_record_id,values=Scs}],
+                 Src, _Tf, Vf, St0) ->
+    NoAnonMatch =
+        all(fun(#cg_val_clause{val=#cg_record_id{id={_,_}}}) ->
+                    true;
+               (#cg_val_clause{}) ->
+                    false
+            end, Scs),
+    F = fun(#cg_val_clause{val=#cg_record_id{id={Mod,Name},es=Es},body=B},
+            Fail0, St1) ->
+                #cg_select{var=Es,types=Types} = B,
+                {TestIs,St2} =
+                    make_cond_branch({bif,is_tagged_struct},
+                                     [Src, #b_literal{val=Mod},
+                                      #b_literal{val=Name}],
+                                     Fail0, St1),
+                Fail = if
+                           NoAnonMatch -> Vf;
+                           true -> Fail0
+                       end,
+                {Is,St} = select_record_pairs(Types, Src, Fail, St2),
+                {TestIs++Is,St};
+           (#cg_val_clause{val=#cg_record_id{id={},es=Es},body=B},
+            Fail, St1) ->
+                #cg_select{var=Es,types=Types} = B,
+                select_record_pairs(Types, Src, Fail, St1)
+        end,
+    match_fmf(F, Vf, St0, Scs).
+
+select_record_pairs([#cg_type_clause{type=cg_record_pairs,values=Scs}],
+                    Src, Vf, St0) ->
+    F = fun(#cg_val_clause{val=#cg_record_pairs{es=Es}, body=B}, Fail, St1) ->
+                select_record_pairs_val(Src, Es, B, Fail, St1)
+        end,
+    match_fmf(F, Vf, St0, Scs).
+
+select_record_pairs_val(Src, Es, B, Fail, St0) ->
+    {Eis,St1} = select_extract_record(Es, Src, Fail, St0),
     {Bis,St2} = match_cg(B, Fail, St1),
     {Eis++Bis,St2}.
 
-select_extract_struct([P|Ps], StrSrc, Fail, St0) ->
-    #cg_struct_pair{key=Key,val=Dst} = P,
+select_extract_record([P|Ps], StrSrc, Fail, St0) ->
+    #cg_record_pair{key=Key,val=Dst} = P,
     Set = #b_set{op=get_struct_element,dst=Dst,args=[StrSrc,Key]},
     {TestIs,St1} = make_succeeded(Dst, {guard,Fail}, St0),
-    {Is,St} = select_extract_struct(Ps, StrSrc, Fail, St1),
+    {Is,St} = select_extract_record(Ps, StrSrc, Fail, St1),
     {[Set|TestIs]++Is,St};
-select_extract_struct([], _, _, St) ->
+select_extract_record([], _, _, St) ->
     {[],St}.
 
 guard_clause_cg(#cg_guard_clause{guard=G,body=B}, Fail, St0) ->
@@ -3170,22 +3267,22 @@ internal_cg(_Anno, is_record, [Tuple,TagVal,ArityVal], [Dst], St0) ->
     Is = Is0 ++ [GetArity] ++ Is1 ++ [GetTag] ++ Is2 ++ Is3,
     {Is,St};
 internal_cg(_Anno, is_tagged_struct, [Struct,ModVal,NameVal], [Dst], St0) ->
-  {Name,St1} = new_ssa_var(St0),
-  {Module,St2} = new_ssa_var(St1),
-  {Phi,St3} = new_label(St2),
-  {False,St4} = new_label(St3),
-  {Is0,St5} = make_cond_branch({bif,is_record}, [Struct], False, St4),
-  GetArity = #b_set{op={bif,struct_name},dst=Name,args=[Struct]},
-  {Is1,St6} = make_cond_branch({bif,'=:='}, [Name,NameVal], False, St5),
-  GetModule = #b_set{op={bif,struct_module},dst=Module, args=[Struct]},
-  {Is2,St} = make_cond_branch({bif,'=:='}, [Module,ModVal], False, St6),
-  Is3 = [#cg_break{args=[#b_literal{val=true}],phi=Phi},
-    {label,False},
-    #cg_break{args=[#b_literal{val=false}],phi=Phi},
-    {label,Phi},
-    #cg_phi{vars=[Dst]}],
-  Is = Is0 ++ [GetArity] ++ Is1 ++ [GetModule] ++ Is2 ++ Is3,
-  {Is,St};
+    {Name,St1} = new_ssa_var(St0),
+    {Module,St2} = new_ssa_var(St1),
+    {Phi,St3} = new_label(St2),
+    {False,St4} = new_label(St3),
+    {Is0,St5} = make_cond_branch({bif,is_record}, [Struct], False, St4),
+    GetArity = #b_set{op={bif,struct_name},dst=Name,args=[Struct]},
+    {Is1,St6} = make_cond_branch({bif,'=:='}, [Name,NameVal], False, St5),
+    GetModule = #b_set{op={bif,struct_module},dst=Module, args=[Struct]},
+    {Is2,St} = make_cond_branch({bif,'=:='}, [Module,ModVal], False, St6),
+    Is3 = [#cg_break{args=[#b_literal{val=true}],phi=Phi},
+           {label,False},
+           #cg_break{args=[#b_literal{val=false}],phi=Phi},
+           {label,Phi},
+           #cg_phi{vars=[Dst]}],
+    Is = Is0 ++ [GetArity] ++ Is1 ++ [GetModule] ++ Is2 ++ Is3,
+    {Is,St};
 internal_cg(Anno, recv_peek_message, [], [#b_var{name=Succeeded0},
                                           #b_var{}=Dst], St0) ->
     St = new_succeeded_value(Succeeded0, Dst, St0),

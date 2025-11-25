@@ -25,7 +25,8 @@
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
          local_basic/1,local_updates/1,non_atomic_names/1,
-         external_records/1,any_record/1,is_record_bif/1,
+         external_records/1,any_record/1,
+         matching/1,is_record_bif/1,
          get_field_names_bif/1]).
 
 -record #empty{}.
@@ -61,6 +62,7 @@ groups() ->
        non_atomic_names,
        any_record,
        external_records,
+       matching,
        is_record_bif,
        get_field_names_bif
       ]}].
@@ -337,6 +339,75 @@ get_any_xy(_) ->
 
 update_any_xy(R, X, Y) ->
     R#_{x=X,y=Y}.
+
+matching(_Config) ->
+    a_origin = match_abc(id(#a{x=0,y=0})),
+    {small_a,1,2} = match_abc(id(#a{x=1,y=2})),
+
+    {int_b,6} = match_abc(id(#b{x=1,y=2,z=3})),
+    b_none = match_abc(id(#b{})),
+    {other,#b{x=atom,y=none,z=none}} = do_match_abc(id(#b{x=atom})),
+    {xyz,atom,none,none} = do_match_abc_anon(id(#b{x=atom})),
+
+    {c_list,[a,b,c]} = do_match_abc(id(#c{x=1, y=2, z=[a,b,c]})),
+    {c,a,b,[]} = do_match_abc(id(#c{x=a, y=b, z=[]})),
+
+    {other,#d{}} = match_abc(id(#d{})),
+    {other,#empty{}} = match_abc(id(#empty{})),
+
+    {other,#vector{}} = do_match_abc(id(#vector{})),
+    {xyz,10,1,5} = do_match_abc_anon(id(#vector{})),
+
+    {other,#local{}} = match_abc(ext_records:local(a, b)),
+
+    ok.
+
+match_abc(R) ->
+    Res = do_match_abc(R),
+    Res = do_match_abc_anon(R),
+    Res.
+
+do_match_abc(#a{x=0, y=0}) ->
+    a_origin;
+do_match_abc(#b{x=X, y=Y, z=Z}) when is_integer(X+Y+Z) ->
+    {int_b,X+Y+Z};
+do_match_abc(#b{x=none, y=none, z=none}) ->
+    b_none;
+do_match_abc(#c{x=X, y=Y, z=Z}) when length(Z) =:= X + Y ->
+    {c_list,Z};
+do_match_abc(#a{x=X, y=Y}) when X + Y < 10 ->
+    {small_a,X,Y};
+do_match_abc(#c{x=X, y=Y, z=Z}) ->
+    {c,X,Y,Z};
+do_match_abc(#a{x=X, y=Y}) ->
+    {a,X,Y};
+do_match_abc(Other) when is_record(Other) ->
+    {other,Other};
+do_match_abc(_) ->
+    none.
+
+do_match_abc_anon(#a{x=0, y=0}) ->
+    a_origin;
+do_match_abc_anon(#b{x=X, y=Y, z=Z}) when is_integer(X+Y+Z) ->
+    {int_b,X+Y+Z};
+do_match_abc_anon(#b{x=none, y=none, z=none}) ->
+    b_none;
+do_match_abc_anon(#c{x=X, y=Y, z=Z}) when length(Z) =:= X + Y ->
+    {c_list,Z};
+do_match_abc_anon(#a{x=X, y=Y}) when X + Y < 10 ->
+    {small_a,X,Y};
+do_match_abc_anon(#c{x=X, y=Y, z=Z}) ->
+    {c,X,Y,Z};
+do_match_abc_anon(#a{x=X, y=Y}) ->
+    {a,X,Y};
+do_match_abc_anon(#_{x=X, y=Y, z=Z}) ->
+    {xyz,X,Y,Z};
+do_match_abc_anon(#_{x=X, y=Y}) ->
+    {xy,X,Y};
+do_match_abc_anon(Other) when is_record(Other) ->
+    {other,Other};
+do_match_abc_anon(_) ->
+    none.
 
 is_record_bif(Config) ->
     false = is_record(Config, #empty),
