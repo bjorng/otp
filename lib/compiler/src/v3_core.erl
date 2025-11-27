@@ -965,6 +965,15 @@ expr({match,L,P0,E0}, St0) ->
     end;
 expr({single_match,L,P,#c_var{}=E}, St0) ->
     single_match(L, P, E, St0);
+expr({get_record_field=Op,Loc,Src0,Id0,F0}, St0) ->
+    {Src,Aps0,St1} = safe(Src0, St0),
+    {Id,Aps1,St2} = safe(Id0, St1),
+    {F,Aps2,St3} = safe(F0, St2),
+    PrimOp = #iprimop{anno=#a{anno=lineno_anno(Loc, St0)},
+                      name=#c_literal{val=Op},
+                      args=[Src,Id,F]},
+    Aps = Aps0 ++ Aps1 ++ Aps2,
+    {PrimOp,Aps,St3};
 expr({op,_,'++',{lc,Llc,E,Qs0},More}, St0) ->
     %% Optimise '++' here because of the list comprehension algorithm.
     %%

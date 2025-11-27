@@ -1559,10 +1559,10 @@ cg_block([#cg_set{op=get_map_element,dst=Dst0,args=Args0,anno=Anno},
     {[{get_map_elements,Fail,Map,{list,[Key,Dst]}}],St};
 cg_block([#cg_set{op=get_struct_element,dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail0}, St) ->
-  [Str,Key] = typed_args(Args0, Anno, St),
-  Dst = beam_arg(Dst0, St),
-  Fail = ensure_label(Fail0, St),
-  {[{get_struct_elements,Fail,Str,{list,[Key,Dst]}}],St};
+    [Str,Key] = typed_args(Args0, Anno, St),
+    Dst = beam_arg(Dst0, St),
+    Fail = ensure_label(Fail0, St),
+    {[{get_struct_elements,Fail,Str,{list,[Key,Dst]}}],St};
 cg_block([#cg_set{op={float,convert},dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     {f,0} = bif_fail(Fail),                     %Assertion.
@@ -2820,6 +2820,7 @@ is_gc_bif(node, []) -> false;
 is_gc_bif(node, [_]) -> false;
 is_gc_bif(element, [_,_]) -> false;
 is_gc_bif(get, [_]) -> false;
+is_gc_bif(get_record_field, [_,_,_]) -> false;
 is_gc_bif(is_map_key, [_,_]) -> false;
 is_gc_bif(is_integer, [_,_,_]) -> false;
 is_gc_bif(map_get, [_,_]) -> false;

@@ -1374,3 +1374,12 @@ i_update_native_record(Mod, Id, Src, Dst, Live, N) {
         $NEXT($NEXT_INSTRUCTION+$N);
     }
 }
+
+i_get_record_field(Fail, Src, Mod, Id, Field, Dst) {
+    Eterm res = erl_get_record_field(c_p, $Src, $Mod, $Id, $Field);
+    if (is_non_value(res)) {
+        $FAIL_HEAD_OR_BODY($Fail);
+    } else {
+        $Dst = res;
+    }
+}

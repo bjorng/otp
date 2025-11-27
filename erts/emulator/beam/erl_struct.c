@@ -862,6 +862,58 @@ bool erl_is_record_accessible(Eterm src, Eterm mod) {
     return defp->is_exported == am_true || defp->module == mod;
 }
 
+Eterm erl_get_record_field(Process* p, Eterm src, Eterm mod, Eterm id, Eterm field) {
+    ErtsStructInstance *instance;
+    ErtsStructDefinition *defp;
+    Eterm *values;
+    int field_count;
+
+    if (is_not_struct(src)) {
+    badrecord:
+        p->fvalue = src;
+        p->freason = EXC_BADRECORD;
+        return THE_NON_VALUE;
+    }
+
+    instance = (ErtsStructInstance*) struct_val(src);
+    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+
+    if (id == am_Underscore) {
+        ;
+    } else {
+        Eterm module, name;
+        Eterm* tuple_ptr = boxed_val(id);
+
+        ASSERT(is_tuple(id));
+
+        module = tuple_ptr[1];
+        name = tuple_ptr[2];
+
+        if (defp->module != module || defp->name != name) {
+            /* Record name mismatch. */
+            goto badrecord;
+        }
+    }
+
+    if (!(defp->is_exported == am_true || defp->module == mod)) {
+        goto badrecord;
+    }
+
+    field_count = struct_field_count(src);
+    values = instance->values;
+
+    for (int i = 0; i < field_count; i++) {
+        if (field == defp->fields[i].key) {
+            return values[i];
+        }
+    }
+
+    p->fvalue = field;
+    p->freason = EXC_BADFIELD;
+    return THE_NON_VALUE;
+
+}
+
 BIF_RETTYPE struct_module_1(BIF_ALIST_1) {
     Eterm obj, *objp;
     ErtsStructDefinition *defp;

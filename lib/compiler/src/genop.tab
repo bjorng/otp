@@ -729,3 +729,9 @@ BEAM_FORMAT_NUMBER=0
 ##      the executing module. Jump to label Lbl if not (Rec is defined in
 ##      another module and is not exported).
 190: is_record_accessible/2
+
+## @spec get_record_field/5 Lbl Rec Id Field Dst
+## @doc Get a single field from a record. If Lbl is 0, raise an exception
+##      if extracting the value fails; otherwise, jump to label Lbl if
+##      extraction fails.
+191: get_record_field/5

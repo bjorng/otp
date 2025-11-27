@@ -584,6 +584,7 @@ bif_type(fadd, 2)   -> {op,fadd};
 bif_type(fsub, 2)   -> {op,fsub};
 bif_type(fmul, 2)   -> {op,fmul};
 bif_type(fdiv, 2)   -> {op,fdiv};
+bif_type(get_record_field, 3) -> {op,get_record_field};
 bif_type(_, 1)      -> bif1;
 bif_type(_, 2)      -> bif2;
 bif_type(_, 3)      -> bif3.

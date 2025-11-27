@@ -457,6 +457,17 @@ primop(raise, Anno, Args) ->
     primop_succeeded(resume, Anno, Args);
 primop(raw_raise, Anno, Args) ->
     primop_succeeded(raw_raise, Anno, Args);
+primop(get_record_field, Anno, Args0) ->
+    Args = case Args0 of
+               [Src,#b_literal{val={}},F] ->
+                   [Src,#b_literal{val='_'},F];
+               _ ->
+                   Args0
+           end,
+    %% For simplicity, pretend that this instruction is a guard
+    %% BIF. The beam_asm pass will turn it into an instruction.
+    Set = #b_set{anno=internal_anno(Anno),op={bif,get_record_field},args=Args},
+    #cg_succeeded{set=Set};
 primop(Op, Anno, Args) when Op =:= recv_peek_message;
                             Op =:= recv_wait_timeout ->
     #cg_internal{anno=internal_anno(Anno),op=Op,args=Args};

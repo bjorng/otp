@@ -1654,3 +1654,9 @@ is_record_accessible Fail Src =>
     i_is_record_accessible Fail Src a=$MODULE
 
 i_is_record_accessible f? xy a
+
+
+get_record_field Fail Src Id Field Dst =>
+    i_get_record_field Fail Src a=$MODULE Id Field Dst
+
+i_get_record_field j? xy a c a d

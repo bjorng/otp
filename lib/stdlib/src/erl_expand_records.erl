@@ -463,12 +463,12 @@ expr({native_record_update,_A,Arg0,{},Updates}, St0) ->
 expr({record_field,Anno,K,E0}, St0) ->
     {E1,St1} = expr(E0, St0),
     {{record_field,Anno,K,E1}, St1};
-expr({native_record_field_expr,_A,Str,{M,N}, F}, St) ->
-    Anno = erl_parse:first_anno(Str),
-    get_native_record_field(Anno, Str, F, {M,N}, St);
-expr({native_record_field_expr,_A,Str,{}, F}, St) ->
-    Anno = erl_parse:first_anno(Str),
-    get_native_record_field(Anno, Str, F, {}, St);
+expr({native_record_field_expr,_A,Rec0,Id0, F0}, St0) ->
+    {Rec,St} = expr(Rec0, St0),
+    Anno = erl_parse:first_anno(Rec),
+    Id = erl_parse:abstract(Id0),
+    F = erl_parse:abstract(F0),
+    {{get_record_field,Anno,Rec,Id,F},St};
 expr({bin,Anno,Es0}, St0) ->
     {Es1,St1} = expr_bin(Es0, St0),
     {{bin,Anno,Es1},St1};
@@ -1024,56 +1024,6 @@ record_exprs([{record_field,Anno,{atom,_AnnoA,_F}=Name,Val}=Field0 | Us], St0, P
     end;
 record_exprs([], St, Pre, Fs) ->
     {reverse(Pre),Fs,St}.
-
-
--spec get_native_record_field(
-        erl_anno:anno(),
-        erl_parse:abstract_expr(),
-        atom(),
-        {atom(), atom()} | {},
-        #exprec{}) ->
-          {erl_parse:abstract_expr(), #exprec{}}.
-get_native_record_field(Anno0, Str, F, Id, St0) ->
-    case is_in_guard() of
-        false ->
-            {Var,St} = new_var(Anno0, St0),
-            NAnno = no_compiler_warning(Anno0),
-            E = {'case',Anno0,Str,
-                 [{clause,NAnno,[{native_record,NAnno,Id,
-                                  [{record_field, NAnno, {atom, NAnno, F}, Var}]}],
-                   [],[Var]},
-                  {clause,NAnno,[{native_record,NAnno,Id,[]}],[],
-                   [{call,NAnno,{remote,NAnno,
-                                 {atom,NAnno,erlang},
-                                 {atom,NAnno,error}},
-                     [{tuple,NAnno,[{atom,NAnno,badfield},{atom, NAnno, F}]}]}]},
-                  {clause,NAnno,[Var],[],
-                   [{call,NAnno,{remote,NAnno,
-                                 {atom,NAnno,erlang},
-                                 {atom,NAnno,error}},
-                     [{tuple,NAnno,[{atom,NAnno,badrecord},Var]}]}]}]},
-            expr(E, St);
-        true ->
-            {ExpS,St1} = expr(Str, St0),
-            A0 = erl_anno:new(0),
-            ExpSp = erl_parse:map_anno(fun(_A) -> A0 end, ExpS),
-            St2 =
-                case Id of
-                    {Mod, Name} ->
-                        Anno = no_compiler_warning(Anno0),
-                        RA = {{Mod,Name,ExpSp}, Anno,
-                              {call,Anno,
-                               {remote,Anno,{atom,Anno,erlang},
-                                {atom,Anno,is_tagged_struct}},
-                               [ExpS,{atom,Anno,Mod},{atom,Anno,Name}]}},
-                        St1#exprec{check_needed=[RA | St1#exprec.check_needed]};
-                    {} ->
-                        St1
-                end,
-            {{call,Anno0,
-              {remote,Anno0,{atom,Anno0,erlang},{atom,Anno0,struct_get}},
-              [{atom,Anno0,F},ExpS]},St2}
-    end.
 
 is_simple_val({var,_,_}) -> true;
 is_simple_val(Val) ->
