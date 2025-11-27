@@ -850,6 +850,18 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
     BIF_RET(res);
 }
 
+bool erl_is_record_accessible(Eterm src, Eterm mod) {
+    ErtsStructInstance *instance;
+    ErtsStructDefinition *defp;
+
+    ASSERT(is_struct(src));
+
+    instance = (ErtsStructInstance*) struct_val(src);
+    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+
+    return defp->is_exported == am_true || defp->module == mod;
+}
+
 BIF_RETTYPE struct_module_1(BIF_ALIST_1) {
     Eterm obj, *objp;
     ErtsStructDefinition *defp;

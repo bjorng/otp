@@ -626,6 +626,8 @@ aa_is([_I=#b_set{dst=Dst,op=Op,args=Args,anno=Anno0}|Is], SS0,
                 {SS0, AAS0};
             is_nonempty_list ->
                 {SS0, AAS0};
+            is_record_accessible ->
+                {SS0, AAS0};
             is_tagged_tuple ->
                 {SS0, AAS0};
             is_tagged_struct ->

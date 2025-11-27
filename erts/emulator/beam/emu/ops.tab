@@ -1622,7 +1622,7 @@ i_update_record_continue t s
 i_update_record_in_place_done
 
 #
-# structs
+# Native records (OTP 29).
 #
 
 is_record f? xy
@@ -1649,3 +1649,8 @@ put_struct p Id Src=xy Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
 i_get_record_elements f? xy I *
 i_create_native_record t c d t I *
 i_update_native_record a c s d t I *
+
+is_record_accessible Fail Src =>
+    i_is_record_accessible Fail Src a=$MODULE
+
+i_is_record_accessible f? xy a

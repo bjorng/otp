@@ -294,12 +294,12 @@ external_records(_Config) ->
     #local{} = ExtLocal,
     #ext_records:local{} = ExtLocal,
 
-    %% case ExtLocal of
-    %%     #local{x=X, y=Y} ->
-    %%         error({should_fail,X,Y});
-    %%     _ ->
-    %%         ok
-    %% end,
+    case ExtLocal of
+        #local{x=X, y=Y} ->
+            error({should_fail,X,Y});
+        _ ->
+            ok
+    end,
 
     ok.
 
@@ -358,7 +358,7 @@ matching(_Config) ->
     {other,#vector{}} = do_match_abc(id(#vector{})),
     {xyz,10,1,5} = do_match_abc_anon(id(#vector{})),
 
-    {other,#local{}} = match_abc(ext_records:local(a, b)),
+    {local,#local{}} = match_abc(ext_records:local(a, b)),
 
     ok.
 
@@ -371,6 +371,8 @@ do_match_abc(#a{x=0, y=0}) ->
     a_origin;
 do_match_abc(#b{x=X, y=Y, z=Z}) when is_integer(X+Y+Z) ->
     {int_b,X+Y+Z};
+do_match_abc(#local{x=_,y=_}=Local) ->
+    error({should_not_match,Local});
 do_match_abc(#b{x=none, y=none, z=none}) ->
     b_none;
 do_match_abc(#c{x=X, y=Y, z=Z}) when length(Z) =:= X + Y ->
@@ -381,6 +383,8 @@ do_match_abc(#c{x=X, y=Y, z=Z}) ->
     {c,X,Y,Z};
 do_match_abc(#a{x=X, y=Y}) ->
     {a,X,Y};
+do_match_abc(#local{}=Local) ->
+    {local,Local};
 do_match_abc(Other) when is_record(Other) ->
     {other,Other};
 do_match_abc(_) ->
@@ -390,6 +394,8 @@ do_match_abc_anon(#a{x=0, y=0}) ->
     a_origin;
 do_match_abc_anon(#b{x=X, y=Y, z=Z}) when is_integer(X+Y+Z) ->
     {int_b,X+Y+Z};
+do_match_abc_anon(#local{x=_,y=_}=Local) ->
+    error({should_not_match,Local});
 do_match_abc_anon(#b{x=none, y=none, z=none}) ->
     b_none;
 do_match_abc_anon(#c{x=X, y=Y, z=Z}) when length(Z) =:= X + Y ->
@@ -400,6 +406,8 @@ do_match_abc_anon(#c{x=X, y=Y, z=Z}) ->
     {c,X,Y,Z};
 do_match_abc_anon(#a{x=X, y=Y}) ->
     {a,X,Y};
+do_match_abc_anon(#local{}=Local) ->
+    {local,Local};
 do_match_abc_anon(#_{x=X, y=Y, z=Z}) ->
     {xyz,X,Y,Z};
 do_match_abc_anon(#_{x=X, y=Y}) ->

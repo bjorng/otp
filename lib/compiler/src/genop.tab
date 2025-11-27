@@ -723,3 +723,9 @@ BEAM_FORMAT_NUMBER=0
 187: is_tagged_struct/4
 188: get_struct_elements/3
 189: put_struct/6
+
+## @spec is_record_accessible/2 Lbl Rec
+## @doc Check whether the fields of native record Rec are accessible from
+##      the executing module. Jump to label Lbl if not (Rec is defined in
+##      another module and is not exported).
+190: is_record_accessible/2

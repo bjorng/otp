@@ -1332,6 +1332,12 @@ i_is_native_record(Fail, Src, Mod, Name) {
     }
 }
 
+i_is_record_accessible(Fail, Src, Mod) {
+    if (!erl_is_record_accessible($Src, $Mod)) {
+        $FAIL($Fail);
+    }
+}
+
 i_get_record_elements(Fail, Src, N) {
     if (!erl_struct_get_elements(c_p, reg, $Src, $N, $NEXT_INSTRUCTION)) {
         $FAIL($Fail);

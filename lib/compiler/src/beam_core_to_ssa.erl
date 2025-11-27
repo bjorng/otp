@@ -100,7 +100,7 @@
 -record(cg_map_pair, {key,val}).
 -record(cg_record, {rec}).
 -record(cg_record_id, {id, es}).
--record(cg_record_pairs, {es}).
+-record(cg_record_pairs, {local::boolean(),es}).
 -record(cg_record_pair, {key,val}).
 -record(cg_cons, {hd,tl}).
 -record(cg_binary, {segs}).
@@ -860,9 +860,14 @@ pattern(#c_tuple{es=Ces}, Sub0, St0) ->
 pattern(#c_map{es=Ces}, Sub0, St0) ->
     {Kes,Sub1,St1} = pattern_map_pairs(Ces, Sub0, St0),
     {#cg_map{op=exact,es=Kes},Sub1,St1};
-pattern(#c_struct{id=#c_literal{val=Id}, es=Ces}, Sub0, St0) ->
+pattern(#c_struct{id=#c_literal{val=Id}, es=Ces}, Sub0,
+        #kern{module=Mod}=St0) ->
     {Kes,Sub1,St1} = pattern_record_pairs(Ces, Sub0, St0),
-    Pairs = #cg_record_pairs{es=Kes},
+    Local = case Id of
+                {Mod,_} -> true;
+                _ -> false
+            end,
+    Pairs = #cg_record_pairs{local=Local,es=Kes},
     {#cg_record{rec=#cg_record_id{id=Id,es=Pairs}},Sub1,St1};
 pattern(#c_binary{segments=Cv}, Sub0, St0) ->
     {Kv,Sub1,St1} = pattern_bin(Cv, Sub0, St0),
@@ -1949,11 +1954,11 @@ get_match(#cg_record{}, St0) ->
 get_match(#cg_record_id{id=Id}, St0) ->
     {V,St1} = new_var(St0),
     {#cg_record_id{id=Id,es=V},[V],St1};
-get_match(#cg_record_pairs{es=Es0}, St0) ->
+get_match(#cg_record_pairs{es=Es0}=Pairs, St0) ->
     {Mes,St1} = new_vars(length(Es0), St0),
     Es = [Pair#cg_record_pair{val=V} ||
              #cg_record_pair{}=Pair <:- Es0 && V <- Mes],
-    {#cg_record_pairs{es=Es},Mes,St1};
+    {Pairs#cg_record_pairs{es=Es},Mes,St1};
 get_match(M, St) ->
     {M,[],St}.
 
@@ -3091,13 +3096,18 @@ select_record_id([#cg_type_clause{type=cg_record_id,values=Scs}],
                                       #b_literal{val=Name}],
                                      Fail0, St1),
                 Fail = if
-                           NoAnonMatch -> Vf;
+                           NoAnonMatch ->
+                               %% Since there are no anonymous matches, we know
+                               %% that there is no need to check any other
+                               %% records.
+                               Vf;
                            true -> Fail0
                        end,
                 {Is,St} = select_record_pairs(Types, Src, Fail, St2),
                 {TestIs++Is,St};
            (#cg_val_clause{val=#cg_record_id{id={},es=Es},body=B},
             Fail, St1) ->
+                %% Anonymous match.
                 #cg_select{var=Es,types=Types} = B,
                 select_record_pairs(Types, Src, Fail, St1)
         end,
@@ -3105,15 +3115,32 @@ select_record_id([#cg_type_clause{type=cg_record_id,values=Scs}],
 
 select_record_pairs([#cg_type_clause{type=cg_record_pairs,values=Scs}],
                     Src, Vf, St0) ->
-    F = fun(#cg_val_clause{val=#cg_record_pairs{es=Es}, body=B}, Fail, St1) ->
-                select_record_pairs_val(Src, Es, B, Fail, St1)
+    F = fun(#cg_val_clause{val=#cg_record_pairs{es=Es,local=Local},
+                           body=B}, Fail, St1) ->
+                select_record_pairs_val(Local, Src, Es, B, Fail, St1)
         end,
     match_fmf(F, Vf, St0, Scs).
 
-select_record_pairs_val(Src, Es, B, Fail, St0) ->
-    {Eis,St1} = select_extract_record(Es, Src, Fail, St0),
-    {Bis,St2} = match_cg(B, Fail, St1),
-    {Eis++Bis,St2}.
+select_record_pairs_val(_Local, _Src, [], B, Fail, St0) ->
+    %% Matching only on the record name. This should always succeed,
+    %% so we must not emit an `is_record_accessible` instruction.
+    match_cg(B, Fail, St0);
+select_record_pairs_val(Local, Src, Es, B, Fail, St0) ->
+    {ExpIs,St1} =
+        case Local of
+            true ->
+                %% The record is used in its defining module -- no
+                %% need to check for accessibility.
+                {[],St0};
+            false ->
+                %% The definining module is either unknown or known to
+                %% be a module other than the current. We must check
+                %% for accessibility at runtime.
+                make_cond_branch(is_record_accessible, [Src], Fail, St0)
+        end,
+    {Eis,St2} = select_extract_record(Es, Src, Fail, St1),
+    {Bis,St3} = match_cg(B, Fail, St2),
+    {ExpIs++Eis++Bis,St3}.
 
 select_extract_record([P|Ps], StrSrc, Fail, St0) ->
     #cg_record_pair{key=Key,val=Dst} = P,
