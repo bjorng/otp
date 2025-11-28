@@ -298,14 +298,28 @@ not_in_guard(F) ->
 %%  Generate code for is_record/2.
 
 record_test(Anno, Term, Name, St) ->
-    case is_in_guard() of
-        false ->
-            record_test_in_body(Anno, Term, Name, St);
-        true ->
-            record_test_in_guard(Anno, Term, Name, St)
+    NAnno = no_compiler_warning(Anno),
+    IsRecord = {remote,NAnno,{atom,NAnno,erlang},{atom,NAnno,is_record}},
+    case St#exprec.structmod of
+        #{Name := M0} ->
+            %% Native record.
+            Mod = case M0 of
+                      local -> St#exprec.module;
+                      {imported,M1} -> M1
+                  end,
+            expr({call,NAnno,IsRecord,
+                  [Term,{atom,Anno,Mod},{atom,Anno,Name}]}, St);
+        #{} ->
+            %% Tuple record.
+            case is_in_guard() of
+                false ->
+                    record_test_in_body(Anno, IsRecord, Term, Name, St);
+                true ->
+                    record_test_in_guard(Anno, IsRecord, Term, Name, St)
+            end
     end.
 
-record_test_in_guard(Anno, Term, Name, St) ->
+record_test_in_guard(Anno, IsRecord, Term, Name, St) ->
     case not_a_tuple(Term) of
         true ->
             %% In case that later optimization passes have been turned off.
@@ -313,9 +327,8 @@ record_test_in_guard(Anno, Term, Name, St) ->
         false ->
             Fs = record_fields(Name, Anno, St),
             NAnno = no_compiler_warning(Anno),
-            expr({call,NAnno,{remote,NAnno,{atom,NAnno,erlang},{atom,NAnno,is_record}},
-                  [Term,{atom,Anno,Name},{integer,Anno,length(Fs)+1}]},
-                 St)
+            expr({call,NAnno,IsRecord,
+                  [Term,{atom,Anno,Name},{integer,Anno,length(Fs)+1}]}, St)
     end.
 
 not_a_tuple({atom,_,_}) -> true;
@@ -331,7 +344,7 @@ not_a_tuple({op,_,_,_}) -> true;
 not_a_tuple({op,_,_,_,_}) -> true;
 not_a_tuple(_) -> false.
 
-record_test_in_body(Anno, Expr, Name, St0) ->
+record_test_in_body(Anno, IsRecord, Expr, Name, St0) ->
     %% As Expr may have side effects, we must evaluate it
     %% first and bind the value to a new variable.
     %% We must use also handle the case that Expr does not
@@ -341,24 +354,8 @@ record_test_in_body(Anno, Expr, Name, St0) ->
     NAnno = no_compiler_warning(Anno),
     expr({block,Anno,
           [{match,Anno,Var,Expr},
-           {call,NAnno,{remote,NAnno,{atom,NAnno,erlang},
-                        {atom,NAnno,is_record}},
+           {call,NAnno,IsRecord,
             [Var,{atom,Anno,Name},{integer,Anno,length(Fs)+1}]}]}, St).
-
-native_record_test(Anno, Term, Name0, St) ->
-    {Mod,Name} =
-        case Name0 of
-            {_,_}=ModName ->
-                ModName;
-            _ when is_atom(Name0) ->
-                {St#exprec.module,Name0}
-        end,
-    NAnno = no_compiler_warning(Anno),
-    Expr = {call,NAnno,
-            {remote,NAnno,{atom,Anno,erlang},
-             {atom,NAnno,is_tagged_struct}},
-            [Term,{atom,NAnno,Mod},{atom,NAnno,Name}]},
-    expr(Expr, St).
 
 exprs([E0 | Es0], St0) ->
     {E,St1} = expr(E0, St0),
@@ -534,8 +531,6 @@ expr({named_fun,Anno,Name,Cs0}, St0) ->
                  end);
 expr({call,Anno,{atom,_,is_record},[A,{atom,_,Name}]}, St) ->
     record_test(Anno, A, Name, St);
-expr({call,Anno,{atom,_,is_record},[A,{native_record_id,_,Name}]}, St) ->
-    native_record_test(Anno, A, Name, St);
 expr({call,Anno,{remote,_,{atom,_,erlang},{atom,_,is_record}},
       [A,{atom,_,Name}]}, St) ->
     record_test(Anno, A, Name, St);

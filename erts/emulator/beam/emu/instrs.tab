@@ -1320,7 +1320,7 @@ padding() {
 // Native records.
 //
 
-is_record(Fail, Src) {
+is_any_native_record(Fail, Src) {
     if (!is_struct($Src)) {
         $FAIL($Fail);
     }

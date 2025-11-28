@@ -407,9 +407,6 @@ expr(#c_call{anno=A,module=M0,name=F0,args=Cargs}, Sub, St0) ->
         is_record ->
             {Args,Ap,St} = atomic_list(Cargs, Sub, St0),
             {#cg_internal{anno=internal_anno(A),op=is_record,args=Args},Ap,St};
-        is_tagged_struct ->
-            {Args,Ap,St} = atomic_list(Cargs, Sub, St0),
-            {#cg_internal{anno=internal_anno(A),op=is_tagged_struct,args=Args},Ap,St};
         error ->
             %% Invalid call (e.g. M:42/3). Issue a warning, and let
             %% the generated code call apply/3.
@@ -618,7 +615,7 @@ ssa_struct(A, SrcStruct, Id0, Pairs) ->
          end,
     Args = [SrcStruct,Id|Pairs],
     LineAnno = line_anno(A),
-    Set = #b_set{anno=LineAnno,op=put_struct,args=Args},
+    Set = #b_set{anno=LineAnno,op=put_record,args=Args},
     #cg_succeeded{set=Set}.
 
 map_split_pairs(A, Var, Ces, Sub, St0) ->
@@ -1138,7 +1135,6 @@ call_type(#c_literal{val=M}, #c_literal{val=F}, As) when is_atom(M), is_atom(F) 
         true ->
             case {M,F} of
                 {erlang,is_record} when length(As) =:= 3 -> is_record;
-                {erlang,is_tagged_struct} when length(As) =:= 3 -> is_tagged_struct;
                 {erlang,_} -> bif
             end
     end;
@@ -1155,14 +1151,6 @@ is_guard_bif(erlang, is_record, [_,Tag,Sz]) ->
     case {Tag,Sz} of
         {#c_literal{val=Atom},#c_literal{val=Arity}}
           when is_atom(Atom), is_integer(Arity), Arity >= 1 ->
-            true;
-        {_,_} ->
-            false
-    end;
-is_guard_bif(erlang, is_tagged_struct, [_,Mod,Name]) ->
-    case {Mod,Name} of
-        {#c_literal{val=M},#c_literal{val=N}}
-          when is_atom(M), is_atom(N) ->
             true;
         {_,_} ->
             false
@@ -3102,7 +3090,7 @@ select_record_id([#cg_type_clause{type=cg_record_id,values=Scs}],
             Fail0, St1) ->
                 #cg_select{var=Es,types=Types} = B,
                 {TestIs,St2} =
-                    make_cond_branch({bif,is_tagged_struct},
+                    make_cond_branch({bif,is_record},
                                      [Src, #b_literal{val=Mod},
                                       #b_literal{val=Name}],
                                      Fail0, St1),
@@ -3155,7 +3143,7 @@ select_record_pairs_val(Local, Src, Es, B, Fail, St0) ->
 
 select_extract_record([P|Ps], StrSrc, Fail, St0) ->
     #cg_record_pair{key=Key,val=Dst} = P,
-    Set = #b_set{op=get_struct_element,dst=Dst,args=[StrSrc,Key]},
+    Set = #b_set{op=get_record_element,dst=Dst,args=[StrSrc,Key]},
     {TestIs,St1} = make_succeeded(Dst, {guard,Fail}, St0),
     {Is,St} = select_extract_record(Ps, StrSrc, Fail, St1),
     {[Set|TestIs]++Is,St};
@@ -3287,6 +3275,7 @@ internal_anno(Le) ->
 %% internal_cg(Anno, Op, [Arg], [Ret], State) ->
 %%      {[Ainstr],State}.
 internal_cg(_Anno, is_record, [Tuple,TagVal,ArityVal], [Dst], St0) ->
+    %% Test for a tuple record.
     {Arity,St1} = new_ssa_var(St0),
     {Tag,St2} = new_ssa_var(St1),
     {Phi,St3} = new_label(St2),
@@ -3303,23 +3292,6 @@ internal_cg(_Anno, is_record, [Tuple,TagVal,ArityVal], [Dst], St0) ->
            {label,Phi},
            #cg_phi{vars=[Dst]}],
     Is = Is0 ++ [GetArity] ++ Is1 ++ [GetTag] ++ Is2 ++ Is3,
-    {Is,St};
-internal_cg(_Anno, is_tagged_struct, [Struct,ModVal,NameVal], [Dst], St0) ->
-    {Name,St1} = new_ssa_var(St0),
-    {Module,St2} = new_ssa_var(St1),
-    {Phi,St3} = new_label(St2),
-    {False,St4} = new_label(St3),
-    {Is0,St5} = make_cond_branch({bif,is_record}, [Struct], False, St4),
-    GetArity = #b_set{op={bif,struct_name},dst=Name,args=[Struct]},
-    {Is1,St6} = make_cond_branch({bif,'=:='}, [Name,NameVal], False, St5),
-    GetModule = #b_set{op={bif,struct_module},dst=Module, args=[Struct]},
-    {Is2,St} = make_cond_branch({bif,'=:='}, [Module,ModVal], False, St6),
-    Is3 = [#cg_break{args=[#b_literal{val=true}],phi=Phi},
-           {label,False},
-           #cg_break{args=[#b_literal{val=false}],phi=Phi},
-           {label,Phi},
-           #cg_phi{vars=[Dst]}],
-    Is = Is0 ++ [GetArity] ++ Is1 ++ [GetModule] ++ Is2 ++ Is3,
     {Is,St};
 internal_cg(Anno, recv_peek_message, [], [#b_var{name=Succeeded0},
                                           #b_var{}=Dst], St0) ->

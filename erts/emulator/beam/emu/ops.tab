@@ -1625,25 +1625,23 @@ i_update_record_in_place_done
 # Native records (OTP 29).
 #
 
-is_record f? xy
+is_any_native_record f? xy
 
-is_tagged_struct Fail Src Mod Name | is_current_module(Mod) =>
-    i_is_native_record Fail Src Mod Name
-is_tagged_struct Fail Src Mod Name =>
+is_native_record Fail Src Mod Name =>
     i_is_native_record Fail Src Mod Name
 
 i_is_native_record f? xy a a
 
-get_struct_elements Fail Src Size Matches=* | map_key_sort(Size, Matches) =>
+get_record_elements Fail Src Size Matches=* | map_key_sort(Size, Matches) =>
     i_get_record_elements Fail Src Size Matches
 
-put_struct p Id n Dst Live Size Updates=* |
+put_record p Id n Dst Live Size Updates=* |
   local_record(Id) | map_key_sort(Size, Updates) =>
     i_create_native_record u=1 Id Dst Live Size Updates
-put_struct p Id n Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
+put_record p Id n Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
     i_create_native_record u Id Dst Live Size Updates
 
-put_struct p Id Src=xy Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
+put_record p Id Src=xy Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
     i_update_native_record a=$MODULE Id Src Dst Live Size Updates
 
 i_get_record_elements f? xy I *

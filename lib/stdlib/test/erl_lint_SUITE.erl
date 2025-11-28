@@ -5800,8 +5800,8 @@ native_records(Config) ->
           {undefined_record_1,
            <<"t() ->
                   X = no_record,
-                  is_record(X, #foo),
-                  erlang:is_record(X, #foo).
+                  is_record(X, foo),
+                  erlang:is_record(X, foo).
              ">>,
            [],
            {errors,[{{3,32},erl_lint,{undefined_record,foo}},

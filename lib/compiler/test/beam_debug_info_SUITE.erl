@@ -422,8 +422,12 @@ extract_src_vars({'catch',_Anno,E}, Lc, Acc0) ->
 extract_src_vars({zip,_,Qs0}, _Lc, Acc0) ->
     Qs = extract_sv_qs(Qs0),
     extract_args(Qs, Acc0);
-extract_src_vars({struct,_,_,Es}, Lc, Acc0) ->
+extract_src_vars({native_record,_Anno,_Id,V,Es}, Lc, Acc0) ->
+    extract_body(Es, Lc, extract_src_vars(V, Lc, Acc0));
+extract_src_vars({native_record,_Anno,_Id,Es}, Lc, Acc0) ->
     extract_body(Es, Lc, Acc0);
+extract_src_vars({get_record_field,_,R,_,_}, Lc, Acc0) ->
+    extract_src_vars(R, Lc, Acc0);
 extract_src_vars({record_field,_,_,E}, Lc, Acc0) ->
     extract_src_vars(E, Lc, Acc0);
 extract_src_vars({C,_,Build,Qs0}, Lc, Acc0)

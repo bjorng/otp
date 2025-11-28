@@ -542,7 +542,7 @@ aa_is([_I=#b_set{dst=Dst,op=Op,args=Args,anno=Anno0}|Is], SS0,
             get_map_element ->
                 [Map,_Key] = Args,
                 {aa_map_extraction(Dst, Map, SS0, AAS0), AAS0};
-            get_struct_element ->
+            get_record_element ->
                 [Str, _Key] = Args,
                 {aa_struct_extraction(Dst, Str, SS0, AAS0), AAS0};
             get_tl ->
@@ -570,7 +570,7 @@ aa_is([_I=#b_set{dst=Dst,op=Op,args=Args,anno=Anno0}|Is], SS0,
                 {aa_construct_pair(Dst, Args, Types, SS1, AAS0), AAS0};
             put_map ->
                 {aa_construct_term(Dst, Args, SS0, AAS0), AAS0};
-            put_struct ->
+            put_record ->
                 {aa_construct_term(Dst, Args, SS0, AAS0), AAS0};
             put_tuple ->
                 SS1 = beam_ssa_ss:add_var(Dst, unique, SS0),
@@ -629,8 +629,6 @@ aa_is([_I=#b_set{dst=Dst,op=Op,args=Args,anno=Anno0}|Is], SS0,
             is_record_accessible ->
                 {SS0, AAS0};
             is_tagged_tuple ->
-                {SS0, AAS0};
-            is_tagged_struct ->
                 {SS0, AAS0};
             kill_try_tag ->
                 {SS0, AAS0};

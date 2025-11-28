@@ -719,10 +719,22 @@ BEAM_FORMAT_NUMBER=0
 ##      On failure jump to Lbl.
 185: bif3/6
 
-186: is_record/2
-187: is_tagged_struct/4
-188: get_struct_elements/3
-189: put_struct/6
+## @spec is_any_native_record Lbl Term
+## @doc Check whether Term is a native record. Jump to label Lbl if not.
+186: is_any_native_record/2
+
+## @spec is_native_record Lbl Rec Module Name
+## @doc Check whether record Rec is the record Name defined in module Module.
+##      Jump to label if not.
+187: is_native_record/4
+
+188: get_record_elements/3
+
+## @spec put_record Lbl Id Src Dst Live Updates
+## @doc Create (Src is nil) or update (Src is a register) a native record.
+##      Fail with an exception if creation/update fails. (Lbl is reserved
+##      for potential future release; it must be 0.)
+189: put_record/6
 
 ## @spec is_record_accessible/2 Lbl Rec
 ## @doc Check whether the fields of native record Rec are accessible from

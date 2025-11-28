@@ -272,8 +272,14 @@ gexpr(#c_let{vars=Vs,arg=Arg,body=B}, Def, Rt, St0) ->
     {Lvs,St2} = variable_list(Vs, St1),
     gbody(B, union(Lvs, Def), Rt, St2);
 gexpr(#c_call{module=#c_literal{val=erlang},name=#c_literal{val=is_record},
+              args=[Arg,#c_literal{val=Mod},#c_literal{val=Name}]},
+      Def, Rt, St) when is_atom(Mod), is_atom(Name) ->
+    %% Native record.
+    return_match(Rt, 1, gexpr(Arg, Def, 1, St));
+gexpr(#c_call{module=#c_literal{val=erlang},name=#c_literal{val=is_record},
               args=[Arg,#c_literal{val=Tag},#c_literal{val=Size}]},
       Def, Rt, St) when is_atom(Tag), is_integer(Size) ->
+    %% Tuple record.
     return_match(Rt, 1, gexpr(Arg, Def, 1, St));
 gexpr(#c_call{module=#c_literal{val=erlang},name=#c_literal{val=is_record},
               args=[Arg]},Def, Rt, St)->

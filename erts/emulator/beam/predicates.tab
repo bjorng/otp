@@ -240,8 +240,3 @@ pred.local_record(Id) {
         return false;
     }
 }
-
-// Test whether the module of record id is the current module.
-pred.is_current_module(Mod) {
-    return Mod.type == TAG_a && Mod.val == S->module;
-}

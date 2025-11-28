@@ -69,7 +69,7 @@ groups() ->
 
 init_per_suite(Config) ->
     id(Config),
-    %% test_lib:recompile(?MODULE),
+    test_lib:recompile(?MODULE),
     {module,ext_records} = code:ensure_loaded(ext_records),
     Config.
 
@@ -418,14 +418,40 @@ do_match_abc_anon(_) ->
     none.
 
 is_record_bif(Config) ->
-    false = is_record(Config, #empty),
-    false = is_record(Config, #?MODULE:empty),
-    false = is_record(Config, #a),
-    false = is_record(Config, #?MODULE:a),
+    false = is_record(Config, empty),
+    false = is_record(Config, ?MODULE, empty),
+    false = is_record(Config, a),
+    false = is_record(Config, ?MODULE, a),
 
     BR = id(#b{}),
-    true = is_record(BR, #b),
-    true = is_record(BR, #?MODULE:b),
+    true = is_record(BR, b),
+    true = is_record(BR, ?MODULE, b),
+
+    Local = ext_records:local(a, b),
+    true = is_record(Local, local),
+    true = is_record(Local, ext_records, local),
+
+    %% In guards.
+    if
+        is_record(Config, b) -> error(should_fail);
+        true -> ok
+    end,
+    if
+        is_record(BR, b) -> ok
+    end,
+    if
+        is_record(BR, ?MODULE, b) -> ok
+    end,
+    if
+        is_record(Local, local) -> ok
+    end,
+    if
+        is_record(Local, ext_records, local) -> ok
+    end,
+
+    %% Test calling the actual BIFs.
+    true = is_record(BR, id(b)),
+    true = is_record(BR, id(?MODULE), id(b)),
 
     ok.
 

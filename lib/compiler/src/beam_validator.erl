@@ -854,8 +854,8 @@ vi(build_stacktrace, Vst0) ->
 vi({get_map_elements,{f,Fail},Src0,{list,List}}, Vst) ->
     Src = unpack_typed_arg(Src0, Vst),
     verify_get_map(Fail, Src, List, Vst);
-vi({get_struct_elements,{f,Fail},Src,{list,List}}, Vst) ->
-  verify_get_struct_elements(Fail, Src, List, Vst);
+vi({get_record_elements,{f,Fail},Src,{list,List}}, Vst) ->
+  verify_get_record_elements(Fail, Src, List, Vst);
 vi({put_map_assoc=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
     verify_put_map(Op, Fail, Src, Dst, Live, List, Vst);
 vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
@@ -865,8 +865,8 @@ vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
 %%
 %% Struct (native record) instructions.
 %%
-vi({put_struct,{f,Fail},Id,Src,Dst,Live,{list,List}}, Vst) ->
-    verify_put_struct(Fail, Id, Src, Dst, Live, List, Vst);
+vi({put_record,{f,Fail},Id,Src,Dst,Live,{list,List}}, Vst) ->
+    verify_put_record(Fail, Id, Src, Dst, Live, List, Vst);
 
 %%
 %% Bit syntax matching
@@ -1430,7 +1430,7 @@ pmt_1([Key0, Value0 | List], Vst, Acc0) ->
 pmt_1([], _Vst, Acc) ->
     Acc.
 
-verify_put_struct(Fail, Id, Src, Dst, Live, List, Vst0) ->
+verify_put_record(Fail, Id, Src, Dst, Live, List, Vst0) ->
     case Id of
         {literal,{Mod,Name}} when is_atom(Mod), is_atom(Name) ->
             ok;
@@ -1468,18 +1468,18 @@ pst_1([Key0, Value0 | List], Vst, Acc0) ->
 pst_1([], _Vst, Acc) ->
     Acc.
 
-verify_get_struct_elements(Fail, Src, List, Vst0) ->
-  assert_no_exception(Fail),
-  assert_not_literal(Src),
-  branch(Fail, Vst0,
-    fun(FailVst) ->
-      clobber_struct_vals(List, Src, FailVst)
-    end,
-    fun(SuccVst) ->
-        Keys = extract_map_keys(List, SuccVst),
-        assert_unique_keys(struct, Keys),
-        extract_vals(struct, List, Src, SuccVst)
-    end).
+verify_get_record_elements(Fail, Src, List, Vst0) ->
+    assert_no_exception(Fail),
+    assert_not_literal(Src),
+    branch(Fail, Vst0,
+           fun(FailVst) ->
+                   clobber_struct_vals(List, Src, FailVst)
+           end,
+           fun(SuccVst) ->
+                   Keys = extract_map_keys(List, SuccVst),
+                   assert_unique_keys(struct, Keys),
+                   extract_vals(struct, List, Src, SuccVst)
+           end).
 
 verify_update_record(Size, Src0, Dst, List0, Vst0) ->
     Src = unpack_typed_arg(Src0, Vst0),

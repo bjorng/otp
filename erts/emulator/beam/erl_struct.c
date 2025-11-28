@@ -328,34 +328,6 @@ void erts_struct_end_staging(int commit)
     IF_DEBUG(debug_struct_load_ix = ~0);
 }
 
-BIF_RETTYPE struct_get_2(BIF_ALIST_2) {
-    /* Struct term, Key */
-    ErtsStructDefinition *defp;
-    int field_count;
-    Eterm obj, *objp;
-    Eterm key;
-
-    key = BIF_ARG_1;
-    obj = BIF_ARG_2;
-
-    if (is_not_struct(obj) ||
-        is_not_atom(key)) {
-        BIF_ERROR(BIF_P, BADARG);
-    }
-
-    objp = struct_val(obj);
-    field_count = header_arity(objp[0]) - 1;
-    defp = (ErtsStructDefinition*)boxed_val(objp[1]);
-
-    for (int i = 0; i < field_count; i++) {
-        if (eq(key, defp->fields[i].key)) {
-            BIF_RET(objp[2 + i]);
-        }
-    }
-
-    BIF_ERROR(BIF_P, BADARG);
-}
-
 BIF_RETTYPE records_get_2(BIF_ALIST_2) {
     /* Struct term, Key */
     ErtsStructDefinition *defp;
@@ -912,40 +884,6 @@ Eterm erl_get_record_field(Process* p, Eterm src, Eterm mod, Eterm id, Eterm fie
     p->freason = EXC_BADFIELD;
     return THE_NON_VALUE;
 
-}
-
-BIF_RETTYPE struct_module_1(BIF_ALIST_1) {
-    Eterm obj, *objp;
-    ErtsStructDefinition *defp;
-    ErtsStructEntry *entry;
-
-    obj = BIF_ARG_1;
-    if (is_not_struct(obj)) {
-        BIF_ERROR(BIF_P, BADARG);
-    }
-    objp = struct_val(obj);
-
-    defp = (ErtsStructDefinition*)boxed_val(objp[1]);
-    entry = (ErtsStructEntry*)unsigned_val(defp->entry);
-
-    BIF_RET(entry->module);
-}
-
-BIF_RETTYPE struct_name_1(BIF_ALIST_1) {
-    Eterm obj, *objp;
-    ErtsStructDefinition *defp;
-    ErtsStructEntry *entry;
-
-    obj = BIF_ARG_1;
-    if (is_not_struct(obj)) {
-        BIF_ERROR(BIF_P, BADARG);
-    }
-    objp = struct_val(obj);
-
-    defp = (ErtsStructDefinition*)boxed_val(objp[1]);
-    entry = (ErtsStructEntry*)unsigned_val(defp->entry);
-
-    BIF_RET(entry->name);
 }
 
 BIF_RETTYPE records_get_module_1(BIF_ALIST_1) {

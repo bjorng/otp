@@ -455,7 +455,6 @@ A list of binaries. This datatype is useful to use together with
 -export([list_to_pid/1, list_to_port/1, list_to_ref/1, list_to_tuple/1, loaded/0]).
 -export([localtime/0, make_ref/0]).
 -export([map_size/1, map_get/2, match_spec_test/3, md5/1, md5_final/1]).
--export([struct_get/2, struct_module/1, struct_name/1]).
 -export([md5_init/0, md5_update/2, module_loaded/1, monitor/2, monitor/3]).
 -export([monitor_node/2, monitor_node/3, nif_error/1, nif_error/2]).
 -export([node/0, node/1, now/0, phash/2, phash2/1, phash2/2]).
@@ -487,7 +486,7 @@ A list of binaries. This datatype is useful to use together with
          is_atom/1, is_binary/1, is_bitstring/1, is_boolean/1,
          is_float/1, is_function/1, is_function/2, is_integer/1, is_integer/3,
          is_list/1, is_map/1, is_number/1, is_pid/1, is_port/1, is_record/1,
-         is_record/2, is_record/3, is_reference/1, is_tagged_struct/3, is_tuple/1, load_module/2,
+         is_record/2, is_record/3, is_reference/1, is_tuple/1, load_module/2,
          load_nif/2, localtime_to_universaltime/2, make_fun/3,
          make_tuple/2, make_tuple/3, open_port/2,
          port_call/2, port_call/3, port_info/1, port_info/2, process_flag/2,
@@ -7222,6 +7221,24 @@ false
 is_port(_Term) ->
     erlang:nif_error(undefined).
 
+-doc """
+Returns `true` if `Term` is a native record; otherwise, returns `false`.
+
+## Examples
+
+```erlang
+1> is_record(#rec{})
+true
+2> is_record({a,b}).
+false
+```
+""".
+-doc #{ category => terms }.
+-spec is_record(Term) -> boolean() when
+      Term :: term().
+is_record(_Term) ->
+    erlang:nif_error(undefined).
+
 %% Shadowed by erl_bif_types: erlang:is_record/2
 -doc """
 Returns `true` if `Term` is a tuple and its first element is `RecordTag`;
@@ -7245,6 +7262,7 @@ is_record(_Term,_RecordTag) ->
     erlang:nif_error(undefined).
 
 %% Shadowed by erl_bif_types: erlang:is_record/3
+%% TODO: Update erl_bif_types. Update description.
 -doc """
 Returns `true` if `Term` is a tuple, its first element is `RecordTag`, and its
 size is `Size`; otherwise, returns `false`.
@@ -7258,10 +7276,10 @@ integer.
 > [`is_record/2`](`is_record/2`) is to be used.
 """.
 -doc #{ category => terms }.
--spec is_record(Term, RecordTag, Size) -> boolean() when
+-spec is_record(Term, Module, Name) -> boolean() when
       Term :: term(),
-      RecordTag :: atom(),
-      Size :: non_neg_integer().
+      Module :: atom(),
+      Name :: non_neg_integer() | atom().
 is_record(_Term,_RecordTag,_Size) ->
     erlang:nif_error(undefined).
 
@@ -7283,28 +7301,6 @@ false
       Term :: term().
 is_reference(_Term) ->
     erlang:nif_error(undefined).
-
--spec is_record(Term) -> boolean() when
-      Term :: term().
-is_record(_Term) ->
-    erlang:nif_error(undefined).
-
--spec is_tagged_struct(Term, module(), atom()) -> boolean() when
-    Term :: term().
-is_tagged_struct(_Term, _Module, _Name) ->
-  erlang:nif_error(undefined).
-
--spec struct_get(atom(), term()) -> term().
-struct_get(_Key, _Struct) ->
-  erlang:nif_error(undefined).
-
--spec struct_module(term()) -> module().
-struct_module(_Struct) ->
-  erlang:nif_error(undefined).
-
--spec struct_name(term()) -> atom().
-struct_name(_Struct) ->
-  erlang:nif_error(undefined).
 
 %% Shadowed by erl_bif_types: erlang:is_tuple/1
 -doc """

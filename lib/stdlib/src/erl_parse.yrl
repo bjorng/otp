@@ -481,10 +481,6 @@ native_record_expr -> expr_max '#_' record_tuple :
 	{native_record_update,?anno('$2'),'$1',{},'$3'}.
 native_record_expr -> native_record_expr '#_' record_tuple :
         {native_record_update,?anno('$2'),'$1',{},'$3'}.
-native_record_expr -> '#' record_name :
-        {native_record_id,?anno('$1'),element(3, '$2')}.
-native_record_expr -> '#' atom ':' record_name :
-        {native_record_id,?anno('$1'),{element(3, '$2'),element(3, '$4')}}.
 
 %% N.B. This is called from expr.
 

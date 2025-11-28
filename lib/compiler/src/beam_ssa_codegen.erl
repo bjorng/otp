@@ -433,7 +433,7 @@ classify_heap_need(executable_line) -> neutral;
 classify_heap_need(extract) -> gc;
 classify_heap_need(get_hd) -> neutral;
 classify_heap_need(get_map_element) -> neutral;
-classify_heap_need(get_struct_element) -> neutral;
+classify_heap_need(get_record_element) -> neutral;
 classify_heap_need(get_tl) -> neutral;
 classify_heap_need(get_tuple_element) -> neutral;
 classify_heap_need(has_map_field) -> neutral;
@@ -448,7 +448,7 @@ classify_heap_need(nop) -> neutral;
 classify_heap_need(new_try_tag) -> neutral;
 classify_heap_need(peek_message) -> gc;
 classify_heap_need(put_map) -> gc;
-classify_heap_need(put_struct) -> gc;
+classify_heap_need(put_record) -> gc;
 classify_heap_need(raw_raise) -> gc;
 classify_heap_need(recv_marker_bind) -> neutral;
 classify_heap_need(recv_marker_clear) -> neutral;
@@ -736,7 +736,7 @@ need_live_anno(Op) ->
         call -> true;
         debug_line -> true;
         put_map -> true;
-        put_struct -> true;
+        put_record -> true;
         update_record -> true;
         _ -> false
     end.
@@ -865,7 +865,7 @@ need_y_init(#cg_set{op=bs_skip,args=[#b_literal{val=Type}|_]}) ->
 need_y_init(#cg_set{op=bs_start_match}) -> true;
 need_y_init(#cg_set{op=debug_line}) -> true;
 need_y_init(#cg_set{op=put_map}) -> true;
-need_y_init(#cg_set{op=put_struct}) -> true;
+need_y_init(#cg_set{op=put_record}) -> true;
 need_y_init(#cg_set{op=update_record}) -> true;
 need_y_init(#cg_set{}) -> false.
 
@@ -1557,12 +1557,12 @@ cg_block([#cg_set{op=get_map_element,dst=Dst0,args=Args0,anno=Anno},
     Dst = beam_arg(Dst0, St),
     Fail = ensure_label(Fail0, St),
     {[{get_map_elements,Fail,Map,{list,[Key,Dst]}}],St};
-cg_block([#cg_set{op=get_struct_element,dst=Dst0,args=Args0,anno=Anno},
+cg_block([#cg_set{op=get_record_element,dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail0}, St) ->
     [Str,Key] = typed_args(Args0, Anno, St),
     Dst = beam_arg(Dst0, St),
     Fail = ensure_label(Fail0, St),
-    {[{get_struct_elements,Fail,Str,{list,[Key,Dst]}}],St};
+    {[{get_record_elements,Fail,Str,{list,[Key,Dst]}}],St};
 cg_block([#cg_set{op={float,convert},dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     {f,0} = bif_fail(Fail),                     %Assertion.
@@ -1831,9 +1831,9 @@ bif_to_test_1(is_list,     [_]=Ops, Fail) ->
 bif_to_test_1(is_map,      [_]=Ops, Fail) ->
     {test,is_map,Fail,Ops};
 bif_to_test_1(is_record, [_]=Ops, Fail) ->
-  {test,is_record,Fail,Ops};
-bif_to_test_1(is_tagged_struct, [_,_,_]=Ops, Fail) ->
-  {test,is_tagged_struct,Fail,Ops};
+    {test,is_any_native_record,Fail,Ops};
+bif_to_test_1(is_record, [_,_,_]=Ops, Fail) ->
+    {test,is_native_record,Fail,Ops};
 bif_to_test_1(is_number,   [_]=Ops, Fail) ->
     {test,is_number,Fail,Ops};
 bif_to_test_1(is_pid,      [_]=Ops, Fail) ->
@@ -2250,12 +2250,12 @@ cg_test(peek_message, Fail, [], Dst, _I) ->
 cg_test(put_map, Fail, [{atom,exact},SrcMap|Ss], Dst, #cg_set{anno=Anno}=Set) ->
     Live = get_live(Set),
     [line(Anno),{put_map_exact,Fail,SrcMap,Dst,Live,{list,Ss}}];
-cg_test(put_struct, Fail, [{atom,empty},Id|Ss], Dst, #cg_set{anno=Anno}=Set) ->
+cg_test(put_record, Fail, [{atom,empty},Id|Ss], Dst, #cg_set{anno=Anno}=Set) ->
     Live = get_live(Set),
-    [line(Anno),{put_struct,Fail,Id,nil,Dst,Live,{list,Ss}}];
-cg_test(put_struct, Fail, [Arg,Id|Ss], Dst, #cg_set{anno=Anno}=Set) ->
+    [line(Anno),{put_record,Fail,Id,nil,Dst,Live,{list,Ss}}];
+cg_test(put_record, Fail, [Arg,Id|Ss], Dst, #cg_set{anno=Anno}=Set) ->
     Live = get_live(Set),
-    [line(Anno),{put_struct,Fail,Id,Arg,Dst,Live,{list,Ss}}];
+    [line(Anno),{put_record,Fail,Id,Arg,Dst,Live,{list,Ss}}];
 cg_test(set_tuple_element=Op, Fail, Args, Dst, Set) ->
     {f,0} = Fail,                               %Assertion.
     cg_instr(Op, Args, Dst, Set);

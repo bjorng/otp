@@ -2532,20 +2532,15 @@ gexpr({bin,_Anno,Fs}, Vt,St) ->
     expr_bin(Fs, Vt, St, fun gexpr/3);
 gexpr({call,_Anno,{atom,_Ar,is_record},[E,{atom,An,Name}]}, Vt, St0) ->
     {Rvt,St1} = gexpr(E, Vt, St0),
-    {Rvt,exist_record(An, Name, St1)};
-gexpr({call,_Anno,{atom,_Ar,is_record},[E,{native_record_id,_An,{_,_}}]}, Vt, St0) ->
-    gexpr(E, Vt, St0);
-gexpr({call,_Anno,{atom,_Ar,is_record},[E,{native_record_id,An,Name}]}, Vt, St0) ->
-    {Rvt,St1} = gexpr(E, Vt, St0),
-    {Rvt,exist_native_record(An, Name, St1)};
+    {Rvt,exist_any_record(An, Name, St1)};
 gexpr({call,Anno,{atom,_Ar,is_record},[E,R]}, Vt, St0) ->
     {Asvt,St1} = gexpr_list([E,R], Vt, St0),
     {Asvt,add_error(Anno, illegal_guard_expr, St1)};
 gexpr({call,Anno,{remote,_Ar,{atom,_Am,erlang},{atom,Af,is_record}},[E,A]},
       Vt, St0) ->
     gexpr({call,Anno,{atom,Af,is_record},[E,A]}, Vt, St0);
-gexpr({call,Anno,{atom,_Ar,is_record},[E0,{atom,_,_Name},{integer,_,_}]},
-      Vt, St0) ->
+gexpr({call,Anno,{atom,_Ar,is_record},[E0,{atom,_,_Name},{Type,_,_}]},
+      Vt, St0) when Type =:= integer; Type =:= atom ->
     {E,St1} = gexpr(E0, Vt, St0),
     case no_guard_bif_clash(St0, {is_record,3}) of
 	true ->
@@ -2553,27 +2548,12 @@ gexpr({call,Anno,{atom,_Ar,is_record},[E0,{atom,_,_Name},{integer,_,_}]},
 	false ->
 	    {E,add_error(Anno, {illegal_guard_local_call,{is_record,3}}, St1)}
     end;
-gexpr({call,Anno,{atom,_Ar,is_tagged_struct},[E0,{atom,_,_M},{atom,_,_N}]},
-      Vt, St0) ->
-    {E,St1} = gexpr(E0, Vt, St0),
-    case no_guard_bif_clash(St0, {is_record,3}) of
-        true ->
-            {E,St1};
-        false ->
-            {E,add_error(Anno, {illegal_guard_local_call,{is_record,3}}, St1)}
-    end;
 gexpr({call,Anno,{atom,_Ar,is_record},[_,_,_]=Asvt0}, Vt, St0) ->
-    {Asvt,St1} = gexpr_list(Asvt0, Vt, St0),
-    {Asvt,add_error(Anno, illegal_guard_expr, St1)};
-gexpr({call,Anno,{atom,_Ar,is_tagged_struct},[_,_,_]=Asvt0}, Vt, St0) ->
     {Asvt,St1} = gexpr_list(Asvt0, Vt, St0),
     {Asvt,add_error(Anno, illegal_guard_expr, St1)};
 gexpr({call,Anno,{remote,_,{atom,_,erlang},{atom,_,is_record}=Isr},[_,_,_]=Args},
       Vt, St0) ->
     gexpr({call,Anno,Isr,Args}, Vt, St0);
-gexpr({call,Anno,{remote,_,{atom,_,erlang},{atom,_,is_tagged_struct}=Ists},[_,_,_]=Args},
-      Vt, St0) ->
-    gexpr({call,Anno,Ists,Args}, Vt, St0);
 gexpr({call,Anno,{atom,_Aa,F},As}, Vt, St0) ->
     {Asvt,St1} = gexpr_list(As, Vt, St0),
     A = length(As),
@@ -2970,10 +2950,7 @@ expr({named_fun,Anno,Name,Cs}, Vt, St0) ->
     {vtold(Csvt, Vt),St3};
 expr({call,_Anno,{atom,_Ar,is_record},[E,{atom,An,Name}]}, Vt, St0) ->
     {Rvt,St1} = expr(E, Vt, St0),
-    {Rvt,exist_record(An, Name, St1)};
-expr({call,_Anno,{atom,_Ar,is_record},[E,{native_record_id,An,Name}]}, Vt, St0) ->
-    {Rvt,St1} = expr(E, Vt, St0),
-    {Rvt,exist_native_record(An, Name, St1)};
+    {Rvt,exist_any_record(An, Name, St1)};
 expr({call,Anno,{remote,_Ar,{atom,_Am,erlang},{atom,Af,is_record}},[E,A]},
       Vt, St0) ->
     expr({call,Anno,{atom,Af,is_record},[E,A]}, Vt, St0);
@@ -3339,6 +3316,26 @@ normalise_fields(Fs) ->
 		Field;
             (F) -> F end, Fs).
 
+%% exist_any_record(Anno, RecordName, State) -> State.
+%%  Check if RecordName is either a tuple record or a native record.  Set State.
+
+exist_any_record(Anno, Name, St) ->
+    case is_map_key(Name, St#lint.records) of
+        true ->
+            used_record(Name, St);
+        false ->
+            case is_native_record_defined(Name, St) of
+                true ->
+                    St;
+                false ->
+                    AllRecords = maps:keys(St#lint.structs) ++
+                        St#lint.struct_imports ++
+                        maps:keys(St#lint.records),
+                    RecordNames = [atom_to_list(R) || R <- AllRecords],
+                    add_record_error(Name, Anno, RecordNames, St)
+            end
+    end.
+
 %% exist_record(Anno, RecordName, State) -> State.
 %%  Check if a record exists.  Set State.
 
@@ -3347,22 +3344,6 @@ exist_record(Anno, Name, St) ->
         true -> used_record(Name, St);
         false ->
             RecordNames = [atom_to_list(R) || R <- maps:keys(St#lint.records)],
-            add_record_error(Name, Anno, RecordNames, St)
-    end.
-
-%% exist_record(Anno, RecordName, State) -> State.
-%%  Check if a native record exists.  Set State.
-
-exist_native_record(_Anno, {_Mod,_Name}, St) ->
-    St;
-exist_native_record(Anno, Name, St) when is_atom(Name) ->
-    case is_native_record_defined(Name, St) of
-        true ->
-            St;
-        false ->
-            RecordNames = [atom_to_list(R) ||
-                              R <- maps:keys(St#lint.structs) ++
-                                  St#lint.struct_imports],
             add_record_error(Name, Anno, RecordNames, St)
     end.
 

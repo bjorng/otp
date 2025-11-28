@@ -4468,15 +4468,15 @@ split_map_pat([#c_map_pair{key=Key,val=Val}=E0|Es], Map0, St0, Acc) ->
 split_map_pat([], _, _, _) -> none.
 
 split_struct_pat([#c_struct_pair{val=Val}=E0|Es], Str0, St0, Acc) ->
-  case split_pat(Val, St0) of
-    none ->
-      split_struct_pat(Es, Str0, St0, [E0|Acc]);
-    {Ps,Split,St1} ->
-      {Var,St} = new_var(St1),
-      E = E0#c_struct_pair{val=Var},
-      Str = Str0#c_struct{es=reverse(Acc, [E|Es])},
-      {Str,{split, [Var],Ps,Split},St}
-  end;
+    case split_pat(Val, St0) of
+        none ->
+            split_struct_pat(Es, Str0, St0, [E0|Acc]);
+        {Ps,Split,St1} ->
+            {Var,St} = new_var(St1),
+            E = E0#c_struct_pair{val=Var},
+            Str = Str0#c_struct{es=reverse(Acc, [E|Es])},
+            {Str,{split, [Var],Ps,Split},St}
+    end;
 split_struct_pat([], _, _, _) -> none.
 
 eval_map_key(#c_var{}, _E, _Es, _Map, _St) ->
