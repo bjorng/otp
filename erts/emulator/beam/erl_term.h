@@ -408,7 +408,7 @@ _ET_DECLARE_CHECKED(Eterm*,bitstring_val,Eterm)
  * and/or arity check into a single comparison without masking, by using 8- or
  * 16-bit operations on the header word. */
 
-#define FUN_HEADER_ARITY_OFFS (_HEADER_ARITY_OFFS + 1)
+#define FUN_HEADER_ARITY_OFFS (_HEADER_ARITY_OFFS + 2)
 #define FUN_HEADER_ENV_SIZE_OFFS (FUN_HEADER_ARITY_OFFS + 8)
 #define FUN_HEADER_KIND_OFFS (FUN_HEADER_ENV_SIZE_OFFS + 8)
 
