@@ -1349,7 +1349,8 @@ i_create_native_record(Local, Id, Dst, Live, N) {
     Eterm res;
 
     HEAVY_SWAPOUT;
-    res = erl_create_native_record(c_p, reg, $Local, $Id, $Live, $N, $NEXT_INSTRUCTION);
+    reg[$Live] = $Local;
+    res = erl_create_native_record(c_p, reg, $Id, $Live, $N, $NEXT_INSTRUCTION);
     HEAVY_SWAPIN;
     if (is_non_value(res)) {
         $FAIL_BODY();
@@ -1364,7 +1365,7 @@ i_update_native_record(Mod, Id, Src, Dst, Live, N) {
     Eterm res;
 
     HEAVY_SWAPOUT;
-    res = erl_update_native_record(c_p, reg, $Mod, $Id, $Src, $Live, $N, $NEXT_INSTRUCTION);
+    res = erl_update_native_record(c_p, reg, $Src, $Live, $N, $NEXT_INSTRUCTION);
     HEAVY_SWAPIN;
     if (is_non_value(res)) {
         $FAIL_BODY();

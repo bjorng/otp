@@ -1410,12 +1410,12 @@ put_record p Id n Dst Live Size New=* |
 put_record p Id n Dst Live Size New=* | map_key_sort(Size, New) =>
     i_create_native_record u Id Dst Live Size New
 
-put_record p Id Src=xy Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
-    i_update_native_record a=$MODULE Id Src Dst Live Size Updates
+put_record p _Id Src=xy Dst Live Size Updates=* | map_key_sort(Size, Updates) =>
+    i_update_native_record a=$MODULE Src Dst Live Size Updates
 
 i_get_record_elements f xy I *
 i_create_native_record t c d t I *
-i_update_native_record a c s d t I *
+i_update_native_record a s d t I *
 
 is_record_accessible f xy
 

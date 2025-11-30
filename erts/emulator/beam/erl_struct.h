@@ -95,8 +95,8 @@ void erts_struct_end_staging(int commit);
 
 Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id,
                                Uint live, Uint size, const Eterm* new_p);
-Eterm erl_update_native_record(Process* c_p, Eterm* reg, Eterm mod, Eterm id,
-                               Eterm src, Uint live, Uint size, const Eterm* new_p);
+Eterm erl_update_native_record(Process* c_p, Eterm* reg, Eterm src,
+                               Uint live, Uint size, const Eterm* new_p);
 
 extern erts_mtx_t struct_staging_lock;
 #define erts_struct_staging_lock()   erts_mtx_lock(&struct_staging_lock)

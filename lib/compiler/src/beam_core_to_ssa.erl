@@ -297,6 +297,8 @@ guard(G0, Sub, St0) ->
 %%  Must enter try blocks and isets and find the last Kexpr in them.
 %%  This must end in a recognised BEAM test!
 
+gexpr_test(#b_set{op=is_record_accessible=Op,args=Args}, St) ->
+    {#cg_test{op=Op,args=Args},St};
 gexpr_test(#b_set{op={bif,F},args=Args}, St) ->
     Ar = length(Args),
     true = erl_internal:new_type_test(F, Ar) orelse
@@ -465,6 +467,8 @@ primop(get_record_field, Anno, Args0) ->
     %% BIF. The beam_asm pass will turn it into an instruction.
     Set = #b_set{anno=internal_anno(Anno),op={bif,get_record_field},args=Args},
     #cg_succeeded{set=Set};
+primop(is_native_record, Anno, Args) ->
+    #b_set{anno=internal_anno(Anno),op={bif,is_record},args=Args};
 primop(Op, Anno, Args) when Op =:= recv_peek_message;
                             Op =:= recv_wait_timeout ->
     #cg_internal{anno=internal_anno(Anno),op=Op,args=Args};
@@ -3194,7 +3198,11 @@ test_cg(Test, Inverted, As0, Fail, St0) ->
     As = ssa_args(As0, St0),
     {Succ,St} = new_label(St0),
     Bool = #b_var{name=Succ},
-    Bif = #b_set{op={bif,Test},dst=Bool,args=As},
+    Op = case Test of
+             is_record_accessible -> Test;
+             _ -> {bif,Test}
+         end,
+    Bif = #b_set{op=Op,dst=Bool,args=As},
     Br = case Inverted of
              false ->
                  #b_br{bool=Bool,succ=Succ,fail=Fail};

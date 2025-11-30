@@ -1701,7 +1701,10 @@ eval_case_warn(#c_primop{anno=Anno,
 	    ok;
 	{eval_failure,badmap} ->
 	    %% Example: M = not_map, M#{k:=v}
-	    add_warning(Core, {failed,bad_map_update})
+	    add_warning(Core, {failed,bad_map_update});
+	{eval_failure,badrecord} ->
+	    %% Example: R = not_record, R#rec{name=value}
+	    add_warning(Core, {failed,bad_record_update})
     end;
 eval_case_warn(_) -> ok.
 
@@ -3000,6 +3003,8 @@ format_error({failed,bad_float_size}) ->
 	"(invalid size for a float segment)";
 format_error({failed,bad_map_update}) ->
     "map update will fail with a 'badmap' exception";
+format_error({failed,bad_record_update}) ->
+    "record update will fail with a 'badrecord' exception";
 format_error({failed,bad_call}) ->
     "invalid function call";
 format_error({nomatch,{shadow,Line,{Name, Arity}}}) ->

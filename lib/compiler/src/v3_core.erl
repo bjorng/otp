@@ -167,6 +167,7 @@
 -record(core, {vcount=0 :: non_neg_integer(),	%Variable counter
 	       fcount=0 :: non_neg_integer(),	%Function counter
                gcount=0 :: non_neg_integer(),   %Goto counter
+               module :: atom(),                %Module name.
 	       function={none,0} :: fa(),	%Current function.
 	       in_guard=false :: boolean(),	%In guard or not.
 	       wanted=true :: boolean(),	%Result wanted or not.
@@ -272,9 +273,10 @@ defined_functions(Forms) ->
 
 function({function,_,Name,Arity,Cs0}, Module, Opts)
   when is_integer(Arity), 0 =< Arity, Arity =< 255 ->
-    #imodule{file=File, ws=Ws0, nifs=Nifs} = Module,
+    #imodule{name=Mod, file=File, ws=Ws0, nifs=Nifs} = Module,
     try
-        St0 = #core{vcount=0,function={Name,Arity},opts=Opts,
+        St0 = #core{vcount=0,module=Mod,function={Name,Arity},
+                    opts=Opts,
                     dialyzer=member(dialyzer, Opts),
                     ws=Ws0,file=[{file,File}]},
         {Cs1,Anno} = handle_debug_line(Cs0, St0),
@@ -501,6 +503,7 @@ gexpr_test({atom,L,false}, Bools, St0) ->
     {#c_literal{anno=lineno_anno(L, St0),val=false},[],Bools,St0};
 gexpr_test(E0, Bools0, St0) ->
     {E1,Eps0,St1} = expr(E0, St0),
+
     %% Generate "top-level" test and argument calls.
     case E1 of
         #icall{anno=Anno,module=#c_literal{val=erlang},
@@ -1209,16 +1212,16 @@ map_op(map_field_assoc) -> #c_literal{val=assoc};
 map_op(map_field_exact) -> #c_literal{val=exact}.
 
 expr_struct(S0, Id, Es0, L, St0) ->
-    {S1,Eps0,St1} = safe_struct(S0, St0),
-    Badstruct = badstruct_term(S1, St1),
+    {S1,Eps0,St1} = safe_record(S0, St0),
+    Badrecord = badrecord_term(S1, St1),
     A = lineno_anno(L, St1),
-    Fc = fail_clause([], [{eval_failure,badstruct}|A], Badstruct),
+    Fc = fail_clause([], [{eval_failure,badrecord}|A], Badrecord),
     {S2,Eps1,St2} = struct_build_pairs(S1, Id, Es0, full_anno(L, St1), St1),
     S3 = case Es0 of
              [] -> S1;
              [_|_] -> S2
          end,
-    {S4,St3} = expr_record_id(S1, S3, Id, St2),
+    {S4,St3} = expr_record_id(A, S1, S3, Id, St2),
 
     Cs = [#iclause{anno=#a{anno=[compiler_generated|A]},
                    pats=[],
@@ -1230,38 +1233,55 @@ expr_struct(S0, Id, Es0, L, St0) ->
     Eps = Eps0 ++ Eps1,
     {#icase{anno=#a{anno=A},args=[],clauses=Cs,fc=Fc},Eps,St3}.
 
-expr_record_id(S1, S3, Id, St2) ->
-    io:format("~p\n", [S1]),
-    io:format("~p\n", [Id]),
-    {S3,St2}.
+expr_record_id(A, Rec, Body0, #c_literal{val={Mod0,Name0}}, St0) ->
+    Mod = #c_literal{val=Mod0},
+    Name = #c_literal{val=Name0},
+    Args = [Rec,Mod,Name],
+    {Body,St} = expr_record_accessible(A, Rec, Body0, St0),
+    Cs = [#iclause{anno=#a{anno=[compiler_generated|A]},
+                   pats=[],
+                   guard=[#iprimop{name=#c_literal{anno=A,val=is_native_record},
+                                   args=Args}],
+                   body=[Body]}],
+    Badrecord = badrecord_term(Rec, St),
+    Fc = fail_clause([], [{eval_failure,badrecord}|A], Badrecord),
+    {#icase{anno=#a{anno=A},args=[],clauses=Cs,fc=Fc},St};
+expr_record_id(A, Rec, Body, #c_literal{val={}}, St) ->
+    expr_record_accessible(A, Rec, Body, St).
 
-safe_struct(S0, St0) ->
+expr_record_accessible(A, Rec, Body, St) ->
+    Cs = [#iclause{anno=#a{anno=[compiler_generated|A]},
+                   pats=[],
+                   guard=[#iprimop{anno=#a{anno=A},
+                                   name=#c_literal{anno=A,val=is_record_accessible},
+                                   args=[Rec]}],
+                   body=[Body]}],
+    Badrecord = badrecord_term(Rec, St),
+    Fc = fail_clause([], [{eval_failure,badrecord}|A], Badrecord),
+    {#icase{anno=#a{anno=A},args=[],clauses=Cs,fc=Fc},St}.
+
+safe_record(S0, St0) ->
     case safe(S0, St0) of
         {#c_var{},_,_}=Res ->
             Res;
-        {#c_literal{val=_Struct},_,_}=Res ->
-            %% TODO: when is_record(Struct) needs to be guard
-            Res;
         {NotStruct,Eps0,St1} ->
-            %% TODO: Doesn't seem to be reached.
-            %%
-            %% Not a struct. There will be a syntax error if we try to
-            %% pretty-print the Core Erlang code and then try to parse
-            %% it. To avoid the syntax error, force the term into a
-            %% variable.
+            %% Not a native record. There will be a syntax error if we
+            %% try to pretty-print the Core Erlang code and then try
+            %% to parse it. To avoid the syntax error, force the term
+            %% into a variable.
 	    {V,St2} = new_var(St1),
             Anno = cerl:get_ann(NotStruct),
             Eps1 = [#iset{anno=#a{anno=Anno},var=V,arg=NotStruct}],
 	    {V,Eps0++Eps1,St2}
     end.
 
-badstruct_term(_Struct, #core{in_guard=true}) ->
+badrecord_term(_Record, #core{in_guard=true}) ->
     %% The code generator cannot handle complex error reasons
     %% in guards. But the exact error reason does not matter anyway
     %% since it is not user-visible.
-    #c_literal{val=badstruct};
-badstruct_term(Struct, #core{in_guard=false}) ->
-    c_tuple([#c_literal{val=badstruct},Struct]).
+    #c_literal{val=badrecord};
+badrecord_term(Record, #core{in_guard=false}) ->
+    c_tuple([#c_literal{val=badrecord},Record]).
 
 struct_build_pairs(Arg, Id, Es0, Ann, St0) ->
     {Es,Pre,_,St1} = struct_build_pairs_1(Es0, sets:new(), St0),

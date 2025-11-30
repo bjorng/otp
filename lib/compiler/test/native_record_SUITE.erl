@@ -84,7 +84,9 @@ end_per_group(_GroupName, Config) ->
 
 local_basic(_Config) ->
     ARec = id(#a{x=1, y=2}),
+    ARec = id(#a{x=id(1), y=id(2)}),
     BRec = id(#b{}),
+    BRec = id(#b{x=id(none), y=id(none), z=id(none)}),
     CRec = id(#c{x=42, y=100}),
     DRec = id(#d{f=3.0}),
     Order = id(#order{}),
@@ -124,7 +126,8 @@ local_basic(_Config) ->
     %% Test errors when constructing or updating native records.
     ?assertError({badfield,foobar}, #b{foobar = some_value}),
 
-    ?assertError({badrecord,a}, ARec#b{x=99}),
+    ?assertError({badrecord,not_a_record}, (not_a_record)#b{x=99}),
+    ?assertError({badrecord,ARec}, ARec#b{x=99}),
     ?assertError({badfield,bad_field}, BRec#b{bad_field = some_value}),
 
     ?assertError({novalue,x}, #a{}),
@@ -289,7 +292,8 @@ external_records(_Config) ->
 
     ?assertError({badrecord,{ext_records,local}}, #local{a=1, b=2}),
     ?assertError({badrecord,{ext_records,foreign}}, #ext_records:foreign{a=1, b=2}),
-    ?assertError({badrecord,{ext_records,local}}, ExtLocal#local{a=42,b=99}),
+
+    ?assertError({badrecord,ExtLocal}, ExtLocal#local{a=42,b=99}),
 
     #local{} = ExtLocal,
     #ext_records:local{} = ExtLocal,
@@ -324,9 +328,9 @@ any_record(_Config) ->
     {77,88} = get_any_xy(#ext_records:vector{x=77,y=88}),
 
     ExtLocal = ext_records:local(7, 13),
-    ?assertError({badrecord,{ext_records,local}}, update_any_xy(ExtLocal, 1, 1)),
+    ?assertError({badrecord,ExtLocal}, update_any_xy(ExtLocal, 1, 1)),
 
-    %% none = get_any_xy(ext_records:local(1, 2)),
+    none = get_any_xy(ext_records:local(1, 2)),
 
     ok.
 

@@ -105,18 +105,14 @@ void BeamModuleAssembler::emit_i_create_native_record(
     embed_vararg_rodata(args, ARG6);
     mov_arg(ArgXRegister(Live.get()), Local);
 
-    emit_enter_runtime<Update::eHeapAlloc | Update::eXRegs>(Live.get()+1);
+    emit_enter_runtime<Update::eHeapAlloc | Update::eXRegs>(Live.get() + 1);
 
-    runtime_call<Eterm (*)(Process *,
-                           Eterm *,
-                           Eterm,
-                           Uint,
-                           Uint,
-                           const Eterm *),
-                 erl_create_native_record>();
+    runtime_call<
+            Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *),
+            erl_create_native_record>();
 
     emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs |
-                       Update::eReductions>(Live.get()+1);
+                       Update::eReductions>(Live.get() + 1);
 
     emit_branch_if_value(ARG1, next);
     emit_raise_exception();
@@ -127,7 +123,6 @@ void BeamModuleAssembler::emit_i_create_native_record(
 
 void BeamModuleAssembler::emit_i_update_native_record(
         const ArgAtom &MODULE,
-        const ArgConstant &Id,
         ArgSource const &Src,
         const ArgRegister &Dst,
         const ArgWord &Live,
@@ -139,22 +134,14 @@ void BeamModuleAssembler::emit_i_update_native_record(
 
     a.mov(ARG1, c_p);
     load_x_reg_array(ARG2);
-    a.mov(ARG3, imm(mod)); /* Current module */
-    mov_arg(ARG4, Id);
-    mov_arg(ARG5, Src);
-    mov_arg(ARG6, Live);
-    mov_imm(ARG7, args.size());
-    embed_vararg_rodata(args, ARG8);
+    mov_arg(ARG3, Src);
+    mov_arg(ARG4, Live);
+    mov_imm(ARG5, args.size());
+    embed_vararg_rodata(args, ARG6);
 
-    runtime_call<Eterm (*)(Process *,
-                           Eterm *,
-                           Eterm,
-                           Eterm,
-                           Eterm,
-                           Uint,
-                           Uint,
-                           const Eterm *args),
-                 erl_update_native_record>();
+    runtime_call<
+            Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *args),
+            erl_update_native_record>();
 
     emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs |
                        Update::eReductions>();

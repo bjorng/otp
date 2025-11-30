@@ -601,10 +601,8 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     BIF_ERROR(BIF_P, EXC_BADRECORD);
 }
 
-Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm current_module, Eterm id,
-                               Eterm src, Uint live, Uint size, const Eterm* new_p) {
-    /* Module, Name */
-    Eterm module, name;
+Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm src,
+                               Uint live, Uint size, const Eterm* new_p) {
     ErtsStructDefinition *defp;
     ErtsStructInstance *instance, *old_instance;
     Eterm *old_values;
@@ -621,28 +619,6 @@ Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm current_module, Ete
     field_count = struct_field_count(src);
     old_instance = (ErtsStructInstance*)struct_val(src);
     defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
-
-    if (id == am_Underscore) {
-        ;
-    } else {
-        Eterm* tuple_ptr = boxed_val(id);
-
-        ASSERT(is_tuple(id));
-
-        module = tuple_ptr[1];
-        name = tuple_ptr[2];
-
-        if (defp->module != module || defp->name != name) {
-            /* Record name mismatch. */
-            goto badrecord;
-        }
-    }
-
-    if (defp->module != current_module && defp->is_exported == am_false) {
-        /* Attempt to update a non-exported record outside of its
-         * defining module. */
-        goto badrecord;
-    }
 
     num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
     if (HeapWordsLeft(p) < num_words_needed) {
@@ -687,21 +663,6 @@ Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm current_module, Ete
     p->htop += num_words_needed;
 
     return res;
-
- badrecord:
-    if (defp->module == current_module) {
-        p->fvalue = defp->name;
-    } else {
-        num_words_needed = 3;
-        if (HeapWordsLeft(p) < num_words_needed) {
-            erts_garbage_collect(p, num_words_needed, reg, live);
-        }
-        hp = p->htop;
-        p->fvalue = TUPLE2(hp, defp->module, defp->name);
-        p->htop += num_words_needed;
-    }
-    p->freason = EXC_BADRECORD;
-    return THE_NON_VALUE;
 }
 
 BIF_RETTYPE records_update_4(BIF_ALIST_4) {
