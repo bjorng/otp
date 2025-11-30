@@ -1218,16 +1218,22 @@ expr_struct(S0, Id, Es0, L, St0) ->
              [] -> S1;
              [_|_] -> S2
          end,
-    Cs = [#iclause{
-             anno=#a{anno=[compiler_generated|A]},
-             pats=[],
-             guard=[#icall{anno=#a{anno=A},
-                           module=#c_literal{anno=A,val=erlang},
-                           name=#c_literal{anno=A,val=is_record},
-                           args=[S1]}],
-             body=[S3]}],
+    {S4,St3} = expr_record_id(S1, S3, Id, St2),
+
+    Cs = [#iclause{anno=#a{anno=[compiler_generated|A]},
+                   pats=[],
+                   guard=[#icall{anno=#a{anno=A},
+                                 module=#c_literal{anno=A,val=erlang},
+                                 name=#c_literal{anno=A,val=is_record},
+                                 args=[S1]}],
+                   body=[S4]}],
     Eps = Eps0 ++ Eps1,
-    {#icase{anno=#a{anno=A},args=[],clauses=Cs,fc=Fc},Eps,St2}.
+    {#icase{anno=#a{anno=A},args=[],clauses=Cs,fc=Fc},Eps,St3}.
+
+expr_record_id(S1, S3, Id, St2) ->
+    io:format("~p\n", [S1]),
+    io:format("~p\n", [Id]),
+    {S3,St2}.
 
 safe_struct(S0, St0) ->
     case safe(S0, St0) of
