@@ -70,7 +70,7 @@ void BeamModuleAssembler::emit_i_create_native_record(
     mov_arg(ARG4, Live);
     mov_imm(ARG5, args.size());
     a.lea(ARG6, x86::qword_ptr(data));
-    mov_arg(ArgXRegister(Live.get()), Local.get());
+    mov_arg(ArgXRegister(Live.get()), Local);
 
     runtime_call<
             Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *),
