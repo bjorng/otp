@@ -83,12 +83,11 @@ ErtsStructEntry *erts_struct_get_or_make_stub(Eterm module,
                                               Eterm name);
 
 bool erl_is_native_record(Eterm Src, Eterm Mod, Eterm Name);
-bool erl_is_ext_native_record(Eterm Src, Eterm Mod, Eterm Name);
 bool erl_is_record_accessible(Eterm src, Eterm Mod);
 
 Eterm erl_get_record_field(Process* p, Eterm src, Eterm mod, Eterm id, Eterm field);
 
-bool erl_struct_get_elements(Process* P, Eterm* reg, Eterm src,
+bool erl_get_record_elements(Process* P, Eterm* reg, Eterm src,
                              Uint size, const Eterm* new_p);
 
 void erts_struct_start_staging(void);

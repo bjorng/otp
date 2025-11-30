@@ -367,19 +367,7 @@ bool erl_is_native_record(Eterm src, Eterm mod, Eterm name) {
     return defp->module == mod && defp->name == name;
 }
 
-bool erl_is_ext_native_record(Eterm src, Eterm mod, Eterm name) {
-    ErtsStructDefinition *defp;
-    ErtsStructInstance *instance;
-
-    ASSERT(is_struct(src));
-    instance = (ErtsStructInstance*)struct_val(src);
-    defp = (ErtsStructDefinition*)boxed_val(instance->struct_definition);
-
-    return defp->is_exported == am_true &&
-        defp->module == mod && defp->name == name;
-}
-
-bool erl_struct_get_elements(Process* p, Eterm* reg, Eterm src,
+bool erl_get_record_elements(Process* p, Eterm* reg, Eterm src,
                              Uint size, const Eterm* elems) {
     /* Struct term, Key */
     ErtsStructDefinition *defp;
