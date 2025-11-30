@@ -29,35 +29,62 @@ extern "C"
 
 void BeamModuleAssembler::emit_is_any_native_record(const ArgLabel &Fail,
                                                     const ArgRegister &Src) {
-    a.ud2();
+    a.jmp(resolve_beam_label(Fail));
 }
 
 void BeamModuleAssembler::emit_is_native_record(const ArgLabel &Fail,
                                                 const ArgRegister &Src,
                                                 const ArgAtom &Module,
                                                 const ArgAtom &Name) {
-    a.ud2();
+    a.jmp(resolve_beam_label(Fail));
 }
 
 void BeamModuleAssembler::emit_is_record_accessible(const ArgLabel &Fail,
                                                     const ArgRegister &Src) {
-    a.ud2();
+    a.jmp(resolve_beam_label(Fail));
 }
 
 void BeamModuleAssembler::emit_i_get_record_elements(const ArgLabel &Fail,
                                                      const ArgRegister &Src,
                                                      const ArgWord &Size,
                                                      const Span<ArgVal> &args) {
-    a.ud2();
+    a.jmp(resolve_beam_label(Fail));
 }
 
-void BeamModuleAssembler::emit_i_create_native_record(const ArgWord &local,
-                                                      const ArgConstant &Id,
-                                                      const ArgRegister &Dst,
-                                                      const ArgWord &Live,
-                                                      const ArgWord &size,
-                                                      const Span<ArgVal> &New) {
-    a.ud2();
+void BeamModuleAssembler::emit_i_create_native_record(
+        const ArgWord &Local,
+        const ArgConstant &Id,
+        const ArgRegister &Dst,
+        const ArgWord &Live,
+        const ArgWord &size,
+        const Span<ArgVal> &args) {
+    Label next = a.newLabel();
+    Label data = embed_vararg_rodata(args, CP_SIZE);
+
+    emit_enter_runtime<Update::eHeapAlloc>();
+    emit_enter_runtime();
+
+    a.mov(ARG1, c_p);
+    load_x_reg_array(ARG2);
+    mov_arg(ARG3, Id);
+    mov_arg(ARG4, Live);
+    mov_imm(ARG5, args.size());
+    a.lea(ARG6, x86::qword_ptr(data));
+    mov_arg(ArgXRegister(Live.get()), Local.get());
+
+    runtime_call<
+            Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *),
+            erl_create_native_record>();
+
+    emit_leave_runtime<Update::eHeapAlloc>();
+
+    emit_test_the_non_value(RET);
+    a.short_().jne(next);
+
+    emit_raise_exception();
+
+    a.bind(next);
+    mov_arg(Dst, RET);
 }
 
 void BeamModuleAssembler::emit_i_update_native_record(const ArgAtom &MODULE,
@@ -67,7 +94,7 @@ void BeamModuleAssembler::emit_i_update_native_record(const ArgAtom &MODULE,
                                                       const ArgWord &Live,
                                                       const ArgWord &size,
                                                       const Span<ArgVal> &New) {
-    a.ud2();
+    emit_error(BADARG);
 }
 
 void BeamModuleAssembler::emit_get_record_field(const ArgLabel &Fail,
@@ -75,5 +102,5 @@ void BeamModuleAssembler::emit_get_record_field(const ArgLabel &Fail,
                                                 const ArgConstant &Id,
                                                 const ArgAtom &Name,
                                                 const ArgRegister &Dst) {
-    a.ud2();
+    emit_error(BADARG);
 }

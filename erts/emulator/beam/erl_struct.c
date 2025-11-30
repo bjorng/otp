@@ -399,13 +399,14 @@ bool erl_get_record_elements(Process* p, Eterm* reg, Eterm src,
     return false;
 }
 
-Eterm erl_create_native_record(Process* p, Eterm* reg, Uint local, Eterm id,
-                               Uint live, Uint size, const Eterm* new_p) {
+Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
+                               Uint size, const Eterm* new_p) {
     /* Module, Name */
     Eterm module, name;
     ErtsStructEntry *entry;
     Uint code_ix;
     Eterm* tuple_ptr = boxed_val(id);
+    Uint local = reg[live];
 
     module = tuple_ptr[1];
     name = tuple_ptr[2];
