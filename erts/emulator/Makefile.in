@@ -1074,6 +1074,7 @@ JIT_OBJS += \
 	$(OBJDIR)/instr_guard_bifs.o \
 	$(OBJDIR)/instr_map.o \
 	$(OBJDIR)/instr_msg.o \
+	$(OBJDIR)/instr_records.o \
 	$(OBJDIR)/instr_select.o \
 	$(OBJDIR)/instr_trace.o
 else
@@ -1088,6 +1089,7 @@ JIT_OBJS += \
 	$(OBJDIR)/instr_guard_bifs.o \
 	$(OBJDIR)/instr_map.o \
 	$(OBJDIR)/instr_msg.o \
+	$(OBJDIR)/instr_records.o \
 	$(OBJDIR)/instr_select.o \
 	$(OBJDIR)/instr_trace.o
 endif
