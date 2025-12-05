@@ -4277,9 +4277,8 @@ struct dec_term_map
 };
 
 struct erl_record_field {
-    int order;
+    Uint order;
     Eterm key;
-    Eterm value;
 };
 
 static int record_compare(const struct erl_record_field *a, const struct erl_record_field *b) {
@@ -4289,9 +4288,9 @@ static int record_compare(const struct erl_record_field *a, const struct erl_rec
         return -1;
     } else if (res > 0) {
         return 1;
+    } else {
+        return 0;
     }
-
-    return 0;
 }
 
 /* Decode term from external format into *objp.
@@ -5241,16 +5240,20 @@ dec_term_atom_common:
         case RECORD_EXT:
             {
                 Uint32 num_fields;
-                //ErtsStructInstance *instance;
+                ErtsStructInstance *instance;
                 ErtsStructDefinition *defp;
+                Eterm *order;
                 struct erl_record_field *fields;
 
 		num_fields = get_int32(ep); ep += 4;
                 erts_printf("num_fields: %d\n", num_fields);
 
+                order = (Eterm *)hp;
+                hp += (num_fields + 1) * sizeof(Eterm);
                 defp = (ErtsStructDefinition *)hp;
                 hp += sizeof(ErtsStructDefinition)/sizeof(Eterm);
-                //instance = (ErtsStructInstance *)hp;
+                instance = (ErtsStructInstance *)hp;
+                hp += sizeof(ErtsStructInstance)/sizeof(Eterm);
 
                 /* Module */
 		if ((ep = dec_atom(edep, ep, &defp->module, 0)) == NULL) {
@@ -5280,6 +5283,9 @@ dec_term_atom_common:
                     fields[i].order = i;
                     fields[i].key = key;
                 }
+
+                qsort(fields, num_fields, sizeof(struct erl_record_field),
+                      (int (*)(const void *, const void *)) record_compare);
 
                 erts_free(ERTS_ALC_T_TMP, fields);
                 *objp = make_small(num_fields);
