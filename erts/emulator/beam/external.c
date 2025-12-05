@@ -5262,12 +5262,24 @@ dec_term_atom_common:
 		}
 
                 defp->is_exported = (*ep & 1) ? am_true : am_false;
+                ep++;
 
                 erts_printf("module: %T\n", defp->module);
                 erts_printf("name: %T\n", defp->name);
                 erts_printf("exported: %T\n", defp->is_exported);
 
                 fields = erts_alloc(ERTS_ALC_T_TMP, num_fields * sizeof(struct erl_record_field));
+
+                for (unsigned i = 0; i < num_fields; i++) {
+                    Eterm key;
+
+                    if ((ep = dec_atom(edep, ep, &key, 0)) == NULL) {
+                        goto error;
+                    }
+                    erts_printf("%d: %T\n", i, key);
+                    fields[i].order = i;
+                    fields[i].key = key;
+                }
 
                 erts_free(ERTS_ALC_T_TMP, fields);
                 *objp = make_small(num_fields);
