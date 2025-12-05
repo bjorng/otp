@@ -4019,7 +4019,8 @@ enc_term_int(TTBEncodeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj, byte* ep,
                     Eterm key = defp->keys[unsigned_val(order[i])];
                     ep = enc_atom(acmp, key, ep, dflags);
                 }
-
+                erts_printf("old def: %T\n", instance->struct_definition);
+                erts_printf("old field_order: %T\n", defp->field_order);
                 values = instance->values;
                 for (Sint i = size-1; i >= 0; i--) {
                     WSTACK_PUSH2(s, ENC_TERM, (UWord) values[i]);
@@ -5294,7 +5295,7 @@ dec_term_atom_common:
 
                 erts_free(ERTS_ALC_T_TMP, fields);
 
-                /* erts_printf("field_order = %T\n", defp->field_order); */
+                erts_printf("field_order = %T\n", defp->field_order);
 
                 instance = (ErtsStructInstance *)hp;
                 hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
@@ -5303,12 +5304,13 @@ dec_term_atom_common:
                 instance->struct_definition = make_boxed((Eterm *)defp);
                 values = instance->values;
 
-                /* erts_printf("%T\n", instance->struct_definition); */
+                erts_printf("%T\n", instance->struct_definition);
 
                 for (int i = num_fields; i > 0; i--) {
                     int index = unsigned_val(order[i-1]);
                     values[index] = (Eterm)next;
                     next = &values[index];
+                    erts_printf("i: %d = %d\n", i,index);
                 }
 
                 *objp = make_boxed((Eterm *)instance);
