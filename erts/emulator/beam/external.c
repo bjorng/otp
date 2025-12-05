@@ -4019,11 +4019,10 @@ enc_term_int(TTBEncodeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj, byte* ep,
                     Eterm key = defp->keys[unsigned_val(order[i])];
                     ep = enc_atom(acmp, key, ep, dflags);
                 }
-                erts_printf("old def: %T\n", instance->struct_definition);
-                erts_printf("old field_order: %T\n", defp->field_order);
                 values = instance->values;
+
                 for (Sint i = size-1; i >= 0; i--) {
-                    WSTACK_PUSH2(s, ENC_TERM, (UWord) values[i]);
+                    WSTACK_PUSH2(s, ENC_TERM, (UWord) values[unsigned_val(order[i])]);
                 }
             }
             break;
@@ -5253,7 +5252,6 @@ dec_term_atom_common:
                 order = (Eterm *)hp;
                 hp += (num_fields + 1);
                 order_tuple = make_boxed(order);
-                *order++ = make_arityval(num_fields);
 
                 defp = (ErtsStructDefinition *)hp;
                 hp += sizeof(ErtsStructDefinition)/sizeof(Eterm) + num_fields;
@@ -5275,7 +5273,7 @@ dec_term_atom_common:
 
                 fields = erts_alloc(ERTS_ALC_T_TMP, num_fields * sizeof(struct erl_record_field));
 
-                for (unsigned i = 0; i < num_fields; i++) {
+                for (int i = 0; i < num_fields; i++) {
                     Eterm key;
 
                     if ((ep = dec_atom(edep, ep, &key, 0)) == NULL) {
@@ -5288,14 +5286,13 @@ dec_term_atom_common:
                 qsort(fields, num_fields, sizeof(struct erl_record_field),
                       (int (*)(const void *, const void *)) record_compare);
 
+                *order++ = make_arityval(num_fields);
                 for (int i = 0; i < num_fields; i++) {
                     order[fields[i].order] = make_small(i);
                     defp->keys[i] = fields[i].key;
                 }
 
                 erts_free(ERTS_ALC_T_TMP, fields);
-
-                erts_printf("field_order = %T\n", defp->field_order);
 
                 instance = (ErtsStructInstance *)hp;
                 hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
@@ -5304,13 +5301,11 @@ dec_term_atom_common:
                 instance->struct_definition = make_boxed((Eterm *)defp);
                 values = instance->values;
 
-                erts_printf("%T\n", instance->struct_definition);
-
-                for (int i = num_fields; i > 0; i--) {
-                    int index = unsigned_val(order[i-1]);
+                for (Sint i = num_fields - 1; i >= 0; i--) {
+                    int index = unsigned_val(order[i]);
+                    ASSERT(index < num_fields);
                     values[index] = (Eterm)next;
                     next = &values[index];
-                    erts_printf("i: %d = %d\n", i,index);
                 }
 
                 *objp = make_boxed((Eterm *)instance);
