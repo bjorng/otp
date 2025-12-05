@@ -4009,10 +4009,10 @@ enc_term_int(TTBEncodeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj, byte* ep,
 
                 *ep++ = RECORD_EXT;
                 put_int32(size, ep); ep += 4;
-                ep = enc_atom(acmp, defp->module, ep, dflags);
-                ep = enc_atom(acmp, defp->name, ep, dflags);
                 ASSERT(defp->is_exported == am_false || defp->is_exported == am_true);
                 *ep++ = defp->is_exported == am_false ? 0 : 1;
+                ep = enc_atom(acmp, defp->module, ep, dflags);
+                ep = enc_atom(acmp, defp->name, ep, dflags);
 
                 order = tuple_val(defp->field_order) + 1;
                 for (int i = 0; i < size; i++) {
@@ -5250,14 +5250,18 @@ dec_term_atom_common:
 		num_fields = get_int32(ep); ep += 4;
 
                 order = (Eterm *)hp;
-                hp += (num_fields + 1);
-                order_tuple = make_boxed(order);
+                if (num_fields > 0) {
+                    hp += (num_fields + 1);
+                }
 
                 defp = (ErtsStructDefinition *)hp;
                 hp += sizeof(ErtsStructDefinition)/sizeof(Eterm) + num_fields;
                 defp->thing_word = make_arityval(sizeof(ErtsStructDefinition)/sizeof(Eterm)
                                                  + num_fields - 1);
-                defp->field_order = order_tuple;
+
+                /* Flags */
+                defp->is_exported = (*ep & 1) ? am_true : am_false;
+                ep++;
 
                 /* Module */
 		if ((ep = dec_atom(edep, ep, &defp->module, 0)) == NULL) {
@@ -5267,9 +5271,6 @@ dec_term_atom_common:
 		if ((ep = dec_atom(edep, ep, &defp->name, 0)) == NULL) {
 		    goto error;
 		}
-
-                defp->is_exported = (*ep & 1) ? am_true : am_false;
-                ep++;
 
                 fields = erts_alloc(ERTS_ALC_T_TMP, num_fields * sizeof(struct erl_record_field));
 
@@ -5283,16 +5284,23 @@ dec_term_atom_common:
                     fields[i].key = key;
                 }
 
-                qsort(fields, num_fields, sizeof(struct erl_record_field),
-                      (int (*)(const void *, const void *)) record_compare);
+                if (num_fields == 0) {
+                    order_tuple = ERTS_GLOBAL_LIT_EMPTY_TUPLE;
+                } else {
+                    qsort(fields, num_fields, sizeof(struct erl_record_field),
+                          (int (*)(const void *, const void *)) record_compare);
 
-                *order++ = make_arityval(num_fields);
-                for (int i = 0; i < num_fields; i++) {
-                    order[fields[i].order] = make_small(i);
-                    defp->keys[i] = fields[i].key;
+                    order_tuple = make_boxed(order);
+                    *order++ = make_arityval(num_fields);
+                    for (int i = 0; i < num_fields; i++) {
+                        order[fields[i].order] = make_small(i);
+                        defp->keys[i] = fields[i].key;
+                    }
                 }
 
                 erts_free(ERTS_ALC_T_TMP, fields);
+
+                defp->field_order = order_tuple;
 
                 instance = (ErtsStructInstance *)hp;
                 hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
@@ -5301,11 +5309,13 @@ dec_term_atom_common:
                 instance->struct_definition = make_boxed((Eterm *)defp);
                 values = instance->values;
 
-                for (Sint i = num_fields - 1; i >= 0; i--) {
-                    int index = unsigned_val(order[i]);
-                    ASSERT(index < num_fields);
-                    values[index] = (Eterm)next;
-                    next = &values[index];
+                if (num_fields > 0) {
+                    for (Sint i = num_fields - 1; i >= 0; i--) {
+                        int index = unsigned_val(order[i]);
+                        ASSERT(index < num_fields);
+                        values[index] = (Eterm)next;
+                        next = &values[index];
+                    }
                 }
 
                 *objp = make_boxed((Eterm *)instance);
@@ -6378,8 +6388,21 @@ init_done:
                 n = get_int32(ep); ep += 4;
                 heap_size += sizeof(ErtsStructDefinition)/sizeof(Eterm)
                     + sizeof(ErtsStructInstance)/sizeof(Eterm)
-                    + (n + 1)   /* field order tuple */
                     + 2 * n;
+                if (n > 0) {
+                    heap_size += 1 + n; /* field_order tuple */
+                }
+                erts_printf("n = %d\n", n);
+                SKIP(1);        /* Skip flags */
+                erts_printf("%d:\n", __LINE__);
+                ADDTERMS(2);    /* Module, name */
+                erts_printf("%d:\n", __LINE__);
+                erts_printf("%d:\n", __LINE__);
+                ADDTERMS(n);
+                erts_printf("%d:\n", __LINE__);
+                ADDTERMS(n);
+                erts_printf("%d:\n", __LINE__);
+                erts_printf("terms = %d:\n", terms);
             }
             break;
 	default:
@@ -6428,6 +6451,7 @@ init_done:
                      * Hash presented in external format did not match the
                      * calculated hash...
                      */
+                    erts_printf("%d:\n", __LINE__);
                     goto error;
                 }
                 lext_hash = NULL;
@@ -6460,6 +6484,7 @@ init_done:
     }
 
 error:
+    erts_printf("%d:\n", __LINE__);
     if (ctx) {
         ctx->state = B2TBadArg;
     }
