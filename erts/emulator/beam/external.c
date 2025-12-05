@@ -5251,10 +5251,15 @@ dec_term_atom_common:
 
                 order = (Eterm *)hp;
                 hp += (num_fields + 1);
+
                 defp = (ErtsStructDefinition *)hp;
-                hp += sizeof(ErtsStructDefinition)/sizeof(Eterm);
+                hp += sizeof(ErtsStructDefinition)/sizeof(Eterm) + num_fields;
+
                 instance = (ErtsStructInstance *)hp;
-                hp += sizeof(ErtsStructInstance)/sizeof(Eterm);
+                hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
+
+                defp->thing_word = make_arityval(sizeof(ErtsStructDefinition)/sizeof(Eterm)
+                                                 + num_fields);
 
                 /* Module */
 		if ((ep = dec_atom(edep, ep, &defp->module, 0)) == NULL) {
