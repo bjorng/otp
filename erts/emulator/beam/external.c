@@ -5224,7 +5224,30 @@ dec_term_atom_common:
         case RECORD_EXT:
             {
                 Uint32 size;
+                //ErtsStructInstance *instance;
+                ErtsStructDefinition *defp;
+
 		size = get_int32(ep); ep += 4;
+                erts_printf("size: %d\n", size);
+
+                defp = (ErtsStructDefinition *)hp;
+                hp += sizeof(ErtsStructDefinition)/sizeof(Eterm);
+                //instance = (ErtsStructInstance *)hp;
+
+                /* Module */
+		if ((ep = dec_atom(edep, ep, &defp->module, 0)) == NULL) {
+		    goto error;
+		}
+                /* Name */
+		if ((ep = dec_atom(edep, ep, &defp->name, 0)) == NULL) {
+		    goto error;
+		}
+
+                defp->is_exported = (*ep & 1) ? am_true : am_false;
+
+                erts_printf("module: %T\n", defp->module);
+                erts_printf("name: %T\n", defp->name);
+                erts_printf("exported: %T\n", defp->is_exported);
 
                 *objp = make_small(size);
             }
@@ -6294,6 +6317,7 @@ init_done:
             {
                 CHKSIZE(4);
                 n = get_int32(ep); ep += 4;
+                heap_size += sizeof(ErtsStructDefinition)/sizeof(Eterm);
             }
             break;
 	default:
