@@ -5244,19 +5244,21 @@ dec_term_atom_common:
                 ErtsStructDefinition *defp;
                 Eterm *values;
                 Eterm *order;
+                Eterm order_tuple;
                 struct erl_record_field *fields;
 
 		num_fields = get_int32(ep); ep += 4;
-                erts_printf("num_fields: %d\n", num_fields);
 
                 order = (Eterm *)hp;
                 hp += (num_fields + 1);
+                order_tuple = make_boxed(order);
+                *order++ = make_arityval(num_fields);
 
                 defp = (ErtsStructDefinition *)hp;
                 hp += sizeof(ErtsStructDefinition)/sizeof(Eterm) + num_fields;
-
-                instance = (ErtsStructInstance *)hp;
-                hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
+                defp->thing_word = make_arityval(sizeof(ErtsStructDefinition)/sizeof(Eterm)
+                                                 + num_fields - 1);
+                defp->field_order = order_tuple;
 
                 /* Module */
 		if ((ep = dec_atom(edep, ep, &defp->module, 0)) == NULL) {
@@ -5270,10 +5272,6 @@ dec_term_atom_common:
                 defp->is_exported = (*ep & 1) ? am_true : am_false;
                 ep++;
 
-                erts_printf("module: %T\n", defp->module);
-                erts_printf("name: %T\n", defp->name);
-                erts_printf("exported: %T\n", defp->is_exported);
-
                 fields = erts_alloc(ERTS_ALC_T_TMP, num_fields * sizeof(struct erl_record_field));
 
                 for (unsigned i = 0; i < num_fields; i++) {
@@ -5282,7 +5280,6 @@ dec_term_atom_common:
                     if ((ep = dec_atom(edep, ep, &key, 0)) == NULL) {
                         goto error;
                     }
-                    erts_printf("%d: %T\n", i, key);
                     fields[i].order = i;
                     fields[i].key = key;
                 }
@@ -5290,28 +5287,26 @@ dec_term_atom_common:
                 qsort(fields, num_fields, sizeof(struct erl_record_field),
                       (int (*)(const void *, const void *)) record_compare);
 
-                order[0] = make_arityval(num_fields);
                 for (int i = 0; i < num_fields; i++) {
-                    order[i+1] = make_small(fields[i].order);
+                    order[fields[i].order] = make_small(i);
                     defp->keys[i] = fields[i].key;
                 }
-                erts_printf("order: %T\n", make_boxed(order));
 
                 erts_free(ERTS_ALC_T_TMP, fields);
 
-                defp->field_order = make_boxed(order);
+                /* erts_printf("field_order = %T\n", defp->field_order); */
 
-                defp->thing_word = make_arityval(sizeof(ErtsStructDefinition)/sizeof(Eterm)
-                                                 + num_fields - 1);
+                instance = (ErtsStructInstance *)hp;
+                hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
 
                 instance->thing_word = MAKE_STRUCT_HEADER(num_fields);
                 instance->struct_definition = make_boxed((Eterm *)defp);
-                erts_printf("def: %T\n", instance->struct_definition);
                 values = instance->values;
 
+                /* erts_printf("%T\n", instance->struct_definition); */
+
                 for (int i = num_fields; i > 0; i--) {
-                    int index = unsigned_val(order[i]);
-                    erts_printf("%d: %d\n", i, index);
+                    int index = unsigned_val(order[i-1]);
                     values[index] = (Eterm)next;
                     next = &values[index];
                 }
@@ -6384,12 +6379,10 @@ init_done:
             {
                 CHKSIZE(4);
                 n = get_int32(ep); ep += 4;
-                erts_printf("num_fields: %d\n", n);
                 heap_size += sizeof(ErtsStructDefinition)/sizeof(Eterm)
                     + sizeof(ErtsStructInstance)/sizeof(Eterm)
                     + (n + 1)   /* field order tuple */
                     + 2 * n;
-                erts_printf("heap_size: %ld\n", heap_size);
             }
             break;
 	default:
