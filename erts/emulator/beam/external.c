@@ -5290,23 +5290,27 @@ dec_term_atom_common:
 
                 order[0] = make_arityval(num_fields);
                 for (int i = 0; i < num_fields; i++) {
-                    order[i+1] = fields[i].order;
+                    order[i+1] = make_small(fields[i].order);
                     defp->keys[i] = fields[i].key;
                 }
+                erts_printf("order: %T\n", make_boxed(order));
 
                 erts_free(ERTS_ALC_T_TMP, fields);
 
+                defp->field_order = make_boxed(order);
+
                 instance->thing_word = MAKE_STRUCT_HEADER(num_fields);
-                instance->struct_definition = make_boxed(defp);
+                instance->struct_definition = make_boxed((Eterm *)defp);
                 values = instance->values;
 
-                while (num_fields--) {
-                    int index = order[num_fields];
+                for (int i = num_fields; i > 0; i--) {
+                    int index = unsigned_val(order[i]);
+                    erts_printf("%d: %d\n", i, index);
                     values[index] = (Eterm)next;
                     next = &values[index];
                 }
 
-                *objp = make_boxed(instance);
+                *objp = make_boxed((Eterm *)instance);
             }
             break;
 
