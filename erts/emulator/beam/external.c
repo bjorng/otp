@@ -50,7 +50,7 @@
 #include "erl_trace.h"
 #include "erl_global_literals.h"
 #include "erl_term_hashing.h"
-
+#include "erl_struct.h"
 
 #define PASS_THROUGH 'p'
 
@@ -3716,7 +3716,6 @@ enc_term_int(TTBEncodeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj, byte* ep,
 	    }
 	    break;
 
-        case STRUCT_DEF:
 	case TUPLE_DEF:
 	    ptr = tuple_val(obj);
 	    i = header_arity(*ptr);
@@ -3994,6 +3993,36 @@ enc_term_int(TTBEncodeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj, byte* ep,
                     ep = enc_term(acmp, make_small(exp->info.mfa.arity),
                                  ep, dflags, off_heap);
 
+                }
+            }
+            break;
+        case STRUCT_DEF:
+            {
+                Sint size = struct_field_count(obj);
+                ErtsStructInstance *instance;
+                ErtsStructDefinition *defp;
+                Eterm *values;
+                Eterm *order;
+
+                instance = (ErtsStructInstance*) struct_val(obj);
+                defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+
+                *ep++ = RECORD_EXT;
+                put_int32(size, ep); ep += 4;
+                ep = enc_atom(acmp, defp->module, ep, dflags);
+                ep = enc_atom(acmp, defp->name, ep, dflags);
+                ASSERT(defp->is_exported == am_false || defp->is_exported == am_true);
+                *ep++ = defp->is_exported == am_false ? 0 : 1;
+
+                order = tuple_val(defp->field_order) + 1;
+                for (int i = 0; i < size; i++) {
+                    Eterm key = defp->keys[unsigned_val(order[i])];
+                    ep = enc_atom(acmp, key, ep, dflags);
+                }
+
+                values = instance->values;
+                for (Sint i = size-1; i >= 0; i--) {
+                    WSTACK_PUSH2(s, ENC_TERM, (UWord) values[i]);
                 }
             }
             break;
@@ -5192,6 +5221,11 @@ dec_term_atom_common:
             ep += 4; /* 32-bit hash (verified in decoded_size()) */
             goto continue_this_obj;
 
+        case RECORD_EXT:
+            {
+                goto error;
+            }
+
 	default:
 	    goto error;
 	}
@@ -5518,7 +5552,6 @@ encode_size_struct_int(TTBSizeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj,
 	    }
 	    break;
 	}
-        case STRUCT_DEF:
 	case TUPLE_DEF:
 	    {
 		Eterm* ptr = boxed_val(obj);
@@ -5726,6 +5759,40 @@ encode_size_struct_int(TTBSizeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj,
                 }
                 break;
         }
+
+        case STRUCT_DEF:
+            {
+                Sint size = struct_field_count(obj);
+                ErtsStructInstance *instance;
+                ErtsStructDefinition *defp;
+                Eterm *values;
+
+                instance = (ErtsStructInstance*) struct_val(obj);
+                defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+
+                result += 1     /* tag */
+                    + 4         /* length field */
+                    + 1;        /* flags */
+
+                result += encode_atom_size(acmp, defp->module, dflags);
+                result += encode_atom_size(acmp, defp->name, dflags);
+
+                for (int i = 0; i < size; i++) {
+                    result += encode_atom_size(acmp, defp->keys[i], dflags);
+                }
+
+                values = instance->values;
+                if (size > 1) {
+                    WSTACK_PUSH2(s, (UWord) (values + 1),
+                                 (UWord) TERM_ARRAY_OP(size-1));
+                }
+
+                if (size != 0) {
+                    obj = values[0];
+                    continue; /* big loop */
+                }
+            }
+            break;
 
 	default:
 	    erts_exit(ERTS_ERROR_EXIT,"Internal data structure error (in encode_size_struct_int) %x\n",
