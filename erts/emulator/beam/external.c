@@ -5258,9 +5258,6 @@ dec_term_atom_common:
                 instance = (ErtsStructInstance *)hp;
                 hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
 
-                defp->thing_word = make_arityval(sizeof(ErtsStructDefinition)/sizeof(Eterm)
-                                                 + num_fields);
-
                 /* Module */
 		if ((ep = dec_atom(edep, ep, &defp->module, 0)) == NULL) {
 		    goto error;
@@ -5304,8 +5301,12 @@ dec_term_atom_common:
 
                 defp->field_order = make_boxed(order);
 
+                defp->thing_word = make_arityval(sizeof(ErtsStructDefinition)/sizeof(Eterm)
+                                                 + num_fields - 1);
+
                 instance->thing_word = MAKE_STRUCT_HEADER(num_fields);
                 instance->struct_definition = make_boxed((Eterm *)defp);
+                erts_printf("def: %T\n", instance->struct_definition);
                 values = instance->values;
 
                 for (int i = num_fields; i > 0; i--) {
