@@ -5223,8 +5223,12 @@ dec_term_atom_common:
 
         case RECORD_EXT:
             {
-                goto error;
+                Uint32 size;
+		size = get_int32(ep); ep += 4;
+
+                *objp = make_small(size);
             }
+            break;
 
 	default:
 	    goto error;
@@ -6285,6 +6289,12 @@ init_done:
             lext_term_end = terms - 1;
             terms++;
             ep += 4;
+            break;
+        case RECORD_EXT:
+            {
+                CHKSIZE(4);
+                n = get_int32(ep); ep += 4;
+            }
             break;
 	default:
 	    goto error;
