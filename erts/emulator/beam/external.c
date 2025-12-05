@@ -5242,6 +5242,7 @@ dec_term_atom_common:
                 Uint32 num_fields;
                 ErtsStructInstance *instance;
                 ErtsStructDefinition *defp;
+                Eterm *values;
                 Eterm *order;
                 struct erl_record_field *fields;
 
@@ -5294,7 +5295,18 @@ dec_term_atom_common:
                 }
 
                 erts_free(ERTS_ALC_T_TMP, fields);
-                *objp = make_small(num_fields);
+
+                instance->thing_word = MAKE_STRUCT_HEADER(num_fields);
+                instance->struct_definition = make_boxed(defp);
+                values = instance->values;
+
+                while (num_fields--) {
+                    int index = order[num_fields];
+                    values[index] = (Eterm)next;
+                    next = &values[index];
+                }
+
+                *objp = make_boxed(instance);
             }
             break;
 
