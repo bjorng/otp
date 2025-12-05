@@ -4276,6 +4276,23 @@ struct dec_term_map
     } u;
 };
 
+struct erl_record_field {
+    int order;
+    Eterm key;
+    Eterm value;
+};
+
+static int record_compare(const struct erl_record_field *a, const struct erl_record_field *b) {
+    Sint res = erts_cmp_flatmap_keys(a->key, b->key);
+
+    if (res < 0) {
+        return -1;
+    } else if (res > 0) {
+        return 1;
+    }
+
+    return 0;
+}
 
 /* Decode term from external format into *objp.
 ** On failure calls erts_factory_undo() and returns NULL
@@ -5223,12 +5240,13 @@ dec_term_atom_common:
 
         case RECORD_EXT:
             {
-                Uint32 size;
+                Uint32 num_fields;
                 //ErtsStructInstance *instance;
                 ErtsStructDefinition *defp;
+                struct erl_record_field *fields;
 
-		size = get_int32(ep); ep += 4;
-                erts_printf("size: %d\n", size);
+		num_fields = get_int32(ep); ep += 4;
+                erts_printf("num_fields: %d\n", num_fields);
 
                 defp = (ErtsStructDefinition *)hp;
                 hp += sizeof(ErtsStructDefinition)/sizeof(Eterm);
@@ -5249,7 +5267,10 @@ dec_term_atom_common:
                 erts_printf("name: %T\n", defp->name);
                 erts_printf("exported: %T\n", defp->is_exported);
 
-                *objp = make_small(size);
+                fields = erts_alloc(ERTS_ALC_T_TMP, num_fields * sizeof(struct erl_record_field));
+
+                erts_free(ERTS_ALC_T_TMP, fields);
+                *objp = make_small(num_fields);
             }
             break;
 
