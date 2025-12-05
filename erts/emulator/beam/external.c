@@ -5250,7 +5250,7 @@ dec_term_atom_common:
                 erts_printf("num_fields: %d\n", num_fields);
 
                 order = (Eterm *)hp;
-                hp += (num_fields + 1) * sizeof(Eterm);
+                hp += (num_fields + 1);
                 defp = (ErtsStructDefinition *)hp;
                 hp += sizeof(ErtsStructDefinition)/sizeof(Eterm);
                 instance = (ErtsStructInstance *)hp;
@@ -6374,7 +6374,12 @@ init_done:
             {
                 CHKSIZE(4);
                 n = get_int32(ep); ep += 4;
-                heap_size += sizeof(ErtsStructDefinition)/sizeof(Eterm);
+                erts_printf("num_fields: %d\n", n);
+                heap_size += sizeof(ErtsStructDefinition)/sizeof(Eterm)
+                    + sizeof(ErtsStructInstance)/sizeof(Eterm)
+                    + (n + 1)   /* field order tuple */
+                    + 2 * n;
+                erts_printf("heap_size: %ld\n", heap_size);
             }
             break;
 	default:
