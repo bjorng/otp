@@ -71,13 +71,13 @@ void BeamModuleAssembler::emit_i_get_record_elements(const ArgLabel &Fail,
                                                      const ArgRegister &Src,
                                                      const ArgWord &Size,
                                                      const Span<ArgVal> &args) {
-    emit_enter_runtime<Update::eHeapAlloc | Update::eXRegs>();
-
     a.mov(ARG1, c_p);
     load_x_reg_array(ARG2);
     mov_arg(ARG3, Src);
     mov_imm(ARG4, args.size());
     embed_vararg_rodata(args, ARG5);
+
+    emit_enter_runtime<Update::eHeapAlloc | Update::eXRegs>();
 
     runtime_call<bool (*)(Process *, Eterm *, Eterm, Uint, const Eterm *),
                  erl_get_record_elements>();
@@ -130,14 +130,14 @@ void BeamModuleAssembler::emit_i_update_native_record(
         const Span<ArgVal> &args) {
     Label next = a.newLabel();
 
-    emit_enter_runtime<Update::eHeapAlloc | Update::eXRegs>();
-
     a.mov(ARG1, c_p);
     load_x_reg_array(ARG2);
     mov_arg(ARG3, Src);
     mov_arg(ARG4, Live);
     mov_imm(ARG5, args.size());
     embed_vararg_rodata(args, ARG6);
+
+    emit_enter_runtime<Update::eHeapAlloc | Update::eXRegs>();
 
     runtime_call<
             Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *args),
