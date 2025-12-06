@@ -111,8 +111,7 @@ void BeamModuleAssembler::emit_i_create_native_record(
             Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *),
             erl_create_native_record>();
 
-    emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs |
-                       Update::eReductions>(Live.get() + 1);
+    emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs>(Live.get() + 1);
 
     emit_branch_if_value(ARG1, next);
     emit_raise_exception();
@@ -143,8 +142,7 @@ void BeamModuleAssembler::emit_i_update_native_record(
             Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *args),
             erl_update_native_record>();
 
-    emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs |
-                       Update::eReductions>();
+    emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs>();
 
     emit_branch_if_value(ARG1, next);
     emit_raise_exception();
