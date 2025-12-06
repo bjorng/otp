@@ -6392,17 +6392,10 @@ init_done:
                 if (n > 0) {
                     heap_size += 1 + n; /* field_order tuple */
                 }
-                erts_printf("n = %d\n", n);
                 SKIP(1);        /* Skip flags */
-                erts_printf("%d:\n", __LINE__);
                 ADDTERMS(2);    /* Module, name */
-                erts_printf("%d:\n", __LINE__);
-                erts_printf("%d:\n", __LINE__);
                 ADDTERMS(n);
-                erts_printf("%d:\n", __LINE__);
                 ADDTERMS(n);
-                erts_printf("%d:\n", __LINE__);
-                erts_printf("terms = %d:\n", terms);
             }
             break;
 	default:
@@ -6451,7 +6444,6 @@ init_done:
                      * Hash presented in external format did not match the
                      * calculated hash...
                      */
-                    erts_printf("%d:\n", __LINE__);
                     goto error;
                 }
                 lext_hash = NULL;
@@ -6484,7 +6476,6 @@ init_done:
     }
 
 error:
-    erts_printf("%d:\n", __LINE__);
     if (ctx) {
         ctx->state = B2TBadArg;
     }
