@@ -1498,7 +1498,7 @@ tailrecur_ne:
                         order_b = tuple_val(db->field_order);
 
                         ASSERT(order_a[0] == order_b[0]);
-                        for (int i; i < sz; i++) {
+                        for (int i = 0; i < sz; i++) {
                             if (keys_a[i] != keys_b[i] ||
                                 order_a[i+1] != order_b[i+1]) {
                                 goto not_equal;
