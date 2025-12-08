@@ -1505,9 +1505,13 @@ tailrecur_ne:
                             }
                         }
                     }
-                    aa = (Eterm *)ia->values;
-                    bb = (Eterm *)ib->values;
-                    goto term_array;
+                    if (sz == 0) {
+                        goto pop_next;
+                    } else {
+                        aa = (Eterm *)ia->values;
+                        bb = (Eterm *)ib->values;
+                        goto term_array;
+                    }
                 }
 
 	    default:

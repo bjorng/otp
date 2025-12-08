@@ -41,6 +41,7 @@
 %%      phash2(Binary, N)
 %%
 
+-record #empty{}.
 -record #order{zzzz=0, true=1, aaaa=2, wwww=3, z=4, a=5}.
 
 -include_lib("common_test/include/ct.hrl").
@@ -1741,6 +1742,7 @@ test_terms(Test_Func) ->
     Test_Func(MapWithMap),
 
     %% Native records.
+    Test_Func(#empty{}),
     OrderRec = #order{zzzz=SmallMap, true=LargeMap1, aaaa=MapWithMap},
     Test_Func(#order{}),
     Test_Func(OrderRec),
