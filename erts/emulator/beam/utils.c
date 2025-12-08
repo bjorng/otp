@@ -1178,34 +1178,6 @@ tailrecur_ne:
 		    ++bb;
 		    goto term_array;
 		}
-            case STRUCT_SUBTAG:
-                {
-                    ErtsStructInstance *ia, *ib;
-                    ErtsStructDefinition *da, *db;
-                    aa = struct_val(a);
-                    if (!is_boxed(b) || *boxed_val(b) != *aa) {
-                        goto not_equal;
-                    }
-                    bb = struct_val(b);
-                    sz = struct_field_count(a);
-                    if (sz != struct_field_count(b)) {
-                        goto not_equal;
-                    }
-                    ia = (ErtsStructInstance *)aa;
-                    ib = (ErtsStructInstance *)bb;
-                    da = (ErtsStructDefinition *)
-                        tuple_val(ia->struct_definition);
-                    db = (ErtsStructDefinition *)
-                        tuple_val(ib->struct_definition);
-                    if (da->module != db->module ||
-                        da->name != db->name ||
-                        da->is_exported != da->is_exported) {
-                        goto not_equal;
-                    }
-                    aa = (Eterm *)ia->values;
-                    bb = (Eterm *)ib->values;
-                    goto term_array;
-                }
             case HEAP_BITS_SUBTAG:
             case SUB_BITS_SUBTAG:
                 {
@@ -1491,6 +1463,53 @@ tailrecur_ne:
 		    }
 		    goto term_array;
 		}
+            case STRUCT_SUBTAG:
+                {
+                    ErtsStructInstance *ia, *ib;
+                    ErtsStructDefinition *da, *db;
+                    aa = struct_val(a);
+                    if (!is_boxed(b) || *boxed_val(b) != *aa) {
+                        goto not_equal;
+                    }
+                    bb = struct_val(b);
+                    sz = struct_field_count(a);
+                    if (sz != struct_field_count(b)) {
+                        goto not_equal;
+                    }
+                    ia = (ErtsStructInstance *)aa;
+                    ib = (ErtsStructInstance *)bb;
+                    da = (ErtsStructDefinition *)
+                        tuple_val(ia->struct_definition);
+                    db = (ErtsStructDefinition *)
+                        tuple_val(ib->struct_definition);
+                    if (da != db) {
+                        Eterm *keys_a, *keys_b;
+                        Eterm *order_a, *order_b;
+
+                        if (da->module != db->module ||
+                            da->name != db->name ||
+                            da->is_exported != da->is_exported) {
+                            goto not_equal;
+                        }
+
+                        keys_a = da->keys;
+                        keys_b = db->keys;
+                        order_a = tuple_val(da->field_order);
+                        order_b = tuple_val(db->field_order);
+
+                        ASSERT(order_a[0] == order_b[0]);
+                        for (int i; i < sz; i++) {
+                            if (keys_a[i] != keys_b[i] ||
+                                order_a[i+1] != order_b[i+1]) {
+                                goto not_equal;
+                            }
+                        }
+                    }
+                    aa = (Eterm *)ia->values;
+                    bb = (Eterm *)ib->values;
+                    goto term_array;
+                }
+
 	    default:
 		ASSERT(!"Unknown boxed subtab in EQ");
 	    }
