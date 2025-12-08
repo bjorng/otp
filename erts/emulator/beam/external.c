@@ -5272,12 +5272,14 @@ dec_term_atom_common:
 		    goto error;
 		}
 
-                fields = erts_alloc(ERTS_ALC_T_TMP, num_fields * sizeof(struct erl_record_field));
+                fields = erts_alloc(ERTS_ALC_T_TMP,
+                                    num_fields * sizeof(struct erl_record_field));
 
                 for (int i = 0; i < num_fields; i++) {
                     Eterm key;
 
                     if ((ep = dec_atom(edep, ep, &key, 0)) == NULL) {
+                        erts_free(ERTS_ALC_T_TMP, fields);
                         goto error;
                     }
                     fields[i].order = i;
