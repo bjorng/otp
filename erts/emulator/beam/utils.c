@@ -1467,6 +1467,7 @@ tailrecur_ne:
                 {
                     ErtsStructInstance *ia, *ib;
                     ErtsStructDefinition *da, *db;
+
                     aa = struct_val(a);
                     if (!is_boxed(b) || *boxed_val(b) != *aa) {
                         goto not_equal;
@@ -1488,7 +1489,7 @@ tailrecur_ne:
 
                         if (da->module != db->module ||
                             da->name != db->name ||
-                            da->is_exported != da->is_exported) {
+                            da->is_exported != db->is_exported) {
                             goto not_equal;
                         }
 

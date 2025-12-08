@@ -5308,7 +5308,7 @@ dec_term_atom_common:
                 hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
 
                 instance->thing_word = MAKE_STRUCT_HEADER(num_fields);
-                instance->struct_definition = make_boxed((Eterm *)defp);
+                instance->struct_definition = erts_canonical_record_def(defp);
                 values = instance->values;
 
                 if (num_fields > 0) {

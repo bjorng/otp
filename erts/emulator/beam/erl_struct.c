@@ -216,6 +216,51 @@ ErtsStructEntry *erts_struct_find_entry(Eterm module,
     return NULL;
 }
 
+Eterm erts_canonical_record_def(ErtsStructDefinition *defp) {
+    ErtsStructEntry *entry;
+    ErtsCodeIndex code_ix;
+    Eterm def;
+    ErtsStructDefinition *canonical;
+    Eterm *order_def, *order_canonical;
+    int field_count;
+    Eterm result = make_boxed((Eterm *)defp);
+
+    code_ix = erts_active_code_ix();
+    entry = erts_struct_find_entry(defp->module, defp->name, code_ix);
+
+    if (entry == NULL) {
+        return result;
+    }
+
+    def = entry->definitions[code_ix];
+    if (def == THE_NON_VALUE) {
+        return result;
+    }
+
+    canonical = (ErtsStructDefinition*)boxed_val(def);
+    if (defp->is_exported != canonical->is_exported) {
+        return result;
+    }
+
+    order_def = tuple_val(defp->field_order);
+    order_canonical = tuple_val(canonical->field_order);
+
+    if (order_def[0] != order_canonical[0]) {
+        return result;
+    }
+    field_count = arityval(order_def[0]);
+    order_def++, order_canonical++;
+
+    for (int i = 0; i < field_count; i++) {
+        if (defp->keys[i] != canonical->keys[i] ||
+            order_def[i] != order_canonical[i]) {
+            return result;
+        }
+    }
+
+    return def;
+}
+
 ErtsStructEntry *erts_struct_put(Eterm module, Eterm name)
 {
     ErtsCodeIndex code_ix = erts_staging_code_ix();
