@@ -220,7 +220,7 @@ Eterm erts_canonical_record_def(ErtsStructDefinition *defp) {
     ErtsStructEntry *entry;
     ErtsCodeIndex code_ix;
     Eterm canonical_def;
-    ErtsStructDefinition *canonical;
+    ErtsStructDefinition *canonical_p;
     Eterm *order_def, *order_canonical;
     int field_count;
     Eterm result = make_boxed((Eterm *)defp);
@@ -237,13 +237,13 @@ Eterm erts_canonical_record_def(ErtsStructDefinition *defp) {
         return result;
     }
 
-    canonical = (ErtsStructDefinition*)boxed_val(canonical_def);
-    if (defp->is_exported != canonical->is_exported) {
+    canonical_p = (ErtsStructDefinition*)boxed_val(canonical_def);
+    if (defp->is_exported != canonical_p->is_exported) {
         return result;
     }
 
     order_def = tuple_val(defp->field_order);
-    order_canonical = tuple_val(canonical->field_order);
+    order_canonical = tuple_val(canonical_p->field_order);
 
     if (order_def[0] != order_canonical[0]) {
         return result;
@@ -252,7 +252,7 @@ Eterm erts_canonical_record_def(ErtsStructDefinition *defp) {
     order_def++, order_canonical++;
 
     for (int i = 0; i < field_count; i++) {
-        if (defp->keys[i] != canonical->keys[i] ||
+        if (defp->keys[i] != canonical_p->keys[i] ||
             order_def[i] != order_canonical[i]) {
             return result;
         }
