@@ -1180,15 +1180,30 @@ tailrecur_ne:
 		}
             case STRUCT_SUBTAG:
                 {
+                    ErtsStructInstance *ia, *ib;
+                    ErtsStructDefinition *da, *db;
                     aa = struct_val(a);
                     if (!is_boxed(b) || *boxed_val(b) != *aa) {
                         goto not_equal;
                     }
                     bb = struct_val(b);
-                    sz = header_arity(*aa);
-                    ASSERT(sz >= 1);
-                    ++aa;
-                    ++bb;
+                    sz = struct_field_count(a);
+                    if (sz != struct_field_count(b)) {
+                        goto not_equal;
+                    }
+                    ia = (ErtsStructInstance *)aa;
+                    ib = (ErtsStructInstance *)bb;
+                    da = (ErtsStructDefinition *)
+                        tuple_val(ia->struct_definition);
+                    db = (ErtsStructDefinition *)
+                        tuple_val(ib->struct_definition);
+                    if (da->module != db->module ||
+                        da->name != db->name ||
+                        da->is_exported != da->is_exported) {
+                        goto not_equal;
+                    }
+                    aa = (Eterm *)ia->values;
+                    bb = (Eterm *)ib->values;
                     goto term_array;
                 }
             case HEAP_BITS_SUBTAG:
