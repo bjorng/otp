@@ -648,6 +648,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             hp_end = hp + field_count;
 
             if (is_not_map(BIF_ARG_3)) {
+                HRelease(BIF_P, hp_end, hp);
                 BIF_P->fvalue = BIF_ARG_3;
                 BIF_ERROR(BIF_P, BADMAP);
             } else if (is_flatmap(BIF_ARG_3)) {
