@@ -2883,8 +2883,15 @@ expr({record,Anno,Name,Inits}, Vt, St) ->
                                  init_fields(Inits, Anno, Name, Dfs, Vt, St1)
                          end)
     end;
-expr({native_record, _Anno, {MName, Name}, Inits}, Vt, St) when is_atom(MName),is_atom(Name) ->
-    check_nn_fields(Inits, Vt, St);
+expr({native_record, Anno, {}, _Inits}, _Vt, St) ->
+    {[], add_error(Anno, {undefined_native_record, '_'}, St)};
+expr({native_record, Anno, {MName, Name}, Inits}, Vt, St) when is_atom(MName),is_atom(Name) ->
+    case Name of
+        '_' -> {[], add_error(Anno, {undefined_native_record, Name}, St)};
+        _ -> check_nn_fields(Inits, Vt, St)
+    end;
+expr({native_record, Anno, {MName, Name}, _Inits}, _Vt, St) ->
+    {[], add_error(Anno, {undefined_native_record, {MName, Name}}, St)};
 expr({native_record_update, _Anno, Expr, {MName, Name}, Updates}, Vt, St) when is_atom(MName),is_atom(Name) ->
     {Rvt, St1} = expr(Expr, Vt, St),
     {Usvt, St2} = check_nn_fields(Updates, Vt, St1),

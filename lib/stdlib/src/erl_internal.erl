@@ -506,6 +506,7 @@ is_type(number, 0) -> true;
 is_type(pid, 0) -> true;
 is_type(port, 0) -> true;
 is_type(pos_integer, 0) -> true;
+is_type(record, 0) -> true;
 is_type(reference, 0) -> true;
 is_type(string, 0) -> true;
 is_type(term, 0) -> true;

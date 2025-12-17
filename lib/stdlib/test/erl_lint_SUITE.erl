@@ -5812,6 +5812,16 @@ native_records(Config) ->
            {errors,[{{3,32},erl_lint,{undefined_record,foo}},
                     {{4,39},erl_lint,{undefined_record,foo}}],
             []}},
+           {illegal_native_record_def_1,
+           <<"t1() ->
+                  #_{x=1}.
+              t2() ->
+                  #ext:_{x=1}.
+             ">>,
+           [],
+           {errors,[{{2,19},erl_lint,{undefined_native_record,'_'}},
+                    {{4,19},erl_lint,{undefined_native_record,'_'}}],
+            []}},
            {illegal_native_record_def_3,
            <<"-record #s1{a = is_atom(0)}.
               -record #s2{a = [0, is_atom(0)]}.
