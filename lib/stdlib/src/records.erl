@@ -25,8 +25,6 @@
 -export([get/2, get_module/1, get_name/1, get_field_names/1,
          is_exported/1, create/3, create/4, update/4]).
 
--type record() :: erlang:record().
-
 -spec get(atom(), term()) -> term().
 get(_Key, _Record) ->
     erlang:nif_error(undefined).

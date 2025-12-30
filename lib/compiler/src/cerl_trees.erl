@@ -271,6 +271,10 @@ fold_1(F, S, T) ->
  	    fold_list(F, S, values_es(T));
 	cons ->
 	    fold(F, fold(F, S, cons_hd(T)), cons_tl(T));
+	struct ->
+	    fold_list(F, S, struct_es(T));
+	struct_pair ->
+	    fold(F, fold(F, S, struct_pair_key(T)), struct_pair_val(T));
 	tuple ->
 	    fold_list(F, S, tuple_es(T));
 	map ->

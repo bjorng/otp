@@ -60,7 +60,7 @@
 	 t_limit/2, t_list/0, t_list_elements/1,
 	 t_maybe_improper_list/0, t_module/0,
 	 t_none/0, t_non_neg_integer/0, t_number/0, t_number_vals/1,
-	 t_pid/0, t_port/0, t_product/1, t_reference/0,
+	 t_pid/0, t_port/0, t_product/1, t_record/0, t_record/1, t_reference/0,
          t_to_string/2, t_to_tlist/1,
 	 t_tuple/0, t_tuple/1, t_tuple_args/1,
          t_tuple_subtypes/1,
@@ -279,6 +279,8 @@ traverse(Tree, Map, State) ->
       handle_tuple(Tree, Map, State);
     map ->
       handle_map(Tree, Map, State);
+    struct ->
+      handle_native_record(Tree, Map, State);
     values ->
       Elements = cerl:values_es(Tree),
       {State1, Map1, EsType} = traverse_list(Elements, Map, State),
@@ -962,6 +964,8 @@ handle_primop(Tree, Map, State) ->
       {State, Map, t_any()};
     executable_line ->
       {State, Map, t_any()};
+    get_record_field ->
+      {State, Map, t_any()};
     Other ->
       error({'Unsupported primop', Other})
   end.
@@ -1115,6 +1119,70 @@ handle_tuple(Tree, Map, State) ->
 	  {State1, Map1, t_tuple([])}
       end
   end.
+
+%%----------------------------------------
+
+handle_native_record(Tree, Map, State) ->
+  Id = cerl:concrete(cerl:struct_id(Tree)),
+  Arg = cerl:struct_arg(Tree),
+  Es = cerl:struct_es(Tree),
+  {State1, Map1, ArgType} = traverse(Arg, Map, State),
+  {State2, Map2, _EsType} = traverse_struct_pairs(Es, Map1, State1, []),
+  RecordType = t_record(Id),
+  ArgType1 = t_inf(RecordType, ArgType),
+  case t_is_impossible(ArgType1) of
+    true ->
+      {State2, Map2, ArgType1};
+    false ->
+      case state__lookup_record(Id, 0, State2) of
+        error -> {State2, Map2, RecordType};
+        {ok, RecType, _FieldNames} ->
+          InfRecType = t_inf(RecType, RecordType),
+          case t_is_none(InfRecType) of
+            true ->
+              RecC = format_type(RecordType, State2),
+              % {FieldPosList, FieldDiffs} =
+              %   format_field_diffs(RecordType, State2),
+              Msg = {record_constr, [RecC]},
+              LocTree = 2,
+              State3 = state__add_warning(State2, ?WARN_MATCHING,
+                                          LocTree, Msg),
+              {State3, Map2, t_none()};
+            false ->
+              {State2, Map2, t_record(Id)}
+              % case bind_pat_vars(Es, t_tuple_args(RecType),
+              %                     Map2, State2) of
+              %   {error, bind, ErrorPat, ErrorType} ->
+              %     Msg = {record_constr,
+              %             [Id, format_patterns(ErrorPat),
+              %             format_type(ErrorType, State2)]},
+              %     LocTree = hd(ErrorPat),
+              %     State3 = state__add_warning(State2, ?WARN_MATCHING,
+              %                                 LocTree, Msg),
+              %     {State3, Map2, t_none()};
+              %   {error, record, ErrorPat, ErrorType} ->
+              %     Msg = {record_match,
+              %             [format_patterns(ErrorPat),
+              %             format_type(ErrorType, State2)]},
+              %     State3 = state__add_warning(State2, ?WARN_MATCHING,
+              %                                 Tree, Msg),
+              %     {State3, Map2, t_none()};
+              %   {Map3, _ETypes, State3} ->
+              %     %% TODO: Fix
+              %     {State3, Map3, t_record(Id)}
+              % end
+          end
+      end
+  end.
+
+traverse_struct_pairs([], Map, State, PairAcc) ->
+  {State, Map, lists:reverse(PairAcc)};
+traverse_struct_pairs([Pair|Pairs], Map, State, PairAcc) ->
+  Key = cerl:struct_pair_key(Pair),
+  Val = cerl:struct_pair_val(Pair),
+  {State1, Map1, V} = traverse(Val,Map,State),
+  traverse_struct_pairs(Pairs, Map1, State1,
+		     [{{Key,V},Pair}|PairAcc]).
 
 %%----------------------------------------
 %% Clauses
@@ -1459,6 +1527,8 @@ do_bind_pat_vars([Pat|Pats], [Type|Types], Map, State0, Rev, Acc) ->
         bind_map(Pat, Type, Map, State0, Rev);
       tuple ->
         bind_tuple(Pat, Type, Map, State0, Rev);
+      struct ->
+        bind_struct(Pat, Type, Map, State0, Rev);
       values ->
 	Es = cerl:values_es(Pat),
 	{Map1, EsTypes, State1} = do_bind_pat_vars(Es, t_to_tlist(Type),
@@ -1571,6 +1641,24 @@ bind_tuple(Pat, Type, Map, State, Rev) ->
                           {M, EsTypes} <- Results, M =/= error]),
       {Map1, TupleType, State2}
   end.
+
+bind_struct(Pat, Type, Map, State, _Rev) ->
+  _Es = cerl:struct_es(Pat),
+  Prototype = t_record(),
+  {_Record, State1} = bind_checked_inf(Pat, Prototype, Type, State),
+  _MapJ = join_maps_begin(Map),
+  %% Need to call the top function to get the try-catch wrapper.
+  {_Results, State2} = {t_record(), State1},
+  % case [M || {M, _} <- Results, M =/= error] of
+  %   [] ->
+  %     bind_error([Pat], Tuple, Prototype, record);
+  %   Maps ->
+  %     Map1 = join_maps_end(Maps, MapJ),
+  %     TupleType = t_sup([t_tuple(EsTypes) ||
+  %                         {M, EsTypes} <- Results, M =/= error]),
+  %     {Map1, TupleType, State2}
+  % end,
+  {Map, t_record(), State2}.
 
 bind_bin_segs(BinSegs, BinType, Map, State) ->
   bind_bin_segs(BinSegs, BinType, [], Map, State).
@@ -1799,7 +1887,9 @@ bind_guard(Guard, Map, Env, Eval, State0) ->
 	  {enter_type(Guard, Inf, Map), Inf, State0}
       end;
     call ->
-      handle_guard_call(Guard, Map, Env, Eval, State0)
+      handle_guard_call(Guard, Map, Env, Eval, State0);
+    primop ->
+      {Map, t_any(), State0}
   end.
 
 handle_guard_call(Guard, Map, Env, Eval, State) ->
@@ -2056,51 +2146,57 @@ handle_guard_is_record(Guard, Map, Env, Eval, State0) ->
   MFA = {erlang, is_record, 3},
   Args = cerl:call_args(Guard),
   [Rec, Tag0, Arity0] = Args,
-  Tag = cerl:atom_val(Tag0),
-  Arity = cerl:int_val(Arity0),
-  {Map1, RecType, State1} = bind_guard(Rec, Map, Env, dont_know, State0),
-  State2 = handle_opaque_guard_warnings(MFA, Guard, [Rec], [RecType], State1),
-  ArityMin1 = Arity - 1,
-  Tuple = t_tuple([t_atom(Tag)|lists:duplicate(ArityMin1, t_any())]),
-  Inf = t_inf(Tuple, RecType),
-  State3 = case erl_types:t_opacity_conflict(RecType,
-                                             Tuple,
-                                             State2#state.module) of
-            none ->
-              State2;
-            _ ->
-              Msg = failed_msg(State2, opaque, Guard, Tuple, [Guard], Inf),
-              state__add_warning(State2, ?WARN_OPAQUE, Guard, Msg)
-          end,
-  case t_is_none(Inf) of
+  case cerl:is_c_int(Arity0) of
     true ->
-        case Eval of
-          pos -> signal_guard_fail(Eval, Guard,
-                                   [RecType, t_from_term(Tag),
-                                    t_from_term(Arity)],
-                                   State3);
-          neg -> {Map1, t_atom(false), State3};
-          dont_know -> {Map1, t_atom(false), State3}
-        end;
-    false ->
-      TupleType =
-        case state__lookup_record(Tag, ArityMin1, State3) of
-          error -> Tuple;
-          {ok, Prototype, _FieldNames} -> Prototype
-        end,
-      Type = t_inf(TupleType, RecType),
-      case t_is_none(Type) of
+      Tag = cerl:atom_val(Tag0),
+      Arity = cerl:int_val(Arity0),
+      {Map1, RecType, State1} = bind_guard(Rec, Map, Env, dont_know, State0),
+      State2 = handle_opaque_guard_warnings(MFA, Guard, [Rec], [RecType], State1),
+      ArityMin1 = Arity - 1,
+      Tuple = t_tuple([t_atom(Tag)|lists:duplicate(ArityMin1, t_any())]),
+      Inf = t_inf(Tuple, RecType),
+      State3 = case erl_types:t_opacity_conflict(RecType,
+                                                Tuple,
+                                                State2#state.module) of
+                none ->
+                  State2;
+                _ ->
+                  Msg = failed_msg(State2, opaque, Guard, Tuple, [Guard], Inf),
+                  state__add_warning(State2, ?WARN_OPAQUE, Guard, Msg)
+              end,
+      case t_is_none(Inf) of
         true ->
-          %% No special handling of opaque errors.
-          FArgs = "record " ++ format_type(RecType, State3),
-          throw({fail, {Guard, {record_matching, [FArgs, Tag]}}});
+            case Eval of
+              pos -> signal_guard_fail(Eval, Guard,
+                                      [RecType, t_from_term(Tag),
+                                        t_from_term(Arity)],
+                                      State3);
+              neg -> {Map1, t_atom(false), State3};
+              dont_know -> {Map1, t_atom(false), State3}
+            end;
         false ->
-          case Eval of
-            pos -> {enter_type(Rec, Type, Map1), t_atom(true), State3};
-            neg -> {Map1, t_atom(false), State3};
-            dont_know -> {Map1, t_boolean(), State3}
+          TupleType =
+            case state__lookup_record(Tag, ArityMin1, State3) of
+              error -> Tuple;
+              {ok, Prototype, _FieldNames} -> Prototype
+            end,
+          Type = t_inf(TupleType, RecType),
+          case t_is_none(Type) of
+            true ->
+              %% No special handling of opaque errors.
+              FArgs = "record " ++ format_type(RecType, State3),
+              throw({fail, {Guard, {record_matching, [FArgs, Tag]}}});
+            false ->
+              case Eval of
+                pos -> {enter_type(Rec, Type, Map1), t_atom(true), State3};
+                neg -> {Map1, t_atom(false), State3};
+                dont_know -> {Map1, t_boolean(), State3}
+              end
           end
-      end
+      end;
+    false ->
+      %% TODO: is_record/3 for native records
+      {Map, t_boolean(), State0}
   end.
 
 handle_guard_eq(Guard, Map, Env, Eval, State) ->
@@ -3068,7 +3164,7 @@ state__lookup_record(Tag, Arity, #state{records = Records}) ->
   case erl_types:lookup_record(Tag, Arity, Records) of
     {ok, Fields} ->
       RecType =
-        t_tuple([t_atom(Tag)|
+        t_tuple([t_from_term(Tag)|
                  [FieldType || {_FieldName, _Abstr, FieldType} <- Fields]]),
       FieldNames = [FieldName || {FieldName, _Abstr, _FieldType} <- Fields],
       {ok, RecType, FieldNames};
@@ -3573,6 +3669,7 @@ find_terminals(Tree) ->
     'try' ->
       find_terminals_list([cerl:try_handler(Tree), cerl:try_body(Tree)]);
     tuple -> {false, true};
+    struct -> {false, true};
     values -> {false, true};
     var -> {false, true}
   end.

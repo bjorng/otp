@@ -3891,6 +3891,10 @@ subtrees(T) ->
 		    [[cons_hd(T)], [cons_tl(T)]];
 		tuple ->
 		    [tuple_es(T)];
+        struct ->
+            [struct_es(T)];
+        struct_pair ->
+            [[struct_pair_key(T)], [struct_pair_val(T)]];
 		map ->
 		    [map_es(T)];
 		map_pair ->
