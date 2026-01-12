@@ -3159,7 +3159,7 @@ otp_14296(Config) when is_list(Config) ->
             F = fun() -> a end,
             LocalFun = term_to_string(F),
             S = LocalFun ++ ".",
-            "1:2: syntax error before: Fun" = comm_err(S)
+            "1:5: syntax error before: '<'" = comm_err(S)
     end(),
 
     fun() ->
@@ -3194,13 +3194,13 @@ otp_14296(Config) when is_list(Config) ->
     fun() ->
             UnknownPort = "#Port<100000.0>",
             S = UnknownPort ++ ".",
-            "1:2: syntax error before: Port" = comm_err(S)
+            "1:6: syntax error before: '<'" = comm_err(S)
     end(),
 
     fun() ->
             UnknownRef = "#Ref<100000.0.0.0>",
             S = UnknownRef ++ ".",
-            "1:2: syntax error before: Ref" = comm_err(S)
+            "1:5: syntax error before: '<'" = comm_err(S)
     end(),
 
     fun() ->
