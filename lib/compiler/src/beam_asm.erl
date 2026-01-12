@@ -513,7 +513,7 @@ bdi_name_to_term(Atom) when is_atom(Atom) ->
 
 build_record_chunk(Anno, Dict0) ->
     case Anno of
-        #{records := Defs0} ->
+        #{records := [_|_]=Defs0} ->
             {Defs,Dict} = build_record_def(Defs0, Dict0),
             NumFields = lists:sum([length(Fs) || {_,_,Fs} <:- Defs0]),
             NumItems = length(Defs),
