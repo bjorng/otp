@@ -1245,6 +1245,9 @@ void beam_load_finalize_code(LoaderState *stp,
 
             entry->definitions[staging_ix] = def;
         }
+
+        erts_free(ERTS_ALC_T_PREPARED_CODE, rec.records);
+        rec.records = NULL;
     }
 
     /* Register debug / profiling info with external tools. */
