@@ -324,13 +324,19 @@ no_vertices(G) ->
 vertices(G) ->
     ets:select(G#digraph.vtab, [{{'$1', '_'}, [], ['$1']}]).
 
--doc false.
+-doc """
+Returns a list of all vertices of graph `G` with
+[in-degree](`m:graph#in_degree`) zero.
+""".
 -spec source_vertices(graph()) -> [vertex()].
 
 source_vertices(G) ->
     collect_vertices(G, in).
 
--doc false.
+-doc """
+Returns a list of all vertices of graph `G` with
+[out-degree](`m:graph#in_degree`) zero.
+""".
 -spec sink_vertices(graph()) -> [vertex()].
 
 sink_vertices(G) ->
