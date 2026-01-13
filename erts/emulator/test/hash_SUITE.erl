@@ -58,11 +58,6 @@
          test_phash2_with_large_unaligned_sub_binary/1,
          test_phash2_with_super_large_unaligned_sub_binary/1]).
 
-
--record #empty{}.
--record #a{x, y}.
--record #order{zzzz=0, true=1, aaaa=2, wwww=3}.
-
 %%
 %% Define to run outside of test server
 %%
@@ -332,6 +327,10 @@ do_cmp_hashes(N,Steps) ->
 	_ ->
 	    exit({mismatch_on_input, R, phash, X, make_hash, Y})
     end.
+
+-record #empty{}.
+-record #a{x, y}.
+-record #order{zzzz=0, true=1, aaaa=2, wwww=3}.
 
 phash2_test() ->
     Max = 1 bsl 32,

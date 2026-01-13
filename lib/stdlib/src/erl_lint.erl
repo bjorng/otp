@@ -1203,6 +1203,8 @@ untrack_doc(_KFA, St) ->
 
 function_state({attribute,A,record,{Name,Fields}}, St) ->
     record_def(A, Name, Fields, St);
+function_state({attribute,A,native_record,{Name,Fields}}, St) ->
+    native_record_def(A, Name, Fields, St);
 function_state({attribute,A,type,{TypeName,TypeDef,Args}}, St) ->
     St1 = untrack_doc({type, TypeName, length(Args)}, St),
     type_def(type, A, TypeName, TypeDef, Args, St1);

@@ -41,9 +41,6 @@
 %%      phash2(Binary, N)
 %%
 
--record #empty{}.
--record #order{zzzz=0, true=1, aaaa=2, wwww=3, z=4, a=5}.
-
 -include_lib("common_test/include/ct.hrl").
 -include_lib("common_test/include/ct_event.hrl").
 
@@ -1613,7 +1610,10 @@ test_unaligned_order(I, J) ->
 
 test_unaligned_order_1(Op, A, B, {Aa,Ba}) ->
     erlang:Op(unaligned_sub_bin(A, Aa), unaligned_sub_bin(B, Ba)).
-    
+
+-record #empty{}.
+-record #order{zzzz=0, true=1, aaaa=2, wwww=3, z=4, a=5}.
+
 test_terms(Test_Func) ->
     Test_Func(atom),
     Test_Func(''),
