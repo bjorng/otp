@@ -24,8 +24,9 @@
 
 -export([local/2]).
 
--export_record([vector]).
+-export_record([vector,quad]).
 -record #vector{x=10, y=1, z=5}.
+-record #quad{a, b, c, d}.
 
 %% Local records.
 -record #local{x, y}.

@@ -333,22 +333,28 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
                 } else {
                     Eterm value = def_values[i];
                     if (is_catch(value)) {
-                        p->fvalue = defp->keys[i];
-                        p->freason = EXC_NOVALUE;
-                        return THE_NON_VALUE;
+                        if (is_value(res)) {
+                            /* Delay this error. */
+                            p->fvalue = defp->keys[i];
+                            p->freason = EXC_NOVALUE;
+                            res = THE_NON_VALUE;
+                        }
+                        value = NIL;
                     }
                     *hp++ = value;
                 }
             }
 
+            /* A `badfield` error has higher priority than a
+             * `no_value` error. */
             if (new_p != &sentinel) {
                 p->fvalue = new_p[0];
                 p->freason = EXC_BADFIELD;
                 return THE_NON_VALUE;
+            } else if (is_value(res)) {
+                p->htop += num_words_needed;
             }
-
-            p->htop += num_words_needed;
-
+            
             return res;
         }
     }
@@ -520,6 +526,11 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     module = BIF_ARG_1;
     name = BIF_ARG_2;
 
+    if (is_not_map(BIF_ARG_3)) {
+        BIF_P->fvalue = BIF_ARG_3;
+        BIF_ERROR(BIF_P, BADMAP);
+    }
+
     code_ix = erts_active_code_ix();
     entry = erts_struct_find_entry(module,
                                    name,
@@ -534,7 +545,6 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             ErtsStructInstance *instance;
             int field_count;
             Eterm *hp;
-            Eterm *hp_end;
             Uint num_words_needed;
             Eterm res;
             Eterm *vs;
@@ -560,13 +570,8 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             instance->struct_definition = def;
 
             hp = (Eterm*) &(instance->values);
-            hp_end = hp + field_count;
 
-            if (is_not_map(BIF_ARG_3)) {
-                HRelease(BIF_P, hp_end, (Eterm *)instance);
-                BIF_P->fvalue = BIF_ARG_3;
-                BIF_ERROR(BIF_P, BADMAP);
-            } else if (is_flatmap(BIF_ARG_3)) {
+            if (is_flatmap(BIF_ARG_3)) {
                 const Eterm *ks_end;
                 Eterm sentinel = NIL;
 
@@ -591,16 +596,21 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
                     } else {
                         Eterm value = def_values[i];
                         if (is_catch(value)) {
-                            HRelease(BIF_P, hp_end, (Eterm *)instance);
-                            BIF_P->fvalue = defp->keys[i];
-                            BIF_ERROR(BIF_P, EXC_NOVALUE);
+                            if (is_value(res)) {
+                                /* Delay this error. */
+                                BIF_P->freason = EXC_NOVALUE;
+                                BIF_P->fvalue = defp->keys[i];
+                                res = THE_NON_VALUE;
+                            }
+                            value = NIL;
                         }
                         *hp++ = value;
                     }
                 }
 
+                /* A `badfield` error has higher priority than a
+                 * `no_value` error. */
                 if (ks != &sentinel) {
-                    HRelease(BIF_P, hp_end, (Eterm *)instance);
                     BIF_P->fvalue = ks[0];
                     BIF_ERROR(BIF_P, EXC_BADFIELD);
                 }
@@ -610,7 +620,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
                 Eterm *kv;
                 struct erl_record_field *fields;
                 const struct erl_record_field *fields_end;
-                struct erl_record_field sentinel = { NIL, NIL };
+                struct erl_record_field sentinel = { UINT_MAX, NIL };
                 void *tmp_array;
 
                 ASSERT(is_hashmap(BIF_ARG_3));
@@ -642,17 +652,19 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
                     } else {
                         Eterm value = def_values[i];
                         if (is_catch(value)) {
-                            HRelease(BIF_P, hp_end, (Eterm *)instance);
+                            /* Delay this error. */
+                            BIF_P->freason = EXC_NOVALUE;
                             BIF_P->fvalue = defp->keys[i];
-                            erts_free(ERTS_ALC_T_TMP, tmp_array);
-                            BIF_ERROR(BIF_P, EXC_NOVALUE);
+                            res = THE_NON_VALUE;
+                            value = NIL;
                         }
                         *hp++ = value;
                     }
                 }
 
+                /* A `badfield` error has higher priority than a
+                 * `no_value` error. */
                 if (fields != &sentinel) {
-                    HRelease(BIF_P, hp_end, (Eterm *)instance);
                     BIF_P->fvalue = fields[0].key;
                     erts_free(ERTS_ALC_T_TMP, tmp_array);
                     BIF_ERROR(BIF_P, EXC_BADFIELD);
@@ -676,7 +688,7 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
     ErtsStructInstance *instance, *old_instance;
     Eterm *old_values;
     int field_count;
-    Eterm *hp, *hp_end;
+    Eterm *hp;
     Uint num_words_needed;
     Eterm res;
     Uint n;
@@ -721,7 +733,6 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
     num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
 
     hp = HAlloc(BIF_P, num_words_needed);
-    hp_end = hp + num_words_needed;
 
     res = make_struct(hp);
 
@@ -762,7 +773,6 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
         }
 
         if (ks != &sentinel) {
-            HRelease(BIF_P, hp_end, (Eterm *)instance);
             BIF_P->fvalue = ks[0];
             BIF_ERROR(BIF_P, EXC_BADFIELD);
         }
@@ -795,7 +805,9 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
         fields_end = fields + n;
 
         for (int i = 0; i < field_count; i++) {
-            if (fields[0].key == defp->keys[i]) {
+            if (fields[0].key != defp->keys[i]) {
+                *hp++ = old_values[i];
+            } else {
                 *hp++ = fields[0].value;
                 fields++;
                 if (fields >= fields_end) {
@@ -805,7 +817,6 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
         }
 
         if (fields != &sentinel) {
-            HRelease(BIF_P, hp_end, (Eterm *)instance);
             BIF_P->fvalue = fields[0].key;
             erts_free(ERTS_ALC_T_TMP, tmp_array);
             BIF_ERROR(BIF_P, EXC_BADFIELD);

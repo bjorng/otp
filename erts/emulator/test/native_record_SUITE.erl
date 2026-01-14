@@ -25,22 +25,24 @@
 -export([all/0,suite/0,groups/0,init_per_suite/1,end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
          term_order/1,gc/1,external_term_format/1,
-         messages/1,records_module/1]).
+         messages/1,errors/1,records_module/1]).
 
 -record #a{x=1, y=2}.
 -record #b{x=none, y=none, z=none}.
 -record #bb{a=1, b=2}.
 -record #c{x::integer, y=0::integer, z=[]}.
 -record #empty{}.
+-record #f{a, b, c, d}.
+-record #r{f1, f2, f3, f4, f5, f6, f7, f8}.
 
 -record #big{f1, f2, f3, f4, f5, f6, f7, f8,
-              f9, f10, f11, f12, f13, f14, f15, f16,
-              f17, f18, f19, f20, f21, f22, f23, f24,
-              f25, f26, f27, f28, f29, f30, f31, f32,
-              f33, f34, f35, f36, f37, f38, f39, f40,
-              f41, f42, f43, f44, f45, f46, f47, f48,
-              f49, f50, f51, f52, f53, f54, f55, f56,
-              f57, f58, f59, f60, f61, f62, f63, f64}.
+             f9, f10, f11, f12, f13, f14, f15, f16,
+             f17, f18, f19, f20, f21, f22, f23, f24,
+             f25, f26, f27, f28, f29, f30, f31, f32,
+             f33, f34, f35, f36, f37, f38, f39, f40,
+             f41, f42, f43, f44, f45, f46, f47, f48,
+             f49, f50, f51, f52, f53, f54, f55, f56,
+             f57, f58, f59, f60, f61, f62, f63, f64}.
 
 suite() ->
     [{ct_hooks,[ts_install_cth]},
@@ -51,6 +53,7 @@ all() ->
      gc,
      external_term_format,
      messages,
+     errors,
      records_module].
 
 groups() ->
@@ -291,6 +294,13 @@ echo_loop() ->
             echo_loop()
     end.
 
+errors(_Config) ->
+    ?assertError({badfield,qqq}, #ext_records:quad{qqq=0}),
+    ?assertError({badfield,true}, #ext_records:quad{true=0}),
+    ?assertError({badfield,zzzz}, #ext_records:quad{zzzz=0}),
+
+    ok.
+
 records_module(_Config) ->
     ARec = id(#a{x=1, y=2}),
     BRec = id(#b{}),
@@ -305,10 +315,23 @@ records_module(_Config) ->
     CRec = records:create(?MODULE, c, #{x=>42, y=>100}),
 
     ?assertError({badmap,{a,b,c}}, records:create(?MODULE, b, {a,b,c})),
+
     ?assertError({badfield,qqq}, records:create(?MODULE, b, #{qqq => aaa})),
     ?assertError({badfield,{really,bad}},
                  records:create(?MODULE, b, #{{really,bad} => value})),
+
+    Small = #{list_to_atom("f"++integer_to_list(I)) => I ||
+                I <- lists:seq(1, 8)},
+    ?assertError({badfield,false}, records:create(?MODULE, r, Small#{false => 0})),
+    ?assertError({badfield,zzzz}, records:create(?MODULE, r, Small#{zzzz => 1})),
+
+    Opts = #{exported => true},
+    ?assertError({badfield,qqq}, records:create(ext_records, quad, #{qqq => 0}, Opts)),
+    ?assertError({badfield,true}, records:create(ext_records, quad, #{true => 0}, Opts)),
+    ?assertError({badfield,zzzz}, records:create(ext_records, quad, #{zzzz => 0}, Opts)),
+
     ?assertError({novalue,x}, records:create(?MODULE, c, #{})),
+    ?assertError({novalue,x}, records:create(?MODULE, c, #{y => 17, z => [a]})),
 
     Fields = [list_to_atom("f"++integer_to_list(I)) ||
                  I <- lists:seq(1, 64)],
@@ -325,9 +348,20 @@ records_module(_Config) ->
 
     LargeMap1 = LargeMap0#{whatever => 42},
     ?assertError({badfield,whatever}, records:create(?MODULE, big, LargeMap1)),
+    LargeMap2 = LargeMap0#{true => 0},
+    ?assertError({badfield,true}, records:create(?MODULE, big, LargeMap2)),
+    LargeMap3 = LargeMap0#{zzzz => 0},
+    ?assertError({badfield,zzzz}, records:create(?MODULE, big, LargeMap3)),
 
-    LargeMap2 = maps:remove(f42, LargeMap0),
-    ?assertError({novalue,f42}, records:create(?MODULE, big, LargeMap2)),
+    LargeMap4 = maps:remove(f42, LargeMap0),
+    ?assertError({novalue,f42}, records:create(?MODULE, big, LargeMap4)),
+
+    LargeMap5 = maps:remove(f64, LargeMap0),
+    ?assertError({novalue,f64}, records:create(?MODULE, big, LargeMap5)),
+
+    NonExisting = #{list_to_atom("a"++integer_to_list(I)) => I ||
+                      I <- lists:seq(1, 64)},
+    ?assertError({badfield,a1}, records:create(?MODULE, big, NonExisting)),
 
     [x,y] = records:get_field_names(ARec),
     [x,y,z] = records:get_field_names(BRec),
@@ -358,6 +392,8 @@ records_module(_Config) ->
     UpdatedBigRecord = records:update(BigRecord, ?MODULE, big, LargeUpdate),
 
     ?assertError({badfield,whatever}, records:update(BigRecord, ?MODULE, big, LargeMap1)),
+    ?assertError({badfield,true}, records:update(BigRecord, ?MODULE, big, LargeMap2)),
+    ?assertError({badfield,zzzz}, records:update(BigRecord, ?MODULE, big, LargeMap3)),
 
     N = 10000,
     #a{x=N,y=0} =
