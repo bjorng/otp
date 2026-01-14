@@ -4403,7 +4403,7 @@ otp_11851(Config) when is_list(Config) ->
 
             -type map(A) :: A.
 
-            -type record() :: a | b.
+            -type record_local() :: a | b.
 
             -type integer(A) :: A.
 
@@ -4418,7 +4418,7 @@ otp_11851(Config) when is_list(Config) ->
             -type 'fun'(X, Y) :: X | Y.
 
             -type all() :: range(atom(), integer()) | union(pid()) | product()
-                         | tuple(reference()) | map(function()) | record()
+                         | tuple(reference()) | map(function()) | record_local()
                          | integer(atom()) | atom(integer())
                          | binary(pid(), tuple()) | 'fun'(port())
                          | 'fun'() | 'fun'(<<>>, 'none').
@@ -5747,30 +5747,30 @@ native_records(Config) ->
               -record #a{}.">>,
            [],
            {errors,[{{3,16},erl_lint,{redefine_record,a}}],[]}},
-          {redefine_native_record_1,
+          {redefine_imported_native_record_1,
            <<"-record #a{}.
               -import_record(a, [a]).">>,
            [],
            {errors,[{{2,16},erl_lint,{redefine_native_record_import,a}}],[]}},
-          {redefine_native_record_2,
+          {redefine_imported_native_record_2,
            <<"-import_record(a, [a]).
               -record #a{}.">>,
            [],
            {errors,[{{1,22},erl_lint,{redefine_native_record_import,a}}],[]}},
-          {redefine_native_record_3,
+          {redefine_imported_native_record_3,
            <<"-import_record(a, [a]).
               -import_record(b, [a]).">>,
            [],
            {errors,[{{2,16},erl_lint,{redefine_native_record_import,{a,a}}}],[]}},
 
           % expressions
-          {redefine_native_record_field_3,
+          {redefine_native_record_field,
            <<"-import_record(a, [a]).
               mk_a() -> #a{a = 1, a = b}.
               get_a(#a{b = b, b = c}) -> ok.">>,
            [],
            {errors,[{{2,35},erl_lint,{redefine_native_record_field,a}},
-                    {{3,31},erl_lint,{redefine_native_record_field,b}}],[]}},
+                    {{3,31},erl_lint,{repeated_native_record_field,b}}],[]}},
           {redefine_native_record_field_def,
            <<"-record #s1{a, a}.
               -record #s2{a=atom, a}.
@@ -5822,7 +5822,7 @@ native_records(Config) ->
            {errors,[{{2,19},erl_lint,{undefined_native_record,'_'}},
                     {{4,19},erl_lint,{undefined_native_record,'_'}}],
             []}},
-           {illegal_native_record_def_3,
+           {illegal_native_record_def_2,
            <<"-record #s1{a = is_atom(0)}.
               -record #s2{a = [0, is_atom(0)]}.
               -record #s3{a = #{1=>e:f()} }.">>,

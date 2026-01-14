@@ -473,6 +473,8 @@ format_error_1({redefine_native_record,S}) ->
     {~"native record ~tw already defined", [S]};
 format_error_1({redefine_native_record_field,F}) ->
     {~"field ~tw already defined in native record", [F]};
+format_error_1({repeated_native_record_field,F}) ->
+    {~"field ~tw already matched out in native record pattern", [F]};
 format_error_1({redefine_native_record_field_def,F,N}) ->
     {~"field ~tw already defined in native record ~tw", [F,N]};
 format_error_1({undefined_native_record_field,F,N}) ->
@@ -3661,7 +3663,7 @@ pattern_native_record_fields(Fs, Vt0, Old, St0) ->
     CheckFun = fun (Val, Vt, St) -> pattern(Val, Vt, Old, St) end,
     {_SeenFields,Uvt,Unew,St1} =
         foldl(fun (Field, {Sfsa,Vta,Newa,Sta}) ->
-                      case check_nn_field(Field, Vt0, Sta, Sfsa, CheckFun) of
+                      case check_nn_field(pat, Field, Vt0, Sta, Sfsa, CheckFun) of
                           {Sfsb,{Vtb,Stb}} ->
                               {Vt, St1} = vtmerge_pat(Vta, Vtb, Stb),
                               {Sfsb, Vt, [], St1};
@@ -3683,16 +3685,23 @@ check_nn_fields(Fs, Vt0, St0) ->
     CheckFun = fun expr/3,
     {_SeenFields,Uvt,St1} =
         foldl(fun (Field, {Sfsa,Vta,Sta}) ->
-                      {Sfsb,{Vtb,Stb}} = check_nn_field(Field, Vt0, Sta, Sfsa, CheckFun),
+                      {Sfsb,{Vtb,Stb}} = check_nn_field(constr, Field, Vt0, Sta, Sfsa, CheckFun),
                       {Vt1, St1} = vtmerge_pat(Vta, Vtb, Stb),
                       {Sfsb, Vt1, St1}
               end, {[],[], St0}, Fs),
     {Uvt,St1}.
 
-check_nn_field({record_field, Af, {atom, _, F}, Val}, Vt, St, Sfs, CheckFun) ->
+check_nn_field(constr, {record_field, Af, {atom, _, F}, Val}, Vt, St, Sfs, CheckFun) ->
     case member(F, Sfs) of
         true ->
             {Sfs, {[], add_error(Af, {redefine_native_record_field, F}, St)}};
+        false ->
+            {[F|Sfs],CheckFun(Val, Vt, St)}
+    end;
+check_nn_field(pat, {record_field, Af, {atom, _, F}, Val}, Vt, St, Sfs, CheckFun) ->
+    case member(F, Sfs) of
+        true ->
+            {Sfs, {[], add_error(Af, {repeated_native_record_field, F}, St)}};
         false ->
             {[F|Sfs],CheckFun(Val, Vt, St)}
     end.
