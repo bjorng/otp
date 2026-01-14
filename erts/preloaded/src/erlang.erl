@@ -7222,6 +7222,7 @@ false
 is_port(_Term) ->
     erlang:nif_error(undefined).
 
+%% Shadowed by erl_bif_types: erlang:is_record/1
 -doc """
 Returns `true` if `Term` is a native record; otherwise, returns `false`.
 

@@ -100,6 +100,7 @@
 		    t_pid/0,
 		    t_port/0,
 		    t_maybe_improper_list/0,
+		    t_record/0,
 		    t_reference/0,
 		    t_string/0,
 		    t_subtract/2,
@@ -683,6 +684,12 @@ type(erlang, is_port, 1, Xs) ->
                         t_port())
         end,
   strict(erlang, is_port, 1, Xs, Fun);
+type(erlang, is_record, 1, Xs) ->
+  Fun = fun (X) ->
+	    check_guard(X, fun (Y) -> t_is_record(Y) end,
+			t_record())
+	end,
+  strict(erlang, is_record, 1, Xs, Fun);
 type(erlang, is_record, 2, Xs) ->
   Fun = fun ([X, Y]) ->
 	    case {t_is_tuple(X), t_is_record(X)} of
@@ -2263,6 +2270,8 @@ arg_types(erlang, is_number, 1) ->
 arg_types(erlang, is_pid, 1) ->
   [t_any()];
 arg_types(erlang, is_port, 1) ->
+  [t_any()];
+arg_types(erlang, is_record, 1) ->
   [t_any()];
 arg_types(erlang, is_record, 2) ->
   [t_any(), t_atom()];
