@@ -231,7 +231,7 @@ that contains some items.
 -type port() :: port().
 -doc "An integer greater than zero.".
 -type pos_integer() :: pos_integer().
--doc "An Erlang [native record](TODO: Add doc link).".
+-doc "TODO: Add doc link).".
 -type record() :: record().
 -doc "An Erlang [reference](`e:system:data_types.md#reference`).".
 -type reference() :: reference().
