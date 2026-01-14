@@ -52,7 +52,7 @@ void BeamModuleAssembler::emit_is_native_record(const ArgLabel &Fail,
     runtime_call<bool (*)(Eterm, Eterm, Eterm), erl_is_native_record>();
     emit_leave_runtime();
 
-    a.cbz(ARG1.w(), resolve_beam_label(Fail, disp1MB));
+    a.tbz(ARG1.w(), imm(0), resolve_beam_label(Fail, disp32K));
 }
 
 void BeamModuleAssembler::emit_is_record_accessible(const ArgLabel &Fail,
@@ -64,7 +64,7 @@ void BeamModuleAssembler::emit_is_record_accessible(const ArgLabel &Fail,
     runtime_call<bool (*)(Eterm, Eterm), erl_is_record_accessible>();
     emit_leave_runtime();
 
-    a.cbz(ARG1.w(), resolve_beam_label(Fail, disp1MB));
+    a.tbz(ARG1.w(), imm(0), resolve_beam_label(Fail, disp32K));
 }
 
 void BeamModuleAssembler::emit_i_get_record_elements(const ArgLabel &Fail,
@@ -85,7 +85,7 @@ void BeamModuleAssembler::emit_i_get_record_elements(const ArgLabel &Fail,
     emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs |
                        Update::eReductions>();
 
-    a.cbz(ARG1.w(), resolve_beam_label(Fail, disp1MB));
+    a.tbz(ARG1.w(), imm(0), resolve_beam_label(Fail, disp32K));
 }
 
 void BeamModuleAssembler::emit_i_create_native_record(

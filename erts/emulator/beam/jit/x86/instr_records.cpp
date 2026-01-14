@@ -56,7 +56,7 @@ void BeamModuleAssembler::emit_is_native_record(const ArgLabel &Fail,
     runtime_call<bool (*)(Eterm, Eterm, Eterm), erl_is_native_record>();
     emit_leave_runtime();
 
-    a.test(RETd, RETd);
+    a.test(RETb, RETb);
     a.je(resolve_beam_label(Fail));
 }
 
@@ -69,7 +69,7 @@ void BeamModuleAssembler::emit_is_record_accessible(const ArgLabel &Fail,
     runtime_call<bool (*)(Eterm, Eterm), erl_is_record_accessible>();
     emit_leave_runtime();
 
-    a.test(RETd, RETd);
+    a.test(RETb, RETb);
     a.je(resolve_beam_label(Fail));
 }
 
@@ -90,7 +90,7 @@ void BeamModuleAssembler::emit_i_get_record_elements(const ArgLabel &Fail,
                  erl_get_record_elements>();
     emit_leave_runtime<Update::eHeapAlloc>();
 
-    a.test(RETd, RETd);
+    a.test(RETb, RETb);
     a.je(resolve_beam_label(Fail));
 }
 

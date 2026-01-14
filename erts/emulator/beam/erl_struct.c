@@ -223,7 +223,7 @@ bool erl_is_native_record(Eterm src, Eterm mod, Eterm name) {
 
     ASSERT(is_struct(src));
     instance = (ErtsStructInstance*)struct_val(src);
-    defp = (ErtsStructDefinition*)boxed_val(instance->struct_definition);
+    defp = (ErtsStructDefinition*)tuple_val(instance->struct_definition);
 
     return defp->module == mod && defp->name == name;
 }
