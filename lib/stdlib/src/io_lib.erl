@@ -718,7 +718,35 @@ write_bin1(Map, D, Enc, O, Sz, Acc) when is_map(Map), is_integer(D) ->
             write_map_body_bin(NextI, D0, D0, Enc, O, Sz1, Start);
         none ->
             {~"#{}", 3}
+    end;
+write_bin1(T, D, Enc, O, Sz, Acc) ->
+    true = erlang:is_record(T),
+    write_record_bin(T, D, Enc, O, Sz, Acc).
+
+write_record_bin(T, D, Enc, O, Sz0, Acc0) ->
+    if
+	D =:= 1 ->
+            {<<Acc0/binary, "{...}">>, Sz0+5};
+	true ->
+            {ModStr,ModSz} = write_bin1(records:get_module(T), D, Enc, O, 0, <<>>),
+            {NameStr,NameSz} = write_bin1(records:get_name(T), D, Enc, O, 0, <<>>),
+            Fields = records:get_field_names(T),
+            Acc = <<Acc0/binary, "#", ModStr/binary, ":", NameStr/binary,"{">>,
+            Sz = Sz0 + ModSz + NameSz + 3,
+            write_record_bin1(Fields, T, D, Enc, O, Sz, Acc)
     end.
+
+write_record_bin1([F|Fs], T, D, Enc, O, Sz0, Acc0) ->
+    {Acc1,Sz1} = write_bin1(F, D, Enc, O, Sz0, Acc0),
+    {Acc2,Sz2} = write_bin1(records:get(F, T), D, Enc, O, Sz1 + 3, <<Acc1/binary, " = ">>),
+    case Fs of
+        [] ->
+            {<<Acc2/binary, "}">>, Sz2+1};
+        [_|_] ->
+            write_record_bin1(Fs, T, D, Enc, O, Sz2+2, <<Acc2/binary, ", ">>)
+    end;
+write_record_bin1([], _T, _D, _Enc, _O, Sz0, Acc0) ->
+    {<<Acc0/binary, "}">>, Sz0+1}.
 
 write_tail_bin([], _D, _Enc, _O, Sz, Acc) -> {<<Acc/binary, $]>>, Sz+1};
 write_tail_bin(_, 1, _Enc, _O, Sz, Acc) -> {<<Acc/binary, "|...]">>, Sz+1};

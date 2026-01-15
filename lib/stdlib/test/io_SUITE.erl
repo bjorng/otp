@@ -38,7 +38,8 @@
          otp_14285/1, limit_term/1, otp_14983/1, otp_15103/1, otp_15076/1,
          otp_15159/1, otp_15639/1, otp_15705/1, otp_15847/1, otp_15875/1,
          github_4801/1, chars_limit/1, error_info/1, otp_17525/1,
-         unscan_format_without_maps_order/1, build_text_without_maps_order/1]).
+         unscan_format_without_maps_order/1, build_text_without_maps_order/1,
+         native_records/1]).
 
 -export([pretty/2, trf/3, rfd/2]).
 
@@ -73,7 +74,8 @@ all() ->
      otp_14285, limit_term, otp_14983, otp_15103, otp_15076, otp_15159,
      otp_15639, otp_15705, otp_15847, otp_15875, github_4801, chars_limit,
      error_info, otp_17525, unscan_format_without_maps_order,
-     build_text_without_maps_order].
+     build_text_without_maps_order,
+     native_records].
 
 %% Error cases for output.
 error_1(Config) when is_list(Config) ->
@@ -3327,3 +3329,19 @@ build_text_without_maps_order(_Config) ->
         width => none
     },
     [["1"]] = io_lib:build_text([FormatSpec]).
+
+-record #empty{}.
+-record #vector{x, y}.
+-record #order{zzzz=0, true=1, aaaa=2, wwww=3}.
+
+native_records(_Config) ->
+    "#io_SUITE:empty{}" = fmt("~w", [#empty{}]),
+    "#io_SUITE:order{zzzz = 0, true = 1, aaaa = 2, wwww = 3}" = fmt("~w", [#order{}]),
+    "#io_SUITE:order{zzzz = #io_SUITE:empty{}, true = 1, "
+        "aaaa = #io_SUITE:vector{x = 0.0, y = 10.0}, wwww = 3}" =
+        fmt("~w", [#order{zzzz = #empty{}, aaaa = #vector{x = 0.0, y = 10.0}}]),
+
+    "#io_SUITE:empty{}" = fmt("~p", [#empty{}]),
+    "#io_SUITE:order{zzzz = 0, true = 1, aaaa = 2, wwww = 3}" = fmt("~p", [#order{}]),
+
+    ok.
