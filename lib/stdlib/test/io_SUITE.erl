@@ -2550,7 +2550,7 @@ otp_14175(_Config) ->
           keeeeeeeeeeeeeeeeeee => v5},
     "#{...}" = p(M, 1),
     mt("#{kaaaaaaaaaaaaaaaaaaaa => v1,...}", p(M, 2)),
-    mt("#{kaaaaaaaaaaaaaaaaaaaa => 1,kbbbbbbbbbbbbbbbbbbbb => 2,...}",
+    mt("#{kaaaaaaaaaaaaaaaaaaaa => v1,kbbbbbbbbbbbbbbbbbbbb => v2,...}",
        p(M, 3)),
 
     mt("#{kaaaaaaaaaaaaaaaaaaa => v1,kbbbbbbbbbbbbbbbbbbb => v2,\n"
@@ -2564,7 +2564,7 @@ otp_14175(_Config) ->
        "  kccccccccccccccccccc => v3,kddddddddddddddddddd => v4,\n"
        "  keeeeeeeeeeeeeeeeeee => v5}", p(M, 6)),
 
-    weak("#{aaaaaaaaaaaaaaaaaaa => 1,bbbbbbbbbbbbbbbbbbbb => 2,\n"
+    weak("#{aaaaaaaaaaaaaaaaaaa => 1,\nbbbbbbbbbbbbbbbbbbbb => 2,\n"
          "  cccccccccccccccccccc => {3},\n"
          "  dddddddddddddddddddd => 4,eeeeeeeeeeeeeeeeeeee => 5}",
        p(#{aaaaaaaaaaaaaaaaaaa => 1,bbbbbbbbbbbbbbbbbbbb => 2,
@@ -2576,22 +2576,12 @@ otp_14175(_Config) ->
            {eeeeeeeeeeeeeeeeeeee} => 5},
     "#{...}" = p(M2, 1),
     weak("#{dddddddddddddddddddd => {...},...}", p(M2, 2)),
-    weak("#{dddddddddddddddddddd => {1},{...} => 2,...}", p(M2, 3)),
+    weak("#{dddddddddddddddddddd => {1},\n"
+         "{aaaaaaaaaaaaaaaaaaaa} => 2,...}", p(M2, 3)),
 
     weak("#{dddddddddddddddddddd => {1},\n"
-         "  {aaaaaaaaaaaaaaaaaaaa} => 2,\n"
-         "  {...} => 3,...}", p(M2, 4)),
-
-    weak("#{dddddddddddddddddddd => {1},\n"
-         "  {aaaaaaaaaaaaaaaaaaaa} => 2,\n"
-         "  {bbbbbbbbbbbbbbbbbbbb} => 3,\n"
-         "  {...} => 4,...}", p(M2, 5)),
-
-    weak("#{dddddddddddddddddddd => {1},\n"
-         "  {aaaaaaaaaaaaaaaaaaaa} => 2,\n"
-         "  {bbbbbbbbbbbbbbbbbbbb} => 3,\n"
-         "  {cccccccccccccccccccc} => 4,\n"
-         "  {...} => 5}", p(M2, 6)),
+         "  aaaaaaaaaaaaaaaaaaaa => 2,\n"
+         "  bbbbbbbbbbbbbbbbbbbb => 3,...}", p(M2, 4)),
 
     weak("#{dddddddddddddddddddd => {1},\n"
          "  {aaaaaaaaaaaaaaaaaaaa} => 2,\n"
@@ -2605,16 +2595,16 @@ otp_14175(_Config) ->
            kddddddddddddddddddd => vyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy,
            keeeeeeeeeeeeeeeeeee => vzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz},
 
-    mt("#{aaaaaaaaaaaaaaaaaaaa =>\n"
-       "      uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu,\n"
-       "  bbbbbbbbbbbbbbbbbbbb =>\n"
+    mt("#{kaaaaaaaaaaaaaaaaaaaa =>\n"
+       "      vuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu,\n"
+       "  kbbbbbbbbbbbbbbbbbbbb =>\n"
        "      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv,\n"
-       "  cccccccccccccccccccc =>\n"
-       "      xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,\n"
-       "  dddddddddddddddddddd =>\n"
-       "      yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy,\n"
-       "  eeeeeeeeeeeeeeeeeeee =>\n"
-       "      zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz}", p(M3, -1)),
+       "  kcccccccccccccccccccc =>\n"
+       "      vxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,\n"
+       "  kdddddddddddddddddddd =>\n"
+       "      vyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy,\n"
+       "  keeeeeeeeeeeeeeeeeeee =>\n"
+       "      vzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz}", p(M3, -1)),
 
     R4 = {c,{c,{c,{c,{c,{c,{c,{c,{c,{c,{c,{c,a,b},b},b},b},b},b},
 			 b},b},b},b},b},b},
@@ -2626,10 +2616,10 @@ otp_14175(_Config) ->
 
     weak("#{aaaaaaaaaaaaaaaaaaaa =>\n"
          "      #c{f1 = #c{f1 = #c{...},f2 = b},f2 = b},\n"
-         "  bbbbbbbbbbbbbbbbbbbb => #c{f1 = #c{f1 = {...},...},f2 = b},\n"
-         "  cccccccccccccccccccc => #c{f1 = #c{...},f2 = b},\n"
-         "  dddddddddddddddddddd => #c{f1 = {...},...},\n"
-         "  eeeeeeeeeeeeeeeeeeee => #c{...}}", p(M4, 7)),
+         "  bbbbbbbbbbbbbbbbbbbb =>\n #c{f1 = #c{f1 = #c{...},f2 = b},f2 = b},\n"
+         "  cccccccccccccccccccc =>\n #c{f1 = #c{f1 = #c{...},f2 = b},f2 = b},\n"
+         "  dddddddddddddddddddd =>\n #c{f1 = #c{f1 = #c{...},f2 = b},f2 = b},\n"
+         "  eeeeeeeeeeeeeeeeeeee =>\n #c{f1 = #c{f1 = #c{...},f2 = b},f2 = b}", p(M4, 7)),
 
     M5 = #{aaaaaaaaaaaaaaaaaaaa => R4},
     mt("#{aaaaaaaaaaaaaaaaaaaa =>\n"
@@ -2669,8 +2659,14 @@ otp_14175(_Config) ->
 -ifdef(WEAK).
 
 weak(S, R) ->
-    (nl(S) =:= nl(R) andalso
-     dots(S) =:= dots(S)).
+    case (nl(S) =:= nl(R) andalso dots(S) =:= dots(R)) of
+        true ->
+            ok;
+        false ->
+            io:format("Exp: ~ts~nGot: ~ts~nExpNL: ~w GotNL: ~w~nExpDots: ~w GotDots: ~w",
+                      [S,R,nl(S),nl(R),dots(S),dots(R)]),
+            exit({badmatch, S,R})
+    end.
 
 nl(S) ->
     [C || C <- S, C =:= $\n].
@@ -2681,7 +2677,7 @@ dots(S) ->
 -else. % WEAK
 
 weak(S, R) ->
-    mt(S, R).
+    true = mt(S, R).
 
 -endif. % WEAK
 
@@ -2697,12 +2693,20 @@ weak(S, R) ->
 -ifdef(EXACT).
 
 mt(S, R) ->
-    S =:= R.
+    true = S =:= R.
 
 -else. % EXACT
 
 mt(S, R) ->
-    anon(S) =:= anon(R).
+    S1 = anon(S),
+    S2 = anon(R),
+    case S1 =:= S2 of
+        true ->
+            ok;
+        false ->
+            io:format("Exp: ~ts~nGot: ~ts~nAExp: ~w~nAGot: ~w~n", [S,R,S1,S2]),
+            exit({badmatch, S,R})
+    end.
 
 anon(S) ->
     {ok, Ts0, _} = erl_scan:string(S, 1, [text]),
