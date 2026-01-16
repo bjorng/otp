@@ -159,6 +159,7 @@ ERTS_CODE_STAGED_FUNC__(read_unlock)(void)
     erts_rwmtx_runlock(lock);
 }
 
+#ifdef ERTS_CODE_STAGED_WANT_INFO
 static void
 ERTS_CODE_STAGED_FUNC__(info)(fmtfn_t to, void *to_arg)
 {
@@ -177,6 +178,7 @@ ERTS_CODE_STAGED_FUNC__(info)(fmtfn_t to, void *to_arg)
         ERTS_CODE_STAGED_FUNC__(write_unlock)();
     }
 }
+#endif
 
 static HashValue
 ERTS_CODE_STAGED_FUNC__(hash)(ERTS_CODE_STAGED_ENTRY_T__ *entry)
