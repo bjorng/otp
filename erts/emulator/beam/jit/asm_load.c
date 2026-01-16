@@ -1247,7 +1247,7 @@ void beam_load_finalize_code(LoaderState *stp,
         }
 
         erts_free(ERTS_ALC_T_PREPARED_CODE, rec.records);
-        rec.records = NULL;
+        stp->beam.record.records = NULL;
     }
 
     /* Register debug / profiling info with external tools. */

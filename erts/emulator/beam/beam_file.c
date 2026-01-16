@@ -1708,6 +1708,11 @@ void beamfile_free(BeamFile *beam) {
         beam->debug.is_literal = NULL;
     }
 
+    if (beam->record.records) {
+        erts_free(ERTS_ALC_T_PREPARED_CODE, beam->record.records);
+        beam->record.records = NULL;
+    }
+
     if (beam->static_literals.entries) {
         beamfile_literal_dtor(&beam->static_literals);
     }
