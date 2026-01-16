@@ -24,7 +24,7 @@
 
 extern "C"
 {
-#include "erl_struct.h"
+#include "erl_record.h"
 }
 
 void BeamModuleAssembler::emit_is_any_native_record(const ArgLabel &Fail,
@@ -38,7 +38,7 @@ void BeamModuleAssembler::emit_is_any_native_record(const ArgLabel &Fail,
                 x86::Gp boxed_ptr = emit_ptr_val(RET, ARG1);
                 a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
                 a.and_(RETb, imm(_TAG_HEADER_MASK));
-                a.cmp(RETb, imm(_TAG_HEADER_STRUCT));
+                a.cmp(RETb, imm(_TAG_HEADER_RECORD));
                 a.jne(resolve_beam_label(Fail));
             },
             RET);

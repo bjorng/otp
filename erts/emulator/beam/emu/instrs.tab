@@ -1321,7 +1321,7 @@ padding() {
 //
 
 is_any_native_record(Fail, Src) {
-    if (!is_struct($Src)) {
+    if (!is_record($Src)) {
         $FAIL($Fail);
     }
 }

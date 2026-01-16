@@ -40,7 +40,7 @@
 #include "erl_version.h"
 #include "erl_binary.h"
 #include "erl_map.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 
 BIF_RETTYPE and_2(BIF_ALIST_2)
 {
@@ -278,7 +278,7 @@ BIF_RETTYPE is_boolean_1(BIF_ALIST_1)
 /* Test whether the argument is a native record. */
 BIF_RETTYPE is_record_1(BIF_ALIST_1)
 {
-    if (is_struct(BIF_ARG_1)) {
+    if (is_record(BIF_ARG_1)) {
         BIF_RET(am_true);
     }
     BIF_RET(am_false);
@@ -303,7 +303,7 @@ BIF_RETTYPE is_record_2(BIF_ALIST_2)
 	t[1] == BIF_ARG_2) {
         /* Tuple record */
  	BIF_RET(am_true);
-    } else if (is_struct(BIF_ARG_1)) {
+    } else if (is_record(BIF_ARG_1)) {
         /* Native record. */
         BIF_RET(am_true);
     }
@@ -329,7 +329,7 @@ BIF_RETTYPE is_record_3(BIF_ALIST_3)
     if (is_atom(BIF_ARG_3)) {
         /* Native record. */
         bool is_record = false;
-        if (is_struct(BIF_ARG_1)) {
+        if (is_record(BIF_ARG_1)) {
             is_record = erl_is_native_record(BIF_ARG_1, BIF_ARG_2, BIF_ARG_3);
         }
         BIF_RET(is_record ? am_true : am_false);

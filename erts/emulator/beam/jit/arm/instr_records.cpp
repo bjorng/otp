@@ -24,7 +24,7 @@
 
 extern "C"
 {
-#include "erl_struct.h"
+#include "erl_record.h"
 }
 
 void BeamModuleAssembler::emit_is_any_native_record(const ArgLabel &Fail,
@@ -36,7 +36,7 @@ void BeamModuleAssembler::emit_is_any_native_record(const ArgLabel &Fail,
     a64::Gp boxed_ptr = emit_ptr_val(TMP3, src.reg);
     a.ldur(TMP3, emit_boxed_val(boxed_ptr));
     a.and_(TMP3, TMP3, imm(_TAG_HEADER_MASK));
-    a.cmp(TMP3, imm(_TAG_HEADER_STRUCT));
+    a.cmp(TMP3, imm(_TAG_HEADER_RECORD));
     a.b_ne(resolve_beam_label(Fail, disp1MB));
 }
 

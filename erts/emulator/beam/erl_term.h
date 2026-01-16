@@ -104,7 +104,7 @@ struct erl_node_; /* Declared in erl_node_tables.h */
  *      0100    REF                               |
  *      0101    FUN                               | THINGS
  *      0110    FLONUM                            |
- *      0111    STRUCT                            |
+ *      0111    RECORD                            |
  *      1000    HEAP_BITS     | BITSTRINGS        |
  *      1001    SUB_BITS      |                   |
  *      1010    BIN_REF	                          |
@@ -136,7 +136,7 @@ struct erl_node_; /* Declared in erl_node_tables.h */
 #define REF_SUBTAG             __MAKE_SUBTAG(0x4)
 #define FUN_SUBTAG             __MAKE_SUBTAG(0x5)
 #define FLOAT_SUBTAG           __MAKE_SUBTAG(0x6)
-#define STRUCT_SUBTAG          __MAKE_SUBTAG(0x7)
+#define RECORD_SUBTAG          __MAKE_SUBTAG(0x7)
 #define _BITSTRING_TAG_MASK     (~(0x1 << _TAG_PRIMARY_SIZE) & _TAG_HEADER_MASK)
 #define HEAP_BITS_SUBTAG       __MAKE_SUBTAG(0x8)
 #define SUB_BITS_SUBTAG        __MAKE_SUBTAG(0x9)
@@ -164,12 +164,12 @@ struct erl_node_; /* Declared in erl_node_tables.h */
 #define _TAG_HEADER_EXTERNAL_REF   (TAG_PRIMARY_HEADER|EXTERNAL_REF_SUBTAG)
 #define _TAG_HEADER_HEAP_BITS      (TAG_PRIMARY_HEADER|HEAP_BITS_SUBTAG)
 #define _TAG_HEADER_MAP	           (TAG_PRIMARY_HEADER|MAP_SUBTAG)
-#define _TAG_HEADER_STRUCT         (TAG_PRIMARY_HEADER|STRUCT_SUBTAG)
+#define _TAG_HEADER_RECORD         (TAG_PRIMARY_HEADER|RECORD_SUBTAG)
 #define _TAG_HEADER_SUB_BITS       (TAG_PRIMARY_HEADER|SUB_BITS_SUBTAG)
 
 #define header_is_transparent(x)                                \
     (((x) & _TRANSPARENT_TAG_MASK) == ARITYVAL_SUBTAG ||        \
-     ((x) & _TAG_HEADER_MASK) == STRUCT_SUBTAG)
+     ((x) & _TAG_HEADER_MASK) == RECORD_SUBTAG)
 
 #define header_is_thing(x)                                                    \
     (!header_is_transparent((x)))
@@ -430,22 +430,20 @@ _ET_DECLARE_CHECKED(Eterm*,fun_val,Eterm)
 #define fun_val(x)		_ET_APPLY(fun_val,(x))
 
 /* Struct objects. */
-#define MAKE_STRUCT_HEADER(FieldCount)                                        \
-    _make_header((1 + FieldCount), _TAG_HEADER_STRUCT)
-#define is_struct_header(x)                                                   \
-    (((x) & _HEADER_SUBTAG_MASK) == STRUCT_SUBTAG)
-#define is_struct(x)                                                          \
-    (is_boxed((x)) && is_struct_header(*boxed_val((x))))
-#define is_not_struct(x) (!is_struct(x))
-#define _unchecked_struct_val(x)                                              \
+#define MAKE_RECORD_HEADER(FieldCount)                                        \
+    _make_header((1 + FieldCount), _TAG_HEADER_RECORD)
+#define is_record_header(x)                                                   \
+    (((x) & _HEADER_SUBTAG_MASK) == RECORD_SUBTAG)
+#define is_record(x)                                                          \
+    (is_boxed((x)) && is_record_header(*boxed_val((x))))
+#define is_not_record(x) (!is_record(x))
+#define _unchecked_record_val(x)                                              \
     _unchecked_boxed_val((x))
-_ET_DECLARE_CHECKED(Eterm*,struct_val,Eterm)
-#define struct_val(x)                                                         \
-    _ET_APPLY(struct_val,(x))
-#define make_struct(x)                                                        \
+_ET_DECLARE_CHECKED(Eterm*,record_val,Eterm)
+#define record_val(x)                                                         \
+    _ET_APPLY(record_val,(x))
+#define make_record(x)                                                        \
     make_boxed((x))
-#define struct_field_count(x)                                                 \
-    (header_arity(*struct_val(x)) - sizeof(ErtsStructInstance)/sizeof(Eterm) + 1)
 
 /* bignum access methods */
 #define make_pos_bignum_header(sz)	_make_header((sz),_TAG_HEADER_POS_BIG)
@@ -1441,7 +1439,7 @@ _ET_DECLARE_CHECKED(Uint,loader_y_reg_index,Uint)
 #define LIST_DEF                0x01
 #define NIL_DEF                 0x02
 #define MAP_DEF                 0x03
-#define STRUCT_DEF              0x04
+#define RECORD_DEF              0x04
 #define TUPLE_DEF               0x05
 #define PID_DEF                 0x06
 #define EXTERNAL_PID_DEF        0x07
@@ -1520,7 +1518,7 @@ ERTS_GLB_INLINE unsigned tag_val_def(Eterm x)
 	  ET_ASSERT(is_header(hdr),file,line);
 	  switch ((hdr & _TAG_HEADER_MASK) >> _TAG_PRIMARY_SIZE) {
 	    case (_TAG_HEADER_ARITYVAL >> _TAG_PRIMARY_SIZE):	return TUPLE_DEF;
-	    case (_TAG_HEADER_STRUCT >> _TAG_PRIMARY_SIZE):	return STRUCT_DEF;
+	    case (_TAG_HEADER_RECORD >> _TAG_PRIMARY_SIZE):	return RECORD_DEF;
 	    case (_TAG_HEADER_POS_BIG >> _TAG_PRIMARY_SIZE):	return BIG_DEF;
 	    case (_TAG_HEADER_NEG_BIG >> _TAG_PRIMARY_SIZE):	return BIG_DEF;
 	    case (_TAG_HEADER_REF >> _TAG_PRIMARY_SIZE):	return REF_DEF;

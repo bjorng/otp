@@ -33,7 +33,7 @@
 #include "erl_map.h"
 #include "erl_binary.h"
 #include "erl_bits.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 
 /*                                                                           *\
  *                                                                           *
@@ -366,7 +366,7 @@ tail_recur:
     case MAP_DEF:
         hash = hash*FUNNY_NUMBER13 + FUNNY_NUMBER14 + make_hash2(term);
         break;
-    case STRUCT_DEF:
+    case RECORD_DEF:
         {
             Eterm* ptr = boxed_val(term);
             Uint arity = header_arity(*ptr);
@@ -1078,16 +1078,16 @@ make_hash2_helper(Eterm term_param, const int can_trap, Eterm* state_mref_write_
             Eterm hdr = *boxed_val(term);
             ASSERT(is_header(hdr));
             switch (hdr & _TAG_HEADER_MASK) {
-            case STRUCT_SUBTAG:
+            case RECORD_SUBTAG:
             {
-                ErtsStructInstance* instance;
-                ErtsStructDefinition *defp;
+                ErtsRecordInstance* instance;
+                ErtsRecordDefinition *defp;
                 Uint def_hash_val;
                 ErtsMakeHash2Context_RECORD_SUBTAG ctx;
-                int field_count = struct_field_count(term);
+                int field_count = record_field_count(term);
 
-                instance = (ErtsStructInstance*) struct_val(term);
-                defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+                instance = (ErtsRecordInstance*) record_val(term);
+                defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
                 if (!term_to_Uint(defp->hash, &def_hash_val)) {
                     ERTS_UNREACHABLE;
                 }
@@ -1845,19 +1845,19 @@ make_internal_hash(Eterm term, erts_ihash_t salt)
             ASSERT(is_header(hdr));
 
             switch (hdr & _TAG_HEADER_MASK) {
-            case STRUCT_SUBTAG:
+            case RECORD_SUBTAG:
             {
                 const Eterm *elements = &boxed_val(term)[0];
                 const int arity = header_arity(hdr);
-                ErtsStructInstance* instance;
-                ErtsStructDefinition* defp;
+                ErtsRecordInstance* instance;
+                ErtsRecordDefinition* defp;
 
                 IHASH_MIX_ALPHA(IHASH_TYPE_RECORD);
                 IHASH_MIX_BETA(arity);
 
-                instance = (ErtsStructInstance*)elements;
-                defp = (ErtsStructDefinition*)
-                    tuple_val(instance->struct_definition);
+                instance = (ErtsRecordInstance*)elements;
+                defp = (ErtsRecordDefinition*)
+                    tuple_val(instance->record_definition);
 
                 IHASH_PUSH_TERM(s, defp->hash);
 

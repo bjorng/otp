@@ -20,26 +20,26 @@
  * %CopyrightEnd%
  */
 
-#ifndef __ERL_STRUCT_H__
-#define __ERL_STRUCT_H__
+#ifndef __ERL_RECORD_H__
+#define __ERL_RECORD_H__
 
 #include "sys.h"
 #include "code_ix.h"
 #include "erl_process.h"
 
-/* Struct entry. */
+/* Native record entry. */
 typedef struct {
     Eterm module;
     Eterm name;
 
     /* Literal-tagged CONS pointers. The head of the CONS holds to
-     * pointer to the canonical ErtsStructDefinition for each code
+     * pointer to the canonical ErtsRecordDefinition for each code
      * generation, while the tail holds the default values. */
     Eterm definitions[ERTS_ADDRESSV_SIZE];
-} ErtsStructEntry;
+} ErtsRecordEntry;
 
-/* Struct definitions are tagged as tuples to simplify the GC. They
- * should never be presented to the user. */
+/* Native record definitions are tagged as tuples to simplify the
+ * GC. They should never be presented to the user. */
 typedef struct {
     Eterm thing_word;
 
@@ -58,35 +58,29 @@ typedef struct {
     /* The keys for the native record in atom index order. (During
      * calculation of the hash, the keys are in definition order.) */
     Eterm keys[];
-} ErtsStructDefinition;
+} ErtsRecordDefinition;
 
 /* A native-record value (instance). */
 typedef struct {
     Eterm thing_word;
 
-    /* Boxed-tagged ErtsStructDefinition* */
-    Eterm struct_definition;
+    /* Boxed-tagged ErtsRecordDefinition* */
+    Eterm record_definition;
 
     Eterm values[];
-} ErtsStructInstance;
+} ErtsRecordInstance;
 
-/* Struct objects on the heap have the following structure:
- *
- * [MAKE_STRUCT_HEADER(FieldCount), struct definition, values ...]*/
+#define record_field_count(x)                                           \
+    (header_arity(*record_val(x)) - sizeof(ErtsRecordInstance)/sizeof(Eterm) + 1)
 
-void erts_struct_init_table(void);
+void erts_record_init_table(void);
 
 void erts_record_module_delete(Eterm module);
 
-Eterm erts_canonical_record_def(ErtsStructDefinition *defp);
+Eterm erts_canonical_record_def(ErtsRecordDefinition *defp);
 
-ERTS_GLB_INLINE const ErtsStructEntry *erts_struct_active_entry(Eterm module,
-                                                                Eterm name);
-
-ErtsStructEntry *erts_struct_put(Eterm module,
+ErtsRecordEntry *erts_record_put(Eterm module,
                                  Eterm name);
-const ErtsStructEntry *erts_struct_get_or_make_stub(Eterm module,
-                                                    Eterm name);
 
 bool erl_is_native_record(Eterm Src, Eterm Mod, Eterm Name);
 bool erl_is_record_accessible(Eterm src, Eterm Mod);
@@ -104,23 +98,4 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id,
 Eterm erl_update_native_record(Process* c_p, Eterm* reg, Eterm src,
                                Uint live, Uint size, const Eterm* new_p);
 
-extern erts_mtx_t struct_staging_lock;
-#define erts_struct_staging_lock()   erts_mtx_lock(&struct_staging_lock)
-#define erts_struct_staging_unlock() erts_mtx_unlock(&struct_staging_lock)
-
-/* ************************************************************************* */
-
-#if ERTS_GLB_INLINE_INCL_FUNC_DEF
-
-ERTS_GLB_INLINE const ErtsStructEntry*
-erts_struct_active_entry(Eterm module, Eterm name)
-{
-    extern const ErtsStructEntry *erts_struct_find_entry(Eterm module,
-                                                         Eterm name,
-                                                         ErtsCodeIndex code_ix);
-    return erts_struct_find_entry(module, name, erts_active_code_ix());
-}
-
-#endif /* ERTS_GLB_INLINE_INCL_FUNC_DEF */
-
-#endif /* __ERL_STRUCT_H__ */
+#endif /* __ERL_RECORD_H__ */

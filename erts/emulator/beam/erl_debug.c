@@ -172,7 +172,7 @@ pdisplay1(fmtfn_t to, void *to_arg, Process* p, Eterm obj)
 	}
 	erts_putc(to, to_arg, ']');
 	break;
-    case STRUCT_DEF:
+    case RECORD_DEF:
         /* FIXME: placeholder. */
         erts_putc(to, to_arg, '#');
         erts_putc(to, to_arg, '_');

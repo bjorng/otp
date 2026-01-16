@@ -50,7 +50,7 @@
 #include "erl_trace.h"
 #include "erl_global_literals.h"
 #include "erl_term_hashing.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 
 #define PASS_THROUGH 'p'
 
@@ -3996,16 +3996,16 @@ enc_term_int(TTBEncodeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj, byte* ep,
                 }
             }
             break;
-        case STRUCT_DEF:
+        case RECORD_DEF:
             {
-                Sint size = struct_field_count(obj);
-                ErtsStructInstance *instance;
-                ErtsStructDefinition *defp;
+                Sint size = record_field_count(obj);
+                ErtsRecordInstance *instance;
+                ErtsRecordDefinition *defp;
                 Eterm *values;
                 Eterm *order;
 
-                instance = (ErtsStructInstance*) struct_val(obj);
-                defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+                instance = (ErtsRecordInstance*) record_val(obj);
+                defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
 
                 *ep++ = RECORD_EXT;
                 put_int32(size, ep); ep += 4;
@@ -5240,8 +5240,8 @@ dec_term_atom_common:
         case RECORD_EXT:
             {
                 Uint32 num_fields;
-                ErtsStructInstance *instance;
-                ErtsStructDefinition *defp;
+                ErtsRecordInstance *instance;
+                ErtsRecordDefinition *defp;
                 Eterm *values;
                 Eterm *order;
                 Eterm order_tuple;
@@ -5261,9 +5261,9 @@ dec_term_atom_common:
                     hp += (num_fields + 1);
                 }
 
-                defp = (ErtsStructDefinition *)hp;
-                hp += sizeof(ErtsStructDefinition)/sizeof(Eterm) + num_fields;
-                defp->thing_word = make_arityval(sizeof(ErtsStructDefinition)/sizeof(Eterm)
+                defp = (ErtsRecordDefinition *)hp;
+                hp += sizeof(ErtsRecordDefinition)/sizeof(Eterm) + num_fields;
+                defp->thing_word = make_arityval(sizeof(ErtsRecordDefinition)/sizeof(Eterm)
                                                  + num_fields - 1);
 
                 /* Flags */
@@ -5326,11 +5326,11 @@ dec_term_atom_common:
 
                 defp->field_order = order_tuple;
 
-                instance = (ErtsStructInstance *)hp;
-                hp += sizeof(ErtsStructInstance)/sizeof(Eterm) + num_fields;
+                instance = (ErtsRecordInstance *)hp;
+                hp += sizeof(ErtsRecordInstance)/sizeof(Eterm) + num_fields;
 
-                instance->thing_word = MAKE_STRUCT_HEADER(num_fields);
-                instance->struct_definition = erts_canonical_record_def(defp);
+                instance->thing_word = MAKE_RECORD_HEADER(num_fields);
+                instance->record_definition = erts_canonical_record_def(defp);
                 values = instance->values;
 
                 if (num_fields > 0) {
@@ -5880,15 +5880,15 @@ encode_size_struct_int(TTBSizeContext* ctx, ErtsAtomCacheMap *acmp, Eterm obj,
                 break;
         }
 
-        case STRUCT_DEF:
+        case RECORD_DEF:
             {
-                Sint size = struct_field_count(obj);
-                ErtsStructInstance *instance;
-                ErtsStructDefinition *defp;
+                Sint size = record_field_count(obj);
+                ErtsRecordInstance *instance;
+                ErtsRecordDefinition *defp;
                 Eterm *values;
 
-                instance = (ErtsStructInstance*) struct_val(obj);
-                defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+                instance = (ErtsRecordInstance*) record_val(obj);
+                defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
 
                 result += 1     /* tag */
                     + 4         /* length field */
@@ -6410,8 +6410,8 @@ init_done:
             {
                 CHKSIZE(4);
                 n = get_int32(ep); ep += 4;
-                heap_size += sizeof(ErtsStructDefinition)/sizeof(Eterm)
-                    + sizeof(ErtsStructInstance)/sizeof(Eterm)
+                heap_size += sizeof(ErtsRecordDefinition)/sizeof(Eterm)
+                    + sizeof(ErtsRecordInstance)/sizeof(Eterm)
                     + 2 * n;
 #if !defined(ARCH_64)
                 heap_size += BIG_UINT_HEAP_SIZE;

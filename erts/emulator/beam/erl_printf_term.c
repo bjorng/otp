@@ -29,7 +29,7 @@
 #include "big.h"
 #include "erl_map.h"
 #include "erl_binary.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 
 #define PRINT_CHAR(CNT, FN, ARG, C)					\
 do {									\
@@ -551,16 +551,16 @@ print_term(fmtfn_t fn, void* arg, Eterm obj, long *dcount) {
 		goto L_print_one_cons;
 	    }
 	    break;
-        case STRUCT_DEF:
+        case RECORD_DEF:
             {
-                ErtsStructInstance *instance;
-                ErtsStructDefinition *defp;
+                ErtsRecordInstance *instance;
+                ErtsRecordDefinition *defp;
                 Eterm *ks, *vs;
                 int n;
 
-                n = struct_field_count(wobj);
-                instance = (ErtsStructInstance*)struct_val(wobj);
-                defp = (ErtsStructDefinition*)tuple_val(instance->struct_definition);
+                n = record_field_count(wobj);
+                instance = (ErtsRecordInstance*)record_val(obj);
+                defp = (ErtsRecordDefinition*)tuple_val(instance->record_definition);
                 ks = defp->keys;
                 vs = instance->values;
                 PRINT_CHAR(res, fn, arg, '#');

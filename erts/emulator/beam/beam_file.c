@@ -31,7 +31,7 @@
 #include "erl_unicode.h"
 #include "erl_binary.h"
 #include "erl_global_literals.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 
 #define LoadError(Expr)      \
     do {                     \
@@ -932,7 +932,7 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
         Uint struct_def_size;
         Uint num_fields;
         Eterm *order_tuple;
-        ErtsStructDefinition *tmp_def;
+        ErtsRecordDefinition *tmp_def;
         Eterm *values;
         Eterm value_tuple;
         Eterm is_exported;
@@ -1039,7 +1039,7 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
             extra_args -= 2;
         }
 
-        tmp_size = sizeof(ErtsStructDefinition);
+        tmp_size = sizeof(ErtsRecordDefinition);
         tmp_size += num_fields * sizeof(Eterm); /* Field names */
 
         struct_def_size = tmp_size;
@@ -1048,7 +1048,7 @@ static int parse_record_chunk_data(BeamFile *beam, BeamReader *p_reader) {
         tmp_size += (num_fields + 1) * sizeof(Eterm); /* Order tuple */
 
         hp = (Eterm *) erts_alloc(ERTS_ALC_T_TMP, tmp_size);
-        tmp_def = (ErtsStructDefinition *) hp;
+        tmp_def = (ErtsRecordDefinition *) hp;
         tmp_def->thing_word = make_arityval(struct_def_size/sizeof(Eterm) - 1);
         tmp_def->module = beam->module;
         tmp_def->name = rec->records[i].name;

@@ -123,10 +123,10 @@ Uint size_object_x(Eterm obj, erts_literal_area_t *litopt)
                 ASSERT(is_header(hdr));
                 switch (hdr & _TAG_HEADER_MASK) {
                 case ARITYVAL_SUBTAG:
-                case STRUCT_SUBTAG:
-                    /* Struct or tuple */
+                case RECORD_SUBTAG:
+                    /* Native record or tuple */
                     arity = header_arity(hdr);
-                    ASSERT(arity > 0 || !is_struct_header(hdr));
+                    ASSERT(arity > 0 || !is_record_header(hdr));
                     if (arity == 0) { /* Empty tuple -- unusual. */
                         ASSERT(!litopt &&
                                erts_is_literal(obj,ptr) &&
@@ -382,11 +382,11 @@ Uint size_shared(Eterm obj)
 	    ASSERT(is_header(hdr));
             switch (hdr & _TAG_HEADER_MASK) {
             case ARITYVAL_SUBTAG:
-            case STRUCT_SUBTAG: {
-                /* Struct or tuple */
+            case RECORD_SUBTAG: {
+                /* Native record or tuple */
                 int arity = header_arity(hdr);
                 sum += arity + 1;
-                ASSERT(arity > 0 || !is_struct_header(hdr));
+                ASSERT(arity > 0 || !is_record_header(hdr));
                 if (arity == 0) { /* Empty tuple -- unusual. */
                     ASSERT(COUNT_OFF_HEAP &&
                            erts_is_literal(obj,ptr) &&
@@ -545,10 +545,10 @@ cleanup:
 	    /* and its children too */
             switch (hdr & _TAG_HEADER_MASK) {
             case ARITYVAL_SUBTAG:
-            case STRUCT_SUBTAG: {
-                /* Struct or tuple */
+            case RECORD_SUBTAG: {
+                /* Native record or tuple */
                 int arity = header_arity(hdr);
-                ASSERT(arity > 0 || !is_struct_header(hdr));
+                ASSERT(arity > 0 || !is_record_header(hdr));
                 if (arity == 0) { /* Empty tuple -- unusual. */
                     ASSERT(COUNT_OFF_HEAP &&
                            erts_is_literal(obj,ptr) &&
@@ -797,10 +797,10 @@ Eterm copy_struct_x(Eterm obj, Uint sz, Eterm** hpp, ErlOffHeap* off_heap,
 		    }
 		}
 		break;
-            case STRUCT_SUBTAG:
+            case RECORD_SUBTAG:
                 {
                     i = header_arity(hdr);
-                    *argp = make_struct(htop);
+                    *argp = make_record(htop);
                     tp = htop;	/* tp is pointer to new arity value */
                     *htop++ = *objp++; /* copy arity value */
 
@@ -1240,8 +1240,8 @@ Uint copy_shared_calculate(Eterm obj, erts_shcopy_t *info)
 	    ASSERT(is_header(hdr));
             switch (hdr & _TAG_HEADER_MASK) {
             case ARITYVAL_SUBTAG:
-            case STRUCT_SUBTAG: {
-                /* Struct or tuple */
+            case RECORD_SUBTAG: {
+                /* Native record or tuple */
                 int arity = header_arity(hdr);
                 /* arity cannot be 0 as the empty tuple is always a
                    global constant literal which is handled above */
@@ -1566,10 +1566,10 @@ Uint copy_shared_perform_x(Eterm obj, Uint size, erts_shcopy_t *info,
 	    /* and its children too */
             switch (hdr & _TAG_HEADER_MASK) {
             case ARITYVAL_SUBTAG:
-            case STRUCT_SUBTAG: {
-                /* Struct or tuple */
+            case RECORD_SUBTAG: {
+                /* Native record or tuple */
                 int arity = header_arity(hdr);
-                ASSERT(arity > 0 || !is_struct_header(hdr));
+                ASSERT(arity > 0 || !is_record_header(hdr));
 		*resp = make_boxed(hp);
 		*hp++ = hdr;
 		while (arity-- > 0) {
@@ -1782,7 +1782,7 @@ Uint copy_shared_perform_x(Eterm obj, Uint size, erts_shcopy_t *info,
 		    } else if (primary_tag(*hscan) == TAG_PRIMARY_HEADER) {
                         switch (*hscan & _TAG_HEADER_MASK) {
                         case ARITYVAL_SUBTAG:
-                        case STRUCT_SUBTAG:
+                        case RECORD_SUBTAG:
 			    remaining = header_arity(*hscan);
 			    hscan++;
 			    break;
@@ -1966,7 +1966,7 @@ Eterm* copy_shallow_x(Eterm *ERTS_RESTRICT ptr, Uint sz, Eterm **hpp,
 	    *hp++ = val;
             switch (val & _TAG_HEADER_MASK) {
             case ARITYVAL_SUBTAG:
-            case STRUCT_SUBTAG:
+            case RECORD_SUBTAG:
                 break;
             case SUB_BITS_SUBTAG:
                 {

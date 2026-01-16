@@ -64,7 +64,7 @@
 #include "erl_unicode.h"
 #include "beam_common.h"
 #include "erl_global_literals.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 
 /* *******************************
  * ** Yielding C Fun (YCF) Note **
@@ -1178,13 +1178,13 @@ tailrecur_ne:
 		    ++bb;
 		    goto term_array;
 		}
-            case STRUCT_SUBTAG:
+            case RECORD_SUBTAG:
                 {
-                    aa = struct_val(a);
+                    aa = record_val(a);
                     if (!is_boxed(b) || *boxed_val(b) != *aa) {
                         goto not_equal;
                     }
-                    bb = struct_val(b);
+                    bb = record_val(b);
                     sz = header_arity(*aa);
                     ASSERT(sz >= 1);
                     ++aa;
@@ -1875,28 +1875,28 @@ tailrecur_ne:
 		++aa;
 		++bb;
 		goto term_array;
-            case (_TAG_HEADER_STRUCT >> _TAG_PRIMARY_SIZE):
-                if (!is_struct(b)) {
-                    a_tag = STRUCT_DEF;
+            case (_TAG_HEADER_RECORD >> _TAG_PRIMARY_SIZE):
+                if (!is_record(b)) {
+                    a_tag = RECORD_DEF;
                     goto mixed_types;
                 }
 
                 {
-                    ErtsStructInstance *inst_a, *inst_b;
-                    ErtsStructDefinition *def_a, *def_b;
+                    ErtsRecordInstance *inst_a, *inst_b;
+                    ErtsRecordDefinition *def_a, *def_b;
                     Eterm *keys_a, *keys_b;
                     Eterm *values_a, *values_b;
                     Eterm *order_a, *order_b;
                     Sint diff;
                     int field_count;
 
-                    aa = struct_val(a);
-                    bb = struct_val(b);
+                    aa = record_val(a);
+                    bb = record_val(b);
 
-                    inst_a = (ErtsStructInstance*)aa;
-                    inst_b = (ErtsStructInstance*)bb;
-                    def_a = (ErtsStructDefinition*)boxed_val(inst_a->struct_definition);
-                    def_b = (ErtsStructDefinition*)boxed_val(inst_b->struct_definition);
+                    inst_a = (ErtsRecordInstance*)aa;
+                    inst_b = (ErtsRecordInstance*)bb;
+                    def_a = (ErtsRecordDefinition*)boxed_val(inst_a->record_definition);
+                    def_b = (ErtsRecordDefinition*)boxed_val(inst_b->record_definition);
 
                     diff = erts_cmp_atoms(def_a->module, def_b->module);
                     if (diff != 0) {
@@ -1919,7 +1919,7 @@ tailrecur_ne:
                         RETURN_NEQ(((Sint)i) - (Sint)header_arity(*bb));
                     }
 
-                    field_count = struct_field_count(a);
+                    field_count = record_field_count(a);
                     keys_a = def_a->keys;
                     keys_b = def_b->keys;
                     order_a = tuple_val(def_a->field_order) + 1;

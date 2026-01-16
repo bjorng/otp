@@ -41,7 +41,7 @@
 #include "erl_nfunc_sched.h"
 #include "erl_proc_sig_queue.h"
 #include "beam_file.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 
 #include "jit/beam_asm.h"
 

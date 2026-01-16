@@ -32,7 +32,7 @@
 #include "erl_version.h"
 #include "beam_bp.h"
 #include "erl_debugger.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 
 #include "beam_asm.h"
 
@@ -1236,12 +1236,12 @@ void beam_load_finalize_code(LoaderState *stp,
 
     {
         BeamFile_RecordTable rec = stp->beam.record;
-        ErtsStructEntry *entry;
+        ErtsRecordEntry *entry;
 
         for (int i = 0; i < rec.record_count; i++) {
             Eterm def = beamfile_get_literal(&stp->beam,
                                              rec.records[i].def_literal);
-            entry = erts_struct_put(stp->module, rec.records[i].name);
+            entry = erts_record_put(stp->module, rec.records[i].name);
 
             entry->definitions[staging_ix] = def;
         }

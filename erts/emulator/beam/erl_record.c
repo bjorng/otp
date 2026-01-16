@@ -25,7 +25,7 @@
 #endif
 
 #include "sys.h"
-#include "erl_struct.h"
+#include "erl_record.h"
 #include "global.h"
 #include "index.h"
 
@@ -34,10 +34,10 @@
 #include "beam_common.h"
 #include "erl_map.h"
 
-#define STRUCT_INITIAL_SIZE   4000
-#define STRUCT_LIMIT          (512*1024)
+#define RECORD_INITIAL_SIZE   4000
+#define RECORD_LIMIT          (512*1024)
 
-#define STRUCT_HASH(module, name)                                             \
+#define RECORD_HASH(module, name)                                             \
     ((atom_val(module) * atom_val(name)))
 
 #ifdef DEBUG
@@ -47,19 +47,19 @@
 #endif
 
 static HashValue
-record_hash(ErtsStructEntry *str)
+record_hash(ErtsRecordEntry *str)
 {
-    return STRUCT_HASH(str->module, str->name);
+    return RECORD_HASH(str->module, str->name);
 }
 
 static int
-record_cmp(const ErtsStructEntry *tmpl, const ErtsStructEntry *obj) {
+record_cmp(const ErtsRecordEntry *tmpl, const ErtsRecordEntry *obj) {
     return !(tmpl->module == obj->module &&
              tmpl->name == obj->name);
 }
 
 static void
-record_init(ErtsStructEntry *obj, const ErtsStructEntry *tmpl)
+record_init(ErtsRecordEntry *obj, const ErtsRecordEntry *tmpl)
 {
     obj->module = tmpl->module;
     obj->name = tmpl->name;
@@ -70,50 +70,50 @@ record_init(ErtsStructEntry *obj, const ErtsStructEntry *tmpl)
 }
 
 static void
-record_stage(ErtsStructEntry *obj,
+record_stage(ErtsRecordEntry *obj,
              ErtsCodeIndex src_ix,
              ErtsCodeIndex dst_ix) {
     obj->definitions[dst_ix] = obj->definitions[src_ix];
 }
 
 #define ERTS_CODE_STAGED_PREFIX record
-#define ERTS_CODE_STAGED_OBJECT_TYPE ErtsStructEntry
+#define ERTS_CODE_STAGED_OBJECT_TYPE ErtsRecordEntry
 #define ERTS_CODE_STAGED_OBJECT_HASH record_hash
 #define ERTS_CODE_STAGED_OBJECT_COMPARE record_cmp
 #define ERTS_CODE_STAGED_OBJECT_INITIALIZE record_init
 #define ERTS_CODE_STAGED_OBJECT_STAGE record_stage
-#define ERTS_CODE_STAGED_OBJECT_ALLOC_TYPE ERTS_ALC_T_STRUCT
-#define ERTS_CODE_STAGED_TABLE_ALLOC_TYPE ERTS_ALC_T_STRUCT_TABLE
-#define ERTS_CODE_STAGED_TABLE_INITIAL_SIZE STRUCT_INITIAL_SIZE
-#define ERTS_CODE_STAGED_TABLE_LIMIT STRUCT_LIMIT
+#define ERTS_CODE_STAGED_OBJECT_ALLOC_TYPE ERTS_ALC_T_RECORD
+#define ERTS_CODE_STAGED_TABLE_ALLOC_TYPE ERTS_ALC_T_RECORD_TABLE
+#define ERTS_CODE_STAGED_TABLE_INITIAL_SIZE RECORD_INITIAL_SIZE
+#define ERTS_CODE_STAGED_TABLE_LIMIT RECORD_LIMIT
 
 #define ERTS_CODE_STAGED_WANT_GET
 #define ERTS_CODE_STAGED_WANT_FOREACH
 
 #include "erl_code_staged.h"
 
-void erts_struct_init_table(void)
+void erts_record_init_table(void)
 {
     record_staged_init();
 }
 
 /* Declared extern in header */
-const ErtsStructEntry *erts_struct_find_entry(Eterm module,
+const ErtsRecordEntry *erts_record_find_entry(Eterm module,
                                               Eterm name,
                                               ErtsCodeIndex code_ix);
 
-Eterm erts_canonical_record_def(ErtsStructDefinition *defp) {
-    const ErtsStructEntry *entry;
+Eterm erts_canonical_record_def(ErtsRecordDefinition *defp) {
+    const ErtsRecordEntry *entry;
     ErtsCodeIndex code_ix;
     Eterm cons;
     Eterm canonical_def;
-    ErtsStructDefinition *canonical_p;
+    ErtsRecordDefinition *canonical_p;
     Eterm *order_def, *order_canonical;
     int field_count;
     Eterm result = make_boxed((Eterm *)defp);
 
     code_ix = erts_active_code_ix();
-    entry = erts_struct_find_entry(defp->module, defp->name, code_ix);
+    entry = erts_record_find_entry(defp->module, defp->name, code_ix);
 
     if (entry == NULL) {
         return result;
@@ -126,7 +126,7 @@ Eterm erts_canonical_record_def(ErtsStructDefinition *defp) {
 
     canonical_def = CAR(list_val(cons));
 
-    canonical_p = (ErtsStructDefinition*)boxed_val(canonical_def);
+    canonical_p = (ErtsRecordDefinition*)boxed_val(canonical_def);
     if (defp->is_exported != canonical_p->is_exported) {
         return result;
     }
@@ -152,13 +152,13 @@ Eterm erts_canonical_record_def(ErtsStructDefinition *defp) {
 
 static void
 init_record_template(record_template_t *template, Eterm module, Eterm name) {
-    ErtsStructEntry *object = record_staged_init_template(template);
+    ErtsRecordEntry *object = record_staged_init_template(template);
 
     object->module = module;
     object->name = name;
 }
 
-const ErtsStructEntry *erts_struct_find_entry(Eterm module,
+const ErtsRecordEntry *erts_record_find_entry(Eterm module,
                                               Eterm name,
                                               ErtsCodeIndex code_ix) {
     record_template_t template;
@@ -167,16 +167,8 @@ const ErtsStructEntry *erts_struct_find_entry(Eterm module,
     return record_staged_get(&template, code_ix);
 }
 
-ErtsStructEntry *
-erts_struct_put(Eterm module, Eterm name) {
-    record_template_t template;
-
-    init_record_template(&template, module, name);
-    return record_staged_upsert(&template);
-}
-
-const ErtsStructEntry *
-erts_struct_get_or_make_stub(Eterm module, Eterm name) {
+ErtsRecordEntry *
+erts_record_put(Eterm module, Eterm name) {
     record_template_t template;
 
     init_record_template(&template, module, name);
@@ -188,7 +180,7 @@ struct record_module_delete_args {
     ErtsCodeIndex code_ix;
 };
 
-static void record_module_delete_foreach(ErtsStructEntry *obj, void *args_)
+static void record_module_delete_foreach(ErtsRecordEntry *obj, void *args_)
 {
     struct record_module_delete_args *args = args_;
 
@@ -218,30 +210,30 @@ void erts_struct_end_staging(int commit)
 }
 
 bool erl_is_native_record(Eterm src, Eterm mod, Eterm name) {
-    ErtsStructDefinition *defp;
-    ErtsStructInstance *instance;
+    ErtsRecordDefinition *defp;
+    ErtsRecordInstance *instance;
 
-    ASSERT(is_struct(src));
-    instance = (ErtsStructInstance*)struct_val(src);
-    defp = (ErtsStructDefinition*)tuple_val(instance->struct_definition);
+    ASSERT(is_record(src));
+    instance = (ErtsRecordInstance*)record_val(src);
+    defp = (ErtsRecordDefinition*)tuple_val(instance->record_definition);
 
     return defp->module == mod && defp->name == name;
 }
 
 bool erl_get_record_elements(Process* p, Eterm* reg, Eterm src,
                              Uint size, const Eterm* elems) {
-    ErtsStructDefinition *defp;
-    ErtsStructInstance *instance;
+    ErtsRecordDefinition *defp;
+    ErtsRecordInstance *instance;
     const Eterm *elems_end;
     Eterm *values;
     int field_count;
     Eterm* E = p->stop;
 
-    ASSERT(is_struct(src));
+    ASSERT(is_record(src));
 
-    instance = (ErtsStructInstance*)struct_val(src);
+    instance = (ErtsRecordInstance*)record_val(src);
     field_count = header_arity(instance->thing_word) - 1;
-    defp = (ErtsStructDefinition*)boxed_val(instance->struct_definition);
+    defp = (ErtsRecordDefinition*)boxed_val(instance->record_definition);
     values = instance->values;
 
     elems_end = elems + size;
@@ -263,7 +255,7 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
                                Uint size, const Eterm* new_p) {
     /* Module, Name */
     Eterm module, name;
-    const ErtsStructEntry *entry;
+    const ErtsRecordEntry *entry;
     Uint code_ix;
     Eterm* tuple_ptr = boxed_val(id);
     Uint local = reg[live];
@@ -272,7 +264,7 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
     name = tuple_ptr[2];
 
     code_ix = erts_active_code_ix();
-    entry = erts_struct_find_entry(module,
+    entry = erts_record_find_entry(module,
                                    name,
                                    code_ix);
 
@@ -281,8 +273,8 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
 
         if (is_value(cons)) {
             Eterm def;
-            ErtsStructDefinition *defp;
-            ErtsStructInstance *instance;
+            ErtsRecordDefinition *defp;
+            ErtsRecordInstance *instance;
             int field_count;
             Eterm *hp;
             Eterm* E;
@@ -293,7 +285,7 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
             Eterm *def_values;
 
             def = CAR(list_val(cons));
-            defp = (ErtsStructDefinition*)boxed_val(def);
+            defp = (ErtsRecordDefinition*)boxed_val(def);
             def_values = tuple_val(CDR(list_val(cons))) + 1;
 
             if (!local && defp->is_exported == am_false) {
@@ -301,7 +293,7 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
             }
 
             field_count = (header_arity(defp->thing_word) -
-                           sizeof(ErtsStructDefinition)/sizeof(Eterm) + 1);
+                           sizeof(ErtsRecordDefinition)/sizeof(Eterm) + 1);
 
             num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
             if (HeapWordsLeft(p) < num_words_needed) {
@@ -310,11 +302,11 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
             hp = p->htop;
             E = p->stop;
 
-            instance = (ErtsStructInstance*)hp;
-            res = make_struct(hp);
+            instance = (ErtsRecordInstance*)hp;
+            res = make_record(hp);
 
-            instance->thing_word = MAKE_STRUCT_HEADER(field_count);
-            instance->struct_definition = def;
+            instance->thing_word = MAKE_RECORD_HEADER(field_count);
+            instance->record_definition = def;
 
             hp = (Eterm*) &(instance->values);
 
@@ -354,7 +346,7 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
             } else if (is_value(res)) {
                 p->htop += num_words_needed;
             }
-            
+
             return res;
         }
     }
@@ -367,8 +359,8 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
 
 Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm src,
                                Uint live, Uint size, const Eterm* new_p) {
-    ErtsStructDefinition *defp;
-    ErtsStructInstance *instance, *old_instance;
+    ErtsRecordDefinition *defp;
+    ErtsRecordInstance *instance, *old_instance;
     Eterm *old_values;
     int field_count;
     Eterm *hp;
@@ -380,26 +372,26 @@ Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm src,
 
     ASSERT(size != 0);
 
-    field_count = struct_field_count(src);
-    old_instance = (ErtsStructInstance*)struct_val(src);
-    defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
+    field_count = record_field_count(src);
+    old_instance = (ErtsRecordInstance*)record_val(src);
+    defp = (ErtsRecordDefinition*) tuple_val(old_instance->record_definition);
 
     num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
     if (HeapWordsLeft(p) < num_words_needed) {
         reg[live] = src;
         erts_garbage_collect(p, num_words_needed, reg, live+1);
         src = reg[live];
-        old_instance = (ErtsStructInstance*)struct_val(src);
-        defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
+        old_instance = (ErtsRecordInstance*)record_val(src);
+        defp = (ErtsRecordDefinition*) tuple_val(old_instance->record_definition);
     }
 
     hp = p->htop;
     E = p->stop;
-    res = make_struct(hp);
+    res = make_record(hp);
 
-    instance = (ErtsStructInstance*)hp;
+    instance = (ErtsRecordInstance*)hp;
     instance->thing_word = old_instance->thing_word;
-    instance->struct_definition = old_instance->struct_definition;
+    instance->record_definition = old_instance->record_definition;
 
     old_values = old_instance->values;
     hp = (Eterm*) instance->values;
@@ -430,32 +422,32 @@ Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm src,
 }
 
 bool erl_is_record_accessible(Eterm src, Eterm mod) {
-    ErtsStructInstance *instance;
-    ErtsStructDefinition *defp;
+    ErtsRecordInstance *instance;
+    ErtsRecordDefinition *defp;
 
-    ASSERT(is_struct(src));
+    ASSERT(is_record(src));
 
-    instance = (ErtsStructInstance*) struct_val(src);
-    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+    instance = (ErtsRecordInstance*) record_val(src);
+    defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
 
     return defp->is_exported == am_true || defp->module == mod;
 }
 
 Eterm erl_get_record_field(Process* p, Eterm src, Eterm mod, Eterm id, Eterm field) {
-    ErtsStructInstance *instance;
-    ErtsStructDefinition *defp;
+    ErtsRecordInstance *instance;
+    ErtsRecordDefinition *defp;
     Eterm *values;
     int field_count;
 
-    if (is_not_struct(src)) {
+    if (is_not_record(src)) {
     badrecord:
         p->fvalue = src;
         p->freason = EXC_BADRECORD;
         return THE_NON_VALUE;
     }
 
-    instance = (ErtsStructInstance*) struct_val(src);
-    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+    instance = (ErtsRecordInstance*) record_val(src);
+    defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
 
     if (id == am_Underscore) {
         ;
@@ -478,7 +470,7 @@ Eterm erl_get_record_field(Process* p, Eterm src, Eterm mod, Eterm id, Eterm fie
         goto badrecord;
     }
 
-    field_count = struct_field_count(src);
+    field_count = record_field_count(src);
     values = instance->values;
 
     for (int i = 0; i < field_count; i++) {
@@ -515,7 +507,7 @@ static int record_compare(const struct erl_record_field *a, const struct erl_rec
 
 BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     Eterm module, name;
-    const ErtsStructEntry *entry;
+    const ErtsRecordEntry *entry;
     Uint code_ix;
 
     if (is_not_atom(BIF_ARG_1) ||
@@ -532,7 +524,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     }
 
     code_ix = erts_active_code_ix();
-    entry = erts_struct_find_entry(module,
+    entry = erts_record_find_entry(module,
                                    name,
                                    code_ix);
 
@@ -541,8 +533,8 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
 
         if (is_value(cons)) {
             Eterm def;
-            ErtsStructDefinition *defp;
-            ErtsStructInstance *instance;
+            ErtsRecordDefinition *defp;
+            ErtsRecordInstance *instance;
             int field_count;
             Eterm *hp;
             Uint num_words_needed;
@@ -554,20 +546,20 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             Eterm *def_values;
 
             def = CAR(list_val(cons));
-            defp = (ErtsStructDefinition*)boxed_val(def);
+            defp = (ErtsRecordDefinition*)boxed_val(def);
             def_values = tuple_val(CDR(list_val(cons))) + 1;
 
-            defp = (ErtsStructDefinition*)boxed_val(def);
+            defp = (ErtsRecordDefinition*)boxed_val(def);
             field_count = (header_arity(defp->thing_word) -
-                           sizeof(ErtsStructDefinition)/sizeof(Eterm) + 1);
+                           sizeof(ErtsRecordDefinition)/sizeof(Eterm) + 1);
             num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
             hp = HAlloc(BIF_P, num_words_needed);
 
-            instance = (ErtsStructInstance*)hp;
-            res = make_struct(hp);
+            instance = (ErtsRecordInstance*)hp;
+            res = make_record(hp);
 
-            instance->thing_word = MAKE_STRUCT_HEADER(field_count);
-            instance->struct_definition = def;
+            instance->thing_word = MAKE_RECORD_HEADER(field_count);
+            instance->record_definition = def;
 
             hp = (Eterm*) &(instance->values);
 
@@ -684,8 +676,8 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
 
 BIF_RETTYPE records_update_4(BIF_ALIST_4) {
     Eterm module, name;
-    ErtsStructDefinition *defp;
-    ErtsStructInstance *instance, *old_instance;
+    ErtsRecordDefinition *defp;
+    ErtsRecordInstance *instance, *old_instance;
     Eterm *old_values;
     int field_count;
     Eterm *hp;
@@ -693,14 +685,14 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
     Eterm res;
     Uint n;
 
-    if (is_not_struct(BIF_ARG_1)) {
+    if (is_not_record(BIF_ARG_1)) {
         BIF_P->fvalue = BIF_ARG_1;
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
 
-    field_count = struct_field_count(BIF_ARG_1);
-    old_instance = (ErtsStructInstance*)struct_val(BIF_ARG_1);
-    defp = (ErtsStructDefinition*) tuple_val(old_instance->struct_definition);
+    field_count = record_field_count(BIF_ARG_1);
+    old_instance = (ErtsRecordInstance*)record_val(BIF_ARG_1);
+    defp = (ErtsRecordDefinition*) tuple_val(old_instance->record_definition);
 
     if (BIF_ARG_3 == am_Underscore) {
         ;
@@ -734,11 +726,11 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
 
     hp = HAlloc(BIF_P, num_words_needed);
 
-    res = make_struct(hp);
+    res = make_record(hp);
 
-    instance = (ErtsStructInstance*)hp;
+    instance = (ErtsRecordInstance*)hp;
     instance->thing_word = old_instance->thing_word;
-    instance->struct_definition = old_instance->struct_definition;
+    instance->record_definition = old_instance->record_definition;
 
     old_values = old_instance->values;
     hp = (Eterm*) &(instance->values);
@@ -829,8 +821,8 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
 }
 
 BIF_RETTYPE records_get_2(BIF_ALIST_2) {
-    ErtsStructInstance *instance;
-    ErtsStructDefinition *defp;
+    ErtsRecordInstance *instance;
+    ErtsRecordDefinition *defp;
     int field_count;
     Eterm record;
     Eterm key;
@@ -839,13 +831,13 @@ BIF_RETTYPE records_get_2(BIF_ALIST_2) {
     key = BIF_ARG_1;
     record = BIF_ARG_2;
 
-    if (is_not_struct(record) || is_not_atom(key)) {
+    if (is_not_record(record) || is_not_atom(key)) {
         BIF_ERROR(BIF_P, BADARG);
     }
 
-    field_count = struct_field_count(record);
-    instance = (ErtsStructInstance*) struct_val(record);
-    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+    field_count = record_field_count(record);
+    instance = (ErtsRecordInstance*) record_val(record);
+    defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
     values = instance->values;
 
     for (int i = 0; i < field_count; i++) {
@@ -858,48 +850,48 @@ BIF_RETTYPE records_get_2(BIF_ALIST_2) {
 }
 
 BIF_RETTYPE records_get_module_1(BIF_ALIST_1) {
-    ErtsStructInstance *instance;
-    ErtsStructDefinition *defp;
+    ErtsRecordInstance *instance;
+    ErtsRecordDefinition *defp;
 
-    if (is_not_struct(BIF_ARG_1)) {
+    if (is_not_record(BIF_ARG_1)) {
         BIF_ERROR(BIF_P, BADARG);
     }
-    instance = (ErtsStructInstance*) struct_val(BIF_ARG_1);
-    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+    instance = (ErtsRecordInstance*) record_val(BIF_ARG_1);
+    defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
     BIF_RET(defp->module);
 }
 
 BIF_RETTYPE records_get_name_1(BIF_ALIST_1) {
-    ErtsStructInstance *instance;
-    ErtsStructDefinition *defp;
+    ErtsRecordInstance *instance;
+    ErtsRecordDefinition *defp;
 
-    if (is_not_struct(BIF_ARG_1)) {
+    if (is_not_record(BIF_ARG_1)) {
         BIF_ERROR(BIF_P, BADARG);
     }
 
-    instance = (ErtsStructInstance*) struct_val(BIF_ARG_1);
-    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+    instance = (ErtsRecordInstance*) record_val(BIF_ARG_1);
+    defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
     BIF_RET(defp->name);
 }
 
 BIF_RETTYPE records_get_field_names_1(BIF_ALIST_1) {
     Eterm obj;
-    ErtsStructInstance *instance;
-    ErtsStructDefinition *defp;
+    ErtsRecordInstance *instance;
+    ErtsRecordDefinition *defp;
     int field_count;
     Eterm *hp;
     Eterm list;
     Eterm *order;
 
     obj = BIF_ARG_1;
-    if (is_not_struct(obj)) {
+    if (is_not_record(obj)) {
         BIF_P->fvalue = BIF_ARG_1;
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
 
-    field_count = struct_field_count(BIF_ARG_1);
-    instance = (ErtsStructInstance*) struct_val(BIF_ARG_1);
-    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+    field_count = record_field_count(BIF_ARG_1);
+    instance = (ErtsRecordInstance*) record_val(BIF_ARG_1);
+    defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
     order = tuple_val(defp->field_order) + 1;
 
     hp = HAlloc(BIF_P, field_count * 2);
@@ -914,16 +906,16 @@ BIF_RETTYPE records_get_field_names_1(BIF_ALIST_1) {
 
 BIF_RETTYPE records_is_exported_1(BIF_ALIST_1) {
     Eterm obj;
-    ErtsStructInstance *instance;
-    ErtsStructDefinition *defp;
+    ErtsRecordInstance *instance;
+    ErtsRecordDefinition *defp;
 
     obj = BIF_ARG_1;
-    if (is_not_struct(obj)) {
+    if (is_not_record(obj)) {
         BIF_P->fvalue = BIF_ARG_1;
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
 
-    instance = (ErtsStructInstance*) struct_val(BIF_ARG_1);
-    defp = (ErtsStructDefinition*) tuple_val(instance->struct_definition);
+    instance = (ErtsRecordInstance*) record_val(BIF_ARG_1);
+    defp = (ErtsRecordDefinition*) tuple_val(instance->record_definition);
     BIF_RET(defp->is_exported);
 }

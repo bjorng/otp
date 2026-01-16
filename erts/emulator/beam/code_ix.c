@@ -27,8 +27,7 @@
 #include "code_ix.h"
 #include "global.h"
 #include "beam_catches.h"
-#include "erl_struct.h"
-
+#include "erl_record.h"
 
 
 #if 0

@@ -1169,7 +1169,7 @@ RUN_OBJS += \
 	$(OBJDIR)/erl_iolist.o \
 	$(OBJDIR)/erl_etp.o \
 	$(OBJDIR)/erl_internal_test.o \
-	$(OBJDIR)/erl_struct.o
+	$(OBJDIR)/erl_record.o
 
 LTTNG_OBJS = $(OBJDIR)/erlang_lttng.o
 
