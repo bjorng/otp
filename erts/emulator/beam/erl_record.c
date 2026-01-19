@@ -546,10 +546,9 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             Eterm *def_values;
 
             def = CAR(list_val(cons));
-            defp = (ErtsRecordDefinition*)boxed_val(def);
             def_values = tuple_val(CDR(list_val(cons))) + 1;
 
-            defp = (ErtsRecordDefinition*)boxed_val(def);
+            defp = (ErtsRecordDefinition*)tuple_val(def);
             field_count = (header_arity(defp->thing_word) -
                            sizeof(ErtsRecordDefinition)/sizeof(Eterm) + 1);
             num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
