@@ -33,6 +33,7 @@
 
 #include "beam_common.h"
 #include "erl_map.h"
+#include "big.h"
 
 #define RECORD_INITIAL_SIZE   4000
 #define RECORD_LIMIT          (512*1024)
@@ -110,7 +111,7 @@ Eterm erts_canonical_record_def(ErtsRecordDefinition *defp) {
     ErtsRecordDefinition *canonical_p;
     Eterm *order_def, *order_canonical;
     int field_count;
-    Eterm result = make_boxed((Eterm *)defp);
+    Eterm result = make_tuple((Eterm *)defp);
 
     code_ix = erts_active_code_ix();
     entry = erts_record_find_entry(defp->module, defp->name, code_ix);
@@ -126,7 +127,7 @@ Eterm erts_canonical_record_def(ErtsRecordDefinition *defp) {
 
     canonical_def = CAR(list_val(cons));
 
-    canonical_p = (ErtsRecordDefinition*)boxed_val(canonical_def);
+    canonical_p = (ErtsRecordDefinition*)tuple_val(canonical_def);
     if (defp->is_exported != canonical_p->is_exported) {
         return result;
     }
@@ -137,6 +138,7 @@ Eterm erts_canonical_record_def(ErtsRecordDefinition *defp) {
     if (order_def[0] != order_canonical[0]) {
         return result;
     }
+
     field_count = arityval(order_def[0]);
     order_def++, order_canonical++;
 
@@ -491,6 +493,7 @@ Eterm erl_get_record_field(Process* p, Eterm src, Eterm mod, Eterm id, Eterm fie
 struct erl_record_field {
     Eterm key;
     Eterm value;
+    Uint order;
 };
 
 static int record_compare(const struct erl_record_field *a, const struct erl_record_field *b) {
@@ -506,171 +509,173 @@ static int record_compare(const struct erl_record_field *a, const struct erl_rec
 }
 
 BIF_RETTYPE records_create_4(BIF_ALIST_4) {
-    Eterm module, name;
-    const ErtsRecordEntry *entry;
-    Uint code_ix;
+    Eterm module, name, fs, opts;
+    int field_count;
+    ErtsRecordDefinition *defp;
+    ErtsRecordInstance *instance;
+    Eterm *hp, *hp_end;
+    Uint num_words_needed;
+    Eterm res;
+    Eterm *vs;
+    Eterm *ks;
+    const Eterm *option;
+    Eterm order_list;
+    Eterm *order;
+    Eterm order_tuple;
+    Uint32 hash;
+    Uint hash_tuple_size;
+    Eterm tagged_hash;
+    Eterm is_exported;
+    struct erl_record_field *fields;
+#if !defined(ARCH_64)
+    Eterm *big_buf;
+#endif
 
-    if (is_not_atom(BIF_ARG_1) ||
-        is_not_atom(BIF_ARG_2)) {
+    module = BIF_ARG_1;
+    name = BIF_ARG_2;
+    fs = BIF_ARG_3;
+    opts = BIF_ARG_4;
+
+    if (is_not_atom(module) || is_not_atom(name)) {
         BIF_P->fvalue = BIF_ARG_2;
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
-    module = BIF_ARG_1;
-    name = BIF_ARG_2;
 
-    if (is_not_map(BIF_ARG_3)) {
-        BIF_P->fvalue = BIF_ARG_3;
+    if (is_not_map(fs)) {
+        BIF_P->fvalue = fs;
         BIF_ERROR(BIF_P, BADMAP);
     }
 
-    code_ix = erts_active_code_ix();
-    entry = erts_record_find_entry(module,
-                                   name,
-                                   code_ix);
+    if (is_not_map(opts)) {
+        BIF_P->fvalue = opts;
+        BIF_ERROR(BIF_P, BADMAP);
+    }
 
-    if (entry != NULL) {
-        Eterm cons = entry->definitions[code_ix];
+    option = erts_maps_get(am_is_exported, opts);
+    if (option == NULL) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
+    is_exported = *option;
+    if (is_exported != am_false && is_exported != am_true) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
 
-        if (is_value(cons)) {
-            Eterm def;
-            ErtsRecordDefinition *defp;
-            ErtsRecordInstance *instance;
-            int field_count;
-            Eterm *hp;
-            Uint num_words_needed;
-            Eterm res;
-            Eterm *vs;
-            flatmap_t *mp;
-            Eterm *ks;
-            Uint n;
-            Eterm *def_values;
+    option = erts_maps_get(am_order, opts);
+    if (option == NULL) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
+    order_list = *option;
 
-            def = CAR(list_val(cons));
-            def_values = tuple_val(CDR(list_val(cons))) + 1;
+    field_count = erts_map_size(fs);
+    if (erts_list_length(order_list) != field_count) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
 
-            defp = (ErtsRecordDefinition*)tuple_val(def);
-            field_count = (header_arity(defp->thing_word) -
-                           sizeof(ErtsRecordDefinition)/sizeof(Eterm) + 1);
-            num_words_needed = sizeof(*instance)/sizeof(Eterm) + field_count;
-            hp = HAlloc(BIF_P, num_words_needed);
+    num_words_needed = sizeof(*instance)/sizeof(Eterm) +
+        sizeof(ErtsRecordDefinition)/sizeof(Eterm) + 2 * field_count;
+#if !defined(ARCH_64)
+    num_words_needed += BIG_UINT_HEAP_SIZE;
+#endif
 
-            instance = (ErtsRecordInstance*)hp;
-            res = make_record(hp);
+    if (field_count > 0) {
+        num_words_needed += field_count + 1;
+    }
 
-            instance->thing_word = MAKE_RECORD_HEADER(field_count);
-            instance->record_definition = def;
+    hp = HAlloc(BIF_P, num_words_needed);
+    hp_end = hp + num_words_needed;
 
-            hp = (Eterm*) &(instance->values);
+#if !defined(ARCH_64)
+    big_buf = hp;
+    ASSERT(BIG_UINT_HEAP_SIZE == 2);
+    *hp++ = NIL;
+    *hp++ = NIL;
+#endif
 
-            if (is_flatmap(BIF_ARG_3)) {
-                const Eterm *ks_end;
-                Eterm sentinel = NIL;
+    order = (Eterm *)hp;
+    if (field_count == 0) {
+        defp = (ErtsRecordDefinition*)hp;
+    } else {
+        defp = (ErtsRecordDefinition*)(hp + field_count + 1);
+    }
 
-                mp = (flatmap_t *)flatmap_val(BIF_ARG_3);
-                ks = flatmap_get_keys(mp);
-                vs = flatmap_get_values(mp);
-                n  = flatmap_get_size(mp);
+    defp->thing_word = make_arityval(sizeof(ErtsRecordDefinition)/sizeof(Eterm) +
+                                     field_count - 1);
+    defp->module = module;
+    defp->name = name;
+    defp->is_exported = is_exported;
 
-                ks_end = ks + n;
+    ks = &defp->keys[0];
 
-                if (ks == ks_end) {
-                    ks = &sentinel;
-                }
+    instance = (ErtsRecordInstance*)(ks + field_count);
+    res = make_record((Eterm *)instance);
+    instance->thing_word = MAKE_RECORD_HEADER(field_count);
+    instance->record_definition = make_tuple((Eterm *)defp);
 
-                for (int i = 0; i < field_count; i++) {
-                    if (ks[0] == defp->keys[i]) {
-                        *hp++ = *vs;
-                        ks++, vs++;
-                        if (ks >= ks_end) {
-                            ks = &sentinel;
-                        }
-                    } else {
-                        Eterm value = def_values[i];
-                        if (is_catch(value)) {
-                            if (is_value(res)) {
-                                /* Delay this error. */
-                                BIF_P->freason = EXC_NOVALUE;
-                                BIF_P->fvalue = defp->keys[i];
-                                res = THE_NON_VALUE;
-                            }
-                            value = NIL;
-                        }
-                        *hp++ = value;
-                    }
-                }
+    vs = &instance->values[0];
 
-                /* A `badfield` error has higher priority than a
-                 * `no_value` error. */
-                if (ks != &sentinel) {
-                    BIF_P->fvalue = ks[0];
-                    BIF_ERROR(BIF_P, EXC_BADFIELD);
-                }
-            } else {
-                DECLARE_WSTACK(wstack);
-                int j;
-                Eterm *kv;
-                struct erl_record_field *fields;
-                const struct erl_record_field *fields_end;
-                struct erl_record_field sentinel = { UINT_MAX, NIL };
-                void *tmp_array;
+    fields = (struct erl_record_field*) erts_alloc(ERTS_ALC_T_TMP, field_count *
+                                                   sizeof(struct erl_record_field));
 
-                ASSERT(is_hashmap(BIF_ARG_3));
-                n = hashmap_size(BIF_ARG_3);
-                hashmap_iterator_init(&wstack, BIF_ARG_3, 0);
-                tmp_array = erts_alloc(ERTS_ALC_T_TMP, n * sizeof(struct erl_record_field));
-                fields = (struct erl_record_field*)tmp_array;
+    for (int i = 0; i < field_count; i++) {
+        Eterm *cons = list_val(order_list);
+        Eterm key = CAR(cons);
+        const Eterm *val;
 
-                j = 0;
-                while ((kv=hashmap_iterator_next(&wstack)) != NULL) {
-                    fields[j].key = CAR(kv);
-                    fields[j].value = CDR(kv);
-                    j++;
-                }
-                DESTROY_WSTACK(wstack);
+        if (is_not_atom(key)) {
+            BIF_P->fvalue = key;
+            HRelease(BIF_P, hp_end, hp);
+            erts_free(ERTS_ALC_T_TMP, fields);
+            BIF_ERROR(BIF_P, EXC_BADFIELD);
+        }
+        val = erts_maps_get(key, fs);
+        if (val == NULL) {
+            HRelease(BIF_P, hp_end, hp);
+            erts_free(ERTS_ALC_T_TMP, fields);
+            BIF_ERROR(BIF_P, BADARG);
+        }
+        ks[i] = key;
+        fields[i].key = key;
+        fields[i].value = *val;
+        fields[i].order = i;
+        order_list = CDR(cons);
+    }
 
-                qsort((void *) fields, n, sizeof(struct erl_record_field),
-                      (int (*)(const void *, const void *)) record_compare);
+    hash_tuple_size = defp->keys - &defp->hash - 1 + field_count;
+    defp->hash = make_arityval(hash_tuple_size);
 
-                fields_end = fields + n;
+    hash = make_hash2(make_tuple((Eterm *)&defp->hash));
+#if defined(ARCH_64)
+    tagged_hash = make_small(hash);
+#else
+    if (IS_USMALL(0, hash)) {
+        tagged_hash = make_small(hash);
+    } else {
+        tagged_hash = uint_to_big(hash, big_buf);
+    }
+#endif
+    defp->hash = tagged_hash;
 
-                for (int i = 0; i < field_count; i++) {
-                    if (fields[0].key == defp->keys[i]) {
-                        *hp++ = fields[0].value;
-                        fields++;
-                        if (fields >= fields_end) {
-                            fields = &sentinel;
-                        }
-                    } else {
-                        Eterm value = def_values[i];
-                        if (is_catch(value)) {
-                            /* Delay this error. */
-                            BIF_P->freason = EXC_NOVALUE;
-                            BIF_P->fvalue = defp->keys[i];
-                            res = THE_NON_VALUE;
-                            value = NIL;
-                        }
-                        *hp++ = value;
-                    }
-                }
+    if (field_count == 0) {
+        order_tuple = ERTS_GLOBAL_LIT_EMPTY_TUPLE;
+    } else {
+        qsort(fields, field_count, sizeof(struct erl_record_field),
+              (int (*)(const void *, const void *)) record_compare);
 
-                /* A `badfield` error has higher priority than a
-                 * `no_value` error. */
-                if (fields != &sentinel) {
-                    BIF_P->fvalue = fields[0].key;
-                    erts_free(ERTS_ALC_T_TMP, tmp_array);
-                    BIF_ERROR(BIF_P, EXC_BADFIELD);
-                }
-
-                erts_free(ERTS_ALC_T_TMP, tmp_array);
-            }
-
-            BIF_RET(res);
+        order_tuple = make_tuple(order);
+        *order++ = make_arityval(field_count);
+        for (int i = 0; i < field_count; i++) {
+            order[fields[i].order] = make_small(i);
+            defp->keys[i] = fields[i].key;
+            vs[i] = fields[i].value;
         }
     }
 
-    /* No canonical struct definition, bail out. */
-    BIF_P->fvalue = BIF_ARG_2;
-    BIF_ERROR(BIF_P, EXC_BADRECORD);
+    erts_free(ERTS_ALC_T_TMP, fields);
+
+    defp->field_order = order_tuple;
+    instance->record_definition = erts_canonical_record_def(defp);
+
+    BIF_RET(res);
 }
 
 BIF_RETTYPE records_update_4(BIF_ALIST_4) {

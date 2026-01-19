@@ -546,6 +546,7 @@ atom open
 atom open_error
 atom opt
 atom or
+atom order
 atom ordered_set
 atom orelse
 atom os_pid

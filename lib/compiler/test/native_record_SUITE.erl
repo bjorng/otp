@@ -26,8 +26,7 @@
 	 init_per_group/2,end_per_group/2,
          local_basic/1,local_updates/1,non_atomic_names/1,
          external_records/1,any_record/1,
-         matching/1,is_record_bif/1,
-         get_field_names_bif/1]).
+         matching/1,is_record_bif/1]).
 
 -record #empty{}.
 -record #a{x, y}.
@@ -72,8 +71,7 @@ groups() ->
        any_record,
        external_records,
        matching,
-       is_record_bif,
-       get_field_names_bif
+       is_record_bif
       ]}].
 
 init_per_suite(Config) ->
@@ -104,22 +102,6 @@ local_basic(_Config) ->
     #d{m=#{a := 1}} = DRec,
 
     #order{zzzz=0, true=1, aaaa=2, wwww=3} = Order,
-
-    case ?MODULE of
-        native_record_SUITE ->
-            ~"ARec: #native_record_SUITE:a{x = 1, y = 2}\n" =
-                iolist_to_binary(io_lib:format("ARec: ~p~n", [ARec])),
-            ~"BRec: #native_record_SUITE:b{x = none, y = none, z = none}\n" =
-                iolist_to_binary(io_lib:format("BRec: ~w~n", [BRec])),
-            ~"CRec: #native_record_SUITE:c{x = 42, y = 100, z = []}\n" =
-                iolist_to_binary(io_lib:format("CRec: ~p~n", [CRec])),
-            ~"DRec: #native_record_SUITE:d{f = 3.0, l = [a,b,c], t = {a,b,c}, m = #{a => 1}}\n" =
-                iolist_to_binary(io_lib:format("DRec: ~p~n", [DRec])),
-            ~"Order: #native_record_SUITE:order{zzzz = 0, true = 1, aaaa = 2, wwww = 3}\n" =
-                iolist_to_binary(io_lib:format("Order: ~p~n", [Order]));
-        _ ->
-            ok
-    end,
 
     empty = name(id(#empty{})),
     a = name(ARec),
@@ -484,79 +466,6 @@ is_record_bif(Config) ->
     true = is_record(BR, id(b)),
     true = is_record(BR, id(?MODULE), id(b)),
 
-    ok.
-
-get_field_names_bif(_Config) ->
-    ARec = id(#a{x=1, y=2}),
-    BRec = id(#b{}),
-    CRec = id(#c{x=42, y=100}),
-
-    false = records:is_exported(ARec),
-    false = records:is_exported(BRec),
-    false = records:is_exported(CRec),
-
-    ARec = records:create(?MODULE, a, #{x=>1, y=>2}),
-    BRec = records:create(?MODULE, b, #{}),
-    CRec = records:create(?MODULE, c, #{x=>42, y=>100}),
-
-    ?assertError({badmap,{a,b,c}}, records:create(?MODULE, b, {a,b,c})),
-    ?assertError({badfield,qqq}, records:create(?MODULE, b, #{qqq => aaa})),
-    ?assertError({badfield,{really,bad}},
-                 records:create(?MODULE, b, #{{really,bad} => value})),
-    ?assertError({novalue,x}, records:create(?MODULE, c, #{})),
-
-    %% TODO: A large map should be properly handled.
-    Fields = [f1, f2, f3, f4, f5, f6, f7, f8,
-                f9, f10, f11, f12, f13, f14, f15, f16,
-                f17, f18, f19, f20, f21, f22, f23, f24,
-                f25, f26, f27, f28, f29, f30, f31, f32,
-                f33, f34, f35, f36, f37, f38, f39, f40,
-                f41, f42, f43, f44, f45, f46, f47, f48,
-                f49, f50, f51, f52, f53, f54, f55, f56,
-                f57, f58, f59, f60, f61, f62, f63, f64],
-    BigRecord = id(#big{f1=1, f2=2, f3=3, f4=4, f5=5, f6=6, f7=7, f8=8,
-                     f9=9, f10=10, f11=11, f12=12, f13=13, f14=14, f15=15, f16=16,
-                     f17=17, f18=18, f19=19, f20=20, f21=21, f22=22, f23=23, f24=24,
-                     f25=25, f26=26, f27=27, f28=28, f29=29, f30=30, f31=31, f32=32,
-                     f33=33, f34=34, f35=35, f36=36, f37=37, f38=38, f39=39, f40=40,
-                     f41=41, f42=42, f43=43, f44=44, f45=45, f46=46, f47=47, f48=48,
-                     f49=49, f50=50, f51=51, f52=52, f53=53, f54=54, f55=55, f56=56,
-                     f57=57, f58=58, f59=59, f60=60, f61=61, f62=62, f63=63, f64=64}),
-    LargeMap = #{Field => I || Field <- Fields && I <- lists:seq(1, 64)},
-    BigRecord = records:create(?MODULE, big, LargeMap),
-
-    [x,y] = records:get_field_names(ARec),
-    [x,y,z] = records:get_field_names(BRec),
-    [x,y,z] = records:get_field_names(CRec),
-
-    R0 = #b{},
-    R0 = R0#b{},
-    R1 = records:update(R0, ?MODULE, b, #{x=>foo}),
-    #b{x=foo, y=none, z=none} = id(R1),
-    #?MODULE:b{x=foo, y=none, z=none} = id(R1),
-
-    ?assertError({badmap,not_a_map}, records:update(CRec, ?MODULE, c, not_a_map)),
-    ?assertError({badfield,a}, records:update(CRec, ?MODULE, c, #{a => b})),
-    ?assertError({badfield,{really,bad}},
-                 records:update(CRec, ?MODULE, c, #{{really,bad} => b})),
-
-
-    LargeUpdate = #{Field => I * 2 || Field <- Fields && I <- lists:seq(1, 64)},
-    UpdatedBigRecord = BigRecord#big{f1=2, f2=4, f3=6, f4=8, f5=10, f6=12, f7=14, f8=16,
-                                    f9=18, f10=20, f11=22, f12=24, f13=26, f14=28, f15=30, f16=32,
-                                    f17=34, f18=36, f19=38, f20=40, f21=42, f22=44, f23=46, f24=48,
-                                    f25=50, f26=52, f27=54, f28=56, f29=58, f30=60, f31=62, f32=64,
-                                    f33=66, f34=68, f35=70, f36=72, f37=74, f38=76, f39=78, f40=80,
-                                    f41=82, f42=84, f43=86, f44=88, f45=90, f46=92, f47=94, f48=96,
-                                    f49=98, f50=100, f51=102, f52=104, f53=106, f54=108, f55=110, f56=112,
-                                    f57=114, f58=116, f59=118, f60=120, f61=122, f62=124, f63=126, f64=128},
-    UpdatedBigRecord = records:update(BigRecord, ?MODULE, big, LargeUpdate),
-
-    N = 10000,
-    #a{x=N,y=0} =
-        lists:foldl(fun(_, #a{x=X,y=Y}=R) ->
-                            records:update(R, ?MODULE, a, #{x=>X+1,y=>Y-1})
-                    end, #a{x=0,y=N}, lists:seq(1, N)),
     ok.
 
 %%% Common utilities.
