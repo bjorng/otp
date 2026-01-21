@@ -7237,7 +7237,7 @@ false
 ```
 """.
 -doc #{ category => terms }.
--doc #{ since => ~"OTP @OTP 19785@" }.
+-doc #{ since => ~"OTP @OTP-19785@" }.
 -spec is_record(Term) -> boolean() when
       Term :: term().
 is_record(_Term) ->
