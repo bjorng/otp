@@ -510,7 +510,7 @@ static int record_compare(const struct erl_record_field *a, const struct erl_rec
 
 BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     Eterm module, name, fs, opts;
-    int field_count;
+    Sint field_count;
     ErtsRecordDefinition *defp;
     ErtsRecordInstance *instance;
     Eterm *hp, *hp_end;
@@ -519,7 +519,6 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     Eterm *vs;
     Eterm *ks;
     const Eterm *option;
-    Eterm order_list;
     Eterm *order;
     Eterm order_tuple;
     Uint32 hash;
@@ -541,14 +540,11 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
         BIF_ERROR(BIF_P, EXC_BADRECORD);
     }
 
-    if (is_not_map(fs)) {
-        BIF_P->fvalue = fs;
-        BIF_ERROR(BIF_P, BADMAP);
-    }
-
     if (is_not_map(opts)) {
         BIF_P->fvalue = opts;
         BIF_ERROR(BIF_P, BADMAP);
+    } else if (erts_map_size(opts) != 1) {
+        BIF_ERROR(BIF_P, BADARG);
     }
 
     option = erts_maps_get(am_is_exported, opts);
@@ -560,14 +556,8 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
         BIF_ERROR(BIF_P, BADARG);
     }
 
-    option = erts_maps_get(am_order, opts);
-    if (option == NULL) {
-        BIF_ERROR(BIF_P, BADARG);
-    }
-    order_list = *option;
-
-    field_count = erts_map_size(fs);
-    if (erts_list_length(order_list) != field_count) {
+    field_count = erts_list_length(fs);
+    if (field_count < 0) {
         BIF_ERROR(BIF_P, BADARG);
     }
 
@@ -616,10 +606,24 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     fields = (struct erl_record_field*) erts_alloc(ERTS_ALC_T_TMP, field_count *
                                                    sizeof(struct erl_record_field));
 
-    for (int i = 0; i < field_count; i++) {
-        Eterm *cons = list_val(order_list);
-        Eterm key = CAR(cons);
-        const Eterm *val;
+    for (Sint i = 0; i < field_count; i++) {
+        Eterm *cons = list_val(fs);
+        Eterm pair = CAR(cons);
+        Eterm key;
+        Eterm *val;
+
+        if (is_not_tuple(pair)) {
+        badarg:
+            HRelease(BIF_P, hp_end, hp);
+            erts_free(ERTS_ALC_T_TMP, fields);
+            BIF_ERROR(BIF_P, BADARG);
+        }
+
+        val = tuple_val(pair);
+        if (val[0] != make_arityval(2)) {
+            goto badarg;
+        }
+        key = val[1];
 
         if (is_not_atom(key)) {
             BIF_P->fvalue = key;
@@ -627,17 +631,12 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
             erts_free(ERTS_ALC_T_TMP, fields);
             BIF_ERROR(BIF_P, EXC_BADFIELD);
         }
-        val = erts_maps_get(key, fs);
-        if (val == NULL) {
-            HRelease(BIF_P, hp_end, hp);
-            erts_free(ERTS_ALC_T_TMP, fields);
-            BIF_ERROR(BIF_P, BADARG);
-        }
+
         ks[i] = key;
         fields[i].key = key;
-        fields[i].value = *val;
+        fields[i].value = val[2];
         fields[i].order = i;
-        order_list = CDR(cons);
+        fs = CDR(cons);
     }
 
     hash_tuple_size = defp->keys - &defp->hash - 1 + field_count;
@@ -660,6 +659,14 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     } else {
         qsort(fields, field_count, sizeof(struct erl_record_field),
               (int (*)(const void *, const void *)) record_compare);
+
+        for (Sint i = 1; i < field_count; i++) {
+            if (fields[i-1].key == fields[i].key) {
+                HRelease(BIF_P, hp_end, hp);
+                erts_free(ERTS_ALC_T_TMP, fields);
+                BIF_ERROR(BIF_P, BADARG);
+            }
+        }
 
         order_tuple = make_tuple(order);
         *order++ = make_arityval(field_count);

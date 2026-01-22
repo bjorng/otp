@@ -309,42 +309,44 @@ records_module(_Config) ->
     false = records:is_exported(BRec),
     false = records:is_exported(CRec),
 
-    ARec = records_create(?MODULE, a, #{x=>1, y=>2}, [x,y]),
-    BRec = records_create(?MODULE, b, #{x=>none, y=>none, z=>none}, [x,y,z]),
-    CRec = records_create(?MODULE, c, #{x=>42, y=>100, z=>[]}, [x,y,z]),
+    ARec = records_create(?MODULE, a, [{x,1}, {y,2}]),
+    BRec = records_create(?MODULE, b, [{x,none}, {y,none},{z,none}]),
+    CRec = records_create(?MODULE, c, [{x,42}, {y,100}, {z,[]}]),
 
     ARecHash = erlang:phash2(ARec, 1 bsl 32),
-    ARecHash = erlang:phash2(records_create(?MODULE, a, #{x=>1, y=>2}, [x,y]), 1 bsl 32),
+    ARecHash = erlang:phash2(records_create(?MODULE, a, [{x,1}, {y,2}]), 1 bsl 32),
 
     BRecHash = erlang:phash2(BRec, 1 bsl 32),
-    BRecHash = erlang:phash2(records_create(?MODULE, b, #{x=>none, y=>none, z=>none},
-                                            [x,y,z]), 1 bsl 32),
+    BRecHash = erlang:phash2(records_create(?MODULE, b, [{x,none}, {y,none}, {z,none}]),
+                             1 bsl 32),
 
-    false = ARec =:= records_create(?MODULE, a, #{}),
+    false = ARec =:= records_create(?MODULE, a, []),
 
-    ?assertError({badmap,{a,b,c}}, records_create(?MODULE, b, {a,b,c})),
+    Opts = #{is_exported => false},
+    ?assertError({badrecord,b}, records_create(42, b, [], Opts)),
+    ?assertError({badrecord,42}, records_create(?MODULE, 42, [], Opts)),
+    ?assertError(badarg, records_create(?MODULE, b, [{a,1}, {a,1}], Opts)),
+    ?assertError(badarg, records_create(?MODULE, b, [{a,1}, {b,1}, {a,1}], Opts)),
+
+    ?assertError(badarg, records_create(?MODULE, b, {a,b,c})),
+    ?assertError(badarg, records_create(?MODULE, b, #{})),
 
     ?assertError({badfield,{bad,key}},
-                 records_create(?MODULE, b, #{{bad,key} => value})),
-    ?assertError({badmap,badopts}, records:create(?MODULE, b, #{}, badopts)),
-    ?assertError(badarg, records:create(?MODULE, b, #{}, #{})),
-    ?assertError(badarg, records:create(?MODULE, b, #{}, #{is_exported => true})),
-    ?assertError(badarg, records_create(?MODULE, b, #{}, 42)),
-    ?assertError(badarg, records_create(?MODULE, b, #{}, [x])),
-    ?assertError(badarg, records_create(?MODULE, b, #{}, [x|y])),
+                 records_create(?MODULE, b, [{{bad,key},value}])),
 
-    Small = #{list_to_atom("f"++integer_to_list(I)) => I ||
-                 I <- lists:seq(1, 8)},
-    Small = record_to_map(records_create(?MODULE, a, Small)),
-    Small = record_to_map(records_create(?MODULE, r, Small)),
+    ?assertError({badmap,badopts}, records:create(?MODULE, b, [], badopts)),
+    ?assertError(badarg, records:create(?MODULE, b, [],
+                                        #{is_exported => true, extra => key})),
+    ?assertError(badarg, records_create(?MODULE, b, [], 42)),
 
-    false = records:is_exported(records:create(t, a, #{},
-                                               #{is_exported => false, order => []})),
-    true = records:is_exported(records:create(t, a, #{},
-                                              #{is_exported => true, order => []})),
+    Small = [{list_to_atom("f"++integer_to_list(I)), I} ||
+                I <- lists:seq(1, 8)],
+    Small = record_to_list(records_create(?MODULE, a, Small)),
+    Small = record_to_list(records_create(?MODULE, r, Small)),
 
-    Fields = [list_to_atom("f"++integer_to_list(I)) ||
-                 I <- lists:seq(1, 64)],
+    false = records:is_exported(records_create(t, a, [], false)),
+    true = records:is_exported(records_create(t, a, [], true)),
+
     BigRecord = id(#big{f1=1, f2=2, f3=3, f4=4, f5=5, f6=6, f7=7, f8=8,
                         f9=9, f10=10, f11=11, f12=12, f13=13, f14=14, f15=15, f16=16,
                         f17=17, f18=18, f19=19, f20=20, f21=21, f22=22, f23=23, f24=24,
@@ -353,16 +355,17 @@ records_module(_Config) ->
                         f41=41, f42=42, f43=43, f44=44, f45=45, f46=46, f47=47, f48=48,
                         f49=49, f50=50, f51=51, f52=52, f53=53, f54=54, f55=55, f56=56,
                         f57=57, f58=58, f59=59, f60=60, f61=61, f62=62, f63=63, f64=64}),
-    LargeMap0 = #{Field => I || Field <- Fields && I <- lists:seq(1, 64)},
-    BigRecord = records_create(?MODULE, big, LargeMap0, Fields),
+    Large0 = [{list_to_atom("f"++integer_to_list(I)),I} || I <- lists:seq(1, 64)],
+    BigRecord = records_create(?MODULE, big, Large0),
 
-    LargeMap1 = LargeMap0#{whatever => 42},
-    LargeMap1 = record_to_map(records_create(?MODULE, big, LargeMap1)),
+    Large1 = [{whatever,42} | Large0],
+    Large1 = record_to_list(records_create(?MODULE, big, Large1)),
 
-    LargeMap2 = LargeMap0#{true => 0},
-    LargeMap2 = record_to_map(records_create(?MODULE, big, LargeMap2)),
+    Large2 = [{true,0} | Large0],
+    Large2 = record_to_list(records_create(?MODULE, big, Large2)),
 
-    LargeMap3 = LargeMap0#{zzzz => 0},
+    Large3 = [{zzzz,0} | Large0],
+    Large3 = record_to_list(records_create(?MODULE, big, Large3)),
 
     [x,y] = records:get_field_names(ARec),
     [x,y,z] = records:get_field_names(BRec),
@@ -379,7 +382,7 @@ records_module(_Config) ->
     ?assertError({badfield,{really,bad}},
                  records:update(CRec, ?MODULE, c, #{{really,bad} => b})),
 
-    LargeUpdate = #{Field => I * 2 || Field <- Fields && I <- lists:seq(1, 64)},
+    LargeUpdate0 = #{Field => I * 2 || {Field,I} <- Large0},
     UpdatedBigRecord =
         BigRecord#big{f1=2, f2=4, f3=6, f4=8, f5=10, f6=12, f7=14, f8=16,
                       f9=18, f10=20, f11=22, f12=24, f13=26, f14=28, f15=30, f16=32,
@@ -390,11 +393,11 @@ records_module(_Config) ->
                       f49=98, f50=100, f51=102, f52=104, f53=106, f54=108,
                       f55=110, f56=112, f57=114, f58=116, f59=118, f60=120,
                       f61=122, f62=124, f63=126, f64=128},
-    UpdatedBigRecord = records:update(BigRecord, ?MODULE, big, LargeUpdate),
+    UpdatedBigRecord = records:update(BigRecord, ?MODULE, big, LargeUpdate0),
 
-    ?assertError({badfield,whatever}, records:update(BigRecord, ?MODULE, big, LargeMap1)),
-    ?assertError({badfield,true}, records:update(BigRecord, ?MODULE, big, LargeMap2)),
-    ?assertError({badfield,zzzz}, records:update(BigRecord, ?MODULE, big, LargeMap3)),
+    LargeUpdate1 = LargeUpdate0#{whatever => value},
+    ?assertError({badfield,whatever},
+                 records:update(BigRecord, ?MODULE, big, LargeUpdate1)),
 
     N = 10000,
     #a{x=N,y=0} =
@@ -404,20 +407,14 @@ records_module(_Config) ->
     ok.
 
 records_create(Mod, Name, Fields) ->
-    Order = maps:keys(Fields),
-    records_create(Mod, Name, Fields, false, Order).
+    records_create(Mod, Name, Fields, false).
 
-records_create(Mod, Name, Fields, Order) ->
-    records_create(Mod, Name, Fields, false, Order).
+records_create(Mod, Name, Fields, IsExported) ->
+    Opts = #{is_exported => IsExported},
+    records:create(Mod, Name, Fields, Opts).
 
-records_create(Mod, Name, Fields, IsExported, Order) ->
-    Opts = #{is_exported => IsExported, order => Order},
-    Rec = records:create(Mod, Name, Fields, Opts),
-    Order = records:get_field_names(Rec),
-    Rec.
-
-record_to_map(R) ->
-    #{K => records:get(K, R) || K <- records:get_field_names(R)}.
+record_to_list(R) ->
+    [{K,records:get(K, R)} || K <- records:get_field_names(R)].
 
 %%% Common utilities.
 

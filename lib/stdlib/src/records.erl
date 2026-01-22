@@ -24,12 +24,9 @@
 Native records processing functions.
 
 This module contains functions for creating and inspecting native records.
-
-> #### Warning {: .warning }
->
-> The functions in this module are intended for debugging and
-> implementing of tools (such as the Debugger), and should be avoided in
-> application programs.
+The main purpose of the functions in this module is for debugging,
+implementing library functions (such as printing of native records),
+and implementing tools (such as the Debugger).
 """.
 -moduledoc(#{since => ~"OTP @OTP-19785@"}).
 
@@ -41,17 +38,13 @@ This module contains functions for creating and inspecting native records.
 Options that can be used when creating a native record.
 
 - The value for the `is_exported` key should be a boolean indicating
-whether this value of the record is exported.
-
-- The value for `order` keys should be the names of all fields in
-definition order.
+whether this record value is exported.
 
 Consumed by:
 
 - [`records:create/4`](`create/4`)
 """.
--type create_options() :: #{is_exported := boolean(),
-                            order := [atom()]}.
+-type create_options() :: #{is_exported := boolean()}.
 
 -doc """
 Returns value `Value` associated with `Key` if native record `Record`
@@ -63,7 +56,7 @@ or if `Key` does not exist in `Record`.
 ## Examples
 
 ```erlang
-1> R = records:create(test, a, #{x=>1}, #{is_exported=>false,order=>[x]}).
+1> R = records:create(test, a, [{x,1}], #{is_exported=>false}).
 #test:a{x = 1}
 2> records:get(x, R).
 1
@@ -88,7 +81,7 @@ This call fails with a `badarg` exception if `Record` is not a native record.
 ## Examples
 
 ```erlang
-1> R = records:create(test, a ,#{x=>1}, #{is_exported=>false,order=>[x]}).
+1> R = records:create(test, a, [{x,1}], #{is_exported=>false}).
 #test:a{x = 1}
 2> records:get_module(R).
 test
@@ -113,7 +106,7 @@ This call fails with a `badarg` exception if `Record` is not a native record.
 ## Examples
 
 ```erlang
-1> R = records:create(test, a, #{x=>1}, #{is_exported=>false,order=>[x]}).
+1> R = records:create(test, a, [{x,1}], #{is_exported=>false}).
 #test:a{x = 1}
 2> records:get_name(R).
 a
@@ -140,7 +133,7 @@ native record.
 ## Examples
 
 ```erlang
-1> R = records:create(test, a, #{x=>1}, #{is_exported=>false,order=>[x]}).
+1> R = records:create(test, a, [{x,1}], #{is_exported=>false}).
 #test:a{x = 1}
 2> records:get_field_names(R).
 [x]
@@ -167,7 +160,7 @@ native record.
 ## Examples
 
 ```erlang
-1> R = records:create(test, a, #{x=>1}, #{is_exported=>false,order=>[x]}).
+1> R = records:create(test, a, [{x,1}], #{is_exported=>false}).
 #test:a{x = 1}
 2> records:is_exported(R).
 false
@@ -183,12 +176,14 @@ is_exported(_Record) ->
     erlang:nif_error(undefined).
 
 -doc """
-Takes `FieldsMap` and creates a native record `Record` with module
+Takes `Fields` and creates a native record `Record` with module
 `Module` and name `RecordName`.
 
-The value for key `order` in `OptionsMap` is a list containing the names
-of all fields in the order of definition. `FieldsMap` must have an entry
-for each name in the order list.
+> #### Warning {: .warning }
+>
+> This function is intended for debugging and implementing of tools
+> (such as the Debugger), and its use in application programs is
+> strongly discouraged.
 
 The native record definition does not have to exist in the given module,
 and if it exists, it will not be used in any way.
@@ -196,37 +191,32 @@ and if it exists, it will not be used in any way.
 The call can fail in the following ways:
 
 - With a `{badrecord,Record}` exception if `Module` or `RecordName` are not atoms.
-- With a `{badmap, FieldsMap}` exception if `FieldsMap` is not a map.
 - With a `{badmap, OptionsMap}` exception if `OptionsMap` is not a map.
-- With a `{novalue, Field}` exception if a field `Field` in the order
-list lacks a value in `FieldsMap`.
-- With a `badarg` exception if `OptionsMap` lacks one or both of the
-`is_exported` and `order` keys.
-- With a `badarg` exception for other invalid or inconsistent arguments, such as
-the length of the order list not being equal to the number values in `FieldsMap`.
+- With a `{badfield, Field}` exception if a field name in `Fields` is not an atom.
+- With a `badarg` exception if `Options` does not have the `is_exported` key.
+- With a `badarg` exception for other invalid arguments, such as a field name
+being repeated in `Fields`.
 
 ## Examples
 
 ```erlang
-1> Fields = #{x => 1, y => 2, z => 3}.
-2> Options = #{is_exported => true, order => [z,x,y]}.
-3> R = records:create(test, a, Fields, Options).
+1> R = records:create(test, a, [{z,3}, {x,1}, {y,2}], #{is_exported => true}).
 #test:a{z = 3,x = 1,y = 2}
-4> records:is_exported(R).
+2> records:is_exported(R).
 true
-5> records:create(test, b, #{y=>1}, #{}).
+3> records:create(test, a, [{42,1}], #{is_exported => true}).
+** exception error: bad field name: 42
+     in function  records:create/4
+        called as records:create(test,a,[{42,1}],#{is_exported => true})
+4> records:create(test, a, [{x,1}, {x,2}], #{is_exported => true}).
 ** exception error: bad argument
      in function  records:create/4
-        called as records:create(test,b,#{y => 1},#{})
-6> records:create(test, b, #{y => 1}, Options#{order => [x]}).
-** exception error: bad argument
-     in function  records:create/4
-        called as records:create(test,b,#{y => 1},#{order => [x],is_exported => true})
+        called as records:create(test,a,[{x,1},{x,2}],#{is_exported => true})
 ```
 """.
 -doc #{since => ~"OTP @OTP-19785@"}.
 -spec create(Module :: module(), RecordName :: atom(),
-             FieldsMap :: #{atom() => term()},
+             Fields :: [{atom(), term()}],
              Options :: create_options()) -> record().
 create(_Module, _RecordName, _FieldsMap, _Options) ->
     erlang:nif_error(undefined).
@@ -246,13 +236,11 @@ exist in `Record`.
 ## Examples
 
 ```erlang
-1> Fields = #{x => 1, y => 2, z => 3}.
-2> Options = #{is_exported => true, order => [x,y,z]}.
-3> R = records:create(test, a, Fields, Options).
+1> R = records:create(test, a, [{x,1}, {y,2}, {z,3}], #{is_exported => false).
 #test:a{x = 1,y = 2,z = 3}
-4> Updated = records:update(R, test, a, #{x => 10, y => 20}).
+2> Updated = records:update(R, test, a, #{x => 10, y => 20}).
 #test:a{x = 10,y = 20,z = 3}
-5> records:update(R, test, a, #{w => 42}).
+3> records:update(R, test, a, #{w => 42}).
 ** exception error: bad field name: w
      in function  records:update/4
         called as records:update(#test:a{x = 1,y = 2,z = 3},test,a,#{w => 42})
