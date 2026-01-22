@@ -236,7 +236,7 @@ exist in `Record`.
 ## Examples
 
 ```erlang
-1> R = records:create(test, a, [{x,1}, {y,2}, {z,3}], #{is_exported => false).
+1> R = records:create(test, a, [{x,1}, {y,2}, {z,3}], #{is_exported => false}).
 #test:a{x = 1,y = 2,z = 3}
 2> Updated = records:update(R, test, a, #{x => 10, y => 20}).
 #test:a{x = 10,y = 20,z = 3}

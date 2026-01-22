@@ -52,7 +52,6 @@ end_per_testcase(_Case, _Config) ->
     ok.
 
 doctests(_Config) ->
-    %% TODO: Add support native record in syntax_tools.
-%%    shell_docs:test(records, []).
-    {comment, "NOT YET IMPLEMENTED!"}.
+   shell_docs:test(records, []).
+
 

@@ -455,8 +455,10 @@ expr({record_field,Anno,_,Name,_}, Bs, _Lf, Ef, RBs, _FUVs) ->
     apply_error({undef_record,Name}, ?STACKTRACE, Anno, Bs, Ef, RBs);
 expr({record_index,Anno,Name,_}, Bs, _Lf, Ef, RBs, _FUVs) ->
     apply_error({undef_record,Name}, ?STACKTRACE, Anno, Bs, Ef, RBs);
-expr({record,Anno,Name,_}, Bs, _Lf, Ef, RBs, _FUVs) ->
-    apply_error({undef_record,Name}, ?STACKTRACE, Anno, Bs, Ef, RBs);
+expr({record,Anno,Name,Es}, Bs0, Lf, Ef, RBs, FUVs) ->
+    {Vs,Bs} = expr_list(Es, Bs0, Lf, Ef, FUVs),
+    ret_expr({record,Anno,Name,Vs}, Bs, RBs);
+    % apply_error({undef_record,Name}, ?STACKTRACE, Anno, Bs, Ef, RBs);
 expr({record,Anno,_,Name,_}, Bs, _Lf, Ef, RBs, _FUVs) ->
     apply_error({undef_record,Name}, ?STACKTRACE, Anno, Bs, Ef, RBs);
 
@@ -1776,6 +1778,10 @@ match1({map,_,Fs}, #{}=Map, Bs, BBs, Ef) ->
     match_map(Fs, Map, Bs, BBs, Ef);
 match1({map,_,_}, _, _Bs, _BBs, _Ef) ->
     throw(nomatch);
+match1({record,_,_,_}=R, Record, Bs, BBs, Ef) when is_record(Record) ->
+    match_record(R, Record, Bs, BBs, Ef);
+match1({record,_,_,_}, _, _Bs, _BBs, _Ef) ->
+    throw(nomatch);
 match1({bin, _, Fs}, <<_/bitstring>>=B, Bs0, BBs, Ef) ->
     EvalFun = fun(E, Bs) ->
                       case erl_lint:is_guard_expr(E) of
@@ -1840,6 +1846,25 @@ match_map([{map_field_exact, _, K, V}|Fs], Map, Bs0, BBs, Ef) ->
     {match, Bs} = match1(V, Vm, Bs0, BBs, Ef),
     match_map(Fs, Map, Bs, BBs, Ef);
 match_map([], _, Bs, _, _) ->
+    {match, Bs}.
+
+match_record({record, _, N, Fs}, R, Bs, BBs, Ef) ->
+    case {N, records:get_module(R), records:get_name(R)} of
+        {{Mod, Name}, Mod, Name} -> ok;
+        _ -> throw(nomatch)
+    end,
+    KVs = [{K, V} || {record_field, _, {atom, _, K}, V} <- Fs],
+    match_record_field(KVs, R, Bs, BBs, Ef).
+
+match_record_field([{K, V}|KVs], R, Bs0, BBs, Ef) ->
+    RV = try
+        records:get(K, R)
+    catch error:_ ->
+        throw(nomatch)
+    end,
+    {match, Bs} = match1(V, RV, Bs0, BBs, Ef),
+    match_record_field(KVs, R, Bs, BBs, Ef);
+match_record_field([], _, Bs, _, _) ->
     {match, Bs}.
 
 %% match_list(PatternList, TermList, Anno, NewBindings, Bindings, ExternalFunHnd) ->
