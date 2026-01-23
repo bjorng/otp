@@ -72,8 +72,8 @@
 	       map_arg/1, map_es/1, update_c_map/3,
 	       update_c_map_pair/4,
 	       map_pair_op/1, map_pair_key/1, map_pair_val/1,
-               struct_arg/1, struct_id/1, struct_es/1, update_c_struct/4,
-               struct_pair_key/1, struct_pair_val/1, update_c_struct_pair/3
+               record_arg/1, record_id/1, record_es/1, update_c_record/4,
+               record_pair_key/1, record_pair_val/1, update_c_record_pair/3
 	   ]).
 
 -import(lists, [foldl/3, foldr/3, member/2, mapfoldl/3, reverse/1]).
@@ -141,8 +141,8 @@ weight(binary) -> 4;    % Initialisation base cost.
 weight(bitstr) -> 3;    % Coding/decoding a value; like a primop.
 weight(map) -> 4;       % Initialisation base cost.
 weight(map_pair) -> 3;  % Coding/decoding a value; like a primop.
-weight(struct) -> 4;    % Initialisation base cost.
-weight(struct_pair) -> 4; % Coding/decoding a value; like a primop.
+weight(record) -> 4;    % Initialisation base cost.
+weight(record_pair) -> 4; % Coding/decoding a value; like a primop.
 weight(module) -> 1.    % Like a letrec with a constant body
 
 %% These "reference" structures are used for variables and function
@@ -352,8 +352,8 @@ i(E, Ctxt, Ren, Env, S0) ->
 		    i_map(E, Ctxt, Ren, Env, S);
                 module ->
                     i_module(E, Ctxt, Ren, Env, S);
-                struct ->
-                    i_struct(E, Ctxt, Ren, Env, S)
+                record ->
+                    i_record(E, Ctxt, Ren, Env, S)
             end
     end.
 
@@ -1382,19 +1382,19 @@ i_map_pair(E, Ctx, Ren, Env, S0) ->
     S3 = count_size(weight(map_pair), S2),
     {update_c_map_pair(E, Op, Key, Val), S3}.
 
-i_struct(E, Ctx, Ren, Env, S0) ->
-    {Arg, S1} = i(struct_arg(E), value, Ren, Env, S0),
+i_record(E, Ctx, Ren, Env, S0) ->
+    {Arg, S1} = i(record_arg(E), value, Ren, Env, S0),
     {Es, S2} = mapfoldl(fun (E_i, S_i) ->
-        i_struct_pair(E_i, Ctx, Ren, Env, S_i)
-    end, S1, struct_es(E)),
-    S3 = count_size(weight(struct), S2),
-    {update_c_struct(E, Arg, struct_id(E), Es), S3}.
+        i_record_pair(E_i, Ctx, Ren, Env, S_i)
+    end, S1, record_es(E)),
+    S3 = count_size(weight(record), S2),
+    {update_c_record(E, Arg, record_id(E), Es), S3}.
 
-i_struct_pair(E, _Ctx, Ren, Env, S0) ->
-    Key = struct_pair_key(E),
-    {Val, S1} = i(struct_pair_val(E), value, Ren, Env, S0),
-    S2 = count_size(weight(struct_pair), S1),
-    {update_c_struct_pair(E, Key, Val), S2}.
+i_record_pair(E, _Ctx, Ren, Env, S0) ->
+    Key = record_pair_key(E),
+    {Val, S1} = i(record_pair_val(E), value, Ren, Env, S0),
+    S2 = count_size(weight(record_pair), S1),
+    {update_c_record_pair(E, Key, Val), S2}.
 
 %% This is a simplified version of `i_pattern', for lists of parameter
 %% variables only. It does not modify the state.
@@ -1462,13 +1462,13 @@ i_pattern(E, Ren, Env, Ren0, Env0, S) ->
                                 end, S, map_es(E)),
 	    S2 = count_size(weight(map), S1),
 	    {update_c_map(E, map_arg(E), Es), S2};
-	struct ->
+	record ->
 	    {Es, S1} = mapfoldl(fun (E_i, S_i) ->
-                                        i_struct_pair_pattern(E_i, Ren, Env,
+                                        i_record_pair_pattern(E_i, Ren, Env,
                                                               Ren0, Env0, S_i)
-                                end, S, struct_es(E)),
-	    S2 = count_size(weight(struct), S1),
-	    {update_c_struct(E, void(), struct_id(E), Es), S2};
+                                end, S, record_es(E)),
+	    S2 = count_size(weight(record), S1),
+	    {update_c_record(E, void(), record_id(E), Es), S2};
 	_ ->
 	    case is_literal(E) of
 		true ->
@@ -1511,11 +1511,11 @@ i_map_pair_pattern(E, Ren, Env, Ren0, Env0, S) ->
     S3 = count_size(weight(map_pair), S2),
     {update_c_map_pair(E, Op, Key, Val), S3}.
 
-i_struct_pair_pattern(E, Ren, Env, Ren0, Env0, S) ->
-    {Key, S1} = i(struct_pair_key(E), value, Ren0, Env0, S),
-    {Val, S2} = i_pattern(struct_pair_val(E), Ren, Env, Ren0, Env0, S1),
+i_record_pair_pattern(E, Ren, Env, Ren0, Env0, S) ->
+    {Key, S1} = i(record_pair_key(E), value, Ren0, Env0, S),
+    {Val, S2} = i_pattern(record_pair_val(E), Ren, Env, Ren0, Env0, S1),
     S3 = count_size(weight(map_pair), S2),
-    {update_c_struct_pair(E, Key, Val), S3}.
+    {update_c_record_pair(E, Key, Val), S3}.
 
 
 %% ---------------------------------------------------------------------

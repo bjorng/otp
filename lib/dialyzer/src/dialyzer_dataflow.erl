@@ -279,7 +279,7 @@ traverse(Tree, Map, State) ->
       handle_tuple(Tree, Map, State);
     map ->
       handle_map(Tree, Map, State);
-    struct ->
+    record ->
       handle_native_record(Tree, Map, State);
     values ->
       Elements = cerl:values_es(Tree),
@@ -1123,11 +1123,11 @@ handle_tuple(Tree, Map, State) ->
 %%----------------------------------------
 
 handle_native_record(Tree, Map, State) ->
-  Id = cerl:concrete(cerl:struct_id(Tree)),
-  Arg = cerl:struct_arg(Tree),
-  Es = cerl:struct_es(Tree),
+  Id = cerl:concrete(cerl:record_id(Tree)),
+  Arg = cerl:record_arg(Tree),
+  Es = cerl:record_es(Tree),
   {State1, Map1, ArgType} = traverse(Arg, Map, State),
-  {State2, Map2, _EsType} = traverse_struct_pairs(Es, Map1, State1, []),
+  {State2, Map2, _EsType} = traverse_record_pairs(Es, Map1, State1, []),
   RecordType = t_record(Id),
   ArgType1 = t_inf(RecordType, ArgType),
   case t_is_impossible(ArgType1) of
@@ -1150,38 +1150,17 @@ handle_native_record(Tree, Map, State) ->
               {State3, Map2, t_none()};
             false ->
               {State2, Map2, t_record(Id)}
-              % case bind_pat_vars(Es, t_tuple_args(RecType),
-              %                     Map2, State2) of
-              %   {error, bind, ErrorPat, ErrorType} ->
-              %     Msg = {record_constr,
-              %             [Id, format_patterns(ErrorPat),
-              %             format_type(ErrorType, State2)]},
-              %     LocTree = hd(ErrorPat),
-              %     State3 = state__add_warning(State2, ?WARN_MATCHING,
-              %                                 LocTree, Msg),
-              %     {State3, Map2, t_none()};
-              %   {error, record, ErrorPat, ErrorType} ->
-              %     Msg = {record_match,
-              %             [format_patterns(ErrorPat),
-              %             format_type(ErrorType, State2)]},
-              %     State3 = state__add_warning(State2, ?WARN_MATCHING,
-              %                                 Tree, Msg),
-              %     {State3, Map2, t_none()};
-              %   {Map3, _ETypes, State3} ->
-              %     %% TODO: Fix
-              %     {State3, Map3, t_record(Id)}
-              % end
           end
       end
   end.
 
-traverse_struct_pairs([], Map, State, PairAcc) ->
+traverse_record_pairs([], Map, State, PairAcc) ->
   {State, Map, lists:reverse(PairAcc)};
-traverse_struct_pairs([Pair|Pairs], Map, State, PairAcc) ->
-  Key = cerl:struct_pair_key(Pair),
-  Val = cerl:struct_pair_val(Pair),
+traverse_record_pairs([Pair|Pairs], Map, State, PairAcc) ->
+  Key = cerl:record_pair_key(Pair),
+  Val = cerl:record_pair_val(Pair),
   {State1, Map1, V} = traverse(Val,Map,State),
-  traverse_struct_pairs(Pairs, Map1, State1,
+  traverse_record_pairs(Pairs, Map1, State1,
 		     [{{Key,V},Pair}|PairAcc]).
 
 %%----------------------------------------
@@ -1527,8 +1506,8 @@ do_bind_pat_vars([Pat|Pats], [Type|Types], Map, State0, Rev, Acc) ->
         bind_map(Pat, Type, Map, State0, Rev);
       tuple ->
         bind_tuple(Pat, Type, Map, State0, Rev);
-      struct ->
-        bind_struct(Pat, Type, Map, State0, Rev);
+      record ->
+        bind_record(Pat, Type, Map, State0, Rev);
       values ->
 	Es = cerl:values_es(Pat),
 	{Map1, EsTypes, State1} = do_bind_pat_vars(Es, t_to_tlist(Type),
@@ -1642,22 +1621,13 @@ bind_tuple(Pat, Type, Map, State, Rev) ->
       {Map1, TupleType, State2}
   end.
 
-bind_struct(Pat, Type, Map, State, _Rev) ->
-  _Es = cerl:struct_es(Pat),
+bind_record(Pat, Type, Map, State, _Rev) ->
+  _Es = cerl:record_es(Pat),
   Prototype = t_record(),
   {_Record, State1} = bind_checked_inf(Pat, Prototype, Type, State),
   _MapJ = join_maps_begin(Map),
   %% Need to call the top function to get the try-catch wrapper.
   {_Results, State2} = {t_record(), State1},
-  % case [M || {M, _} <- Results, M =/= error] of
-  %   [] ->
-  %     bind_error([Pat], Tuple, Prototype, record);
-  %   Maps ->
-  %     Map1 = join_maps_end(Maps, MapJ),
-  %     TupleType = t_sup([t_tuple(EsTypes) ||
-  %                         {M, EsTypes} <- Results, M =/= error]),
-  %     {Map1, TupleType, State2}
-  % end,
   {Map, t_record(), State2}.
 
 bind_bin_segs(BinSegs, BinType, Map, State) ->
@@ -3669,7 +3639,7 @@ find_terminals(Tree) ->
     'try' ->
       find_terminals_list([cerl:try_handler(Tree), cerl:try_body(Tree)]);
     tuple -> {false, true};
-    struct -> {false, true};
+    record -> {false, true};
     values -> {false, true};
     var -> {false, true}
   end.

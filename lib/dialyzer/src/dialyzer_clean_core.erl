@@ -86,11 +86,11 @@ clean(Tree) ->
       Arg = clean(cerl:seq_arg(Tree)),
       Body = clean(cerl:seq_body(Tree)),
       cerl:update_c_seq(Tree, Arg, Body);
-    struct ->
-      Arg = clean(cerl:struct_arg(Tree)),
-      Id = clean(cerl:struct_id(Tree)),
-      Entries = clean_native_record_pairs(cerl:struct_es(Tree)),
-      cerl:update_c_struct(Tree, Arg, Id, Entries);
+    record ->
+      Arg = clean(cerl:record_arg(Tree)),
+      Id = clean(cerl:record_id(Tree)),
+      Entries = clean_native_record_pairs(cerl:record_es(Tree)),
+      cerl:update_c_record(Tree, Arg, Id, Entries);
     'try' ->
       Arg = clean(cerl:try_arg(Tree)),
       Body = clean(cerl:try_body(Tree)),
@@ -235,10 +235,10 @@ clean_map_pairs([]) ->
   [].
 
 clean_native_record_pairs([Pair|Pairs]) ->
-  Key = clean(cerl:struct_pair_key(Pair)),
-  Val = clean(cerl:struct_pair_val(Pair)),
+  Key = clean(cerl:record_pair_key(Pair)),
+  Val = clean(cerl:record_pair_val(Pair)),
   Pairs1 = clean_native_record_pairs(Pairs),
-  Pair1 = cerl:update_c_struct_pair(Pair, Key, Val),
+  Pair1 = cerl:update_c_record_pair(Pair, Key, Val),
   [Pair1|Pairs1];
 clean_native_record_pairs([]) ->
   [].

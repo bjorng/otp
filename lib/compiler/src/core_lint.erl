@@ -410,10 +410,10 @@ expr(#c_try{arg=A,vars=Vs,body=B,evars=Evs,handler=H}, Def, Rt, St0) ->
     St4 = body(B, union(Ns, Def), Rt, St3),
     {Ens,St5} = variable_list(Evs, St4),
     body(H, union(Ens, Def), Rt, St5);
-expr(#c_struct{id=Id,es=Es}, Def, Rt, St0) ->
+expr(#c_record{id=Id,es=Es}, Def, Rt, St0) ->
     St = expr(Id, Def, 1, St0),
     return_match(Rt, 1, expr_list(Es, Def, St));
-expr(#c_struct_pair{key=K,val=V}, Def, Rt, St) ->
+expr(#c_record_pair{key=K,val=V}, Def, Rt, St) ->
     return_match(Rt, 1, expr_list([K,V], Def, St));
 expr(_Other, _, _, St) ->
     %%io:fwrite("clint expr: ~p~n", [_Other]),
@@ -521,9 +521,9 @@ pattern(#c_map_pair{op=#c_literal{val=exact},key=K,val=V}, Def, Ps, St) ->
     %% The key is an input.
     pat_map_expr(K, Def, St),
     pattern_list([V],Def,Ps,St);
-pattern(#c_struct{es=Es}, Def, Ps, St) ->
+pattern(#c_record{es=Es}, Def, Ps, St) ->
     pattern_list(Es, Def, Ps, St);
-pattern(#c_struct_pair{key=K,val=V}, Def, Ps, St) ->
+pattern(#c_record_pair{key=K,val=V}, Def, Ps, St) ->
     pattern_list([K,V], Def, Ps, St);
 pattern(#c_binary{segments=Ss}, Def, Ps, St0) ->
     St = pat_bin_tail_check(Ss, St0),

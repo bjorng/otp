@@ -341,7 +341,7 @@ expr(#c_tuple{es=Ces}, Sub, St0) ->
     {#b_set{op=put_tuple,args=Kes},Ep,St1};
 expr(#c_map{anno=A,arg=Var,es=Ces}, Sub, St0) ->
     expr_map(A, Var, Ces, Sub, St0);
-expr(#c_struct{anno=A,arg=Var,id=Id,es=Ces}, Sub, St0) ->
+expr(#c_record{anno=A,arg=Var,id=Id,es=Ces}, Sub, St0) ->
     expr_struct(A, Var, Id, Ces, Sub, St0);
 expr(#c_binary{anno=A,segments=Cv}, Sub, St0) ->
     try
@@ -676,7 +676,7 @@ struct_split_pairs(A, Var, Id, Ces, Sub, St0) ->
     %% 3. Within each such group, remove multiple assignments to
     %%    the same key.
     {Pairs,Esp,St1} =
-        foldr(fun(#c_struct_pair{key=K0,val=V0},{KVs,Espi,Sti0}) ->
+        foldr(fun(#c_record_pair{key=K0,val=V0},{KVs,Espi,Sti0}) ->
                       {K,Eps1,Sti1} = atomic(K0, Sub, Sti0),
                       {V,Eps2,Sti2} = atomic(V0, Sub, Sti1),
                       {[{K,V}|KVs],Eps1 ++ Eps2 ++ Espi,Sti2}
@@ -872,7 +872,7 @@ pattern(#c_tuple{es=Ces}, Sub0, St0) ->
 pattern(#c_map{es=Ces}, Sub0, St0) ->
     {Kes,Sub1,St1} = pattern_map_pairs(Ces, Sub0, St0),
     {#cg_map{op=exact,es=Kes},Sub1,St1};
-pattern(#c_struct{id=#c_literal{val=Id}, es=Ces}, Sub0,
+pattern(#c_record{id=#c_literal{val=Id}, es=Ces}, Sub0,
         #kern{module=Mod}=St0) ->
     {Kes,Sub1,St1} = pattern_record_pairs(Ces, Sub0, St0),
     Local = case Id of
@@ -913,7 +913,7 @@ pattern_map_pairs(Ces0, Sub0, St0) ->
 
 pattern_record_pairs(Ces0, Sub0, St0) ->
     {Kes0,{Sub1,St1}} =
-        mapfoldl(fun(#c_struct_pair{key=K,val=Cv},{Subi0,Sti0}) ->
+        mapfoldl(fun(#c_record_pair{key=K,val=Cv},{Subi0,Sti0}) ->
                          {Kk,Subi1,Sti1} = pattern(K, Subi0, Sti0),
                          {Kv,Subi2,Sti2} = pattern(Cv, Subi1, Sti1),
                          {#cg_record_pair{key=Kk,val=Kv},{Subi2,Sti2}}

@@ -718,8 +718,8 @@ type(erlang, is_record, 2, Xs) ->
 type(erlang, is_record, 3, Xs) ->
   Fun = fun ([X, Y, Z]) ->
 	    Arity = case is_integer(Z) of
-		true -> t_number_vals(Z);
-		false -> -1
+                      true -> t_number_vals(Z);
+                      false -> -1
 	            end,
 	    case {t_is_tuple(X), t_is_record(X)} of
 	      {false, false} when length(Arity) =:= 1 ->

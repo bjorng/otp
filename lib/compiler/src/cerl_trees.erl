@@ -78,11 +78,12 @@ Syntax trees are defined in the module `m:cerl`.
 	       ann_c_map_pair/4,
 	       update_c_map_pair/4,
 
-	       ann_c_struct/4, struct_arg/1, struct_id/1, struct_es/1,
-               update_c_struct/4,
-               ann_c_struct_pair/3,
-               struct_pair_key/1, struct_pair_val/1,
-	       update_c_struct_pair/3
+               ann_c_record/4, record_arg/1, record_id/1, record_es/1,
+               update_c_record/4,
+               ann_c_record_pair/3,
+               record_es/1,
+               record_pair_key/1, record_pair_val/1,
+               update_c_record_pair/3
 	   ]).
 
 -type cerl() :: cerl:cerl().
@@ -160,12 +161,12 @@ map_1(F, T) ->
 	    update_c_map_pair(T, map(F, map_pair_op(T)),
                                  map(F, map_pair_key(T)),
                                  map(F, map_pair_val(T)));
-	struct ->
-            update_c_struct(T, map(F, struct_arg(T)), map(F, struct_id(T)),
-                            map_list(F, struct_es(T)));
-	struct_pair ->
-            update_c_struct_pair(T, map(F, struct_pair_key(T)),
-                                 map(F, struct_pair_val(T)));
+	record ->
+            update_c_record(T, map(F, record_arg(T)), map(F, record_id(T)),
+                            map_list(F, record_es(T)));
+	record_pair ->
+            update_c_record_pair(T, map(F, record_pair_key(T)),
+                                 map(F, record_pair_val(T)));
  	'let' ->
 	    update_c_let(T, map_list(F, let_vars(T)),
 			 map(F, let_arg(T)),
@@ -271,10 +272,10 @@ fold_1(F, S, T) ->
  	    fold_list(F, S, values_es(T));
 	cons ->
 	    fold(F, fold(F, S, cons_hd(T)), cons_tl(T));
-	struct ->
-	    fold_list(F, S, struct_es(T));
-	struct_pair ->
-	    fold(F, fold(F, S, struct_pair_key(T)), struct_pair_val(T));
+        record ->
+            fold_list(F, S, record_es(T));
+	record_pair ->
+	    fold(F, fold(F, S, record_pair_key(T)), record_pair_val(T));
 	tuple ->
 	    fold_list(F, S, tuple_es(T));
 	map ->
@@ -437,15 +438,15 @@ mapfold(Pre, Post, S00, T0) ->
 		    {Key, S2} = mapfold(Pre, Post, S1, map_pair_key(T)),
 		    {Val, S3} = mapfold(Pre, Post, S2, map_pair_val(T)),
 		    Post(update_c_map_pair(T,Op,Key,Val), S3);
-		struct ->
-		    {Arg, S1} = mapfold(Pre, Post, S0, struct_arg(T)),
-		    {Id, S2} = mapfold(Pre, Post, S1, struct_id(T)),
-		    {Ts, S3} = mapfold_list(Pre, Post, S2, struct_es(T)),
-		    Post(update_c_struct(T, Arg, Id, Ts), S3);
-		struct_pair ->
-		    {Key, S1} = mapfold(Pre, Post, S0, struct_pair_key(T)),
-		    {Val, S2} = mapfold(Pre, Post, S1, struct_pair_val(T)),
-		    Post(update_c_struct_pair(T, Key, Val), S2);
+		record ->
+                    {Arg, S1} = mapfold(Pre, Post, S0, record_arg(T)),
+                    {Id, S2} = mapfold(Pre, Post, S1, record_id(T)),
+                    {Ts, S3} = mapfold_list(Pre, Post, S2, record_es(T)),
+                    Post(update_c_record(T, Arg, Id, Ts), S3);
+                record_pair ->
+                    {Key, S1} = mapfold(Pre, Post, S0, record_pair_key(T)),
+                    {Val, S2} = mapfold(Pre, Post, S1, record_pair_val(T)),
+                    Post(update_c_record_pair(T, Key, Val), S2);
 		'let' ->
 		    {Vs, S1} = mapfold_list(Pre, Post, S0, let_vars(T)),
 		    {A, S2} = mapfold(Pre, Post, S1, let_arg(T)),
@@ -589,10 +590,10 @@ variables(T, S) ->
 	    vars_in_list([map_arg(T)|map_es(T)], S);
 	map_pair ->
 	    vars_in_list([map_pair_op(T),map_pair_key(T),map_pair_val(T)], S);
-	struct ->
-			vars_in_list(struct_es(T), S);
-	struct_pair ->
-		  variables(struct_pair_val(T), S);
+	record ->
+            vars_in_list(record_es(T), S);
+	record_pair ->
+            variables(record_pair_val(T), S);
 	'let' ->
 	    Vs = variables(let_body(T), S),
 	    Vs1 = var_list_names(let_vars(T)),
@@ -762,11 +763,14 @@ next_free(T, Max) ->
             next_free_in_list(tuple_es(T), Max);
         map ->
             next_free_in_list([map_arg(T)|map_es(T)], Max);
-			  struct ->
-					Max;
         map_pair ->
             next_free_in_list([map_pair_op(T),map_pair_key(T),
                                map_pair_val(T)], Max);
+        record ->
+            next_free_in_list([record_arg(T)|record_es(T)], Max);
+        record_pair ->
+            next_free_in_list([record_pair_key(T),
+                               record_pair_val(T)], Max);
         'let' ->
             Max1 = next_free(let_body(T), Max),
             Max2 = next_free_in_list(let_vars(T), Max1),
@@ -918,17 +922,17 @@ label(T, N, Env) ->
 	    {Val, N3} = label(map_pair_val(T), N2, Env),
 	    {As,  N4} = label_ann(T, N3),
 	    {ann_c_map_pair(As,Op,Key,Val), N4};
-        struct ->
-            {Arg, N1} = label(struct_arg(T), N, Env),
-            {Id, N2} = label(struct_id(T), N1, Env),
-            {Ts, N3} = label_list(struct_es(T), N2, Env),
+        record ->
+            {Arg, N1} = label(record_arg(T), N, Env),
+            {Id, N2} = label(record_id(T), N1, Env),
+            {Ts, N3} = label_list(record_es(T), N2, Env),
             {As, N4} = label_ann(T, N3),
-            {ann_c_struct(As, Arg, Id, Ts), N4};
-	struct_pair ->
-	    {Key, N1} = label(struct_pair_key(T), N, Env),
-	    {Val, N2} = label(struct_pair_val(T), N1, Env),
+            {ann_c_record(As, Arg, Id, Ts), N4};
+	record_pair ->
+	    {Key, N1} = label(record_pair_key(T), N, Env),
+	    {Val, N2} = label(record_pair_val(T), N1, Env),
 	    {As,  N3} = label_ann(T, N2),
-	    {ann_c_struct_pair(As, Key, Val), N3};
+	    {ann_c_record_pair(As, Key, Val), N3};
  	'let' ->
 	    {A, N1} = label(let_arg(T), N, Env),
 	    {Vs, N2, Env1} = label_vars(let_vars(T), N1, Env),

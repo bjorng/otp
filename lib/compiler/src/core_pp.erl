@@ -23,7 +23,7 @@
 
 -module(core_pp).
 -moduledoc false.
-
+-compile([nowarn_deprecated_catch]).
 -export([format/1,format_all/1]).
 
 -include("core_parse.hrl").
@@ -215,29 +215,29 @@ format_1(#c_map{arg=Var,es=Es}, Ctxt) ->
      "}~"
     ];
 %% Native Record Pattern
-format_1(#c_struct{arg=#c_literal{val=ok}, id = #c_literal{val={M, N}}, es = Es}, Ctxt) ->
+format_1(#c_record{arg=#c_literal{val=ok}, id = #c_literal{val={M, N}}, es = Es}, Ctxt) ->
     ["~#" ++ core_atom(M) ++ ":" ++ core_atom(N) ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];
-format_1(#c_struct{arg=#c_literal{val=ok}, id = #c_literal{val=[]}, es = Es}, Ctxt) ->
+format_1(#c_record{arg=#c_literal{val=ok}, id = #c_literal{val=[]}, es = Es}, Ctxt) ->
     ["~#/" ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];
 %% Native Record Expression
-format_1(#c_struct{arg=#c_literal{val=empty}, id = #c_literal{val={M, N}}, es = Es}, Ctxt) ->
+format_1(#c_record{arg=#c_literal{val=empty}, id = #c_literal{val={M, N}}, es = Es}, Ctxt) ->
     ["~#" ++ core_atom(M) ++ ":" ++ core_atom(N) ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];
-format_1(#c_struct{arg=Arg, id = #c_literal{val={M, N}}, es = Es}, Ctxt) ->
+format_1(#c_record{arg=Arg, id = #c_literal{val={M, N}}, es = Es}, Ctxt) ->
     ["~" ++ format(Arg, add_indent(Ctxt, 1)) ++ "#" ++ core_atom(M) ++ ":" ++ core_atom(N) ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];
-format_1(#c_struct{arg=Arg, id = #c_literal{val=[]}, es = Es}, Ctxt) ->
+format_1(#c_record{arg=Arg, id = #c_literal{val=[]}, es = Es}, Ctxt) ->
     ["~" ++ format(Arg, add_indent(Ctxt, 1)) ++ "#/" ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];
-format_1(#c_struct_pair{key=K,val=V}, Ctxt) ->
-    format_struct_pair("=", K, V, Ctxt);
+format_1(#c_record_pair{key=K,val=V}, Ctxt) ->
+    format_record_pair("=", K, V, Ctxt);
 format_1(#c_map_pair{op=#c_literal{val=assoc},key=K,val=V}, Ctxt) ->
     format_map_pair("=>", K, V, Ctxt);
 format_1(#c_map_pair{op=#c_literal{val=exact},key=K,val=V}, Ctxt) ->
@@ -508,7 +508,7 @@ format_map_pair(Op, K, V, Ctxt0) ->
     Ctxt2 = add_indent(Ctxt0, width(Txt, Ctxt1)),
     [Txt,Op,format(V, Ctxt2)].
 
-format_struct_pair(Op, K, V, Ctxt0) ->
+format_record_pair(Op, K, V, Ctxt0) ->
     Ctxt1 = add_indent(Ctxt0, 1),
     Txt = format(K, Ctxt1),
     Ctxt2 = add_indent(Ctxt0, width(Txt, Ctxt1)),

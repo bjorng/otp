@@ -84,12 +84,12 @@
 		     key :: any(),              % TODO
 		     val :: any()}).            % TODO
 
--record(c_struct, {anno=[] :: list(),
+-record(c_record, {anno=[] :: list(),
                    arg=#c_literal{val=ok} :: cerl:c_var() | cerl:c_literal(),
                    id :: cerl:c_literal(),
-                   es :: [cerl:c_struct_pair()]}).
+                   es :: [cerl:c_record_pair()]}).
 
--record(c_struct_pair, {anno=[] :: list(),
+-record(c_record_pair, {anno=[] :: list(),
                         key :: cerl:c_literal(),
                         val :: cerl:cerl()}).
 

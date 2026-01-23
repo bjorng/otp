@@ -77,7 +77,7 @@
 		reverse/1,reverse/2,member/2,flatten/1,
 		unzip/1,keyfind/3]).
 
--import(cerl, [ann_c_cons/3,ann_c_map/3,ann_c_struct/4,ann_c_tuple/2]).
+-import(cerl, [ann_c_cons/3,ann_c_map/3,ann_c_record/4,ann_c_tuple/2]).
 
 -include("core_parse.hrl").
 
@@ -231,7 +231,7 @@ expr(#c_map{anno=Anno,arg=V0,es=Es0}=Map, Ctxt, Sub) ->
     Es = pair_list(Es0, descend(Map, Sub)),
     V = expr(V0, value, Sub),
     ann_c_map(Anno, V, Es);
-expr(#c_struct{anno=Anno,arg=V0,id=Id,es=Es0}=Struct, Ctxt, Sub) ->
+expr(#c_record{anno=Anno,arg=V0,id=Id,es=Es0}=Struct, Ctxt, Sub) ->
     %% Warn for useless building, but always build the struct
     %% anyway to preserve a possible exception.
     case Ctxt of
@@ -240,7 +240,7 @@ expr(#c_struct{anno=Anno,arg=V0,id=Id,es=Es0}=Struct, Ctxt, Sub) ->
     end,
     Es = pair_list(Es0, descend(Struct, Sub)),
     V = expr(V0, value, Sub),
-    ann_c_struct(Anno, V, Id, Es);
+    ann_c_record(Anno, V, Id, Es);
 expr(#c_binary{segments=Ss}=Bin0, Ctxt, Sub) ->
     %% Warn for useless building, but always build the binary
     %% anyway to preserve a possible exception.
@@ -508,10 +508,10 @@ pair(#c_map_pair{key=K0,val=V0}=Pair, Sub) ->
     K = expr(K0, value, Sub),
     V = expr(V0, value, Sub),
     Pair#c_map_pair{key=K,val=V};
-pair(#c_struct_pair{key=K0,val=V0}=Pair, Sub) ->
+pair(#c_record_pair{key=K0,val=V0}=Pair, Sub) ->
     K = expr(K0, value, Sub),
     V = expr(V0, value, Sub),
-    Pair#c_struct_pair{key=K,val=V}.
+    Pair#c_record_pair{key=K,val=V}.
 
 bitstr_list(Es, Sub) ->
     [bitstr(E, Sub) || E <- Es].
@@ -1156,9 +1156,9 @@ pattern(#c_tuple{anno=Anno,es=Es0}, Isub, Osub0) ->
 pattern(#c_map{anno=Anno,es=Es0}=Map, Isub, Osub0) ->
     {Es1,Osub1} = map_pair_pattern_list(Es0, Isub, Osub0),
     {Map#c_map{anno=Anno,es=Es1},Osub1};
-pattern(#c_struct{anno=Anno,es=Es0}=Str, Isub, Osub0) ->
-    {Es1,Osub1} = struct_pair_pattern_list(Es0, Isub, Osub0),
-    {Str#c_struct{anno=Anno,es=Es1},Osub1};
+pattern(#c_record{anno=Anno,es=Es0}=Str, Isub, Osub0) ->
+    {Es1,Osub1} = record_pair_pattern_list(Es0, Isub, Osub0),
+    {Str#c_record{anno=Anno,es=Es1},Osub1};
 pattern(#c_binary{segments=V0}=Pat, Isub, Osub0) ->
     {V1,Osub1} = bin_pattern_list(V0, Isub, Osub0),
     {Pat#c_binary{segments=V1},Osub1};
@@ -1176,15 +1176,15 @@ map_pair_pattern(#c_map_pair{op=#c_literal{val=exact},key=K0,val=V0}=Pair,{Isub,
     {V,Osub} = pattern(V0,Isub,Osub0),
     {Pair#c_map_pair{key=K,val=V},{Isub,Osub}}.
 
--spec struct_pair_pattern_list([cerl:c_struct_pair()], sub(), sub()) -> {[cerl:c_struct_pair()], sub()}.
-struct_pair_pattern_list(Ps0, Isub, Osub0) ->
-  {Ps,{_,Osub}} = mapfoldl(fun struct_pair_pattern/2, {Isub,Osub0}, Ps0),
+-spec record_pair_pattern_list([cerl:c_record_pair()], sub(), sub()) -> {[cerl:c_record_pair()], sub()}.
+record_pair_pattern_list(Ps0, Isub, Osub0) ->
+  {Ps,{_,Osub}} = mapfoldl(fun record_pair_pattern/2, {Isub,Osub0}, Ps0),
   {Ps,Osub}.
 
--spec struct_pair_pattern(cerl:c_struct_pair(), {sub(), sub()}) -> {cerl:c_struct_pair(), {sub(), sub()}}.
-struct_pair_pattern(#c_struct_pair{val=V0}=Pair,{Isub,Osub0}) ->
+-spec record_pair_pattern(cerl:c_record_pair(), {sub(), sub()}) -> {cerl:c_record_pair(), {sub(), sub()}}.
+record_pair_pattern(#c_record_pair{val=V0}=Pair,{Isub,Osub0}) ->
   {V,Osub} = pattern(V0,Isub,Osub0),
-  {Pair#c_struct_pair{val=V},{Isub,Osub}}.
+  {Pair#c_record_pair{val=V},{Isub,Osub}}.
 
 bin_pattern_list(Ps, Isub, Osub0) ->
     mapfoldl(fun(P, Osub) ->
@@ -1822,10 +1822,10 @@ case_opt_compiler_generated(Core) ->
 		    alias -> C;
 		    var -> C;
                     struct ->
-                        Arg = cerl:struct_arg(C),
-                        Id = cerl:set_ann(cerl:struct_id(C), []),
-                        Es = cerl:struct_es(C),
-                        cerl:update_c_struct(C, Arg, Id, Es);
+                        Arg = cerl:record_arg(C),
+                        Id = cerl:set_ann(cerl:record_id(C), []),
+                        Es = cerl:record_es(C),
+                        cerl:update_c_record(C, Arg, Id, Es);
 		    _ ->
                         cerl:set_ann(C, [compiler_generated])
 		end

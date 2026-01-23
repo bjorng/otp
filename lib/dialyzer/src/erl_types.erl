@@ -128,7 +128,7 @@
 	 t_is_pid/1,
 	 t_is_port/1,
 	 t_is_maybe_improper_list/1,
-   t_is_record/1,
+         t_is_record/1,
 	 t_is_reference/1,
          t_is_same_opaque/2,
 	 t_is_singleton/1,
@@ -174,9 +174,9 @@
 	 t_port/0,
 	 t_maybe_improper_list/0,
 	 t_product/1,
-   t_record/0,
-   t_record/1,
-   t_record_put/2,
+         t_record/0,
+         t_record/1,
+         t_record_put/2,
 	 t_reference/0,
 	 t_string/0,
 	 t_subst/2,
@@ -209,7 +209,7 @@
 	 var_table__new/0,
 	 cache__new/0,
 	 module_type_deps_of_type_defs/1,
-   type_form_to_remote_modules/1
+         type_form_to_remote_modules/1
 	]).
 
 -compile({no_auto_import,[min/2,max/2,map_get/2]}).
@@ -3890,7 +3890,7 @@ t_to_string(?record({Module, Name}, ?any), _RecDict) ->
   ModName ++ "#{any()}";
 t_to_string(?record({Module, Name}, Pairs), RecDict) ->
   ModName = flat_format("~w:~tw", [Module, Name]),
-  ModName ++ "#{" ++ 
+  ModName ++ "#{" ++
   flat_join([t_to_string(K, RecDict) ++ "=" ++ t_to_string(V, RecDict)
              || K := V <:- Pairs], ", ")
   ++ "}";
