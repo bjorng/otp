@@ -712,8 +712,8 @@ lexpr({get_record_field, _, Rec, Name0, F}, Prec, Opts) ->
     {L,P,R} = inop_prec('#'),
     Rl = lexpr(Rec, L, Opts),
     Name = case Name0 of
-              {tuple,_,[{atom,_,M},{atom,_,N}]} -> {M,N};
-              {tuple,_,[]} -> {}
+               {tuple,_,[{atom,_,M},{atom,_,N}]} -> {M,N};
+               {nil,0} -> []
            end,
     Nl = native_record_name(Name),
     El = [Rl,Nl,lexpr(F, R, Opts)],
@@ -972,10 +972,10 @@ record_field({record_field,_,F}, Opts) ->
 
 native_record_name({M, N}) when is_atom(M), is_atom(N) ->
     [$#,{atom,M},$:,{atom,N}];
+native_record_name([]) ->
+    [$#, $_];
 native_record_name(M) when is_atom(M) ->
-    [$#,{atom,M}];
-native_record_name({}) ->
-    [$#, $_].
+    [$#,{atom,M}].
 
 map_fields(Fs, Opts) ->
     tuple(Fs, fun map_field/2, Opts).

@@ -30,7 +30,6 @@ function function_clauses function_clause
 clause_args clause_guard clause_body
 expr expr_max expr_remote
 pat_expr pat_expr_max map_pat_expr record_pat_expr
-native_record_pat_expr
 pat_argument_list pat_exprs
 list tail
 list_comprehension lc_expr lc_exprs
@@ -39,7 +38,6 @@ map_comprehension
 binary_comprehension
 tuple
 record_expr record_tuple record_field record_fields
-native_record_expr
 map_expr map_tuple map_field map_field_assoc map_field_exact map_fields map_key
 if_expr if_clause if_clauses case_expr cr_clause cr_clauses receive_expr
 fun_expr fun_clause fun_clauses atom_or_var integer_or_var
@@ -296,7 +294,6 @@ expr -> prefix_op expr : ?mkop1('$1', '$2').
 expr -> map_expr : '$1'.
 expr -> function_call : '$1'.
 expr -> record_expr : '$1'.
-expr -> native_record_expr : '$1'.
 expr -> expr_remote : '$1'.
 expr -> expr_max : '$1'.
 
@@ -328,7 +325,6 @@ pat_expr -> pat_expr mult_op pat_expr : ?mkop2('$1', '$2', '$3').
 pat_expr -> prefix_op pat_expr : ?mkop1('$1', '$2').
 pat_expr -> map_pat_expr : '$1'.
 pat_expr -> record_pat_expr : '$1'.
-pat_expr -> native_record_pat_expr : '$1'.
 pat_expr -> pat_expr_max : '$1'.
 
 pat_expr_max -> var : '$1'.
@@ -346,11 +342,12 @@ record_pat_expr -> '#' atom '.' atom :
                        {record_index,?anno('$1'),element(3, '$2'),'$4'}.
 record_pat_expr -> '#' record_name record_tuple :
                        {record,?anno('$1'),element(3, '$2'),'$3'}.
-
-native_record_pat_expr -> '#' atom ':' record_name record_tuple :
-	{native_record,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
-native_record_pat_expr -> '#_' record_tuple :
-	{native_record,?anno('$1'), {},'$2'}.
+record_pat_expr -> '#' atom ':' record_name record_tuple :
+                       Id = {element(3, '$2'), element(3, '$4')},
+                       {record,?anno('$1'),Id,'$5'}.
+record_pat_expr -> '#_' record_tuple :
+                       Id = [],
+                       {record,?anno('$1'), Id, '$2'}.
 
 list -> '[' ']' : {nil,?anno('$1')}.
 list -> '[' expr tail : {cons,?anno('$1'),'$2','$3'}.
@@ -439,11 +436,7 @@ map_field_exact -> map_key ':=' expr :
 
 map_key -> expr : '$1'.
 
-
-%% N.B. This is called from expr.
-%% N.B. Field names are returned as the complete object, even if they are
-%% always atoms for the moment, this might change in the future.
-
+%% Tuple or native record expressions.
 record_expr -> '#' atom '.' atom :
 	{record_index,?anno('$1'),element(3, '$2'),'$4'}.
 record_expr -> '#' record_name record_tuple :
@@ -457,6 +450,26 @@ record_expr -> record_expr '#' record_name '.' atom :
 record_expr -> record_expr '#' record_name record_tuple :
 	{record,?anno('$2'),'$1',element(3, '$3'),'$4'}.
 
+%% Native record expressions with explicit module name.
+record_expr -> '#' atom ':' record_name record_tuple :
+        Id = {element(3, '$2'), element(3, '$4')},
+        {record,?anno('$1'), Id, '$5'}.
+record_expr -> '#_' record_tuple :
+        Id = [],
+	{record,?anno('$1'), Id, '$2'}.
+record_expr -> expr_max '#' atom ':' record_name '.' atom :
+        Id = {element(3, '$3'), element(3, '$5')},
+	{record_field,?anno('$2'),'$1',Id,element(3, '$7')}.
+record_expr -> expr_max '#_' '.' atom :
+        Id = [],
+	{record_field,?anno('$2'),'$1',Id,element(3, '$4')}.
+record_expr -> expr_max '#' atom ':' record_name record_tuple :
+        Id = {element(3, '$3'), element(3, '$5')},
+	{record,?anno('$2'),'$1',Id,'$6'}.
+record_expr -> expr_max '#_' record_tuple :
+        Id = [],
+	{record,?anno('$2'),'$1',Id,'$3'}.
+
 record_tuple -> '{' '}' : [].
 record_tuple -> '{' record_fields '}' : '$2'.
 
@@ -466,22 +479,6 @@ record_fields -> record_field ',' record_fields : ['$1' | '$3'].
 record_field -> var '=' expr : {record_field,?anno('$1'),'$1','$3'}.
 record_field -> atom '=' expr : {record_field,?anno('$1'),'$1','$3'}.
 
-native_record_expr -> '#' atom ':' record_name record_tuple :
-	{native_record,?anno('$1'),{element(3, '$2'), element(3, '$4')},'$5'}.
-native_record_expr -> '#_' record_tuple :
-	{native_record,?anno('$1'), {},'$2'}.
-
-native_record_expr -> expr_max '#' atom ':' record_name '.' atom :
-	{native_record_field_expr,?anno('$2'),'$1',{element(3, '$3'),element(3, '$5')},element(3, '$7')}.
-native_record_expr -> expr_max '#_' '.' atom :
-	{native_record_field_expr,?anno('$2'),'$1',{},element(3, '$4')}.
-
-native_record_expr -> expr_max '#' atom ':' record_name record_tuple :
-	{native_record_update,?anno('$2'),'$1',{element(3, '$3'),element(3, '$5')},'$6'}.
-native_record_expr -> expr_max '#_' record_tuple :
-	{native_record_update,?anno('$2'),'$1',{},'$3'}.
-native_record_expr -> native_record_expr '#_' record_tuple :
-        {native_record_update,?anno('$2'),'$1',{},'$3'}.
 
 function_call -> expr argument_list :
         {call,first_anno('$1'),'$1',element(1, '$2')}.
@@ -2433,19 +2430,19 @@ modify_anno1({Tag,A,E1}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {E11,Ac2} = modify_anno1(E1, Ac1, Mf),
     {{Tag,A1,E11},Ac2};
-modify_anno1({native_record,A,N,Fs}, Ac, Mf) ->
+modify_anno1({record,A,N,Fs}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {Fs1,Ac2} = modify_anno1(Fs, Ac1, Mf),
-    {{native_record,A1,N,Fs1},Ac2};
-modify_anno1({native_record_update,A,E,N,Fs}, Ac, Mf) ->
+    {{record,A1,N,Fs1},Ac2};
+modify_anno1({record,A,E,N,Fs}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {E1,Ac2} = modify_anno1(E, Ac1, Mf),
     {Fs1,Ac3} = modify_anno1(Fs, Ac2, Mf),
-    {{native_record_update,A1,E1,N,Fs1},Ac3};
-modify_anno1({native_record_field_expr,A,E,N,FN}, Ac, Mf) ->
+    {{record,A1,E1,N,Fs1},Ac3};
+modify_anno1({record_field,A,E,N,FN}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {E1,Ac2} = modify_anno1(E, Ac1, Mf),
-    {{native_record_field_expr,A1,E1,N,FN},Ac2};
+    {{record_field,A1,E1,N,FN},Ac2};
 modify_anno1({Tag,A,E1,E2}, Ac, Mf) ->
     {A1,Ac1} = Mf(A, Ac),
     {E11,Ac2} = modify_anno1(E1, Ac1, Mf),

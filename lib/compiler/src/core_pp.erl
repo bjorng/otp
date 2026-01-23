@@ -219,7 +219,7 @@ format_1(#c_struct{arg=#c_literal{val=ok}, id = #c_literal{val={M, N}}, es = Es}
     ["~#" ++ core_atom(M) ++ ":" ++ core_atom(N) ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];
-format_1(#c_struct{arg=#c_literal{val=ok}, id = #c_literal{val={}}, es = Es}, Ctxt) ->
+format_1(#c_struct{arg=#c_literal{val=ok}, id = #c_literal{val=[]}, es = Es}, Ctxt) ->
     ["~#/" ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];
@@ -232,7 +232,7 @@ format_1(#c_struct{arg=Arg, id = #c_literal{val={M, N}}, es = Es}, Ctxt) ->
     ["~" ++ format(Arg, add_indent(Ctxt, 1)) ++ "#" ++ core_atom(M) ++ ":" ++ core_atom(N) ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];
-format_1(#c_struct{arg=Arg, id = #c_literal{val={}}, es = Es}, Ctxt) ->
+format_1(#c_struct{arg=Arg, id = #c_literal{val=[]}, es = Es}, Ctxt) ->
     ["~" ++ format(Arg, add_indent(Ctxt, 1)) ++ "#/" ++ "{",
      format_hseq(Es, ",", add_indent(Ctxt, 1), fun format/2),
      "}"];

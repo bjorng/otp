@@ -2177,6 +2177,17 @@ pattern({record_index,Anno,Name,Field}, _Vt, _Old, St) ->
                              pattern_field(Field, Name, Dfs, St1)
                      end),
     {Vt1,[],St1};
+pattern({record, Anno, {Mod, Name}, Pfs}, Vt, Old, St) ->
+    if
+        Mod =:= St#lint.module ->
+            St1 = call_native_record(Anno, Name, St),
+            St2 = check_native_record_fields_usage(Name, Pfs, St1),
+            pattern_native_record_fields(Pfs, Vt, Old, St2);
+        true ->
+            pattern_native_record_fields(Pfs, Vt, Old, St)
+    end;
+pattern({record, _Anno, [], Fs}, Vt, Old, St) ->
+    pattern_native_record_fields(Fs, Vt, Old, St);
 pattern({record,Anno,Name,Pfs}, Vt, Old, St) ->
     case is_native_record_defined(Name, St) of
         true ->
@@ -2197,10 +2208,6 @@ pattern({record,Anno,Name,Pfs}, Vt, Old, St) ->
                     end
             end
     end;
-pattern({native_record, _Anno, {_Mod, _Name}, Fs}, Vt, Old, St) ->
-    pattern_native_record_fields(Fs, Vt, Old, St);
-pattern({native_record, _Anno, {}, Fs}, Vt, Old, St) ->
-    pattern_native_record_fields(Fs, Vt, Old, St);
 pattern({bin,_,Fs}, Vt, Old, St) ->
     pattern_bin(Fs, Vt, Old, St);
 pattern({op,_Anno,'++',{nil,_},R}, Vt, Old, St) ->
@@ -2871,7 +2878,14 @@ expr({map,Anno,Src,Es}, Vt, St) ->
 expr({record_index,Anno,Name,Field}, _Vt, St) ->
     check_record(Anno, Name, St,
                  fun (Dfs, St1) -> record_field(Field, Name, Dfs, St1) end);
-expr({record,Anno,Name,Inits}, Vt, St) ->
+expr({record, Anno, {Mod, Name}, Inits}, Vt, St) when is_atom(Mod), is_atom(Name) ->
+    case Name of
+        '_' -> {[], add_error(Anno, {undefined_native_record, Name}, St)};
+        _ -> check_nn_fields(Inits, Vt, St)
+    end;
+expr({record, Anno, [], _Inits}, _Vt, St) ->
+    {[], add_error(Anno, {undefined_native_record, '_'}, St)};
+expr({record,Anno,Name,Inits}, Vt, St) when is_atom(Name) ->
     case is_native_record_defined(Name, St) of
         true ->
             {Usvt, St1} = check_nn_fields(Inits, Vt, St),
@@ -2885,30 +2899,11 @@ expr({record,Anno,Name,Inits}, Vt, St) ->
                                  init_fields(Inits, Anno, Name, Dfs, Vt, St1)
                          end)
     end;
-expr({native_record, Anno, {}, _Inits}, _Vt, St) ->
-    {[], add_error(Anno, {undefined_native_record, '_'}, St)};
-expr({native_record, Anno, {MName, Name}, Inits}, Vt, St) when is_atom(MName),is_atom(Name) ->
-    case Name of
-        '_' -> {[], add_error(Anno, {undefined_native_record, Name}, St)};
-        _ -> check_nn_fields(Inits, Vt, St)
-    end;
-expr({native_record, Anno, {MName, Name}, _Inits}, _Vt, St) ->
-    {[], add_error(Anno, {undefined_native_record, {MName, Name}}, St)};
-expr({native_record_update, _Anno, Expr, {MName, Name}, Updates}, Vt, St) when is_atom(MName),is_atom(Name) ->
-    {Rvt, St1} = expr(Expr, Vt, St),
-    {Usvt, St2} = check_nn_fields(Updates, Vt, St1),
-    Usvt1 = vtmerge(Rvt, Usvt),
-    {Usvt1, St2};
-expr({native_record_update, _Anno, Expr, {}, Updates}, Vt, St) ->
-    {Rvt, St1} = expr(Expr, Vt, St),
-    {Usvt, St2} = check_nn_fields(Updates, Vt, St1),
-    Usvt1 = vtmerge(Rvt, Usvt),
-    {Usvt1, St2};
-expr({native_record_field_expr, _Anno, Str, {_MName,_Name}, FieldName}, Vt, St) when is_atom(FieldName) ->
+expr({record_field, _Anno, Str, {_Mod,_Name}, FieldName}, Vt, St) when is_atom(FieldName) ->
     expr(Str, Vt, St);
-expr({native_record_field_expr, _Anno, Str, {}, FieldName}, Vt, St) when is_atom(FieldName) ->
+expr({record_field, _Anno, Str, [], FieldName}, Vt, St) when is_atom(FieldName) ->
     expr(Str, Vt, St);
-expr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) ->
+expr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) when is_atom(Name) ->
     case is_native_record_defined(Name, St0) of
         true ->
             {Usvt, St1} = expr(Rec, Vt, St0),
@@ -2923,7 +2918,18 @@ expr({record_field,Anno,Rec,Name,Field}=E, Vt, St0) ->
                                      end),
             {vtmerge(Rvt, Fvt),St2}
     end;
-expr({record,Anno,Rec,Name,Upds}, Vt, St0) ->
+expr({record, _Anno, Expr, {Mod, Name}, Updates}, Vt, St)
+  when is_atom(Mod),is_atom(Name) ->
+    {Rvt, St1} = expr(Expr, Vt, St),
+    {Usvt, St2} = check_nn_fields(Updates, Vt, St1),
+    Usvt1 = vtmerge(Rvt, Usvt),
+    {Usvt1, St2};
+expr({record, _Anno, Expr, [], Updates}, Vt, St) ->
+    {Rvt, St1} = expr(Expr, Vt, St),
+    {Usvt, St2} = check_nn_fields(Updates, Vt, St1),
+    Usvt1 = vtmerge(Rvt, Usvt),
+    {Usvt1, St2};
+expr({record,Anno,Rec,Name,Upds}, Vt, St0) when is_atom(Name) ->
     case is_native_record_defined(Name, St0) of
         true ->
             {Rvt, St1} = expr(Rec, Vt, St0),
@@ -3476,6 +3482,15 @@ check_record(Anno, Name, St, CheckFun) ->
     end.
 
 -spec is_native_record_defined(Name :: atom(), lint_state()) -> boolean().
+is_native_record_defined({Mod, Name}, St) ->
+    if
+        St#lint.module =:= Mod ->
+            is_map_key(Name, St#lint.structs);
+        true ->
+            true
+    end;
+is_native_record_defined([], _St) ->
+    true;
 is_native_record_defined(Name, St) ->
     is_map_key(Name, St#lint.structs) orelse orddict:is_key(Name, St#lint.struct_imports).
 

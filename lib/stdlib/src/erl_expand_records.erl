@@ -192,25 +192,30 @@ pattern({map_field_exact,Anno,K0,V0}, St0) ->
     {K,St1} = expr(K0, St0),
     {V,St2} = pattern(V0, St1),
     {{map_field_exact,Anno,K,V},St2};
-pattern({native_record,Anno,Id,Ps}, St0) ->
-    {TPs,St1} = pattern_list(Ps, St0),
-    {{native_record,Anno,Id,TPs},St1};
 pattern({record_field, Anno, F, V0}, St0) ->
     {V, St1} = pattern(V0, St0),
     {{record_field, Anno, F, V}, St1};
 pattern({record_index,Anno,Name,Field}, St) ->
     {index_expr(Anno, Field, Name, record_fields(Name, Anno, St)),St};
-pattern({record,Anno0,Name,Pfs}, St0) ->
+pattern({record,Anno0,Name,Pfs}, St0) when is_atom(Name) ->
     case St0#exprec.structmod of
         #{Name := M0} ->
             M = native_record_mod(M0, St0),
-            pattern({native_record,Anno0,{M,Name},Pfs}, St0);
+            pattern({record,Anno0,{M,Name},Pfs}, St0);
         #{} ->
             Fs = record_fields(Name, Anno0, St0),
             {TMs,St1} = pattern_list(pattern_fields(Fs, Pfs), St0),
             Anno = mark_record(Anno0, St1),
             {{tuple,Anno,[{atom,Anno0,Name} | TMs]},St1}
     end;
+pattern({record,Anno,[],Ps}, St0) ->
+    %% Native record.
+    {TPs,St1} = pattern_list(Ps, St0),
+    {{record,Anno,[],TPs},St1};
+pattern({record,Anno,Id,Ps}, St0) ->
+    %% Native record.
+    {TPs,St1} = pattern_list(Ps, St0),
+    {{record,Anno,Id,TPs},St1};
 pattern({bin,Anno,Es0}, St0) ->
     {Es1,St1} = pattern_bin(Es0, St0),
     {{bin,Anno,Es1},St1};
@@ -414,58 +419,58 @@ expr({map_field_exact,Anno,K0,V0}, St0) ->
 expr({record_index,Anno,Name,F}, St) ->
     I = index_expr(Anno, F, Name, record_fields(Name, Anno, St)),
     expr(I, St);
-expr({record,Anno0,Name,Is}, St) ->
+expr({record,Anno,{M,N},Inits}, St0) ->
+    {Es1, St1} = expr_list(Inits, St0),
+    {{record,Anno,{M,N},Es1},St1};
+expr({record,Anno0,Name,Is}, St) when is_atom(Name) ->
     case St#exprec.structmod of
         #{Name := M0} ->
             M = native_record_mod(M0, St),
-            expr({native_record,Anno0,{M,Name},Is}, St);
+            expr({record,Anno0,{M,Name},Is}, St);
         #{} ->
             Anno = mark_record(Anno0, St),
             expr({tuple,Anno,[{atom,Anno0,Name} |
                               record_inits(record_fields(Name, Anno0, St), Is)]},
                  St)
     end;
-expr({record_field,A,R,Name,F}, St) ->
-    case St#exprec.structmod of
-        #{Name := M0} ->
-            M = native_record_mod(M0, St),
-            {atom,_,FName} = F,
-            expr({native_record_field_expr,A,R,{M,Name},FName}, St);
-        #{} ->
-            Anno = erl_parse:first_anno(R),
-            get_record_field(Anno, R, F, Name, St)
-    end;
-expr({record,Anno,R,Name,Us}, St0) ->
+expr({record,_A,Arg0,{M,N},Updates}, St0) ->
+    Anno = erl_parse:first_anno(Arg0),
+    {Arg1,St1} = expr(Arg0, St0),
+    {Es1, St2} = expr_list(Updates, St1),
+    {{record,Anno,{M,N},Arg1,Es1},St2};
+expr({record,_A,Arg0,[],Updates}, St0) ->
+    Anno = erl_parse:first_anno(Arg0),
+    {Arg1,St1} = expr(Arg0, St0),
+    {Es1, St1} = expr_list(Updates, St0),
+    {{record,Anno,[],Arg1,Es1},St1};
+expr({record,Anno,R,Name,Us}, St0) when is_atom(Name) ->
     case St0#exprec.structmod of
         #{Name := M0} ->
             M = native_record_mod(M0, St0),
-            expr({native_record_update,Anno,R,{M,Name},Us}, St0);
+            expr({record,Anno,R,{M,Name},Us}, St0);
         #{} ->
             {Ue,St1} = record_update(R, Name, record_fields(Name, Anno, St0), Us, St0),
             expr(Ue, St1)
     end;
-expr({native_record,Anno,{M,N},Inits},St0) ->
-    {Es1, St1} = expr_list(Inits, St0),
-    {{native_record,Anno,{M,N},Es1},St1};
-expr({native_record_update,_A,Arg0,{M,N},Updates}, St0) ->
-    Anno = erl_parse:first_anno(Arg0),
-    {Arg1,St1} = expr(Arg0, St0),
-    {Es1, St2} = expr_list(Updates, St1),
-    {{native_record,Anno,{M,N},Arg1,Es1},St2};
-expr({native_record_update,_A,Arg0,{},Updates}, St0) ->
-    Anno = erl_parse:first_anno(Arg0),
-    {Arg1,St1} = expr(Arg0, St0),
-    {Es1, St1} = expr_list(Updates, St0),
-    {{native_record,Anno,{},Arg1,Es1},St1};
-expr({record_field,Anno,K,E0}, St0) ->
-    {E1,St1} = expr(E0, St0),
-    {{record_field,Anno,K,E1}, St1};
-expr({native_record_field_expr,_A,Rec0,Id0, F0}, St0) ->
+expr({record_field,A,R,Name,F}, St) when is_atom(Name) ->
+    case St#exprec.structmod of
+        #{Name := M0} ->
+            M = native_record_mod(M0, St),
+            {atom,_,FName} = F,
+            expr({record_field,A,R,{M,Name},FName}, St);
+        #{} ->
+            Anno = erl_parse:first_anno(R),
+            get_record_field(Anno, R, F, Name, St)
+    end;
+expr({record_field,_A,Rec0,Id0,F0}, St0) ->
     {Rec,St} = expr(Rec0, St0),
     Anno = erl_parse:first_anno(Rec),
     Id = erl_parse:abstract(Id0),
     F = erl_parse:abstract(F0),
     {{get_record_field,Anno,Rec,Id,F},St};
+expr({record_field,Anno,K,E0}, St0) ->
+    {E1,St1} = expr(E0, St0),
+    {{record_field,Anno,K,E1}, St1};
 expr({bin,Anno,Es0}, St0) ->
     {Es1,St1} = expr_bin(Es0, St0),
     {{bin,Anno,Es1},St1};

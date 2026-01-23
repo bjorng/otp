@@ -99,7 +99,7 @@
 -record(cg_map, {var=#b_literal{val=#{}},op,es}).
 -record(cg_map_pair, {key,val}).
 -record(cg_record, {rec}).
--record(cg_record_id, {id, es}).
+-record(cg_record_id, {id :: {_,_} | [], es}).
 -record(cg_record_pairs, {local::boolean(),es}).
 -record(cg_record_pair, {key,val}).
 -record(cg_cons, {hd,tl}).
@@ -458,7 +458,7 @@ primop(raw_raise, Anno, Args) ->
     primop_succeeded(raw_raise, Anno, Args);
 primop(get_record_field, Anno, Args0) ->
     Args = case Args0 of
-               [Src,#b_literal{val={}},F] ->
+               [Src,#b_literal{val=[]},F] ->
                    [Src,#b_literal{val='_'},F];
                _ ->
                    Args0
@@ -695,7 +695,7 @@ struct_group_pairs(A, Var, Id, Pairs0, Esp, St0) ->
 
 ssa_struct(A, SrcStruct, Id0, Pairs) ->
     Id = case Id0 of
-             #b_literal{val={}} -> #b_literal{val='_'};
+             #b_literal{val=[]} -> #b_literal{val='_'};
              #b_literal{} -> Id0
          end,
     Args = [SrcStruct,Id|Pairs],
@@ -877,7 +877,8 @@ pattern(#c_struct{id=#c_literal{val=Id}, es=Ces}, Sub0,
     {Kes,Sub1,St1} = pattern_record_pairs(Ces, Sub0, St0),
     Local = case Id of
                 {Mod,_} -> true;
-                _ -> false
+                {_,_} -> false;
+                [] -> false
             end,
     Pairs = #cg_record_pairs{local=Local,es=Kes},
     {#cg_record{rec=#cg_record_id{id=Id,es=Pairs}},Sub1,St1};
@@ -1798,7 +1799,7 @@ group_native_records(Us, [C1|Cs]) ->
     %%   end
     %%
     %% We can group clauses matching the same record, but we must keep
-    %% the order of within each group. Also, since an anonymous record
+    %% the order within each group. Also, since an anonymous record
     %% match can match any record, we must not move any clause across
     %% an anonymous match. Thus, the clauses can be re-arranged like
     %% so:
@@ -1813,8 +1814,10 @@ group_native_records(Us, [C1|Cs]) ->
     %%     #r1{f4...} -> ...
     %%   end
 
-    Size = tuple_size((arg_arg(clause_arg(C1)))#cg_record_id.id),
-    SplitFun = fun(C) -> tuple_size((arg_arg(clause_arg(C)))#cg_record_id.id) =:= Size end,
+    Anon = (arg_arg(clause_arg(C1)))#cg_record_id.id =:= [],
+    SplitFun = fun(C) ->
+                       ((arg_arg(clause_arg(C)))#cg_record_id.id =:= []) =:= Anon
+               end,
     {More,Rest} = splitwith(SplitFun, Cs),
     Part = [C1|More],
 
@@ -3108,7 +3111,7 @@ select_record_id([#cg_type_clause{type=cg_record_id,values=Scs}],
                        end,
                 {Is,St} = select_record_pairs(Types, Src, Fail, St2),
                 {TestIs++Is,St};
-           (#cg_val_clause{val=#cg_record_id{id={},es=Es},body=B},
+           (#cg_val_clause{val=#cg_record_id{id=[],es=Es},body=B},
             Fail, St1) ->
                 %% Anonymous match.
                 #cg_select{var=Es,types=Types} = B,

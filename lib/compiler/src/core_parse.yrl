@@ -224,9 +224,9 @@ native_record_pattern -> '~' '#' anno_atom ':' anno_atom '{' native_record_pair_
                       #c_struct{id = #c_literal{val={tok_val('$3'),tok_val('$5')}},
                                 es = '$7'}.
 native_record_pattern -> '~' '#' '/' '{' '}' :
-                      #c_struct{id = #c_literal{val={}}, es = []}.
+                      #c_struct{id = #c_literal{val=[]}, es = []}.
 native_record_pattern -> '~' '#' '/' '{' native_record_pair_patterns '}' :
-                      #c_struct{id = #c_literal{val={}}, es = '$5'}.
+                      #c_struct{id = #c_literal{val=[]}, es = '$5'}.
 
 native_record_pair_patterns -> native_record_pair_pattern : ['$1'].
 native_record_pair_patterns -> native_record_pair_pattern ',' native_record_pair_patterns : ['$1' | '$3'].
@@ -371,13 +371,13 @@ native_record_expr ->
 	          es = '$7'}.
 native_record_expr ->
     '~' anno_native_record_expr '#' '/' '{' native_record_pairs '}' :
-	#c_struct{arg = '$2', id = #c_literal{val={}}, es = '$6'}.
+	#c_struct{arg = '$2', id = #c_literal{val=[]}, es = '$6'}.
 native_record_expr ->
     '~' anno_native_record_expr '#' anno_atom ':' anno_atom '{' native_record_pairs '}' :
 	#c_struct{arg = '$2', id = #c_literal{val={tok_val('$4'),tok_val('$6')}}, es = '$8'}.
 native_record_expr ->
     '~' anno_variable '#' '/' '{' native_record_pairs '}' :
-	#c_struct{arg = '$2', id = #c_literal{val={}}, es = '$6'}.
+	#c_struct{arg = '$2', id = #c_literal{val=[]}, es = '$6'}.
 native_record_expr ->
     '~' anno_variable '#' anno_atom ':' anno_atom '{' native_record_pairs '}' :
 	#c_struct{arg = '$2', id = #c_literal{val={tok_val('$4'),tok_val('$6')}}, es = '$8'}.
