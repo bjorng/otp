@@ -854,8 +854,6 @@ vi(build_stacktrace, Vst0) ->
 vi({get_map_elements,{f,Fail},Src0,{list,List}}, Vst) ->
     Src = unpack_typed_arg(Src0, Vst),
     verify_get_map(Fail, Src, List, Vst);
-vi({get_record_elements,{f,Fail},Src,{list,List}}, Vst) ->
-  verify_get_record_elements(Fail, Src, List, Vst);
 vi({put_map_assoc=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
     verify_put_map(Op, Fail, Src, Dst, Live, List, Vst);
 vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
@@ -863,10 +861,12 @@ vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
 
 
 %%
-%% Struct (native record) instructions.
+%% Native record instructions.
 %%
 vi({put_record,{f,Fail},Id,Src,Dst,Live,{list,List}}, Vst) ->
     verify_put_record(Fail, Id, Src, Dst, Live, List, Vst);
+vi({get_record_elements,{f,Fail},Src,{list,List}}, Vst) ->
+    verify_get_record_elements(Fail, Src, List, Vst);
 
 %%
 %% Bit syntax matching
@@ -1314,16 +1314,16 @@ clobber_map_vals([Key0, Dst | T], Map, Vst0) ->
 clobber_map_vals([], _Map, Vst) ->
     Vst.
 
-clobber_struct_vals([Key0, Dst | T], Struct, Vst0) ->
+clobber_record_vals([Key0, Dst | T], Rec, Vst0) ->
     Key = unpack_typed_arg(Key0, Vst0),
     case is_reg_initialized(Dst, Vst0) of
         true ->
-            Vst = extract_term(any, {bif,struct_get}, [Key, Struct], Dst, Vst0),
-            clobber_struct_vals(T, Struct, Vst);
+            Vst = extract_term(any, {bif,record_get}, [Key, Rec], Dst, Vst0),
+            clobber_record_vals(T, Rec, Vst);
         false ->
-            clobber_struct_vals(T, Struct, Vst0)
+            clobber_record_vals(T, Rec, Vst0)
     end;
-clobber_struct_vals([], _Struct, Vst) ->
+clobber_record_vals([], _Rec, Vst) ->
     Vst.
 
 is_reg_initialized({x,_}=Reg, #vst{current=#st{xs=Xs}}) ->
@@ -1346,9 +1346,9 @@ extract_map_keys([], _Vst) ->
 extract_vals(map, List, Src, SuccVst) ->
     Seen = sets:new(),
     extract_map_vals(List, Src, Seen, SuccVst, SuccVst);
-extract_vals(struct, List, Src, SuccVst) ->
+extract_vals(record, List, Src, SuccVst) ->
     Seen = sets:new(),
-    extract_struct_vals(List, Src, Seen, SuccVst, SuccVst).
+    extract_record_vals(List, Src, Seen, SuccVst, SuccVst).
 
 extract_map_vals([Key0, Dst | Vs], Map, Seen0, Vst0, Vsti0) ->
     case sets:is_element(Dst, Seen0) of
@@ -1371,7 +1371,7 @@ extract_map_vals([Key0, Dst | Vs], Map, Seen0, Vst0, Vsti0) ->
 extract_map_vals([], _Map, _Seen, _Vst0, Vst) ->
     Vst.
 
-extract_struct_vals([Key0, Dst | Vs], Struct, Seen0, Vst0, Vsti0) ->
+extract_record_vals([Key0, Dst | Vs], Rec, Seen0, Vst0, Vsti0) ->
     case sets:is_element(Dst, Seen0) of
         true ->
             %% The destinations must not overwrite each other.
@@ -1379,17 +1379,17 @@ extract_struct_vals([Key0, Dst | Vs], Struct, Seen0, Vst0, Vsti0) ->
         false ->
             Key = unpack_typed_arg(Key0, Vsti0),
             assert_term(Key, Vst0),
-            case bif_types(struct_get, [Key, Struct], Vst0) of
+            case bif_types(record_get, [Key, Rec], Vst0) of
                 {none, _, _} ->
                     kill_state(Vsti0);
                 {DstType, _, _} ->
-                    Vsti = extract_term(DstType, {bif,struct_get},
-                                        [Key, Struct], Dst, Vsti0),
+                    Vsti = extract_term(DstType, {bif,record_get},
+                                        [Key, Rec], Dst, Vsti0),
                     Seen = sets:add_element(Dst, Seen0),
-                    extract_struct_vals(Vs, Struct, Seen, Vst0, Vsti)
+                    extract_record_vals(Vs, Rec, Seen, Vst0, Vsti)
             end
     end;
-extract_struct_vals([], _Struct, _Seen, _Vst0, Vst) ->
+extract_record_vals([], _Rec, _Seen, _Vst0, Vst) ->
     Vst.
 
 verify_put_map(Op, Fail, Src, Dst, Live, List, Vst0) ->
@@ -1437,7 +1437,7 @@ verify_put_record(Fail, Id, Src, Dst, Live, List, Vst0) ->
         {atom,'_'} ->
             ok;
         _ ->
-            error({bad_struct_id,Id})
+            error({bad_record_id,Id})
     end,
     assert_term(Src, Vst0),
     verify_live(Live, Vst0),
@@ -1447,40 +1447,34 @@ verify_put_record(Fail, Id, Src, Dst, Live, List, Vst0) ->
     Vst = heap_alloc(0, Vst0),
 
     SuccFun = fun(SuccVst0) ->
-                    SuccVst = prune_x_regs(Live, SuccVst0),
-                    Keys = extract_map_keys(List, SuccVst),
-                    assert_unique_keys(struct, Keys),
+                      SuccVst = prune_x_regs(Live, SuccVst0),
+                      Keys = extract_map_keys(List, SuccVst),
+                      assert_unique_keys(record, Keys),
 
-                    Type = put_struct_type(Src, List, Vst),
-                    create_term(Type, put_struct, [Src], Dst, SuccVst, SuccVst0)
-            end,
+                      Type = put_record_type(Src, List, Vst),
+                      create_term(Type, put_record, [Src], Dst, SuccVst, SuccVst0)
+              end,
     branch(Fail, Vst, SuccFun).
 
-put_struct_type(Struct0, List, Vst) ->
-    Struct = get_term_type(Struct0, Vst),
-    pst_1(List, Vst, Struct).
-
-pst_1([Key0, Value0 | List], Vst, Acc0) ->
-    Key = get_term_type(Key0, Vst),
-    Value = get_term_type(Value0, Vst),
-    {Acc, _, _} = beam_call_types:types(struct, put, [Key, Value, Acc0]),
-    pst_1(List, Vst, Acc);
-pst_1([], _Vst, Acc) ->
-    Acc.
+put_record_type(_Rec0, _List, _Vst) ->
+    %% TODO: We currently don't have any representation for records in the
+    %% type lattice.
+    any.
 
 verify_get_record_elements(Fail, Src, List, Vst0) ->
     assert_no_exception(Fail),
     assert_not_literal(Src),
     branch(Fail, Vst0,
            fun(FailVst) ->
-                   clobber_struct_vals(List, Src, FailVst)
+                   clobber_record_vals(List, Src, FailVst)
            end,
            fun(SuccVst) ->
                    Keys = extract_map_keys(List, SuccVst),
-                   assert_unique_keys(struct, Keys),
-                   extract_vals(struct, List, Src, SuccVst)
+                   assert_unique_keys(record, Keys),
+                   extract_vals(record, List, Src, SuccVst)
            end).
 
+%% Check an update of a traditional tuple record.
 verify_update_record(Size, Src0, Dst, List0, Vst0) ->
     Src = unpack_typed_arg(Src0, Vst0),
     List = [unpack_typed_arg(Arg, Vst0) || Arg <- List0],
@@ -2165,15 +2159,15 @@ assert_freg_set(Fr, _) -> error({bad_source,Fr}).
 %%
 %% An empty list is not allowed.
 
-assert_unique_keys(map,[]) ->
+assert_unique_keys(map, []) ->
     %% There is no reason to use the get_map_elements and
     %% has_map_fields instructions with empty lists.
     error(empty_field_list);
-assert_unique_keys(struct,[]) ->
+assert_unique_keys(record, []) ->
     ok;
-assert_unique_keys(_,[_]) ->
+assert_unique_keys(_, [_]) ->
     ok;
-assert_unique_keys(_,[_,_|_]=Ls) ->
+assert_unique_keys(_, [_,_|_]=Ls) ->
     Vs = [begin
               assert_literal(L),
               L

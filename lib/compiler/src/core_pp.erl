@@ -46,6 +46,7 @@
 -spec format(cerl:cerl()) -> iolist().
 
 format(Node) ->
+    io:format("~p\n", [Node]),
     format(Node, #ctxt{}).
 
 -spec format_all(cerl:cerl()) -> iolist().

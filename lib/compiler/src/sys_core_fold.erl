@@ -231,14 +231,14 @@ expr(#c_map{anno=Anno,arg=V0,es=Es0}=Map, Ctxt, Sub) ->
     Es = pair_list(Es0, descend(Map, Sub)),
     V = expr(V0, value, Sub),
     ann_c_map(Anno, V, Es);
-expr(#c_record{anno=Anno,arg=V0,id=Id,es=Es0}=Struct, Ctxt, Sub) ->
-    %% Warn for useless building, but always build the struct
+expr(#c_record{anno=Anno,arg=V0,id=Id,es=Es0}=Rec, Ctxt, Sub) ->
+    %% Warn for useless building, but always build the record
     %% anyway to preserve a possible exception.
     case Ctxt of
-        effect -> warn_useless_building(Struct, Sub);
+        effect -> warn_useless_building(Rec, Sub);
         value -> ok
     end,
-    Es = pair_list(Es0, descend(Struct, Sub)),
+    Es = pair_list(Es0, descend(Rec, Sub)),
     V = expr(V0, value, Sub),
     ann_c_record(Anno, V, Id, Es);
 expr(#c_binary{segments=Ss}=Bin0, Ctxt, Sub) ->
@@ -1156,9 +1156,9 @@ pattern(#c_tuple{anno=Anno,es=Es0}, Isub, Osub0) ->
 pattern(#c_map{anno=Anno,es=Es0}=Map, Isub, Osub0) ->
     {Es1,Osub1} = map_pair_pattern_list(Es0, Isub, Osub0),
     {Map#c_map{anno=Anno,es=Es1},Osub1};
-pattern(#c_record{anno=Anno,es=Es0}=Str, Isub, Osub0) ->
+pattern(#c_record{anno=Anno,es=Es0}=Rec, Isub, Osub0) ->
     {Es1,Osub1} = record_pair_pattern_list(Es0, Isub, Osub0),
-    {Str#c_record{anno=Anno,es=Es1},Osub1};
+    {Rec#c_record{anno=Anno,es=Es1},Osub1};
 pattern(#c_binary{segments=V0}=Pat, Isub, Osub0) ->
     {V1,Osub1} = bin_pattern_list(V0, Isub, Osub0),
     {Pat#c_binary{segments=V1},Osub1};
@@ -1176,15 +1176,17 @@ map_pair_pattern(#c_map_pair{op=#c_literal{val=exact},key=K0,val=V0}=Pair,{Isub,
     {V,Osub} = pattern(V0,Isub,Osub0),
     {Pair#c_map_pair{key=K,val=V},{Isub,Osub}}.
 
--spec record_pair_pattern_list([cerl:c_record_pair()], sub(), sub()) -> {[cerl:c_record_pair()], sub()}.
+-spec record_pair_pattern_list([cerl:c_record_pair()], sub(), sub()) ->
+          {[cerl:c_record_pair()], sub()}.
 record_pair_pattern_list(Ps0, Isub, Osub0) ->
-  {Ps,{_,Osub}} = mapfoldl(fun record_pair_pattern/2, {Isub,Osub0}, Ps0),
-  {Ps,Osub}.
+    {Ps,{_,Osub}} = mapfoldl(fun record_pair_pattern/2, {Isub,Osub0}, Ps0),
+    {Ps,Osub}.
 
--spec record_pair_pattern(cerl:c_record_pair(), {sub(), sub()}) -> {cerl:c_record_pair(), {sub(), sub()}}.
+-spec record_pair_pattern(cerl:c_record_pair(), {sub(), sub()}) ->
+          {cerl:c_record_pair(), {sub(), sub()}}.
 record_pair_pattern(#c_record_pair{val=V0}=Pair,{Isub,Osub0}) ->
-  {V,Osub} = pattern(V0,Isub,Osub0),
-  {Pair#c_record_pair{val=V},{Isub,Osub}}.
+    {V,Osub} = pattern(V0,Isub,Osub0),
+    {Pair#c_record_pair{val=V},{Isub,Osub}}.
 
 bin_pattern_list(Ps, Isub, Osub0) ->
     mapfoldl(fun(P, Osub) ->

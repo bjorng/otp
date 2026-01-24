@@ -342,7 +342,7 @@ expr(#c_tuple{es=Ces}, Sub, St0) ->
 expr(#c_map{anno=A,arg=Var,es=Ces}, Sub, St0) ->
     expr_map(A, Var, Ces, Sub, St0);
 expr(#c_record{anno=A,arg=Var,id=Id,es=Ces}, Sub, St0) ->
-    expr_struct(A, Var, Id, Ces, Sub, St0);
+    expr_record(A, Var, Id, Ces, Sub, St0);
 expr(#c_binary{anno=A,segments=Cv}, Sub, St0) ->
     try
         expr_binary(A, Cv, Sub, St0)
@@ -664,13 +664,13 @@ map_remove_dup_keys([], Used) ->
     %% order from compilation to compilation.
     sort(maps:to_list(Used)).
 
-expr_struct(A, Var0, Id0, Ces, Sub, St0) ->
+expr_record(A, Var0, Id0, Ces, Sub, St0) ->
     {Var,Mps,St1} = expr(Var0, Sub, St0),
     {Id,Eps1,St2} = atomic(Id0, Sub, St1),
-    {Km,Eps2,St3} = struct_split_pairs(A, Var, Id, Ces, Sub, St2),
+    {Km,Eps2,St3} = record_split_pairs(A, Var, Id, Ces, Sub, St2),
     {Km,Eps2++Eps1++Mps,St3}.
 
-struct_split_pairs(A, Var, Id, Ces, Sub, St0) ->
+record_split_pairs(A, Var, Id, Ces, Sub, St0) ->
     %% 1. Force variables.
     %% 2. Group adjacent pairs with literal keys.
     %% 3. Within each such group, remove multiple assignments to
@@ -681,24 +681,24 @@ struct_split_pairs(A, Var, Id, Ces, Sub, St0) ->
                       {V,Eps2,Sti2} = atomic(V0, Sub, Sti1),
                       {[{K,V}|KVs],Eps1 ++ Eps2 ++ Espi,Sti2}
               end, {[],[],St0}, Ces),
-    struct_split_pairs_1(A, Var, Id, Pairs, Esp, St1).
+    record_split_pairs_1(A, Var, Id, Pairs, Esp, St1).
 
-struct_split_pairs_1(A, Struct0, Id, Pairs0, Esp0, St0) ->
-    {Struct1,Em,St1} = force_atomic(Struct0, St0),
-    {Struct,Esp,St2} = struct_group_pairs(A, Struct1, Id, Pairs0, Esp0 ++ Em, St1),
-    {Struct,Esp,St2}.
+record_split_pairs_1(A, Rec0, Id, Pairs0, Esp0, St0) ->
+    {Rec1,Em,St1} = force_atomic(Rec0, St0),
+    {Rec,Esp,St2} = record_group_pairs(A, Rec1, Id, Pairs0, Esp0 ++ Em, St1),
+    {Rec,Esp,St2}.
 
-struct_group_pairs(A, Var, Id, Pairs0, Esp, St0) ->
+record_group_pairs(A, Var, Id, Pairs0, Esp, St0) ->
     Pairs = ordsets:from_list(Pairs0),
     Flatten = append([[K,V] || {K,V} <- Pairs]),
     {ssa_struct(A, Var, Id, Flatten),Esp,St0}.
 
-ssa_struct(A, SrcStruct, Id0, Pairs) ->
+ssa_struct(A, SrcRec, Id0, Pairs) ->
     Id = case Id0 of
              #b_literal{val=[]} -> #b_literal{val='_'};
              #b_literal{} -> Id0
          end,
-    Args = [SrcStruct,Id|Pairs],
+    Args = [SrcRec,Id|Pairs],
     LineAnno = line_anno(A),
     Set = #b_set{anno=LineAnno,op=put_record,args=Args},
     #cg_succeeded{set=Set}.
@@ -1316,40 +1316,40 @@ match_con([U|_Us]=L, Cs, Def, St0) ->
                  St0, Ttcs),
     {build_alt(build_select(U, Scs), Def),St1}.
 
-select_types([NoExpC|Cs], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Struct) ->
+select_types([NoExpC|Cs], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Rec) ->
     C = expand_pat_lit_clause(NoExpC),
     case clause_con(C) of
         cg_binary ->
-            select_types(Cs, [C|Bin], BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Struct);
+            select_types(Cs, [C|Bin], BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Rec);
         cg_bin_seg ->
-            select_types(Cs, Bin, [C|BinCon], Cons, Tuple, Map, Atom, Float, Int, Nil, Struct);
+            select_types(Cs, Bin, [C|BinCon], Cons, Tuple, Map, Atom, Float, Int, Nil, Rec);
         cg_bin_end ->
-            select_types(Cs, Bin, [C|BinCon], Cons, Tuple, Map, Atom, Float, Int, Nil, Struct);
+            select_types(Cs, Bin, [C|BinCon], Cons, Tuple, Map, Atom, Float, Int, Nil, Rec);
         cg_cons ->
-            select_types(Cs, Bin, BinCon, [C|Cons], Tuple, Map, Atom, Float, Int, Nil, Struct);
+            select_types(Cs, Bin, BinCon, [C|Cons], Tuple, Map, Atom, Float, Int, Nil, Rec);
         cg_tuple ->
-            select_types(Cs, Bin, BinCon, Cons, [C|Tuple], Map, Atom, Float, Int, Nil, Struct);
+            select_types(Cs, Bin, BinCon, Cons, [C|Tuple], Map, Atom, Float, Int, Nil, Rec);
         cg_map ->
-            select_types(Cs, Bin, BinCon, Cons, Tuple, [C|Map], Atom, Float, Int, Nil, Struct);
+            select_types(Cs, Bin, BinCon, Cons, Tuple, [C|Map], Atom, Float, Int, Nil, Rec);
         cg_nil ->
-            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, [C|Nil], Struct);
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, [C|Nil], Rec);
         cg_atom ->
-            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, [C|Atom], Float, Int, Nil, Struct);
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, [C|Atom], Float, Int, Nil, Rec);
         cg_float ->
-            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, [C|Float], Int, Nil, Struct);
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, [C|Float], Int, Nil, Rec);
         cg_int ->
-            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, [C|Int], Nil, Struct);
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, [C|Int], Nil, Rec);
         cg_record ->
-            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Struct]);
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Rec]);
         cg_record_id ->
-            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Struct]);
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Rec]);
         cg_record_pairs ->
-            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Struct])
+            select_types(Cs, Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, [C|Rec])
     end;
-select_types([], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Struct0) ->
-    Struct1 = reverse(Struct0),
-    Struct2 = maps:groups_from_list(fun(C) -> clause_con(C) end, Struct1),
-    Structs = maps:to_list(Struct2),
+select_types([], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Rec0) ->
+    Rec1 = reverse(Rec0),
+    Rec2 = maps:groups_from_list(fun(C) -> clause_con(C) end, Rec1),
+    Recs = maps:to_list(Rec2),
 
     [{cg_binary, reverse(Bin)}] ++ handle_bin_con(reverse(BinCon)) ++
         [
@@ -1360,7 +1360,7 @@ select_types([], Bin, BinCon, Cons, Tuple, Map, Atom, Float, Int, Nil, Struct0) 
          {{bif,is_float}, reverse(Float)},
          {{bif,is_integer}, reverse(Int)},
          {cg_nil, reverse(Nil)} |
-         Structs
+         Recs
         ].
 
 -spec expand_pat_lit_clause(#iclause{}) -> #iclause{}.
@@ -1754,7 +1754,7 @@ find_key_intersection(Ps) ->
 %% group_value([Clause]) -> [[Clause]].
 %%  Group clauses according to value.  Here we know that:
 %%  1. Some types are singled valued
-%%  2. The clauses in maps, bin_segs, and native_records cannot
+%%  2. The clauses in maps, bin_segs, and native records cannot
 %%     be reordered, only grouped
 %%  3. Other types are disjoint and can be reordered
 

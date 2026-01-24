@@ -93,7 +93,7 @@
 -import(ordsets, [add_element/2,del_element/2,is_element/2,
 		  union/1,union/2,intersection/2,subtract/2]).
 -import(cerl, [ann_c_cons/3,ann_c_tuple/2,c_tuple/1,
-	       ann_c_map/3,ann_c_record/4,cons_hd/1,cons_tl/1]).
+               ann_c_map/3,ann_c_record/4,cons_hd/1,cons_tl/1]).
 
 -include("core_parse.hrl").
 
@@ -167,7 +167,7 @@
 -record(core, {vcount=0 :: non_neg_integer(),	%Variable counter
 	       fcount=0 :: non_neg_integer(),	%Function counter
                gcount=0 :: non_neg_integer(),   %Goto counter
-               module :: atom(),                %Module name.
+               module :: module(),                %Module name.
 	       function={none,0} :: fa(),	%Current function.
 	       in_guard=false :: boolean(),	%In guard or not.
 	       wanted=true :: boolean(),	%Result wanted or not.
@@ -1262,19 +1262,19 @@ expr_record_accessible(A, Rec, Body, St) ->
     {#icase{anno=#a{anno=A},args=[],clauses=Cs,fc=Fc},St}.
 
 safe_record(R0, St0) ->
-    case safe(R0, St0) of
-        {#c_var{},_,_}=Res ->
-            Res;
-        {NotRecord,Eps0,St1} ->
-            %% Not a native record. There will be a syntax error if we
-            %% try to pretty-print the Core Erlang code and then try
-            %% to parse it. To avoid the syntax error, force the term
-            %% into a variable.
-	    {V,St2} = new_var(St1),
-            Anno = cerl:get_ann(NotRecord),
-            Eps1 = [#iset{anno=#a{anno=Anno},var=V,arg=NotRecord}],
-	    {V,Eps0++Eps1,St2}
-    end.
+   case safe(R0, St0) of
+       {#c_var{},_,_}=Res ->
+           Res;
+       {NotRecord,Eps0,St1} ->
+           %% Not a native record. There will be a syntax error if we
+           %% try to pretty-print the Core Erlang code and then try
+           %% to parse it. To avoid the syntax error, force the term
+           %% into a variable.
+           {V,St2} = new_var(St1),
+           Anno = cerl:get_ann(NotRecord),
+           Eps1 = [#iset{anno=#a{anno=Anno},var=V,arg=NotRecord}],
+           {V,Eps0++Eps1,St2}
+   end.
 
 badrecord_term(Record, #core{in_guard=false}) ->
     c_tuple([#c_literal{val=badrecord},Record]).
@@ -3579,9 +3579,9 @@ upattern(#c_alias{var=V0,pat=P0}=Alias, Ks, St0) ->
     {V1,Vg,Vv,Vu,St1} = upattern(V0, Ks, St0),
     {P1,Pg,Pv,Pu,St2} = upattern(P0, known_union(Ks, Vv), St1),
     {Alias#c_alias{var=V1,pat=P1},Vg ++ Pg,union(Vv, Pv),union(Vu, Pu),St2};
-upattern(#c_record{es=Es0}=Str, Ks, St0) ->
+upattern(#c_record{es=Es0}=Rec, Ks, St0) ->
     {Es1,Esg,Esv,Eus,St1} = upattern_list(Es0, Ks, St0),
-    {Str#c_record{es=Es1},Esg,Esv,Eus,St1};
+    {Rec#c_record{es=Es1},Esg,Esv,Eus,St1};
 upattern(#c_record_pair{val=V0}=Pair, Ks, St0) ->
     {V,Vg,Vn,Vu,St1} = upattern(V0, Ks, St0),
     {Pair#c_record_pair{val=V},Vg,Vn,Vu,St1};
@@ -3749,9 +3749,9 @@ ren_pat(#c_alias{var=Var0,pat=Pat0}=Alias, Ks, {_,_}=Subs0, St0) ->
 ren_pat(#imap{es=Es0}=Map, Ks, {_,_}=Subs0, St0) ->
     {Es,Subs,St} = ren_pat_map(Es0, Ks, Subs0, St0),
     {Map#imap{es=Es},Subs,St};
-ren_pat(#c_record{es=Es0}=Struct, Ks, {_,_}=Subs0, St0) ->
+ren_pat(#c_record{es=Es0}=Rec, Ks, {_,_}=Subs0, St0) ->
     {Es,Subs,St} = ren_pat_record(Es0, Ks, Subs0, St0),
-    {Struct#c_record{es=Es},Subs,St};
+    {Rec#c_record{es=Es},Subs,St};
 ren_pat(#ibinary{segments=Es0}=P, Ks, {Isub,Osub0}, St0) ->
     {Es,_Isub,Osub,St} = ren_pat_bin(Es0, Ks, Isub, Osub0, St0),
     {P#ibinary{segments=Es},{Isub,Osub},St};
@@ -3788,10 +3788,10 @@ ren_pat_map([], _Ks, Subs, St) ->
 
 -spec ren_pat_record([cerl:c_record_pair()], known(), {[iset()], [iset()]}, state()) ->
           {[cerl:c_record_pair()], {[iset()], [iset()]}, state()}.
-ren_pat_record([#c_record_pair{val=Val0}=StrPair|Es0], Ks, Subs0, St0) ->
+ren_pat_record([#c_record_pair{val=Val0}=RecPair|Es0], Ks, Subs0, St0) ->
     {Val,Subs1,St1} = ren_pat(Val0, Ks, Subs0, St0),
     {Es,Subs,St} = ren_pat_record(Es0, Ks, Subs1, St1),
-    {[StrPair#c_record_pair{val=Val}|Es],Subs,St};
+    {[RecPair#c_record_pair{val=Val}|Es],Subs,St};
 ren_pat_record([], _Ks, Subs, St) ->
     {[],Subs,St}.
 
@@ -3862,8 +3862,8 @@ cpattern(#c_tuple{es=Es}=Tup) ->
     Tup#c_tuple{es=cpattern_list(Es)};
 cpattern(#imap{anno=#a{anno=Anno},es=Es}) ->
     #c_map{anno=Anno,es=cpat_map_pairs(Es),is_pat=true};
-cpattern(#c_record{es=Es}=Str) ->
-    Str#c_record{es=cpat_record_pairs(Es)};
+cpattern(#c_record{es=Es}=Rec) ->
+    Rec#c_record{es=cpat_record_pairs(Es)};
 cpattern(#ibinary{anno=#a{anno=Anno},segments=Segs0}) ->
     Segs = [cpat_bin_seg(S) || S <- Segs0],
     #c_binary{anno=Anno,segments=Segs};
@@ -4487,15 +4487,15 @@ split_map_pat([#c_map_pair{key=Key,val=Val}=E0|Es], Map0, St0, Acc) ->
     end;
 split_map_pat([], _, _, _) -> none.
 
-split_record_pat([#c_record_pair{val=Val}=E0|Es], Str0, St0, Acc) ->
+split_record_pat([#c_record_pair{val=Val}=E0|Es], Rec0, St0, Acc) ->
     case split_pat(Val, St0) of
         none ->
-            split_record_pat(Es, Str0, St0, [E0|Acc]);
+            split_record_pat(Es, Rec0, St0, [E0|Acc]);
         {Ps,Split,St1} ->
             {Var,St} = new_var(St1),
             E = E0#c_record_pair{val=Var},
-            Str = Str0#c_record{es=reverse(Acc, [E|Es])},
-            {Str,{split, [Var],Ps,Split},St}
+            Rec = Rec0#c_record{es=reverse(Acc, [E|Es])},
+            {Rec,{split, [Var],Ps,Split},St}
     end;
 split_record_pat([], _, _, _) -> none.
 
@@ -4743,7 +4743,7 @@ is_simple(#c_map{es=Es}) -> is_simple_list(Es);
 is_simple(#c_map_pair{key=K,val=V}) ->
     is_simple(K) andalso is_simple(V);
 is_simple(#c_record{es=Es}) -> is_simple_list(Es);
-is_simple(#c_record_pair{val = V}) -> is_simple(V);
+is_simple(#c_record_pair{val=V}) -> is_simple(V);
 is_simple(_) -> false.
 
 -spec is_simple_list([cerl:cerl()]) -> boolean().
