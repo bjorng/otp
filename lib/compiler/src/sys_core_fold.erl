@@ -1821,7 +1821,7 @@ case_opt_compiler_generated(Core) ->
 		case cerl:type(C) of
 		    alias -> C;
 		    var -> C;
-                    struct ->
+                    record ->
                         Arg = cerl:record_arg(C),
                         Id = cerl:set_ann(cerl:record_id(C), []),
                         Es = cerl:record_es(C),
