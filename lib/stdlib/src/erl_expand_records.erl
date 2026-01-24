@@ -37,20 +37,22 @@ Section [The Abstract Format](`e:erts:absform.md`) in ERTS User's Guide.
                 reverse/1,sort/1]).
 
 -record(exprec, {vcount=0,             % Variable counter
-                 %% Call types
+                 %% Call types.
                  calltype=#{} :: calltype_map(),
 
-                 %% Native record types
-                 structmod=#{} :: structtype_map(),
+                 %% Native record types.
+                 rec_mod=#{} :: rec_type_map(),
 
-                 %% Record definitions
+                 %% Tuple record definitions.
                  records=#{} :: #{erl_parse:record_name() => [erl_parse:af_field_decl()]},
 
-                 %% Raw record forms
+                 %% Raw record forms.
                  raw_records=[] :: [erl_parse:af_record_decl()],
 
-                 %% Compiler option 'dialyzer'
+                 %% Compiler option 'dialyzer'.
                  dialyzer=false :: boolean(),
+
+                 %% Whether the size of the tuple should be tested.
                  strict_rec_tests=true :: boolean(),
 
                  %% Records that'll need checks and records that have
@@ -62,21 +64,10 @@ Section [The Abstract Format](`e:erts:absform.md`) in ERTS User's Guide.
                  module=''
                 }).
 
-%% -type record_access() :: {
-%%     {atom(), erl_parse:abstract_expr()},
-%%     erl_anno:anno(),
-%%     erl_parse:abstract_expr(),
-%%     integer()
-%% }.
-%% -type struct_access() :: {
-%%     {{module(), atom()}, erl_parse:abstract_expr()},
-%%     erl_anno:anno(),
-%%     erl_parse:abstract_expr()
-%% }.
 -type calltype() :: local | {imported, module()}.
 -type calltype_map() :: #{{atom(), arity()} => calltype()}.
--type structtype() :: local | {imported, module()}.
--type structtype_map() :: #{atom() => structtype()}.
+-type rec_type() :: local | {imported, module()}.
+-type rec_type_map() :: #{atom() => rec_type()}.
 
 -doc """
 Expands all records in a module to use explicit tuple operations and adds
@@ -95,7 +86,7 @@ module(Fs0, Opts0) ->
     Opts = Opts0 ++ compiler_options(Fs0),
     St0 = #exprec{dialyzer = lists:member(dialyzer, Opts),
                   calltype = init_calltype(Fs0),
-                  structmod = init_structmod(Fs0),
+                  rec_mod = init_rec_mod(Fs0),
                   strict_rec_tests = strict_record_tests(Opts)},
     {Fs,_St} = forms(Fs0, St0),
     erase(erl_expand_records_in_guard),
@@ -118,19 +109,19 @@ init_calltype_imports([_|T], Ctype) ->
     init_calltype_imports(T, Ctype);
 init_calltype_imports([], Ctype) -> Ctype.
 
--spec init_structmod([erl_parse:abstract_form()]) -> structtype_map().
-init_structmod(Forms) ->
+-spec init_rec_mod([erl_parse:abstract_form()]) -> rec_type_map().
+init_rec_mod(Forms) ->
     SMod = #{Name => local || {attribute, _, native_record, {Name,_}} <- Forms},
-    init_structmod_imports(Forms, SMod).
+    init_rec_mod_imports(Forms, SMod).
 
--spec init_structmod_imports([erl_parse:abstract_form()], structtype_map()) -> structtype_map().
-init_structmod_imports([{attribute,_,import_record,{Mod,Ss}}|T], SMod0) ->
+-spec init_rec_mod_imports([erl_parse:abstract_form()], rec_type_map()) -> rec_type_map().
+init_rec_mod_imports([{attribute,_,import_record,{Mod,Ss}}|T], SMod0) ->
     true = is_atom(Mod),                        %Assertion.
     SMod = foldl(fun(S, Acc) -> Acc#{S => {imported, Mod}} end, SMod0, Ss),
-    init_structmod_imports(T, SMod);
-init_structmod_imports([_|T], SMod) ->
-    init_structmod_imports(T, SMod);
-init_structmod_imports([], SMod) -> SMod.
+    init_rec_mod_imports(T, SMod);
+init_rec_mod_imports([_|T], SMod) ->
+    init_rec_mod_imports(T, SMod);
+init_rec_mod_imports([], SMod) -> SMod.
 
 forms([{attribute,_,record,{Name,Defs}}=Attr | Fs], St0) ->
     NDefs = normalise_fields(Defs),
@@ -198,7 +189,7 @@ pattern({record_field, Anno, F, V0}, St0) ->
 pattern({record_index,Anno,Name,Field}, St) ->
     {index_expr(Anno, Field, Name, record_fields(Name, Anno, St)),St};
 pattern({record,Anno0,Name,Pfs}, St0) when is_atom(Name) ->
-    case St0#exprec.structmod of
+    case St0#exprec.rec_mod of
         #{Name := M0} ->
             M = native_record_mod(M0, St0),
             pattern({record,Anno0,{M,Name},Pfs}, St0);
@@ -305,7 +296,7 @@ not_in_guard(F) ->
 record_test(Anno, Term, Name, St) ->
     NAnno = no_compiler_warning(Anno),
     IsRecord = {remote,NAnno,{atom,NAnno,erlang},{atom,NAnno,is_record}},
-    case St#exprec.structmod of
+    case St#exprec.rec_mod of
         #{Name := M0} ->
             %% Native record.
             Mod = case M0 of
@@ -423,7 +414,7 @@ expr({record,Anno,{M,N},Inits}, St0) ->
     {Es1, St1} = expr_list(Inits, St0),
     {{record,Anno,{M,N},Es1},St1};
 expr({record,Anno0,Name,Is}, St) when is_atom(Name) ->
-    case St#exprec.structmod of
+    case St#exprec.rec_mod of
         #{Name := M0} ->
             M = native_record_mod(M0, St),
             expr({record,Anno0,{M,Name},Is}, St);
@@ -444,7 +435,7 @@ expr({record,_A,Arg0,[]=Id,Updates}, St0) ->
     {Es1, St1} = expr_list(Updates, St0),
     {{record,Anno,Arg1,Id,Es1},St1};
 expr({record,Anno,R,Name,Us}, St0) when is_atom(Name) ->
-    case St0#exprec.structmod of
+    case St0#exprec.rec_mod of
         #{Name := M0} ->
             M = native_record_mod(M0, St0),
             expr({record,Anno,R,{M,Name},Us}, St0);
@@ -453,7 +444,7 @@ expr({record,Anno,R,Name,Us}, St0) when is_atom(Name) ->
             expr(Ue, St1)
     end;
 expr({record_field,A,R,Name,F}, St) when is_atom(Name) ->
-    case St#exprec.structmod of
+    case St#exprec.rec_mod of
         #{Name := M0} ->
             M = native_record_mod(M0, St),
             {atom,_,FName} = F,
