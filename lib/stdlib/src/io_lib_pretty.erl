@@ -359,7 +359,7 @@ pp_field({{field, Name, NameL, F},_,_, _}, Col0, Ll, M, TInd, Ind0, LD, W0) ->
 
 rec_indent(RInd, TInd, Col0, Ind0, W0) ->
     %% this uses TInd
-    Nl = (TInd > 0) andalso (RInd > TInd),
+    Nl = TInd > 0 andalso RInd > TInd,
     DCol = case Nl of
                true -> TInd;
                false -> RInd
