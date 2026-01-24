@@ -23,7 +23,6 @@
 
 -module(core_pp).
 -moduledoc false.
--compile([nowarn_deprecated_catch]).
 -export([format/1,format_all/1]).
 
 -include("core_parse.hrl").
