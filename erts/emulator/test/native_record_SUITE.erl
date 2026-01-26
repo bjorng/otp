@@ -34,6 +34,7 @@
 -record #empty{}.
 -record #f{a, b, c, d}.
 -record #r{f1, f2, f3, f4, f5, f6, f7, f8}.
+-record #singleton{false}.
 
 -record #big{f1, f2, f3, f4, f5, f6, f7, f8,
              f9, f10, f11, f12, f13, f14, f15, f16,
@@ -398,6 +399,19 @@ records_module(_Config) ->
     LargeUpdate1 = LargeUpdate0#{whatever => value},
     ?assertError({badfield,whatever},
                  records:update(BigRecord, ?MODULE, big, LargeUpdate1)),
+
+    %% We KNOW that `false` is the atom with the smallest atom index.
+    Empty = id(#empty{}),
+    LargeUpdate2 = LargeUpdate0#{false => 0},
+    ?assertError({badfield,false}, records:update(Empty, ?MODULE, empty, LargeUpdate2)),
+
+    S = #singleton{false = 0},
+    #singleton{false = 10} = records:update(S, ?MODULE, singleton, #{false => 10}),
+    #singleton{false = 0} = records:update(S, ?MODULE, singleton, id(#{})),
+    ?assertError({badfield,other}, records:update(S, ?MODULE, singleton,
+                                                  #{other => 100})),
+    ?assertError({badfield,other}, records:update(S, ?MODULE, singleton,
+                                                  #{false => 10, other => 100})),
 
     N = 10000,
     #a{x=N,y=0} =

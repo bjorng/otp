@@ -785,7 +785,6 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
         Eterm *kv;
         struct erl_record_field *fields;
         const struct erl_record_field *fields_end;
-        struct erl_record_field sentinel = { NIL, NIL };
         void *tmp_array;
 
         ASSERT(is_hashmap(BIF_ARG_4));
@@ -814,18 +813,20 @@ BIF_RETTYPE records_update_4(BIF_ALIST_4) {
                 *hp++ = fields[0].value;
                 fields++;
                 if (fields >= fields_end) {
-                    fields = &sentinel;
+                    i++;
+                    while (i < field_count) {
+                        *hp++ = old_values[i];
+                        i++;
+                    }
+                    erts_free(ERTS_ALC_T_TMP, tmp_array);
+                    BIF_RET(res);
                 }
             }
         }
 
-        if (fields != &sentinel) {
-            BIF_P->fvalue = fields[0].key;
-            erts_free(ERTS_ALC_T_TMP, tmp_array);
-            BIF_ERROR(BIF_P, EXC_BADFIELD);
-        }
-
+        BIF_P->fvalue = fields[0].key;
         erts_free(ERTS_ALC_T_TMP, tmp_array);
+        BIF_ERROR(BIF_P, EXC_BADFIELD);
     }
 
     BIF_RET(res);
