@@ -451,7 +451,7 @@ traverse(Tree, DefinedVars, State) ->
           {State, t_any()};
         executable_line ->
           {State, t_any()};
-        get_record_field ->
+        record_field ->
           {State, t_any()};
         is_native_record ->
           {State, t_any()};

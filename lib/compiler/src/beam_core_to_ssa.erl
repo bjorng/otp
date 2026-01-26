@@ -456,7 +456,7 @@ primop(raise, Anno, Args) ->
     primop_succeeded(resume, Anno, Args);
 primop(raw_raise, Anno, Args) ->
     primop_succeeded(raw_raise, Anno, Args);
-primop(get_record_field, Anno, Args0) ->
+primop(record_field, Anno, Args0) ->
     Args = case Args0 of
                [Src,#b_literal{val=[]},F] ->
                    [Src,#b_literal{val='_'},F];

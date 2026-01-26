@@ -433,16 +433,16 @@ expr({record,Anno0,Name,Is}, St) when is_atom(Name) ->
                               record_inits(record_fields(Name, Anno0, St), Is)]},
                  St)
     end;
-expr({record,_A,Arg0,{M,N},Updates}, St0) ->
+expr({record,_A,Arg0,{_,_}=Id,Updates}, St0) ->
     Anno = erl_parse:first_anno(Arg0),
     {Arg1,St1} = expr(Arg0, St0),
     {Es1, St2} = expr_list(Updates, St1),
-    {{record,Anno,{M,N},Arg1,Es1},St2};
-expr({record,_A,Arg0,[],Updates}, St0) ->
+    {{record,Anno,Arg1,Id,Es1},St2};
+expr({record,_A,Arg0,[]=Id,Updates}, St0) ->
     Anno = erl_parse:first_anno(Arg0),
     {Arg1,St1} = expr(Arg0, St0),
     {Es1, St1} = expr_list(Updates, St0),
-    {{record,Anno,[],Arg1,Es1},St1};
+    {{record,Anno,Arg1,Id,Es1},St1};
 expr({record,Anno,R,Name,Us}, St0) when is_atom(Name) ->
     case St0#exprec.structmod of
         #{Name := M0} ->
@@ -462,12 +462,11 @@ expr({record_field,A,R,Name,F}, St) when is_atom(Name) ->
             Anno = erl_parse:first_anno(R),
             get_record_field(Anno, R, F, Name, St)
     end;
-expr({record_field,_A,Rec0,Id0,F0}, St0) ->
+expr({record_field,_A,Rec0,Id,F0}, St0) ->
     {Rec,St} = expr(Rec0, St0),
     Anno = erl_parse:first_anno(Rec),
-    Id = erl_parse:abstract(Id0),
     F = erl_parse:abstract(F0),
-    {{get_record_field,Anno,Rec,Id,F},St};
+    {{record_field,Anno,Rec,Id,F},St};
 expr({record_field,Anno,K,E0}, St0) ->
     {E1,St1} = expr(E0, St0),
     {{record_field,Anno,K,E1}, St1};

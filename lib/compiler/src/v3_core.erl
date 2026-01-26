@@ -733,7 +733,7 @@ expr({map,L,M,Es}, St) ->
 expr({record,L,Id,Es0}, St0) ->
     record_build_pairs(#c_literal{val=empty}, #c_literal{val=Id}, Es0,
                        full_anno(L, St0), St0);
-expr({record,L,Id,S,Es}, St) ->
+expr({record,L,S,Id,Es}, St) ->
     expr_record(S, #c_literal{val=Id}, Es, L, St);
 expr({bin,L,Es0}, St0) ->
     try expr_bin(Es0, full_anno(L, St0), St0) of
@@ -969,15 +969,14 @@ expr({match,L,P0,E0}, St0) ->
     end;
 expr({single_match,L,P,#c_var{}=E}, St0) ->
     single_match(L, P, E, St0);
-expr({get_record_field=Op,Loc,Src0,Id0,F0}, St0) ->
+expr({record_field=Op,Loc,Src0,Id,F0}, St0) ->
     {Src,Aps0,St1} = safe(Src0, St0),
-    {Id,Aps1,St2} = safe(Id0, St1),
-    {F,Aps2,St3} = safe(F0, St2),
+    {F,Aps1,St2} = safe(F0, St1),
     PrimOp = #iprimop{anno=#a{anno=lineno_anno(Loc, St0)},
                       name=#c_literal{val=Op},
-                      args=[Src,Id,F]},
-    Aps = Aps0 ++ Aps1 ++ Aps2,
-    {PrimOp,Aps,St3};
+                      args=[Src,#c_literal{val=Id},F]},
+    Aps = Aps0 ++ Aps1,
+    {PrimOp,Aps,St2};
 expr({op,_,'++',{lc,Llc,E,Qs0},More}, St0) ->
     %% Optimise '++' here because of the list comprehension algorithm.
     %%
