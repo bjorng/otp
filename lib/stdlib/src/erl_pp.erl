@@ -696,8 +696,7 @@ lexpr({record, _, Name, Fs}, Prec, Opts) ->
     Nl = record_name(Name),
     El = {first,Nl,record_fields(Fs, Opts)},
     maybe_paren(P, Prec, El);
-lexpr({record_field, _, Rec, Name0, F}=Blurf, Prec, Opts) ->
-    io:format("~p\n", [Blurf]),
+lexpr({record_field, _, Rec, Name0, F}, Prec, Opts) ->
     {L,P,R} = inop_prec('#'),
     Rl = lexpr(Rec, L, Opts),
     Sep = hash_after_integer(Rec, [$#]),

@@ -447,16 +447,14 @@ expr({record_field,A,R,Name,F}, St) when is_atom(Name) ->
     case St#exprec.rec_mod of
         #{Name := M0} ->
             M = native_record_mod(M0, St),
-            {atom,_,FName} = F,
-            expr({record_field,A,R,{M,Name},FName}, St);
+            expr({record_field,A,R,{M,Name},F}, St);
         #{} ->
             Anno = erl_parse:first_anno(R),
             get_record_field(Anno, R, F, Name, St)
     end;
-expr({record_field,_A,Rec0,Id,F0}, St0) ->
+expr({record_field,_A,Rec0,Id,F}, St0) ->
     {Rec,St} = expr(Rec0, St0),
     Anno = erl_parse:first_anno(Rec),
-    F = erl_parse:abstract(F0),
     {{record_field,Anno,Rec,Id,F},St};
 expr({record_field,Anno,K,E0}, St0) ->
     {E1,St1} = expr(E0, St0),
