@@ -462,7 +462,7 @@ record_expr -> expr_max '#' atom ':' record_name '.' atom :
         {record_field,?anno('$2'),'$1',Id,'$7'}.
 record_expr -> expr_max '#_' '.' atom :
         Id = [],
-	{record_field,?anno('$2'),'$1',Id,element(3, '$4')}.
+	{record_field,?anno('$2'),'$1',Id,'$4'}.
 record_expr -> expr_max '#' atom ':' record_name record_tuple :
         Id = {element(3, '$3'), element(3, '$5')},
 	{record,?anno('$2'),'$1',Id,'$6'}.
