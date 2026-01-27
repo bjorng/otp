@@ -219,6 +219,12 @@ type -> '{' top_types '}'                 : {type, ?anno('$1'), tuple, '$2'}.
 type -> '#' atom '{' '}'                  : {type, ?anno('$1'), record, ['$2']}.
 type -> '#' atom '{' field_types '}'      : {type, ?anno('$1'),
                                              record, ['$2'|'$4']}.
+type -> '#' atom ':' record_name '{' '}'  :
+        Id = {tuple,?anno('$1'),['$2','$4']},
+        {type, ?anno('$1'), record, [Id]}.
+type -> '#' atom ':' record_name '{' field_types '}' :
+        Id = {tuple,?anno('$1'),['$2','$4']},
+        {type, ?anno('$1'), record, [Id|'$6']}.
 type -> binary_type                       : '$1'.
 type -> integer                           : '$1'.
 type -> char                              : '$1'.
@@ -462,7 +468,7 @@ record_expr -> expr_max '#' atom ':' record_name '.' atom :
         {record_field,?anno('$2'),'$1',Id,'$7'}.
 record_expr -> expr_max '#_' '.' atom :
         Id = [],
-	{record_field,?anno('$2'),'$1',Id,element(3, '$4')}.
+	{record_field,?anno('$2'),'$1',Id,'$4'}.
 record_expr -> expr_max '#' atom ':' record_name record_tuple :
         Id = {element(3, '$3'), element(3, '$5')},
 	{record,?anno('$2'),'$1',Id,'$6'}.
@@ -988,7 +994,6 @@ processed (see section [Error Information](#module-error-information)).
                        | af_record_field_access(abstract_expr())
                        | af_native_record_creation()
                        | af_native_record_update()
-                       | af_native_record_field_access()
                        | af_map_creation(abstract_expr())
                        | af_map_update(abstract_expr())
                        | af_catch()
@@ -1166,9 +1171,6 @@ processed (see section [Error Information](#module-error-information)).
 
 -type af_native_record_update() ::
         {'native_record_update', anno(), abstract_expr(), {atom(), atom()} | {}, [af_record_field(abstract_expr())]}.
-
--type af_native_record_field_access() ::
-        {'native_record_field_expr', anno(), abstract_expr(), {atom(), atom()} | {}, atom()}.
 
 -type af_native_record_pattern() ::
         {'native_record', anno(), {atom(), atom()} | {}, [af_record_field(af_pattern())]}.

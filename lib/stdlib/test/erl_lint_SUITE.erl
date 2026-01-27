@@ -4097,9 +4097,30 @@ basic_errors(Config) ->
 	   [],
 	   {errors,[{{2,15},erl_lint,{redefine_function,{f,0}}}],[]}},
 
-	  {redefine_record,
+	  {redefine_record_1,
 	   <<"-record(r, {a}).
               -record(r, {a}).
+	      f(#r{}) -> ok.">>,
+	   [],
+	   {errors,[{{2,16},erl_lint,{redefine_record,r}}],[]}},
+
+	  {redefine_record_2,
+	   <<"-record #r{a}.
+              -record(r, {a}).
+	      f(#r{}) -> ok.">>,
+	   [],
+	   {errors,[{{2,16},erl_lint,{redefine_record,r}}],[]}},
+
+	  {redefine_record_3,
+	   <<"-record(r, {a}).
+              -record #r{a}.
+	      f(#r{}) -> ok.">>,
+	   [],
+	   {errors,[{{2,16},erl_lint,{redefine_record,r}}],[]}},
+
+	  {redefine_record_4,
+	   <<"-record #r{a}.
+              -record #r{a}.
 	      f(#r{}) -> ok.">>,
 	   [],
 	   {errors,[{{2,16},erl_lint,{redefine_record,r}}],[]}},
@@ -5189,6 +5210,15 @@ unused_record(Config) when is_list(Config) ->
                   a.
             ">>,
            {[]},
+           []},
+          {unused_record_3,
+          <<"-export([t/0]).
+             -record #a{x,y}.
+             -compile(nowarn_unused_record).
+              t() ->
+                  a.
+            ">>,
+           {[]},
            []}
          ],
     [] = run(Config, Ts),
@@ -5730,106 +5760,201 @@ do_coverage() ->
     ok.
 
 native_records(Config) ->
-    Ts = [{redefine_native_record_1,
-           <<"-record #a{}.
-             -record #a{}.">>,
+    Ts = [{basic,
+           ~"""
+           -record #r{x=42::integer(), y::integer()}.
+           -type r() :: #r{}.
+           -import_record(ext_records, [ext]).
+
+           -spec t(integer(), integer()) -> {integer(), [r()]}.
+           t(A, B) ->
+               R1 = #ext_records:r{x=A, y=2},
+               R2 = #r{y=B},
+               R3 = #r{x=100,y=200},
+               #r{x=X, y=Y} = R3,
+               #ext_records:r{x=X, y=Y} = R3,
+               #_{x=X, y=Y} = R3,
+               X = R3#r.x,
+               Y = R3#_.y,
+               R4 = R3#r{x = 1, y = 2},
+               {X + Y, [R1,R2,R4]}.
+
+           m(#lint_test:r{x=0,y=0}) -> 100;
+           m(#r{x=X,y=Y}) -> X + Y;
+           m(#ext_records:r{x=X,y=Y}) -> X + Y;
+           m(R) when R#r.x > 100, R#lint_test:r.y > 100 -> 1000;
+           m(#ext{i=I}) -> I;
+           m(#_{x=X,y=Y}) -> X + Y.
+
+           ue(A, B) ->
+              Ext = ext_records:ext(),
+              Ext#ext{a=A, b=B}.
+
+           -record #def{a=[$c,0.5,{"a",~"b,c"}]}.
+           cover_defaults() -> #def{}.
+           """,
            [],
-           {errors,[{{2,15},erl_lint,{redefine_native_record,a}}],[]}},
-           {redefine_native_record_2,
-           <<"-compile(nowarn_unused_record).
-             -record #a{}.
-             -record(a, {}).">>,
+           []},
+          {types_and_specs,
+           ~"""
+           -record #rec{x=42::integer(), y::integer()}.
+           -import_record(ext_records, [pos]).
+
+           -type rec() :: #rec{}.
+           -type ext_dir() :: #ext_records:dir{}.
+
+           -spec build() -> rec().
+           build() -> #rec{x=0, y=1}.
+
+           -spec build2() -> #lint_test:rec{}.
+           build2() -> #rec{x=0, y=1}.
+
+           -spec check_dir(ext_dir()) -> boolean().
+           check_dir(#ext_records:dir{}) -> ok.
+
+           -spec check_dir2(#ext_records:dir{}) -> boolean().
+           check_dir2(#ext_records:dir{}) -> ok.
+           """,
            [],
-           {errors,[{{3,15},erl_lint,{redefine_native_record,a}}],[]}},
-           {redefine_native_record_3,
-           <<"-compile(nowarn_unused_record).
-              -record(a, {}).
-              -record #a{}.">>,
-           [],
-           {errors,[{{3,16},erl_lint,{redefine_record,a}}],[]}},
+           []},
           {redefine_imported_native_record_1,
            <<"-record #a{}.
-              -import_record(a, [a]).">>,
+              -record(b, {}).
+              -import_record(ext, [a,b]).
+              t() -> {#a{}, #b{}}.
+             ">>,
            [],
-           {errors,[{{2,16},erl_lint,{redefine_native_record_import,a}}],[]}},
+           {errors,[{{3,16},erl_lint,{redefine_local_record,a}},
+                    {{3,16},erl_lint,{redefine_local_record,b}}],
+            []}},
           {redefine_imported_native_record_2,
-           <<"-import_record(a, [a]).
-              -record #a{}.">>,
+           <<"-import_record(ext, [a,b]).
+              -record #a{}.
+              -record(b, {}).
+              t() -> {#a{}, #b{}}.
+             ">>,
            [],
-           {errors,[{{1,22},erl_lint,{redefine_native_record_import,a}}],[]}},
+           {errors,[{{2,16},erl_lint,{redefine_imported_record,{ext,a}}},
+                    {{3,16},erl_lint,{redefine_imported_record,{ext,b}}}],
+            []}},
           {redefine_imported_native_record_3,
-           <<"-import_record(a, [a]).
-              -import_record(b, [a]).">>,
-           [],
-           {errors,[{{2,16},erl_lint,{redefine_native_record_import,{a,a}}}],[]}},
+           <<"-import_record(ext, [a]).
+              -import_record(ext, [a]).">>,
+           [nowarn_unused_record],
+           {errors,[{{2,16},erl_lint,{redefine_imported_record,{ext,a}}}],[]}},
 
-          % expressions
-          {redefine_native_record_field,
-           <<"-import_record(a, [a]).
+          %% expressions
+          {redefine_record_field_1,
+           <<"-record #a{a, b}.
               mk_a() -> #a{a = 1, a = b}.
               get_a(#a{b = b, b = c}) -> ok.">>,
            [],
-           {errors,[{{2,35},erl_lint,{redefine_native_record_field,a}},
-                    {{3,31},erl_lint,{repeated_native_record_field,b}}],[]}},
-          {redefine_native_record_field_def,
+           {errors,[{{2,35},erl_lint,{redefine_field,a,a}},
+                    {{3,31},erl_lint,{redefine_field,a,b}}],[]}},
+          {redefine_record_field_2,
+           <<"mk_a() -> #ext_records:a{a = 1, a = b}.
+              get_a(#ext_records:a{b = b, b = c}) -> ok.">>,
+           [],
+           {errors,[{{1,53},erl_lint,{redefine_field,{ext_records,a},a}},
+                    {{2,43},erl_lint,{redefine_field,{ext_records,a},b}}],[]}},
+          {redefine_record_field_3,
+           <<"-import_record(ext_records, [a]).
+              mk_a() -> #a{a = 1, a = b}.
+              get_a(#a{b = b, b = c}) -> ok.">>,
+           [],
+           {errors,[{{2,35},erl_lint,{redefine_field,a,a}},
+                    {{3,31},erl_lint,{redefine_field,a,b}}],[]}},
+          {redefine_record_field_def,
            <<"-record #s1{a, a}.
               -record #s2{a=atom, a}.
               -record #s3{a, a=atom}.
               -record #s4{a=atom, b}.">>,
-           [],
-           {errors,[{{1,36},erl_lint,{redefine_native_record_field_def,s1,a}},
-                    {{2,35},erl_lint,{redefine_native_record_field_def,s2,a}},
-                    {{3,30},erl_lint,{redefine_native_record_field_def,s3,a}}],
+           [nowarn_unused_record],
+           {errors,[{{1,36},erl_lint,{redefine_field,s1,a}},
+                    {{2,35},erl_lint,{redefine_field,s2,a}},
+                    {{3,30},erl_lint,{redefine_field,s3,a}}],
             []}},
           {undefined_native_record_field,
-           <<"-record #s{a=a, c=c}.
-               mk() -> #s{a = a, b = b}.
-               pat(#s{a = A, b = B}) -> {A, B}.
-               update(S) -> S#s{b = b}.
-               get1(S) -> S#s.b.
-               get2(S, B) when B == S#s.b -> ok.">>,
+           <<"-record #r{a=a, c=c}.
+               mk() -> #r{a = a, b = b}.
+               pat(#r{a = A, b = B}) -> {A, B}.
+               update(S) -> S#r{b = b}.
+               get1(S) -> S#r.b.
+               get2(S, B) when B == S#r.b -> ok.">>,
            [],
-           {warnings,[{{2,34},erl_lint,{undefined_native_record_field,b,s}},
-                      {{3,30},erl_lint,{undefined_native_record_field,b,s}},
-                      {{4,33},erl_lint,{undefined_native_record_field,b,s}},
-                      {{5,28},erl_lint,{undefined_native_record_field,b,s}},
-                      {{6,38},erl_lint,{undefined_native_record_field,b,s}}]}},
-          {redefine_native_record_field_3,
-           <<"-record #s{a, b, c = c}.
-                mk1() -> #s{}.
-                mk2() -> #s{a = a}.">>,
+           {warnings,[{{2,34},erl_lint,{undefined_native_record_field,r,b}},
+                      {{3,30},erl_lint,{undefined_native_record_field,r,b}},
+                      {{4,33},erl_lint,{undefined_native_record_field,r,b}},
+                      {{5,31},erl_lint,{undefined_native_record_field,r,b}},
+                      {{6,41},erl_lint,{undefined_native_record_field,r,b}}]}},
+          {no_init,
+           <<"-record #r{a, b, c = c}.
+                mk1() -> #r{}.
+                mk2() -> #r{a = a}.">>,
            [],
-           {warnings,[{{2,26},erl_lint,{no_init_native_record_field,a,s}},
-                      {{2,26},erl_lint,{no_init_native_record_field,b,s}},
-                      {{3,26},erl_lint,{no_init_native_record_field,b,s}}]}},
+           {warnings,[{{2,26},erl_lint,{no_init_native_record_field,r,a}},
+                      {{2,26},erl_lint,{no_init_native_record_field,r,b}},
+                      {{3,26},erl_lint,{no_init_native_record_field,r,b}}]}},
           {undefined_record_1,
            <<"t() ->
                   X = no_record,
                   is_record(X, foo),
                   erlang:is_record(X, foo).
+              m(#foo{}) -> ok.
              ">>,
            [],
            {errors,[{{3,32},erl_lint,{undefined_record,foo}},
-                    {{4,39},erl_lint,{undefined_record,foo}}],
+                    {{4,39},erl_lint,{undefined_record,foo}},
+                    {{5,17},erl_lint,{undefined_record,foo}}],
             []}},
-           {illegal_native_record_def_1,
+          {illegal_native_record_def_1,
            <<"t1() ->
                   #_{x=1}.
-              t2() ->
-                  #ext:_{x=1}.
              ">>,
            [],
-           {errors,[{{2,19},erl_lint,{undefined_native_record,'_'}},
-                    {{4,19},erl_lint,{undefined_native_record,'_'}}],
+           {errors,[{{2,19},erl_lint,{undefined_native_record,'_'}}],
             []}},
-           {illegal_native_record_def_2,
-           <<"-record #s1{a = is_atom(0)}.
-              -record #s2{a = [0, is_atom(0)]}.
-              -record #s3{a = #{1=>e:f()} }.">>,
+          {illegal_native_record_def_2,
+           <<"-record #r1{a = is_atom(0)}.
+              -record #r2{a = [0, is_atom(0)]}.
+              -record #r3{a = #{1=>e:f()} }.">>,
+           [nowarn_unused_record],
+           {errors,[{{1,33},erl_lint,{illegal_native_record_default,r1,a}},
+                    {{2,27},erl_lint,{illegal_native_record_default,r2,a}},
+                    {{3,27},erl_lint,{illegal_native_record_default,r3,a}}],
+            []}},
+          {define_in_guard,
+           <<"-record #r{a=0}.
+              t() when is_record(#r{}) -> ok.
+             ">>,
            [],
-           {errors,[{{1,33},erl_lint,{illegal_native_record_default,a,s1}},
-                    {{2,27},erl_lint,{illegal_native_record_default,a,s2}},
-                    {{3,27},erl_lint,{illegal_native_record_default,a,s3}}],
+           {errors,[{{2,34},erl_lint,native_record_in_guard}],[]}},
+          {illegal_record_info,
+           <<"-record #r{}.
+              t() ->
+                  {record_info(size, r), record_info(fields, r)}.">>,
+           [],
+           {error,[{{3,32},erl_lint,native_record_illegal_record_info},
+                   {{3,54},erl_lint,native_record_illegal_record_info}],
+            [{{1,22},erl_lint,{unused_record,r}}]}},
+          {illegal_record_index,
+           <<"-record #r{x,y}.
+              t(R) when element(#r.x, R) ->
+                  #r.y.
+              m(#r.x) -> ok.">>,
+           [],
+           {errors,[{{2,33},erl_lint,{native_record_illegal_record_index,r,x}},
+                    {{3,19},erl_lint,{native_record_illegal_record_index,r,y}},
+                    {{4,17},erl_lint,{native_record_illegal_record_index,r,x}}],
+            []}},
+          {multi_field_init,
+           <<"-record #r{x,y,z}.
+              c(R) ->
+                  {#r{_=same},
+                   R#r{_=same}}.">>,
+           [],
+           {errors,[{{3,23},erl_lint,native_record_illegal_multi_field_init},
+                    {{4,24},erl_lint,native_record_illegal_multi_field_init}],
             []}}
          ],
     [] = run(Config, Ts),
