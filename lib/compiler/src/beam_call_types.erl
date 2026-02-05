@@ -138,6 +138,8 @@ will_succeed(erlang, is_function, [_, Arity]=Args) ->
     end;
 will_succeed(erlang, is_map_key, [_Key, Map]) ->
     succeeds_if_type(Map, #t_map{});
+will_succeed(erlang, is_record, [Arg]) ->
+    succeeds_if_type(Arg, #t_record{});
 will_succeed(erlang, length, [Arg]) ->
     succeeds_if_type(Arg, proper_list());
 will_succeed(erlang, map_size, [Arg]) ->
