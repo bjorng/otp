@@ -326,11 +326,14 @@ void BeamGlobalAssembler::emit_i_get_map_element_shared() {
 
     /* hashmap_get_element expects node header in ARG4, flatmap_get_element
      * expects size in ARG5 */
-    ERTS_CT_ASSERT_FIELD_PAIR(flatmap_t, thing_word, size);
+    ERTS_CT_ASSERT_FIELD_PAIR(hashmap_head_t, thing_word, size);
     a.ldp(ARG4, ARG5, arm::Mem(ARG1));
     a.and_(TMP1, ARG4, imm(_HEADER_MAP_SUBTAG_MASK));
     a.cmp(TMP1, imm(HAMT_SUBTAG_HEAD_FLATMAP));
     a.b_ne(hashmap);
+
+    ASSERT(MAP_HEADER_VAL(0xffff0000) == 0xffff);
+    a.lsr(ARG5.w(), ARG4.w(), imm(16));
 
     emit_flatmap_get_element();
 
@@ -418,11 +421,14 @@ void BeamModuleAssembler::emit_i_get_map_elements(const ArgLabel &Fail,
 
         emit_untag_ptr(TMP1, ARG1);
 
-        ERTS_CT_ASSERT_FIELD_PAIR(flatmap_t, thing_word, size);
+        ERTS_CT_ASSERT_FIELD_PAIR(hashmap_head_t, thing_word, size);
         a.ldp(TMP2, TMP3, arm::Mem(TMP1, offsetof(flatmap_t, thing_word)));
-        a.and_(TMP2, TMP2, imm(_HEADER_MAP_SUBTAG_MASK));
-        a.cmp(TMP2, imm(HAMT_SUBTAG_HEAD_FLATMAP));
+        a.and_(TMP4, TMP2, imm(_HEADER_MAP_SUBTAG_MASK));
+        a.cmp(TMP4, imm(HAMT_SUBTAG_HEAD_FLATMAP));
         a.b_ne(generic);
+
+        ASSERT(MAP_HEADER_VAL(0xffff0000) == 0xffff);
+        a.lsr(TMP3.w(), TMP2.w(), imm(16));
 
         check_pending_stubs();
 
@@ -498,11 +504,13 @@ void BeamGlobalAssembler::emit_i_get_map_element_hash_shared() {
 
     /* hashmap_get_element expects node header in ARG4, flatmap_get_element
      * expects size in ARG5 */
-    ERTS_CT_ASSERT_FIELD_PAIR(flatmap_t, thing_word, size);
+    ERTS_CT_ASSERT_FIELD_PAIR(hashmap_head_t, thing_word, size);
     a.ldp(ARG4, ARG5, arm::Mem(ARG1));
     a.and_(TMP1, ARG4, imm(_HEADER_MAP_SUBTAG_MASK));
     a.cmp(TMP1, imm(HAMT_SUBTAG_HEAD_FLATMAP));
     a.b_ne(hashmap);
+    ASSERT(MAP_HEADER_VAL(0xffff0000) == 0xffff);
+    a.lsr(ARG5.w(), ARG4.w(), imm(16));
     emit_flatmap_get_element();
 
     a.bind(hashmap);

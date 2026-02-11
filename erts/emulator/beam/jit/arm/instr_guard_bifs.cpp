@@ -947,7 +947,8 @@ void BeamGlobalAssembler::emit_handle_map_size_error() {
 void BeamModuleAssembler::emit_bif_map_size(const ArgLabel &Fail,
                                             const ArgSource &Src,
                                             const ArgRegister &Dst) {
-    Label error = a.newLabel(), good_map = a.newLabel();
+    Label error = a.newLabel(), good_map = a.newLabel(),
+        done = a.newLabel();
     auto src = load_source(Src, TMP1);
     auto dst = init_destination(Dst, TMP2);
 
@@ -964,8 +965,8 @@ void BeamModuleAssembler::emit_bif_map_size(const ArgLabel &Fail,
         a.bind(error); /* Never referenced. */
     } else {
         a.ldur(TMP4, emit_boxed_val(boxed_ptr));
-        a.and_(TMP4, TMP4, imm(_TAG_HEADER_MASK));
-        a.cmp(TMP4, imm(_TAG_HEADER_MAP));
+        a.and_(TMP5, TMP4, imm(_TAG_HEADER_MASK));
+        a.cmp(TMP5, imm(_TAG_HEADER_MAP));
 
         if (Fail.get() == 0) {
             a.b_eq(good_map);
@@ -982,12 +983,19 @@ void BeamModuleAssembler::emit_bif_map_size(const ArgLabel &Fail,
 
     a.bind(good_map);
     {
-        ERTS_CT_ASSERT(offsetof(flatmap_t, size) == sizeof(Eterm));
+        ERTS_CT_ASSERT(MAP_HEADER_TAG_FLATMAP_HEAD == 0);
+        ASSERT(MAP_HEADER_VAL(0xffff0000) == 0xffff);
+        a.lsr(dst.reg.w(), TMP4.w(), imm(16));
+        a.tst(TMP4, imm(_HEADER_MAP_SUBTAG_MASK));
+        a.b_eq(done);
+        ERTS_CT_ASSERT(offsetof(hashmap_head_t, size) == sizeof(Eterm));
         a.ldur(TMP1, emit_boxed_val(boxed_ptr, sizeof(Eterm)));
         mov_imm(dst.reg, _TAG_IMMED1_SMALL);
         a.bfi(dst.reg, TMP1, imm(_TAG_IMMED1_SIZE), imm(SMALL_BITS));
-        flush_var(dst);
     }
+
+    a.bind(done);
+    flush_var(dst);
 }
 
 /* ================================================================
