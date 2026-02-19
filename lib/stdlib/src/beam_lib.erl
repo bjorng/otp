@@ -147,8 +147,6 @@ providing one key for module `t` and another key for all other modules:
 """.
 -behaviour(gen_server).
 
--compile(nowarn_deprecated_catch).
-
 -include_lib("kernel/include/eep48.hrl").
 
 %% Avoid warning for local function error/1 clashing with autoimported BIF.
@@ -401,7 +399,12 @@ exists in directory `Dir1` (`Dir2`).
       Reason :: {'not_a_directory', term()} | info_rsn().
 
 cmp_dirs(Dir1, Dir2) ->
-    catch compare_dirs(Dir1, Dir2).
+    try
+        compare_dirs(Dir1, Dir2)
+    catch
+        throw:Reason ->
+            Reason
+    end.
 
 -doc """
 Compares the BEAM files in two directories as `cmp_dirs/2`, but the names of
@@ -414,7 +417,12 @@ standard output.
       Reason :: {'not_a_directory', term()} | info_rsn().
 
 diff_dirs(Dir1, Dir2) ->
-    catch diff_directories(Dir1, Dir2).
+    try
+        diff_directories(Dir1, Dir2)
+    catch
+        throw:Reason ->
+            Reason
+    end.
 
 -doc """
 Removes all chunks from a BEAM file except those used by the loader.
@@ -513,7 +521,12 @@ release can be stripped with the call `beam_lib:strip_release(code:root_dir(),[d
       Reason :: {'not_a_directory', term()} | info_rsn().
 
 strip_release(Root, AdditionalChunks) ->
-    catch strip_rel(Root, AdditionalChunks).
+    try
+        strip_rel(Root, AdditionalChunks)
+    catch
+        throw:Reason ->
+            Reason
+    end.
 
 -doc """
 Returns the module version or versions. A version is defined by module attribute
@@ -543,11 +556,12 @@ _Examples:_
       Beam :: beam().
 
 version(File) ->
-    case catch read_chunk_data(File, [attributes]) of
+    try read_chunk_data(File, [attributes]) of
 	{ok, {Module, [{attributes, Attrs}]}} ->
 	    {vsn, Version} = lists:keyfind(vsn, 1, Attrs),
-	    {ok, {Module, Version}};
-	Error ->
+	    {ok, {Module, Version}}
+    catch
+	throw:Error ->
 	    Error
     end.
 
@@ -561,11 +575,12 @@ and other attributes are not included).
       MD5 :: binary().
 
 md5(File) ->
-    case catch read_significant_chunks(File, md5_chunks()) of
+    try read_significant_chunks(File, md5_chunks()) of
 	{ok, {Module, Chunks0}} ->
 	    Chunks = filter_funtab(Chunks0),
-	    {ok, {Module, erlang:md5([C || {_Id, C} <- Chunks])}};
-	Error ->
+	    {ok, {Module, erlang:md5([C || {_Id, C} <- Chunks])}}
+    catch
+        throw:Error ->
 	    Error
     end.
 
@@ -754,11 +769,12 @@ compare_dirs(Dir1, Dir2) ->
 compare_files([], [], Acc) ->
     lists:reverse(Acc);
 compare_files([{_,F1} | R1], [{_,F2} | R2], Acc) ->
-    NAcc = case catch cmp_files(F1, F2) of
-	       {error, _Mod, _Reason} ->
-		   [{F1, F2} | Acc];
+    NAcc = try cmp_files(F1, F2) of
 	       ok ->
 		   Acc
+           catch
+	       throw:{error, _Mod, _Reason} ->
+		   [{F1, F2} | Acc]
 	   end,
     compare_files(R1, R2, NAcc).
 
@@ -948,19 +964,22 @@ scan_beam(File, What0, AllowMissingChunks, OptionalChunks) ->
 %% -> {ok, Module, Data} | throw(Error)
 scan_beam1(File, What) ->
     FD = open_file(File),
-    case catch scan_beam2(FD, What) of
-	Error when error =:= element(1, Error) ->
-	    throw(Error);
-	R ->
-	    R
+    try
+        scan_beam2(FD, What)
+    catch
+	throw:Error when error =:= element(1, Error) ->
+	    throw(Error)
     end.
 
 scan_beam2(FD, What) ->
-    case pread(FD, 0, 12) of
+    try pread(FD, 0, 12) of
 	{NFD, {ok, <<"FOR1", _Size:32, "BEAM">>}} ->
 	    Start = 12,
 	    scan_beam(NFD, Start, What, 17, []);
-	_Error -> 
+        _ ->
+	    error({not_a_beam_file, filename(FD)})
+    catch
+	throw_:_Error -> 
 	    error({not_a_beam_file, filename(FD)})
     end.
 
@@ -1036,7 +1055,7 @@ chunks_to_data([{atom_chunk, Name} | CNs], Chunks, File, Cs, Module, Atoms, L) -
 chunks_to_data([{abst_chunk, Name} | CNs], Chunks, File, Cs, Module, Atoms, L) ->
     DbgiChunk = proplists:get_value("Dbgi", Chunks, <<"">>),
     {NewAtoms, Ret} =
-	case catch chunk_to_data(debug_info, DbgiChunk, File, Cs, Atoms, Module) of
+	try chunk_to_data(debug_info, DbgiChunk, File, Cs, Atoms, Module) of
 	    {DbgiAtoms, {debug_info, {debug_info_v1, Backend, Metadata}}} ->
 		try Backend:debug_info(erlang_v1, Module, Metadata, []) of
 		    {ok, Code} -> {DbgiAtoms, {abstract_code, {raw_abstract_v1, Code}}};
@@ -1044,10 +1063,11 @@ chunks_to_data([{abst_chunk, Name} | CNs], Chunks, File, Cs, Module, Atoms, L) -
                 catch
                     error:undef ->
                         error({missing_backend,File,Backend})
-                end;
-            {error,beam_lib,{key_missing_or_invalid,Path,debug_info}} ->
+                end
+        catch
+            throw:{error,beam_lib,{key_missing_or_invalid,Path,debug_info}} ->
                 error({key_missing_or_invalid,Path,abstract_code});
-	    _ ->
+	    throw:_ ->
 		AbstChunk = proplists:get_value("Abst", Chunks, <<"">>),
 		chunk_to_data(Name, AbstChunk, File, Cs, Atoms, Module)
 	end,
@@ -1086,11 +1106,12 @@ chunk_to_data(debug_info=Id, Chunk, File, _Cs, AtomTable, Mod) ->
 	    Term = decrypt_chunk(Mode, Mod, File, Id, Rest),
 	    {AtomTable, {Id, anno_from_term(Term)}};
 	_ ->
-	    case catch binary_to_term(Chunk) of
-		{'EXIT', _} ->
-		    error({invalid_chunk, File, chunk_name_to_id(Id, File)});
+	    try binary_to_term(Chunk) of
 		Term ->
                     {AtomTable, {Id, anno_from_term(Term)}}
+            catch
+                error:badarg ->
+		    error({invalid_chunk, File, chunk_name_to_id(Id, File)})
 	    end
     end;
 chunk_to_data(documentation=Id, Chunk, File, _Cs, AtomTable, _Mod) ->
@@ -1115,9 +1136,7 @@ chunk_to_data(abstract_code=Id, Chunk, File, _Cs, AtomTable, Mod) ->
 	    Term = decrypt_chunk(Mode, Mod, File, Id, Rest),
 	    {AtomTable, {Id, old_anno_from_term(Term)}};
 	_ ->
-	    case catch binary_to_term(Chunk) of
-		{'EXIT', _} ->
-		    error({invalid_chunk, File, chunk_name_to_id(Id, File)});
+            try binary_to_term(Chunk) of
 		Term ->
                     try
                         {AtomTable, {Id, old_anno_from_term(Term)}}
@@ -1126,6 +1145,9 @@ chunk_to_data(abstract_code=Id, Chunk, File, _Cs, AtomTable, Mod) ->
                             error({invalid_chunk, File,
                                    chunk_name_to_id(Id, File)})
                     end
+            catch
+		error:badarg ->
+                    error({invalid_chunk, File, chunk_name_to_id(Id, File)})
 	    end
     end;
 chunk_to_data(atoms=Id, _Chunk, _File, Cs, AtomTable0, _Mod) ->
@@ -1142,10 +1164,11 @@ chunk_to_data(literals=Id, Chunk, File, _Cs, AtomTable, _Mod) ->
     end;
 chunk_to_data(ChunkName, Chunk, File,
 	      Cs, AtomTable, _Mod) when is_atom(ChunkName) ->
-    case catch symbols(Chunk, AtomTable, Cs, ChunkName) of
+    try symbols(Chunk, AtomTable, Cs, ChunkName) of
 	{ok, NewAtomTable, S} ->
-	    {NewAtomTable, {ChunkName, S}};
-	{'EXIT', _} ->
+	    {NewAtomTable, {ChunkName, S}}
+    catch
+        error:_ ->
 	    error({invalid_chunk, File, chunk_name_to_id(ChunkName, File)})
     end;
 chunk_to_data(ChunkId, Chunk, _File, 
@@ -1509,7 +1532,7 @@ handle_call({crypto_key_fun, F}, {_,_} = From, S) ->
 	undefined ->
 	    if is_function(F, 1) ->
 		    {Result, Fun, Reply} = 
-			case catch F(init) of
+			try F(init) of
 			    ok ->
 				{true, F, ok};
 			    {ok, F1} when is_function(F1) ->
@@ -1521,9 +1544,10 @@ handle_call({crypto_key_fun, F}, {_,_} = From, S) ->
 					 {error, badfun}}
 				end;
 			    {error, Reason} ->
-				{false, undefined, {error, Reason}};
-			    {'EXIT', Reason} ->
 				{false, undefined, {error, Reason}}
+                        catch
+                            error:Reason:Stk ->
+				{false, undefined, {error, {Reason, Stk}}}
 			end,
 		    gen_server:reply(From, Reply),
 		    erlang:garbage_collect(),
@@ -1545,8 +1569,13 @@ handle_call(clear_crypto_key_fun, _From, S) ->
 	undefined ->
 	    {stop,normal,undefined,S};
 	F ->
-	    Result = (catch F(clear)),
-	    {stop,normal,{ok,Result},S}
+	    try F(clear) of
+                Result ->
+                    {stop,normal,{ok,Result},S}
+            catch
+                error:Reason ->
+                    {stop,normal,{ok,{'EXIT',Reason}},S}
+            end
     end.
 
 -doc false.
