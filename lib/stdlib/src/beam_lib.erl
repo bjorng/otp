@@ -1374,7 +1374,7 @@ error(Reason) ->
 
 -doc false.
 significant_chunks() ->
-    ["Line", "Type" | md5_chunks()].
+    ["DbgB", "Line", "Type" | md5_chunks()].
 
 %% The following chunks are significant when calculating the MD5
 %% for a module. They are listed in the order that they should be MD5:ed.
