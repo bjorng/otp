@@ -578,48 +578,50 @@ returns a descriptive string of the error in English. For file errors, function
       Reason :: term().
 
 format_error({error, Error}) ->
-    format_error(Error);
+    format_error_1(Error);
 format_error({error, Module, Error}) ->
     Module:format_error(Error);
-format_error({unknown_chunk, File, ChunkName}) ->
-    io_lib:format("~tp: Cannot find chunk ~p~n", [File, ChunkName]);
-format_error({invalid_chunk, File, ChunkId}) ->
-    io_lib:format("~tp: Invalid contents of chunk ~p~n", [File, ChunkId]);
-format_error({not_a_beam_file, File}) ->
-    io_lib:format("~tp: Not a BEAM file~n", [File]);
-format_error({file_error, File, Reason}) ->
-    io_lib:format("~tp: ~tp~n", [File, file:format_error(Reason)]);
-format_error({missing_chunk, File, ChunkId}) ->
-    io_lib:format("~tp: Not a BEAM file: no IFF \"~s\" chunk~n", 
-		  [File, ChunkId]);
-format_error({invalid_beam_file, File, Pos}) ->
-    io_lib:format("~tp: Invalid format of BEAM file near byte number ~p~n", 
-		  [File, Pos]);
-format_error({chunk_too_big, File, ChunkId, Size, Len}) ->
-    io_lib:format("~tp: Size of chunk \"~s\" is ~p bytes, "
-		  "but only ~p bytes could be read~n",
-		  [File, ChunkId, Size, Len]);
-format_error({chunks_different, Id}) ->
-    io_lib:format("Chunk \"~s\" differs in the two files~n", [Id]);
-format_error(different_chunks) ->
-    "The two files have different chunks\n";
-format_error({modules_different, Module1, Module2}) ->
-    io_lib:format("Module names ~p and ~p differ in the two files~n", 
-		  [Module1, Module2]);
-format_error({not_a_directory, Name}) ->
-    io_lib:format("~tp: Not a directory~n", [Name]);
-format_error({key_missing_or_invalid, File, ChunkId}) ->
-    io_lib:format("~tp: Cannot decrypt ~ts because key is missing or invalid",
-		  [File, ChunkId]);
-format_error(badfun) ->
-    "not a fun or the fun has the wrong arity";
-format_error(exists) ->
-    "a fun has already been installed";
-format_error({missing_backend, File, Backend}) ->
-    io_lib:format("~tp: Cannot retrieve abstract code because the backend ~p is missing",
-		  [File, Backend]);
-format_error(E) ->
-    io_lib:format("~tp~n", [E]).
+format_error(Error) ->
+    unicode:characters_to_list(format_error_1(Error)).
+
+format_error_1({unknown_chunk, File, ChunkName}) ->
+    io_lib:bformat(~"~tp: Cannot find chunk ~p~n", [File, ChunkName]);
+format_error_1({invalid_chunk, File, ChunkId}) ->
+    io_lib:bformat(~"~tp: Invalid contents of chunk ~p~n", [File, ChunkId]);
+format_error_1({not_a_beam_file, File}) ->
+    io_lib:bformat(~"~tp: Not a BEAM file~n", [File]);
+format_error_1({file_error, File, Reason}) ->
+    io_lib:bformat(~"~tp: ~tp~n", [File, file:format_error(Reason)]);
+format_error_1({missing_chunk, File, ChunkId}) ->
+    io_lib:bformat(~"~tp: Not a BEAM file: no IFF \"~s\" chunk~n",
+                   [File, ChunkId]);
+format_error_1({invalid_beam_file, File, Pos}) ->
+    io_lib:bformat(~"~tp: Invalid format of BEAM file near byte number ~p~n",
+                   [File, Pos]);
+format_error_1({chunk_too_big, File, ChunkId, Size, Len}) ->
+    io_lib:bformat(~"~tp: Size of chunk \"~s\" is ~p bytes, but only ~p bytes could be read~n",
+                   [File, ChunkId, Size, Len]);
+format_error_1({chunks_different, Id}) ->
+    io_lib:bformat(~"Chunk \"~s\" differs in the two files~n", [Id]);
+format_error_1(different_chunks) ->
+    ~"The two files have different chunks\n";
+format_error_1({modules_different, Module1, Module2}) ->
+    io_lib:bformat(~"Module names ~p and ~p differ in the two files~n",
+                   [Module1, Module2]);
+format_error_1({not_a_directory, Name}) ->
+    io_lib:bformat(~"~tp: Not a directory~n", [Name]);
+format_error_1({key_missing_or_invalid, File, ChunkId}) ->
+    io_lib:bformat(~"~tp: Cannot decrypt ~ts because key is missing or invalid",
+                   [File, ChunkId]);
+format_error_1(badfun) ->
+    ~"Not a fun or the fun has the wrong arity";
+format_error_1(exists) ->
+    ~"A fun has already been installed";
+format_error_1({missing_backend, File, Backend}) ->
+    io_lib:bformat(~"~tp: Cannot retrieve abstract code because the backend ~p is missing",
+                   [File, Backend]);
+format_error_1(E) ->
+    io_lib:bformat(~"~tp~n", [E]).
 
 %% 
 %% Exported functions for encrypted debug info.
