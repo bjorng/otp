@@ -489,7 +489,7 @@ expr({record_field,Anno,Src,Name,K}, Bs, _Lf, Ef, RBs, _FUVs) ->
     apply_error({badarg,Name}, ?STACKTRACE, Anno, Bs, Ef, RBs);
 expr({record_index,Anno,Name,_}, Bs, _Lf, Ef, RBs, _FUVs) ->
     apply_error({undef_record,Name}, ?STACKTRACE, Anno, Bs, Ef, RBs);
-expr({record,Anno,{M,N},Es}, Bs0, Lf, Ef, RBs, FUVs) ->
+expr({record,Anno,{M=shell_default,N},Es}, Bs0, Lf, Ef, RBs, FUVs) ->
     Error = [{Err,F} || {record_field,_,{atom,_,F},{nil,Err}} <- Es,
                     Err =:= novalue orelse Err =:= badfield],
     case Error of
@@ -498,6 +498,23 @@ expr({record,Anno,{M,N},Es}, Bs0, Lf, Ef, RBs, FUVs) ->
             R = records:create(M, N, Vs, #{is_exported=>false}),
             ret_expr(R, Bs, RBs);
         [E|_] -> apply_error(E, ?STACKTRACE, Anno, Bs0, Ef, RBs)
+    end;
+expr({record,Anno,{M,N}, Es}, Bs0, Lf, Ef, RBs, FUVs) ->
+    try records:get_definition(M, N) of
+        {Ops, Defs} ->
+            {Vs, Bs} = expr_list(Es, Bs0, Lf, Ef, FUVs),
+            case native_record_init(Defs, Vs, []) of
+                {novalue, K} ->
+                    apply_error({novalue,{{M,N},K}}, ?STACKTRACE, Anno, Bs0, Ef, RBs);
+                {badfield, F} ->
+                    apply_error({badfield,{{M,N},F}}, ?STACKTRACE, Anno, Bs0, Ef, RBs);
+                Acc ->
+                    R = records:create(M, N, Acc, Ops),
+                    ret_expr(R, Bs, RBs)
+            end
+    catch
+        _:_ ->
+            apply_error({undef_record,{M, N}}, ?STACKTRACE, Anno, Bs0, Ef, RBs)
     end;
 expr({record,Anno,Name,_Es}, Bs, _Lf, Ef, RBs, _FUVs) ->
     apply_error({undef_record,Name}, ?STACKTRACE, Anno, Bs, Ef, RBs);
@@ -1244,6 +1261,29 @@ check_bad_generators([], _, Acc)->
 is_generator_end([]) -> true;
 is_generator_end(<<>>) -> true;
 is_generator_end(Other) -> Other =:= #{}.
+
+native_record_init([{K, V}|Defs], Vs, Acc) ->
+    %% Fill in fields that have default values.
+    case lists:keyfind(K, 1, Vs) of
+        false ->
+            native_record_init(Defs, Vs, [{K, V}|Acc]);
+        Res ->
+            native_record_init(Defs, Vs, [Res|Acc])
+    end;
+native_record_init([K|Defs], Vs, Acc) ->
+    %% Fill in fields with no default values.
+    case lists:keyfind(K, 1, Vs) of
+        false ->
+            {novalue, K};
+        Res ->
+            native_record_init(Defs, Vs, [Res|Acc])
+    end;
+native_record_init([], Vs, Acc) ->
+    %% Report error for fields that don't exist in the definition.
+    case lists:partition(fun({K, _}) -> lists:keyfind(K, 1, Acc) =:= false end, Vs) of
+        {[], _} -> lists:reverse(Acc);
+        {[{F,_}|_], _} ->{badfield, F}
+    end.
 
 get_vars(Lit) ->
     get_vars(Lit, []).
