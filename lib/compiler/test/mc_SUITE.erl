@@ -30,6 +30,7 @@
          shadow/1,bad_generators/1,multi/1,from_keys_optimization/1]).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 suite() -> [{ct_hooks,[ts_install_cth]}].
 
@@ -137,9 +138,9 @@ basic(_Config) ->
     #{4 := 8} = #{X+1 => Y*2 || X := Y <:- #{1 => 2, 3 => 4}, X > 1},
 
     %% Non-matching elements cause a badmatch error for strict generators
-    {'EXIT',{{badmatch,2},_}} = (catch #{X => X+1 || {ok, X} <:- [{ok,1},2,{ok,3}]}),
-    {'EXIT',{{badmatch,<<128,2>>},_}} = (catch #{X => X+1 || <<0:1, X:7>> <:= <<1,128,2>>}),
-    {'EXIT',{{badmatch,{2,error}},_}} = (catch #{X => X+1 || X := ok <:-#{1 => ok, 2 => error, 3 => ok}}),
+    ?assertError({badmatch,2}, #{X => X+1 || {ok, X} <:- [{ok,1},2,{ok,3}]}),
+    ?assertError({badmatch,<<128,2>>}, #{X => X+1 || <<0:1, X:7>> <:= <<1,128,2>>}),
+    ?assertError({badmatch,{2,error}}, #{X => X+1 || X := ok <:-#{1 => ok, 2 => error, 3 => ok}}),
 
     ok.
 
