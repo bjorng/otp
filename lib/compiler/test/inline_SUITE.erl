@@ -24,6 +24,7 @@
 -module(inline_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -compile(export_all).
 -compile({inline,[badarg/2]}).
