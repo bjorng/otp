@@ -19,7 +19,9 @@
 %% %CopyrightEnd%
 %%
 -module(map_SUITE).
--export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1, 
+-include_lib("stdlib/include/assert.hrl").
+
+-export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1,
 	init_per_group/2,end_per_group/2
     ]).
 
@@ -223,12 +225,12 @@ t_build_and_match_literals(Config) when is_list(Config) ->
     #{ <<0:358>> := "three" } = id(#{<<0:358>> =>"three"}),
 
     %% error case
-    {'EXIT',{{badmatch,_},_}} = (catch (#{x:=3,x:=2} = id(#{x=>3}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{x:=2} = id(#{x=>3}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{x:=3} = id({a,b,c}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{x:=3} = id(#{y=>3}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{x:=3} = id(#{x=>"three"}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{#{"a"=>42} := 3}=id(#{#{"a"=>3}=>42}))),
+    ?assertError({badmatch,_}, (#{x:=3,x:=2} = id(#{x=>3}))),
+    ?assertError({badmatch,_}, (#{x:=2} = id(#{x=>3}))),
+    ?assertError({badmatch,_}, (#{x:=3} = id({a,b,c}))),
+    ?assertError({badmatch,_}, (#{x:=3} = id(#{y=>3}))),
+    ?assertError({badmatch,_}, (#{x:=3} = id(#{x=>"three"}))),
+    ?assertError({badmatch,_}, (#{#{"a"=>42} := 3}=id(#{#{"a"=>3}=>42}))),
     ok.
 
 t_build_and_match_literals_large(Config) when is_list(Config) ->
@@ -731,9 +733,9 @@ t_map_size(Config) when is_list(Config) ->
     false = map_is_size(M#{ "c" => 2}, 2),
 
     %% Error cases.
-    {'EXIT',{{badmap,[]},_}} = (catch map_size([])),
-    {'EXIT',{{badmap,<<1,2,3>>},_}} = (catch map_size(<<1,2,3>>)),
-    {'EXIT',{{badmap,1},_}} = (catch map_size(1)),
+    ?assertError({badmap,[]}, map_size([])),
+    ?assertError({badmap,<<1,2,3>>}, map_size(<<1,2,3>>)),
+    ?assertError({badmap,1}, map_size(1)),
     ok.
 
 map_is_size(M,N) when map_size(M) =:= N -> true;
@@ -742,8 +744,8 @@ map_is_size(_,_) -> false.
 t_map_get(Config) when is_list(Config) ->
     1 = map_get(a, id(#{a=>1})),
 
-    {'EXIT',{{badkey,a},_}} = (catch map_get(a, #{})),
-    {'EXIT',{{badkey,a},_}} = (catch map_get(a, #{b=>1})),
+    ?assertError({badkey,a}, map_get(a, #{})),
+    ?assertError({badkey,a}, map_get(a, #{b=>1})),
 
     M = #{"a"=>1, "b" => 2},
     true = check_map_value(M, "a", 1),
@@ -751,9 +753,9 @@ t_map_get(Config) when is_list(Config) ->
     true = check_map_value(M#{"c"=>2}, "c", 2),
     false = check_map_value(M#{"a"=>5}, "a", 1),
 
-    {'EXIT',{{badmap,[]},_}} = (catch map_get(a, [])),
-    {'EXIT',{{badmap,<<1,2,3>>},_}} = (catch map_get(a, <<1,2,3>>)),
-    {'EXIT',{{badmap,1},_}} = (catch map_get(a, 1)),
+    ?assertError({badmap,[]}, map_get(a, [])),
+    ?assertError({badmap,<<1,2,3>>}, map_get(a, <<1,2,3>>)),
+    ?assertError({badmap,1}, map_get(a, 1)),
 
     %% Test that beam_validator understands that NewMap is
     %% a map after seeing map_get(a, NewMap).
@@ -983,10 +985,9 @@ t_update_map_expressions(Config) when is_list(Config) ->
     #{ "a" := b } = F(),
 
     %% Error cases.
-    {'EXIT',{{badmap,<<>>},_}} = (catch (id(<<>>))#{ a := 42, b => 2 }),
-    {'EXIT',{{badmap,[]},_}} = (catch (id([]))#{ a := 42, b => 2 }),
-    {'EXIT',{{badmap,_},_}} =
-	(catch (fun t_update_map_expressions/1)#{u => 42}),
+    ?assertError({badmap,<<>>}, (id(<<>>))#{ a := 42, b => 2 }),
+    ?assertError({badmap,[]}, (id([]))#{ a := 42, b => 2 }),
+    ?assertError({badmap,_}, (fun t_update_map_expressions/1)#{u => 42}),
 
     ok.
 
@@ -1002,19 +1003,19 @@ t_update_assoc(Config) when is_list(Config) ->
     #{1:=a,2:=b,3.0:=new,4:=d,5:=e} = M2,
     M2 = M0#{3.0:=wrong,3.0=>new},
 
-    % Can't handle directly yet
+    %% Can't handle directly yet
     Bin = <<0:257>>,
     #{ Bin := val } = id(M0#{<<0:257>> => val}), %% binary limitation
 
     %% Errors cases.
     BadMap = id(badmap),
-    {'EXIT',{{badmap,BadMap},_}} = (catch BadMap#{nonexisting=>val}),
-    {'EXIT',{{badmap,<<>>},_}} = (catch <<>>#{nonexisting=>val}),
+    ?assertError({badmap,BadMap}, BadMap#{nonexisting=>val}),
+    ?assertError({badmap,<<>>}, <<>>#{nonexisting=>val}),
     F1 = fun() ->
                  0 #{part => V = false},
                  V
          end,
-    {'EXIT',{{badmap,0},_}} = (catch F1()),
+    ?assertError({badmap,0}, F1()),
     F2 = fun() ->
                  case 42 of
                      V ->
@@ -1030,10 +1031,8 @@ t_update_assoc(Config) when is_list(Config) ->
     42 = F2(),
 
     %% Evaluation order.
-    {'EXIT',{blurf,_}} =
-	(catch BadMap#{whatever=>id(error(blurf))}),
-    {'EXIT',{blurf,_}} =
-	(catch BadMap#{id(error(blurf))=>whatever}),
+    ?assertError(blurf, BadMap#{whatever=>id(error(blurf))}),
+    ?assertError(blurf, BadMap#{id(error(blurf))=>whatever}),
     ok.
 
 t_update_assoc_large(Config) when is_list(Config) ->
@@ -1101,7 +1100,7 @@ t_update_assoc_large(Config) when is_list(Config) ->
 
     %% Errors cases.
     BadMap = id({no,map}),
-    {'EXIT',{{badmap,BadMap},_}} = (catch BadMap#{nonexisting=>M0}),
+    ?assertError({badmap,BadMap}, BadMap#{nonexisting=>M0}),
     ok.
 
 
@@ -1126,29 +1125,25 @@ t_update_exact(Config) when is_list(Config) ->
 	1.0 => new_val4 },
 
     %% Errors cases.
-    {'EXIT',{{badmap,nil},_}} = (catch ((id(nil))#{ a := b })),
-    {'EXIT',{{badkey,nonexisting},_}} = (catch M0#{nonexisting:=val}),
-    {'EXIT',{{badkey,1.0},_}} = (catch M0#{1.0:=v,1.0=>v2}),
-    {'EXIT',{{badkey,42},_}} = (catch M0#{42.0:=v,42:=v2}),
-    {'EXIT',{{badkey,42.0},_}} = (catch M0#{42=>v1,42.0:=v2,42:=v3}),
-    {'EXIT',{{badmap,<<>>},_}} = (catch <<>>#{nonexisting:=val}),
-    {'EXIT',{{badkey,<<0:257>>},_}} =
-	(catch M0#{<<0:257>> := val}),		%limitation
+    ?assertError({badmap,nil}, ((id(nil))#{ a := b })),
+    ?assertError({badkey,nonexisting}, M0#{nonexisting:=val}),
+    ?assertError({badkey,1.0}, M0#{1.0:=v,1.0=>v2}),
+    ?assertError({badkey,42}, M0#{42.0:=v,42:=v2}),
+    ?assertError({badkey,42.0}, M0#{42=>v1,42.0:=v2,42:=v3}),
+    ?assertError({badmap,<<>>}, <<>>#{nonexisting:=val}),
+    ?assertError({badkey,<<0:257>>}, M0#{<<0:257>> := val}),		%limitation
 
     %% A workaround for a bug allowed an empty map to be updated.
-    {'EXIT',{{badkey,a},_}} = (catch (id(#{}))#{a:=1}),
-    {'EXIT',{{badkey,a},_}} = (catch #{}#{a:=1}),
+    ?assertError({badkey,a}, (id(#{}))#{a:=1}),
+    ?assertError({badkey,a}, #{}#{a:=1}),
     Empty = #{},
-    {'EXIT',{{badkey,a},_}} = (catch Empty#{a:=1}),
+    ?assertError({badkey,a}, Empty#{a:=1}),
 
     %% Evaluation order.
     BadMap = id([no,map]),
-    {'EXIT',{blurf,_}} =
-	(catch BadMap#{whatever:=id(error(blurf))}),
-    {'EXIT',{blurf,_}} =
-	(catch BadMap#{id(error(blurf)):=whatever}),
-    {'EXIT',{{badmap,BadMap},_}} =
-	(catch BadMap#{id(nonexisting):=whatever}),
+    ?assertError(blurf, BadMap#{whatever:=id(error(blurf))}),
+    ?assertError(blurf, BadMap#{id(error(blurf)):=whatever}),
+    ?assertError({badmap,BadMap}, BadMap#{id(nonexisting):=whatever}),
     ok.
 
 t_update_exact_large(Config) when is_list(Config) ->
@@ -1226,10 +1221,10 @@ t_update_exact_large(Config) when is_list(Config) ->
     M2 = M0#{13.0=>wrong,13.0:=new},
 
     %% Errors cases.
-    {'EXIT',{{badkey,nonexisting},_}} = (catch M0#{nonexisting:=val}),
-    {'EXIT',{{badkey,1.0},_}} = (catch M0#{1.0:=v,1.0=>v2}),
-    {'EXIT',{{badkey,42},_}} = (catch M0#{42.0:=v,42:=v2}),
-    {'EXIT',{{badkey,42.0},_}} = (catch M0#{42=>v1,42.0:=v2,42:=v3}),
+    ?assertError({badkey,nonexisting}, M0#{nonexisting:=val}),
+    ?assertError({badkey,1.0}, M0#{1.0:=v,1.0=>v2}),
+    ?assertError({badkey,42}, M0#{42.0:=v,42:=v2}),
+    ?assertError({badkey,42.0}, M0#{42=>v1,42.0:=v2,42:=v3}),
 
     ok.
 
@@ -1310,20 +1305,17 @@ t_guard_bifs(Config) when is_list(Config) ->
     %% The guard BIFs used in a body.
 
     v = map_get(a, id(#{a=>v})),
-    {'EXIT',{{badkey,a},_}} =
-        (catch map_get(a, id(#{}))),
-    {'EXIT',{{badmap,not_a_map},_}} =
-        (catch map_get(a, id(not_a_map))),
+    ?assertError({badkey,a}, map_get(a, id(#{}))),
+    ?assertError({badmap,not_a_map}, map_get(a, id(not_a_map))),
 
     true   = is_map_key(a, id(#{a=>1})),
     false  = is_map_key(b, id(#{a=>1})),
     false  = is_map_key(b, id(#{})),
-    {'EXIT',{{badmap,not_a_map},_}} =
-        (catch is_map_key(b, id(not_a_map))),
+    ?assertError({badmap,not_a_map}, is_map_key(b, id(not_a_map))),
 
     {true,v} = erl_699(#{k=>v}),
-    {'EXIT',{{badkey,k},_}} = (catch erl_699(#{})),
-    {'EXIT',{{badmap,not_a_map},_}} = (catch erl_699(not_a_map)),
+    ?assertError({badkey,k}, erl_699(#{})),
+    ?assertError({badmap,not_a_map}, erl_699(not_a_map)),
 
     %% Cover optimizations in beam_dead.
 
@@ -1462,8 +1454,8 @@ t_guard_sequence(Config) when is_list(Config) ->
     {5,kk,kk,M5} = map_guard_sequence_2(M5 = id(#{a=>kk, b=>other, c=>sc2})),
 
     %% error case
-    {'EXIT',{function_clause,_}} = (catch map_guard_sequence_1(#{seq=>6,val=>id("e")})),
-    {'EXIT',{function_clause,_}} = (catch map_guard_sequence_2(#{b=>5})),
+    ?assertError(function_clause, map_guard_sequence_1(#{seq=>6,val=>id("e")})),
+    ?assertError(function_clause, map_guard_sequence_2(#{b=>5})),
     ok.
 
 t_guard_sequence_large(Config) when is_list(Config) ->
@@ -1531,8 +1523,8 @@ t_guard_sequence_large(Config) when is_list(Config) ->
     {4,sc,sc,M4} = map_guard_sequence_2(M4 = id(M0#{a=>sc, b=>3, c=>sc2})),
     {5,kk,kk,M5} = map_guard_sequence_2(M5 = id(M0#{a=>kk, b=>other, c=>sc2})),
 
-    {'EXIT',{function_clause,_}} = (catch map_guard_sequence_1(M0#{seq=>6,val=>id("e")})),
-    {'EXIT',{function_clause,_}} = (catch map_guard_sequence_2(M0#{b=>5})),
+    ?assertError(function_clause, map_guard_sequence_1(M0#{seq=>6,val=>id("e")})),
+    ?assertError(function_clause, map_guard_sequence_2(M0#{b=>5})),
     ok.
 
 map_guard_sequence_1(#{seq:=1=Seq, val:=Val}) -> {Seq,Val};
@@ -1634,7 +1626,7 @@ do_bad_map_guard_update_1(Fun, Value) ->
     %% Note: The business with the seemingly redundant fun
     %% disables inlining, which would otherwise change the
     %% EXIT reason.
-    {'EXIT',{function_clause,_}} = (catch Fun(Value)),
+    ?assertError(function_clause, Fun(Value)),
     ok.
 
 burns(Richmond) when not (Richmond#{true := 0}); [Richmond] ->
@@ -1768,7 +1760,7 @@ t_guard_fun(Config) when is_list(Config) ->
     {l,V} = F2(#{s=>l,v=>[V,V]}),
 
     %% error case
-    case (catch F1(#{s=>none,v=>none})) of
+    case catch F1(#{s=>none,v=>none}) of
 	{'EXIT', {function_clause,[{?MODULE,_,[#{s:=none,v:=none}],_}|_]}} -> ok;
 	{'EXIT', {{case_clause,_},_}} -> {comment,inlined};
 	Other ->
@@ -1853,7 +1845,7 @@ t_build_and_match_empty_val(Config) when is_list(Config) ->
     ok = F(id(#{"hi"=>ok,{1,2}=>ok,1337=>ok})),
 
     %% error case
-    case (catch (F(id(#{"hi"=>ok})))) of
+    case catch (F(id(#{"hi"=>ok}))) of
 	{'EXIT',{function_clause,_}} -> ok;
 	{'EXIT', {{case_clause,_},_}} -> {comment,inlined};
 	Other ->
@@ -1871,7 +1863,7 @@ t_build_and_match_val(Config) when is_list(Config) ->
     {2,"second"} = F(id(#{"hi"=>second,v=>"second"})),
 
     %% error case
-    case (catch (F(id(#{"hi"=>ok})))) of
+    case catch (F(id(#{"hi"=>ok}))) of
 	{'EXIT',{function_clause,_}} -> ok;
 	{'EXIT', {{case_clause,_},_}} -> {comment,inlined};
 	Other ->
@@ -1950,12 +1942,12 @@ t_build_and_match_variables(Config) when is_list(Config) ->
     #{ Bin := "three" } = id(#{<<0:258>> =>"three"}),
 
     %% error case
-    {'EXIT',{{badmatch,_},_}} = (catch (#{K5:=3,x:=2} = id(#{K5=>3}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{K5:=2} = id(#{K5=>3}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{K5:=3} = id({a,b,c}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{K5:=3} = id(#{K6=>3}))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{K5:=3} = id(K7))),
-    {'EXIT',{{badmatch,_},_}} = (catch (#{K7:=3} = id(#{K7=>42}))),
+    ?assertError({badmatch,_}, (#{K5:=3,x:=2} = id(#{K5=>3}))),
+    ?assertError({badmatch,_}, (#{K5:=2} = id(#{K5=>3}))),
+    ?assertError({badmatch,_}, (#{K5:=3} = id({a,b,c}))),
+    ?assertError({badmatch,_}, (#{K5:=3} = id(#{K6=>3}))),
+    ?assertError({badmatch,_}, (#{K5:=3} = id(K7))),
+    ?assertError({badmatch,_}, (#{K7:=3} = id(#{K7=>42}))),
     ok.
 
 
@@ -1983,8 +1975,8 @@ t_update_assoc_variables(Config) when is_list(Config) ->
 
     %% Errors cases.
     BadMap = id(badmap),
-    {'EXIT',{{badmap,BadMap},_}} = (catch BadMap#{nonexisting=>val}),
-    {'EXIT',{{badmap,<<>>},_}} = (catch <<>>#{nonexisting=>val}),
+    ?assertError({badmap,BadMap}, BadMap#{nonexisting=>val}),
+    ?assertError({badmap,<<>>}, <<>>#{nonexisting=>val}),
     ok.
 
 t_update_exact_variables(Config) when is_list(Config) ->
@@ -2014,14 +2006,13 @@ t_update_exact_variables(Config) when is_list(Config) ->
     #{ "wat" := 3, 2 := a } = id(#{ "wat" => 1, K2 => 2 }#{ K2 := a, "wat" := 3 }),
 
     %% Errors cases.
-    {'EXIT',{{badmap,nil},_}} = (catch ((id(nil))#{ a := b })),
-    {'EXIT',{{badkey,nonexisting},_}} = (catch M0#{nonexisting:=val}),
-    {'EXIT',{{badkey,1.0},_}} = (catch M0#{1.0:=v,1.0=>v2}),
-    {'EXIT',{{badkey,42},_}} = (catch M0#{42.0:=v,42:=v2}),
-    {'EXIT',{{badkey,42.0},_}} = (catch M0#{42=>v1,42.0:=v2,42:=v3}),
-    {'EXIT',{{badmap,<<>>},_}} = (catch <<>>#{nonexisting:=val}),
-    {'EXIT',{{badkey,<<0:257>>},_}} =
-	(catch M0#{<<0:257>> := val}),		%limitation
+    ?assertError({badmap,nil}, ((id(nil))#{ a := b })),
+    ?assertError({badkey,nonexisting}, M0#{nonexisting:=val}),
+    ?assertError({badkey,1.0}, M0#{1.0:=v,1.0=>v2}),
+    ?assertError({badkey,42}, M0#{42.0:=v,42:=v2}),
+    ?assertError({badkey,42.0}, M0#{42=>v1,42.0:=v2,42:=v3}),
+    ?assertError({badmap,<<>>}, <<>>#{nonexisting:=val}),
+    ?assertError({badkey,<<0:257>>}, M0#{<<0:257>> := val}),		%limitation
     ok.
 
 t_nested_pattern_expressions(Config) when is_list(Config) ->
@@ -2095,7 +2086,7 @@ t_guard_sequence_variables(Config) when is_list(Config) ->
     {5,"d"} = map_guard_sequence_var_1(b,#{seq=>5,b=>id("d"),a=>y}),
 
     %% error case
-    {'EXIT',{{case_clause,_},_}} = (catch map_guard_sequence_var_1("a",#{seq=>4,val=>id("e")})),
+    ?assertError({case_clause,_}, map_guard_sequence_var_1("a",#{seq=>4,val=>id("e")})),
     ok.
 
 
@@ -2127,7 +2118,7 @@ t_guard_sequence_mixed(Config) when is_list(Config) ->
     6 = map_guard_sequence_mixed(a,f,M6),
 
     %% error case
-    {'EXIT',{{case_clause,_},_}} = (catch map_guard_sequence_mixed(a,b,M0)),
+    ?assertError({case_clause,_}, map_guard_sequence_mixed(a,b,M0)),
     ok.
 
 map_guard_sequence_mixed(K1,K2,M) ->
@@ -2230,14 +2221,14 @@ validate_frequency([], _) -> ok.
 t_bad_update(_Config) ->
     {#{0.0:=Id},#{}} = properly(#{}),
     42 = Id(42),
-    {'EXIT',{{badmap,_},_}} = (catch increase(0)),
+    ?assertError({badmap,_}, increase(0)),
     ok.
 
 properly(Item) ->
     {Item#{0.0 => fun id/1},Item}.
 
 increase(Allows) ->
-    catch fun() -> Allows end#{[] => +Allows, "warranty" => fun id/1}.
+    fun() -> Allows end#{[] => +Allows, "warranty" => fun id/1}.
 
 t_reused_key_variable(Config) when is_list(Config) ->
     Key = id(key),
@@ -2283,7 +2274,7 @@ t_key_expressions(_Config) ->
 
     F1 = fun(#{Int + 1 := Val}) -> Val end,
     val = F1(#{43 => val}),
-    {'EXIT',_} = (catch F1(a)),
+    ?assertError(_, F1(a)),
 
     F2 = fun(M, X, Y) ->
                  case M of
@@ -2356,7 +2347,7 @@ t_key_expressions(_Config) ->
                                                Other
                                        end)
          end,
-    {'EXIT',{badarg,_}} = (catch F7(whatever)),
+    ?assertError(badarg, F7(whatever)),
 
     ok.
 
@@ -2433,7 +2424,7 @@ t_maps_take_2(_Config) ->
     error = maps:take(a, #{b => no}),
 
     NotMap = not_map(b),
-    {'EXIT',{{badmap,b},_}} = catch maps:take(a, b),
+    ?assertError({badmap,b}, maps:take(a, b)),
 
     ok.
 
@@ -2532,9 +2523,9 @@ do_conflicts(#{{tag,whatever} := true,
     ok.
 
 t_cse_assoc(_Config) ->
-    {'EXIT',{{case_clause,#{key:=any}},_}} = catch do_cse_assoc(id(any)),
+    ?assertError({case_clause,#{key:=any}}, do_cse_assoc(id(any))),
 
-    {'EXIT',{{case_clause,#{key:=value}},_}} = catch do_cse_assoc(id(#{}), id(value)),
+    ?assertError({case_clause,#{key:=value}}, do_cse_assoc(id(#{}), id(value))),
     42 = do_cse_assoc(id(#{assoc => 42}), id(any)),
 
     ok.
@@ -2603,14 +2594,14 @@ map_aliases(_Config) ->
     F6 = fun(E) ->
                  #{Y := _} = (Y = ((_ = X) = E))
          end,
-    {'EXIT',{{badmatch,0},_}} = catch F6(id(0)),
-    {'EXIT',{{badmatch,#{}},_}} = catch F6(id(#{})),
-    {'EXIT',{{badmatch,#{key := value}},_}} = catch F6(id(#{key => value})),
+    ?assertError({badmatch,0}, F6(id(0))),
+    ?assertError({badmatch,#{}}, F6(id(#{}))),
+    ?assertError({badmatch,#{key := value}}, F6(id(#{key => value}))),
 
     ok.
 
 coverage(_Config) ->
-    {'EXIT',{{badmatch,ok},_}} = catch coverage_1(),
+    ?assertError({badmatch,ok}, coverage_1()),
 
     ok.
 
