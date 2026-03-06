@@ -123,16 +123,16 @@ basic(Config) when is_list(Config) ->
 
     %% Error cases.
     [] = [{xx,X} || X <- L0, element(2, X) == no_no_no],
-    {'EXIT',_} = (catch [X || X <- L1, list_to_atom(X) == dum]),
+    ?assertError(_, [X || X <- L1, list_to_atom(X) == dum]),
     [] = [X || X <- L1, X+1 < 2],
-    {'EXIT',_} = (catch [X || X <- L1, odd(X)]),
-    {'EXIT',{{bad_generator,x},_}} = (catch [E || E <- id(x)]),
-    {'EXIT',{{bad_filter,not_bool},_}} = (catch [E || E <- [1,2], id(not_bool)]),
+    ?assertError(_, [X || X <- L1, odd(X)]),
+    ?assertError({bad_generator,x}, [E || E <- id(x)]),
+    ?assertError({bad_filter,not_bool}, [E || E <- [1,2], id(not_bool)]),
 
     %% Non-matching elements cause a badmatch error for strict generators
-    {'EXIT',{{badmatch,2},_}} = (catch [X || {ok, X} <:- [{ok,1},2,{ok,3}]]),
-    {'EXIT',{{badmatch,<<128,2>>},_}} = (catch [X || <<0:1, X:7>> <:= <<1,128,2>>]),
-    {'EXIT',{{badmatch,{2,error}},_}} = (catch [X || X := ok <:- #{1 => ok, 2 => error, 3 => ok}]),
+    ?assertError({badmatch,2}, [X || {ok, X} <:- [{ok,1},2,{ok,3}]]),
+    ?assertError({badmatch,<<128,2>>}, [X || <<0:1, X:7>> <:= <<1,128,2>>]),
+    ?assertError({badmatch,{2,error}}, [X || X := ok <:- #{1 => ok, 2 => error, 3 => ok}]),
 
     %% Make sure that line numbers point out the generator.
     case ?MODULE of
