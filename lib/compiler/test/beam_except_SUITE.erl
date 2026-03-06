@@ -20,6 +20,7 @@
 %% %CopyrightEnd%
 %%
 -module(beam_except_SUITE).
+-include_lib("stdlib/include/assert.hrl").
 
 -export([all/0, suite/0,groups/0,init_per_suite/1, end_per_suite/1,
 	 init_per_group/2,end_per_group/2,
@@ -53,10 +54,9 @@ end_per_group(_GroupName, Config) ->
     Config.
 
 multiple_allocs(_Config) ->
-    {'EXIT',{{badmatch,#{true:=[p]}},_}} =
-	 (catch could(pda, 0.0, {false,true}, {p})),
-    {'EXIT',{{bad_generator,0},_}} = (catch place(lee)),
-    {'EXIT',{{badmatch,wanted},_}} = (catch conditions()),
+    ?assertError({badmatch,#{true:=[p]}}, could(pda, 0.0, {false,true}, {p})),
+    ?assertError({bad_generator,0}, place(lee)),
+    ?assertError({badmatch,wanted}, conditions()),
 
     ok.
 
@@ -148,10 +148,10 @@ coverage(_) ->
     {'EXIT',{function_clause,[{?MODULE,fake_function_clause3,[x,y],_}|_]}} =
         (catch fake_function_clause3(42, id([x,y]))),
 
-    {'EXIT',{{function_clause,a,b,c}, _}} = catch fake_function_clause4(),
+    ?assertError({function_clause,a,b,c}, fake_function_clause4()),
 
-    {'EXIT',{{badmatch,0.0},_}} = (catch coverage_1(id(42))),
-    {'EXIT',{badarith,_}} = (catch coverage_1(id(a))),
+    ?assertError({badmatch,0.0}, coverage_1(id(42))),
+    ?assertError(badarith, coverage_1(id(a))),
 
     ok.
 
@@ -182,7 +182,7 @@ do_binary_construction_allocation(Req) ->
 
 unfold_literals(_Config) ->
     a = do_unfold_literals(badarg, id({a,b})),
-    {'EXIT',{badarg,_}} = catch do_unfold_literals(badarg, id(a)),
+    ?assertError(badarg, do_unfold_literals(badarg, id(a))),
 
     ok.
 
