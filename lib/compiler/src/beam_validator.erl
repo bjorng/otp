@@ -1484,18 +1484,26 @@ record_field_types([{atom,Key}, Value0 | Fs], Vst, Acc) ->
 record_field_types([], _Vst, Acc) ->
     Acc.
 
-verify_get_record_elements(Fail, Src, List, Vst0) ->
+verify_get_record_elements(Fail, Src, Dst, List, Vst0) ->
     assert_no_exception(Fail),
     assert_not_literal(Src),
     branch(Fail, Vst0,
            fun(FailVst) ->
                    clobber_record_vals(List, Src, FailVst)
            end,
-           fun(SuccVst) ->
-                   Keys = extract_keys(List, SuccVst),
+           fun(SuccVst0) ->
+                   Keys = extract_keys(List, SuccVst0),
                    verify_keys(only_literals, forbid_empty, Keys),
-                   extract_vals(record_get, List, Src, SuccVst)
+                   extract_vals(record_get, List, Src, SuccVst0)
+                   %% update_native_record_type(List, Src, SuccVst)
            end).
+%% WIP
+%%
+%% update_native_record_type([_|_]=Updates, Src, Vst) ->
+%%     #t_record{type=Es0} = Type0 = get_term_type(Src, Vst),
+%%     Es = update_record_type_1(Updates, Es0, Vst),
+%%     Type = Type0#t_record{type=Es},
+%%     create_term(Type, update_native_record, [], Dst, Vst).
 
 %% Check an update of a traditional tuple record.
 verify_update_record(Size, Src0, Dst, List0, Vst0) ->
@@ -2460,6 +2468,12 @@ infer_types_1(#value{op={bif,element},args=[{integer,Index}, Tuple]},
         false ->
             Vst
     end;
+infer_types_1(#value{op=get_record_element,args=[Src,{atom,F}]},
+              Val, eq_exact, Vst) ->
+    ValType = get_term_type(Val, Vst),
+    Es = #{F => {present,ValType}},
+    RecordType = #t_record{type=Es},
+    update_type(fun meet/2, RecordType, Src, Vst);
 infer_types_1(_, _, _, Vst) ->
     Vst.
 
