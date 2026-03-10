@@ -2964,17 +2964,6 @@ infer_success_type(bs_match, [#b_literal{val=binary},
     %% position, so we know that Ctx has the same unit.
     T = {Ctx, #t_bs_context{tail_unit=OpUnit}},
     {[T], [T]};
-infer_success_type(get_record_element, [#b_var{}=Arg,
-                                        #b_literal{val=F}],
-                   Ts, _Ds) ->
-    case concrete_type(Arg, Ts) of
-        #t_record{type=#{F := {present,_}}} ->
-            {[], []};
-        _ ->
-            Es = #{F => {present,any}},
-            T = {Arg, #t_record{type=Es}},
-            {[T], []}
-    end;
 infer_success_type(_Op, _Args, _Ts, _Ds) ->
     {[], []}.
 
