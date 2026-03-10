@@ -1632,6 +1632,10 @@ shrink_union(#t_union{atom=none,list=none,number=none,
                       native_record_set=#t_record{}=Record,other=none}) ->
     Record;
 shrink_union(#t_union{atom=none,list=none,number=none,
+                      tuple_set=none,
+                      native_record_set=[#t_record{}=Record],other=none}) ->
+    Record;
+shrink_union(#t_union{atom=none,list=none,number=none,
                       tuple_set=none,native_record_set=none,other=Other}) ->
     Other;
 shrink_union(#t_union{atom=#t_atom{elements=any},
