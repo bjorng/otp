@@ -939,6 +939,7 @@ limit_depth(#t_map{}=T, Depth) ->
 limit_depth(#t_record{}=T, Depth) ->
     limit_depth_record(T, Depth);
 limit_depth([#t_record{}|_]=T, Depth) ->
+    %% FIXME: Can this clause be reached?
     limit_depth_record_set(T, Depth);
 limit_depth(#t_union{list=List0,tuple_set=TupleSet0,
                      native_record_set=Records0,other=Other0}=U, Depth) ->
