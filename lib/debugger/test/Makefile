@@ -51,6 +51,7 @@ MODULES= \
 	map_SUITE \
 	maybe_SUITE \
 	mc_SUITE \
+	native_record_SUITE \
 	overridden_bif_SUITE \
 	record_SUITE \
 	trycatch_SUITE \
