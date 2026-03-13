@@ -21,6 +21,7 @@
 %%
 
 -module(beam_bounds_SUITE).
+
 -export([all/0, suite/0, groups/0, init_per_suite/1, end_per_suite/1,
          init_per_group/2, end_per_group/2,
          addition_bounds/1, subtraction_bounds/1,
@@ -195,22 +196,41 @@ band_bounds(_Config) ->
     ok.
 
 bor_bounds(_Config) ->
-    test_commutative('bor'),
+    test_commutative('bor', {-15,15}),
 
-    {'-inf',15} = beam_bounds:bounds('bor', {-10,7},{3,10}),
-    {'-inf',11} = beam_bounds:bounds('bor', {-10,1},{-1,10}),
-    {'-inf',-1} = beam_bounds:bounds('bor', {-20,-10}, {-2,10}),
+    {'-inf',-17} = do_bor({'-inf',-177}, {'-inf',-17}),
+    {'-inf',-1} = do_bor({'-inf',-177}, {'-inf',19}),
+    {'-inf',-1} = do_bor({'-inf',58}, {'-inf',-9}),
+    {'-inf',63} = do_bor({'-inf',63}, {'-inf',21}),
 
-    {'-inf',15} = beam_bounds:bounds('bor', {'-inf',10}, {3,5}),
-    {'-inf',-1} = beam_bounds:bounds('bor', {-20,-10}, {-100,-50}),
+    {'-inf',-9} = do_bor({'-inf',-10}, {3,5}),
+    {'-inf',15} = do_bor({'-inf',10}, {3,5}),
+    {'-inf',7} = do_bor({'-inf',5}, {-500,2}),
+    {-500,-1} = do_bor({'-inf',10}, {-500,-100}),
 
-    any = beam_bounds:bounds('bor', {-20,-10}, {-2,'+inf'}),
-    any = beam_bounds:bounds('bor', {-20,'+inf'}, {-7,-3}),
+    {-20,-1} = do_bor({-20,-10}, {-2,'+inf'}),
+    {-20,'+inf'} = do_bor({-20,-10}, {5,'+inf'}),
+    {-12,'+inf'} = do_bor({-1,10}, {-12,'+inf'}),
+    {-3,'+inf'} = do_bor({-3,10}, {17,'+inf'}),
+    {-1,'+inf'} = do_bor({1,10}, {-1,'+inf'}),
+    {52,'+inf'} = do_bor({20,25}, {33,'+inf'}),
 
-    {16,'+inf'} = beam_bounds:bounds('bor', {0,8}, {16,'+inf'}),
-    {16,'+inf'} = beam_bounds:bounds('bor', {3,'+inf'}, {16,'+inf'}),
+    {-16,'+inf'} = do_bor({-7,'+inf'}, {-16,'+inf'}),
+    {-8,'+inf'} = do_bor({-8,'+inf'}, {17,'+inf'}),
+    {-32,'+inf'} = do_bor({5,'+inf'}, {-32,'+inf'}),
+    {16,'+inf'} = do_bor({3,'+inf'}, {16,'+inf'}),
+
+    {'-inf',-1} = do_bor({'-inf',-177}, {-5,'+inf'}),
+    any = do_bor({'-inf',-97}, {42,'+inf'}),
+    any = do_bor({'-inf',37}, {-8,'+inf'}),
+    any = do_bor({'-inf',47}, {99,'+inf'}),
 
     ok.
+
+do_bor(R0, R1) ->
+    R = beam_bounds:bounds('bor', R0, R1),
+    R = beam_bounds:bounds('bor', R1, R0),
+    R.
 
 bxor_bounds(_Config) ->
     test_commutative('bxor'),
@@ -438,8 +458,9 @@ test_commutative(Op, {Min,Max}) ->
     Seq = lists:seq(Min, Max),
     _ = [test_commutative_1(Op, {A,B}, {C,D}) ||
             A <- Seq,
-            B <- lists:nthtail(A-Min, Seq),
-            C <- lists:nthtail(A-Min, Seq),
+            Reduced <- [lists:nthtail(A-Min, Seq)],
+            B <- Reduced,
+            C <- Reduced,
             D <- lists:nthtail(C-Min, Seq),
             {A,B} =< {C,D}],
     ok.

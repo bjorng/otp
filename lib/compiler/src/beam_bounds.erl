@@ -166,9 +166,7 @@ bounds('bor', R1, R2) ->
                             C =:= '-inf' orelse abs(C) bsr ?NUM_BITS =:= 0,
                             B =:= '+inf' orelse abs(B) bsr ?NUM_BITS =:= 0,
                             D =:= '+inf' orelse abs(D) bsr ?NUM_BITS =:= 0 ->
-            Min = min_bor(A, B, C, D),
-            Max = max_bor(A, B, C, D),
-            normalize({Min,Max});
+            normalize(min_max_bor(A, B, C, D));
         {_, _} ->
             any
     end;
@@ -388,11 +386,45 @@ max_band(A, B, C, D, M) ->
             max_band(A, B, C, D, M bsr 1)
     end.
 
+
+min_max_bor(A, B, C, D) ->
+    case {inf_sign(A),inf_sign(B),inf_sign(C),inf_sign(D)} of
+        {'-','-','-','-'} ->
+            {min_bor(A, B, C, D),
+             max_bor(A, B, C, D)};
+        {'-','-','-','+'} ->
+            {A, -1};
+        {'-','-','+','+'} ->
+            {min_bor(A, B, C, D),
+             max_bor(A, B, C, D)};
+        {'-','+','-','-'} ->
+            {C, -1};
+        {'-','+','-','+'} ->
+            {inf_min(A, C), max_bor(0, B, 0, D)};
+        {'-','+','+','+'} ->
+            {min_bor(A, -1, C, D),
+             max_bor(A, B, C, D)};
+        {'+','+','-','-'} ->
+            {min_bor(A, B, C, D),
+             max_bor(A, B, C, D)};
+        {'+','+','-','+'} ->
+            {min_bor(A, B, C, -1),
+             max_bor(A, B, C, D)};
+        {'+','+','+','+'} ->
+            {min_bor(A, B, C, D),
+             max_bor(A, B, C, D)}
+    end.
+
+inf_sign('-inf') -> '-';
+inf_sign('+inf') -> '+';
+inf_sign(N) when N < 0 -> '-';
+inf_sign(_) -> '+'.
+
 min_bor(A, B, C, D) ->
-    case inf_lt(inf_min(A, C), 0) of
-        true ->
+    case inf_min(A, C) of
+        '-inf' ->
             '-inf';
-        false ->
+        _ ->
             M = 1 bsl upper_bit(A bxor C),
             min_bor(A, B, C, D, M)
     end.
@@ -419,19 +451,11 @@ min_bor(A, B, C, D, M) ->
             min_bor(A, B, C, D, M bsr 1)
     end.
 
-max_bor(A0, B, C0, D) ->
-    A = inf_max(A0, 0),
-    C = inf_max(C0, 0),
+max_bor(A, B, C, D) ->
     case inf_max(B, D) of
         '+inf' ->
             '+inf';
-        Max when Max < 0 ->
-            %% Both B and D are negative. The intersection would be
-            %% infinite.
-            -1;
         _ ->
-            %% At least one of B and D are positive. The intersection
-            %% has a finite size.
             Intersection = B band D,
             M = 1 bsl upper_bit(Intersection),
             max_bor(Intersection, A, B, C, D, M)
@@ -442,11 +466,12 @@ max_bor(_Intersection, _A, B, _C, D, 0) ->
 max_bor(Intersection, A, B, C, D, M) ->
     if
         Intersection band M =/= 0 ->
-            case (B - M) bor (M - 1) of
+            NewM = M - 1,
+            case (B - M) bor NewM of
                 NewB when NewB >= A ->
                     max_bor(Intersection, A, NewB, C, D, 0);
                 _ ->
-                    case (D - M) bor (M - 1) of
+                    case (D - M) bor NewM of
                         NewD when NewD >= C ->
                             max_bor(Intersection, A, B, C, NewD, 0);
                         _ ->
@@ -481,6 +506,8 @@ max_bxor(A, B, C, D, M) ->
             max_bxor(A, B, C, D, M bsr 1)
     end.
 
+upper_bit(Val) when Val < 0 ->
+    ?NUM_BITS;
 upper_bit(Val) ->
     upper_bit_1(Val, 0).
 
