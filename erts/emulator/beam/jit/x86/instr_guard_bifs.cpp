@@ -283,59 +283,6 @@ void BeamGlobalAssembler::emit_handle_element_error() {
     a.jmp(labels[raise_exception]);
 }
 
-/* ARG1 = Position (1-based)
- * ARG2 = Tuple
- * ARG3 = 0 if if in body, otherwise address of failure label.
- *
- * Will return with a value in RET only if the element operation succeeds. */
-void BeamGlobalAssembler::emit_bif_element_shared() {
-    Label error = a.new_label();
-
-    emit_enter_frame();
-
-    a.mov(RETd, ARG1d);
-    a.and_(RETb, imm(_TAG_IMMED1_MASK));
-    a.cmp(RETb, imm(_TAG_IMMED1_SMALL));
-    a.short_().jne(error);
-
-    a.mov(ARG4, ARG1);
-    a.sar(ARG4, imm(_TAG_IMMED1_SIZE));
-
-    emit_is_boxed(error, ARG2, dShort);
-
-    a.mov(ARG5, ARG2);
-    (void)emit_ptr_val(ARG5, ARG5);
-    a.lea(ARG5, emit_boxed_val(ARG5));
-    a.mov(ARG6, x86::qword_ptr(ARG5));
-    a.mov(RETd, ARG6d);
-    ERTS_CT_ASSERT(make_arityval_zero() == 0);
-    a.and_(RETb, imm(_TAG_HEADER_MASK));
-    a.short_().jne(error);
-
-    a.shr(ARG6, imm(_HEADER_ARITY_OFFS));
-    a.dec(ARG4);
-    a.cmp(ARG6, ARG4);
-    a.short_().jbe(error);
-
-    a.inc(ARG4);
-    a.mov(RET, x86::qword_ptr(ARG5, ARG4, 3));
-
-    emit_leave_frame();
-    a.ret();
-
-    a.bind(error);
-    {
-        emit_leave_frame();
-
-        a.test(ARG3, ARG3);
-        a.je(labels[handle_element_error]);
-
-        /* Discard return address and jump to fail label. */
-        a.add(x86::rsp, imm(8));
-        a.jmp(ARG3);
-    }
-}
-
 /*
  * At the time of implementation, there were 3678 uses of element/2 in
  * the OTP source code. 3137 of those uses had a literal first argument
@@ -347,161 +294,145 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
                                            const ArgSource &Pos,
                                            const ArgSource &Tuple,
                                            const ArgRegister &Dst) {
-    bool const_position;
+    Label error = a.new_label(), next = a.new_label();
+    Sint size = -1;
+    auto [min, max] = getClampedRange(Pos);
+    bool can_fail = false;
+    x86::Gp boxed_ptr;
 
-    const_position = Pos.isSmall() && Pos.as<ArgSmall>().getSigned() > 0 &&
-                     Pos.as<ArgSmall>().getSigned() <= (Sint)MAX_ARITYVAL;
+    mov_arg(ARG2, Tuple);
+    if (!Pos.isSmall()) {
+        mov_arg(ARG1, Pos);
+    }
 
-    /*
-     * Try to optimize the use of a tuple as a lookup table.
-     */
-    if (exact_type<BeamTypeId::Integer>(Pos) && Tuple.isLiteral()) {
+    if (Tuple.isLiteral() && exact_type<BeamTypeId::Tuple>(Tuple)) {
         Eterm tuple = beamfile_get_literal(beam, Tuple.as<ArgLiteral>().get());
+        size = Sint(arityval(*tuple_val(tuple)));
+    } else {
+        can_fail = true;
+        emit_is_boxed(error, ARG2, dShort);
+    }
 
-        if (is_tuple(tuple)) {
-            Label error = a.new_label(), next = a.new_label();
-            Sint size = Sint(arityval(*tuple_val(tuple)));
-            auto [min, max] = getClampedRange(Pos);
-            bool can_fail = min < 1 || size < max;
+    boxed_ptr = emit_ptr_val(ARG3, ARG2);
 
-            comment("skipped tuple test since source is always a literal "
-                    "tuple");
-            mov_arg(ARG2, Tuple);
-            mov_arg(ARG1, Pos);
-            x86::Gp boxed_ptr = emit_ptr_val(ARG3, ARG2);
-            a.lea(ARG4, emit_boxed_val(boxed_ptr));
-            if (always_small(Pos)) {
-                comment("skipped test for small position since it is always "
-                        "small");
-            } else {
-                comment("simplified test for small position since it is an "
-                        "integer");
-                a.test(ARG1.r8(), imm(TAG_PRIMARY_LIST));
-                a.short_().je(error);
-            }
+    if (size < 0) {
+        a.mov(ARG4, emit_boxed_val(boxed_ptr));
+    }
 
+    if (exact_type<BeamTypeId::Tuple>(Tuple)) {
+        comment("skipped tuple test since source is always a tuple");
+    } else {
+        can_fail = true;
+        ERTS_CT_ASSERT(make_arityval_zero() == 0);
+        a.test(ARG4.r8(), imm(_TAG_HEADER_MASK));
+        a.short_().jne(error);
+    }
+
+    if (always_small(Pos)) {
+        comment("skipped test for small position since it is always small");
+    } else if (exact_type<BeamTypeId::Integer>(Pos)) {
+        comment("simplified test for small position since it is an integer");
+        can_fail = true;
+        a.test(ARG1.r8(), imm(TAG_PRIMARY_LIST));
+        a.short_().je(error);
+    } else {
+        can_fail = true;
+        a.lea(RET, qword_ptr(ARG1, -_TAG_IMMED1_SMALL));
+        a.test(RETb, imm(_TAG_IMMED1_MASK));
+        a.short_().jne(error);
+    }
+
+    bool in_range = 1 <= min && max <= size;
+    if (!Pos.isSmall()) {
+        if (!in_range) {
             a.mov(RET, ARG1);
             a.sar(RET, imm(_TAG_IMMED1_SIZE));
-
-            if (1 <= min && max <= size) {
-                comment("skipped check for known safe position");
-            } else {
-                a.lea(ARG3, x86::qword_ptr(RET, -1));
-                cmp(ARG3, size, ARG5);
-                a.short_().jae(error);
-            }
-
-            a.mov(RET, x86::qword_ptr(ARG4, RET, 3));
-            if (can_fail) {
-                a.short_().jmp(next);
-            }
-
-            a.bind(error);
-            if (can_fail) {
-                if (Fail.get() == 0) {
-                    safe_fragment_call(ga->get_handle_element_error());
-                } else {
-                    a.jmp(resolve_beam_label(Fail));
-                }
-            }
-
-            a.bind(next);
-            mov_arg(Dst, RET);
-
-            return;
         }
     }
 
-    if (const_position) {
-        /* The position is a valid small integer. Inline the code.
-         *
-         * The size of the code is 40 bytes, while the size of the bif2
-         * instruction is 36 bytes. */
-        Uint position = Pos.as<ArgSmall>().getSigned();
-
-        mov_arg(ARG2, Tuple);
-
-        x86::Gp boxed_ptr = emit_ptr_val(ARG3, ARG2);
-
-        if (exact_type<BeamTypeId::Tuple>(Tuple)) {
-            comment("skipped tuple test since source is always a tuple");
+    if (size < 0) {
+        /* The size of tuple Tuple is unknown. */
+        can_fail = true;
+        if (Pos.isSmall()) {
+            /* The position is known at load-time. */
+            Uint pos = Pos.as<ArgSmall>().getUnsigned() - 1;
             ERTS_CT_ASSERT(Support::is_int_n<32>(make_arityval(MAX_ARITYVAL)));
-            a.cmp(emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)),
-                  imm(make_arityval_unchecked(position)));
-
-            if (Fail.get() == 0) {
-                Label next = a.new_label();
-
-                a.short_().jae(next);
-
-                mov_imm(ARG1, make_small(position));
-                safe_fragment_call(ga->get_handle_element_error());
-
-                a.bind(next);
+            if (pos == 0) {
+                comment("optimized size test when position is 1");
+                ERTS_CT_ASSERT(make_arityval_zero() == 0);
+                a.test(ARG4, ARG4);
+                a.short_().je(error);
+            } else if (pos < MAX_ARITYVAL) {
+                a.shr(ARG4, imm(_HEADER_ARITY_OFFS));
+                a.cmp(ARG4, imm(pos));
+                a.short_().jbe(error);
             } else {
-                a.jb(resolve_beam_label(Fail));
+                /* The position is outside of the tuple. */
+                a.short_().jmp(error);
             }
         } else {
-            Distance dist;
-            Label error;
-
-            if (Fail.get() == 0) {
-                error = a.new_label();
-                dist = dShort;
-            } else {
-                error = resolve_beam_label(Fail);
-                dist = dLong;
-            }
-
-            emit_is_boxed(error, Tuple, ARG2, dist);
-
-            a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
-            a.cmp(RETd, imm(make_arityval_unchecked(position)));
-
-            if (Fail.get() == 0) {
+            /* The position is unknown at load-time. */
+            a.shr(ARG4, imm(_HEADER_ARITY_OFFS));
+            if (min > 0) {
+                comment("skipping test for zero for known positive position");
+                a.cmp(ARG4, RET);
                 a.short_().jb(error);
             } else {
-                a.jb(error);
-            }
-
-            ERTS_CT_ASSERT(make_arityval_zero() == 0);
-            a.and_(RETb, imm(_TAG_HEADER_MASK));
-
-            if (Fail.get() == 0) {
-                Label next = a.new_label();
-
-                a.short_().je(next);
-
-                a.bind(error);
-                {
-                    mov_imm(ARG1, make_small(position));
-                    safe_fragment_call(ga->get_handle_element_error());
-                }
-
-                a.bind(next);
-            } else {
-                a.jne(error);
+                a.lea(ARG3, x86::qword_ptr(RET, -1));
+                a.cmp(ARG4, ARG3);
+                a.short_().jbe(error);
             }
         }
-
-        a.mov(RET, emit_boxed_val(boxed_ptr, position * sizeof(Eterm)));
+    } else if (in_range) {
+        comment("skipped check for known safe position");
     } else {
-        /* The code is too large to inline. Call a shared fragment.
-         *
-         * The size of the code that calls the shared fragment is 19 bytes,
-         * while the size of the bif2 instruction is 36 bytes. */
-        mov_arg(ARG2, Tuple);
-        mov_arg(ARG1, Pos);
-
-        if (Fail.get() != 0) {
-            a.lea(ARG3, x86::qword_ptr(resolve_beam_label(Fail)));
+        /* The size of tuple Tuple is known at load-time because
+         * it is a literal. */
+        can_fail = true;
+        if (min > 0) {
+            /* The position is known to be greater than one, so we
+             * only need to check against the tuple size. */
+            cmp(RET, size, ARG4);
+            a.short_().ja(error);
         } else {
-            mov_imm(ARG3, 0);
+            /* We must check that the position is neither zero nor
+             * greater than the size of the tuple. */
+            a.lea(ARG3, x86::qword_ptr(RET, -1));
+            cmp(ARG3, size, ARG4);
+            a.short_().jae(error);
         }
-
-        safe_fragment_call(ga->get_bif_element_shared());
     }
 
+    if (Pos.isSmall()) {
+        Uint pos = sizeof(Eterm) * Pos.as<ArgSmall>().getUnsigned();
+        ERTS_CT_ASSERT(Support::is_int_n<32>(make_arityval(MAX_ARITYVAL)));
+        if (pos <= MAX_ARITYVAL) {
+            a.mov(RET, emit_boxed_val(boxed_ptr, pos));
+        }
+    } else if (in_range) {
+        a.sar(ARG1, imm(_TAG_IMMED1_SIZE));
+        a.mov(RET, x86::qword_ptr(boxed_ptr, ARG1, 3, -2));
+    } else {
+        a.mov(RET, x86::qword_ptr(boxed_ptr, RET, 3, -2));
+    }
+
+    if (can_fail) {
+        a.short_().jmp(next);
+    }
+
+    a.bind(error);
+    if (can_fail) {
+        if (Fail.get() == 0) {
+            if (Pos.isSmall()) {
+                mov_arg(ARG1, Pos);
+            }
+            safe_fragment_call(ga->get_handle_element_error());
+        } else {
+            a.jmp(resolve_beam_label(Fail));
+        }
+    }
+
+    a.bind(next);
     mov_arg(Dst, RET);
 }
 

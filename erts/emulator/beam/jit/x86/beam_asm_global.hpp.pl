@@ -28,7 +28,6 @@ my @beam_global_funcs = qw(
     arith_compare_shared
     arith_eq_shared
     bif_nif_epilogue
-    bif_element_shared
     bif_export_trap
     bs_create_bin_error_shared
     bs_size_check_shared
