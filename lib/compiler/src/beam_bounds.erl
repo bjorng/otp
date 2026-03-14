@@ -182,10 +182,15 @@ bounds('bxor', R1, R2) ->
     end;
 bounds('bsr', R1, R2) ->
     case {R1,R2} of
-        {{A,B}, {C,D}} when is_integer(C), C >= 0 ->
+        {{A,B}, {C,D}} when A =:= '-inf' orelse abs(A) bsr ?NUM_BITS =:= 0,
+                            B =:= '+inf' orelse abs(B) bsr ?NUM_BITS =:= 0 ->
             Min = inf_min(inf_bsr(A, C), inf_bsr(A, D)),
             Max = inf_max(inf_bsr(B, C), inf_bsr(B, D)),
             normalize({Min,Max});
+        {{A, '+inf'}, _} when is_integer(A), A >= 0 ->
+            {0, '+inf'};
+        {{'-inf', B}, _} when is_integer(B), B < 0 ->
+            {'-inf', -1};
         {_, _} ->
             any
     end;
@@ -196,6 +201,10 @@ bounds('bsl', R1, R2) ->
             Min = inf_min(inf_bsl(A, C), inf_bsl(A, D)),
             Max = inf_max(inf_bsl(B, C), inf_bsl(B, D)),
             normalize({Min,Max});
+        {{A, '+inf'}, _} when is_integer(A), A >= 0 ->
+            {0, '+inf'};
+        {{'-inf', B}, _} when is_integer(B), B < 0 ->
+            {'-inf', -1};
         {_, _} ->
             any
     end;

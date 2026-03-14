@@ -294,7 +294,7 @@ bnot_bounds_4() ->
 
 
 bsr_bounds(_Config) ->
-    test_noncommutative('bsr', {-12,12}, {0,7}),
+    test_noncommutative('bsr', {-12,12}, {-7,7}),
 
     {0,10} = beam_bounds:bounds('bsr', {0,10}, {0,'+inf'}),
     {0,2} = beam_bounds:bounds('bsr', {0,10}, {2,'+inf'}),
@@ -305,6 +305,9 @@ bsr_bounds(_Config) ->
 
     {'-inf',16} = beam_bounds:bounds('bsr', {'-inf',32}, {1,10}),
     {-5,'+inf'} = beam_bounds:bounds('bsr', {-10,'+inf'}, {1,10}),
+
+    {0,'+inf'} = beam_bounds:bounds('bsr', {17,'+inf'}, any),
+    {'-inf',-1} = beam_bounds:bounds('bsr', {'-inf',-10}, any),
 
     ok.
 
@@ -335,7 +338,11 @@ bsl_bounds(_Config) ->
     {'-inf',-40} = beam_bounds:bounds('bsl', {'-inf',-10}, {2,64}),
     {'-inf',224} = beam_bounds:bounds('bsl', {'-inf',7}, {3,5}),
 
+    {'-inf',-88} = beam_bounds:bounds('bsl', {'-inf',-11}, {3,'+inf'}),
     any = beam_bounds:bounds('bsl', {'-inf',7}, {3,'+inf'}),
+
+    {0,'+inf'} = beam_bounds:bounds('bsl', {17,'+inf'}, any),
+    {'-inf',-1} = beam_bounds:bounds('bsl', {'-inf',-10}, any),
 
     ok.
 
