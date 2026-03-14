@@ -32,6 +32,7 @@
          record_update/1,
          bad_tuple_match/1]).
 -include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 %% Tests tuples and the BIFs:
 %%
@@ -128,6 +129,10 @@ ludicrous_tuple_size(_) -> error.
 
 %% Tests element/2.
 
+-define(AssertBadargStack(Pos, Tuple),
+        assert_badarg_stack(fun() -> element(Pos, Tuple) end,
+                            Pos, Tuple)).
+
 t_element(Config) when is_list(Config) ->
     a = element(1, {a}),
     a = element(1, {a, b}),
@@ -177,9 +182,120 @@ t_element(Config) when is_list(Config) ->
     {'EXIT', {badarg, _}} = catch element(id(0), id(Tuple)),
     {'EXIT', {badarg, _}} = catch element(id(1 bsl 64), id(Tuple)),
 
+    %% Test a known tuple and a known small position.
+    ?AssertBadargStack(known_small(-1), Tuple),
+    ?AssertBadargStack(known_small(0), Tuple),
+    ?AssertBadargStack(known_small(1 bsl 32), Tuple),
+    ?AssertBadargStack(known_small(1 bsl 40), Tuple),
+    ?AssertBadargStack(known_small(tuple_size(Tuple)+1), Tuple),
+
+    %% Test a known tuple and a known small positive position.
+    ?AssertBadargStack(known_pos_small(1 bsl 32), Tuple),
+    ?AssertBadargStack(known_pos_small(1 bsl 40), Tuple),
+    ?AssertBadargStack(known_pos_small(tuple_size(Tuple)+1), Tuple),
+
+    FailInGuard = fun(I) ->
+                          if
+                              is_integer(element(I, Tuple)) ->
+                                  error(unexpected_success);
+                              true ->
+                                  ok
+                          end
+                  end,
+
+    %% Test a known tuple and a known integer position in a guard.
+    GuardKnownInt =
+        fun(I0) ->
+                I = known_integer(id(I0)),
+                if
+                    is_integer(element(I, Tuple)) ->
+                        error(unexpected_success);
+                    true ->
+                        ok
+                end
+        end,
+    GuardKnownInt(-1),
+    GuardKnownInt(0),
+    GuardKnownInt(1 bsl 32),
+    GuardKnownInt(1 bsl 40),
+    GuardKnownInt(1 bsl 64),
+    GuardKnownInt(tuple_size(Tuple) + 1),
+
+    %% Test a known tuple and known small position in a guard.
+    GuardKnownSmall =
+        fun(I0) ->
+                I = known_small(id(I0)),
+                if
+                    is_integer(element(I, Tuple)) ->
+                        error(unexpected_success);
+                    true ->
+                        ok
+                end
+        end,
+    GuardKnownSmall(-1),
+    GuardKnownSmall(0),
+    GuardKnownSmall(1 bsl 32),
+    GuardKnownSmall(1 bsl 40),
+    GuardKnownSmall(tuple_size(Tuple) + 1),
+
+    %% Test a empty tuple with invalid constant positions.
+    ?AssertBadargStack(-1, id({})),
+    ?AssertBadargStack(0, id({})),
+    ?AssertBadargStack(1, id({})),
+    ?AssertBadargStack(2, id({})),
+    ?AssertBadargStack(1 bsl 32, id({})),
+    ?AssertBadargStack(1 bsl 40, id({})),
+    ?AssertBadargStack(-1, {}),
+    ?AssertBadargStack(0, {}),
+    ?AssertBadargStack(1, {}),
+    ?AssertBadargStack(2, {}),
+    ?AssertBadargStack(1 bsl 32, {}),
+    ?AssertBadargStack(1 bsl 40, {}),
+
+    %% Test a known tuple with invalid constant positions.
+    ?AssertBadargStack(-1, Tuple),
+    ?AssertBadargStack(0, Tuple),
+    ?AssertBadargStack(16385, Tuple),
+    ?AssertBadargStack((1 bsl 32) - 1, Tuple),
+    ?AssertBadargStack(1 bsl 32, Tuple),
+    ?AssertBadargStack(1 bsl 40, Tuple),
+
+    %% Test a literal with constant positions.
+    ?AssertBadargStack(-1, {a,b,c}),
+    ?AssertBadargStack(0, {a,b,c}),
+    a = element(1, {a,b,c}),
+    b = element(2, {a,b,c}),
+    c = element(3, {a,b,c}),
+    ?AssertBadargStack(4, {a,b,c}),
+    ?AssertBadargStack((1 bsl 32) - 1, {a,b,c}),
+    ?AssertBadargStack(1 bsl 32, {a,b,c}),
+    ?AssertBadargStack(1 bsl 40, {a,b,c}),
+
+    %% Test non tuples.
+    ?AssertBadargStack(1, nope),
+    ?AssertBadargStack(1, []),
+    ?AssertBadargStack(1, [a]),
+    ?AssertBadargStack(1, #{}),
+    ?AssertBadargStack(1, #{a => b}),
+
     ok.
 
+assert_badarg_stack(F, Pos, Tuple) ->
+    try F() of
+        Result ->
+            error({unexpected_success,Result})
+    catch
+        error:badarg:Stack ->
+            [{erlang,element,[Pos,Tuple],_}|_] = Stack
+    end.
+
 known_integer(I) when is_integer(I) ->
+    I.
+
+known_small(I) when is_integer(I, -(1 bsl 56), 1 bsl 56) ->
+    I.
+
+known_pos_small(I) when is_integer(I, 1, 1 bsl 56) ->
     I.
 
 get_elements([Element|Rest], Tuple, Pos) ->
@@ -617,7 +733,7 @@ tuple_in_guard(Config) when is_list(Config) ->
 %% a get_two_tuple_elements instruction that ovewrites the register holding
 %% the tuple.
 get_two_tuple_elements(Config) ->
-    DataDir = proplists:get_value(data_dir, Config),
+    DataDir = get_data_dir(Config),
     GTTETestsFile = filename:join(DataDir, "get_two_tuple_elements"),
 
     %% Compile from Erlang source code.
@@ -767,3 +883,13 @@ total_memory() ->
 	_ : _ ->
 	    undefined
     end.
+
+get_data_dir(Config) ->
+    Data = proplists:get_value(data_dir, Config),
+    Opts = [{return,list}],
+    Suffixes = ["_no_opt_SUITE",
+                "_stripped_types_SUITE"],
+    lists:foldl(fun(Suffix, Acc) ->
+                        Opts = [{return,list}],
+                        re:replace(Acc, Suffix, "_SUITE", Opts)
+                end, Data, Suffixes).
