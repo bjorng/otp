@@ -710,7 +710,9 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
         lea(TMP1, emit_boxed_val(boxed_ptr));
         a.ldr(TMP2, a64::Mem(TMP1));
 
-        if (always_one_of<BeamTypeId::Integer, BeamTypeId::AlwaysBoxed>(Pos)) {
+        if (always_small(Pos)) {
+            comment("skipped test for known small position");
+        } else if (always_one_of<BeamTypeId::Integer, BeamTypeId::AlwaysBoxed>(Pos)) {
             ERTS_CT_ASSERT(_TAG_PRIMARY_MASK - TAG_PRIMARY_LIST ==
                            TAG_PRIMARY_BOXED);
             a.tst(pos.reg, imm(TAG_PRIMARY_LIST));
@@ -718,6 +720,7 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
                    make_small(0),
                    imm(NZCV::kZF),
                    imm(arm::CondCode::kNE));
+            a.b_eq(fail);
         } else {
             a.and_(TMP3, pos.reg, imm(_TAG_IMMED1_MASK));
             a.cmp(TMP3, imm(_TAG_IMMED1_SMALL));
@@ -725,8 +728,8 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
                    make_small(0),
                    imm(NZCV::kZF),
                    imm(arm::CondCode::kEQ));
+            a.b_eq(fail);
         }
-        a.b_eq(fail);
 
         /* Ensure that the position points within the tuple. */
         a.asr(TMP3, pos.reg, imm(_TAG_IMMED1_SIZE));
