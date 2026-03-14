@@ -157,7 +157,8 @@ NO_OPT= bs_bincomp \
 	bs_match_misc \
 	bs_utf \
 	guard \
-	map
+	map \
+	tuple
 
 STRIPPED_TYPES= \
 	bs_bincomp \

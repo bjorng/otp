@@ -513,62 +513,6 @@ void BeamModuleAssembler::emit_bif_byte_size(const ArgLabel &Fail,
  * ================================================================
  */
 
-/* ARG1 = Position (1-based)
- * ARG2 = Tuple
- *
- * Will return the result in ARG1, or jump to the label `fail` if
- * the operation fails.
- */
-void BeamGlobalAssembler::emit_bif_element_helper(Label fail) {
-    /* Ensure that ARG2 contains a tuple. */
-    emit_is_boxed(fail, ARG2);
-    a64::Gp boxed_ptr = emit_ptr_val(TMP1, ARG2);
-    lea(TMP1, emit_boxed_val(boxed_ptr));
-    a.ldr(TMP2, a64::Mem(TMP1));
-    ERTS_CT_ASSERT(make_arityval_zero() == 0);
-    a.tst(TMP2, imm(_TAG_HEADER_MASK));
-    a.b_ne(fail);
-
-    a.and_(TMP3, ARG1, imm(_TAG_IMMED1_MASK));
-    a.cmp(TMP3, imm(_TAG_IMMED1_SMALL));
-    a.ccmp(ARG1, make_small(0), imm(NZCV::kZF), imm(arm::CondCode::kEQ));
-    a.b_eq(fail);
-
-    /* Ensure that the position points within the tuple. */
-    a.asr(TMP3, ARG1, imm(_TAG_IMMED1_SIZE));
-    a.cmp(TMP3, TMP2, a64::lsr(_HEADER_ARITY_OFFS));
-    a.b_hi(fail);
-
-    a.ldr(ARG1, a64::Mem(TMP1, TMP3, a64::lsl(3)));
-    a.ret(a64::x30);
-}
-
-void BeamGlobalAssembler::emit_bif_element_body_shared() {
-    Label error = a.new_label();
-
-    emit_bif_element_helper(error);
-
-    a.bind(error);
-    {
-        static ErtsCodeMFA mfa = {am_erlang, am_element, 2};
-        a.mov(XREG0, ARG1);
-        a.mov(XREG1, ARG2);
-        emit_raise_badarg(&mfa);
-    }
-}
-
-void BeamGlobalAssembler::emit_bif_element_guard_shared() {
-    Label error = a.new_label();
-
-    emit_bif_element_helper(error);
-
-    a.bind(error);
-    {
-        mov_imm(ARG1, THE_NON_VALUE);
-        a.ret(a64::x30);
-    }
-}
-
 void BeamGlobalAssembler::emit_handle_element_error_shared() {
     static ErtsCodeMFA mfa = {am_erlang, am_element, 2};
     a.mov(XREG0, ARG1);
@@ -576,188 +520,209 @@ void BeamGlobalAssembler::emit_handle_element_error_shared() {
     emit_raise_badarg(&mfa);
 }
 
+static bool mark_fail(const ArgLabel &Fail, bool can_fail) {
+    return can_fail || Fail.get() == 0;
+}
+
 void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
                                            const ArgSource &Pos,
                                            const ArgSource &Tuple,
                                            const ArgRegister &Dst) {
-    /*
-     * Try to optimize the use of a tuple as a lookup table.
-     */
-    if (exact_type<BeamTypeId::Integer>(Pos) && Tuple.isLiteral()) {
-        Eterm tuple_literal =
-                beamfile_get_literal(beam, Tuple.as<ArgLiteral>().get());
+    Label next = a.new_label(), fail = a.new_label();
+    Sint size = -1;
+    auto [min, max] = getClampedRange(Pos);
+    bool can_fail = false;
+    auto dst = init_destination(Dst, ARG1);
+    a64::Gp boxed_ptr;
+    Variable<a64::Gp> pos = a64::xzr;
+    Variable<a64::Gp> tuple = a64::xzr;
+    Label error;
 
-        if (is_tuple(tuple_literal)) {
-            Label next = a.new_label(), fail = a.new_label();
-            Sint size = Sint(arityval(*tuple_val(tuple_literal)));
-            auto [min, max] = getClampedRange(Pos);
-            bool can_fail = min < 1 || size < max;
-            auto [pos, tuple] = load_sources(Pos, ARG3, Tuple, ARG4);
-            auto dst = init_destination(Dst, ARG1);
+    if (Fail.get() != 0) {
+        error = resolve_beam_label(Fail, dispUnknown);
+    } else {
+        error = fail;
+    }
 
-            if (always_small(Pos)) {
-                comment("skipped test for small position since it is always "
-                        "small");
-            } else {
-                comment("simplified test for small position since it is an "
-                        "integer");
-                emit_is_not_boxed(fail, pos.reg);
+    if (Pos.isSmall()) {
+        tuple = load_source(Tuple, ARG4);
+    } else {
+        auto p = load_sources(Pos, ARG3, Tuple, ARG4);
+        pos = p.first;
+        tuple = p.second;
+    }
+
+    if (Tuple.isLiteral() && exact_type<BeamTypeId::Tuple>(Tuple)) {
+        Eterm tuple = beamfile_get_literal(beam, Tuple.as<ArgLiteral>().get());
+        size = Sint(arityval(*tuple_val(tuple)));
+    }
+
+    if (always_small(Pos)) {
+        comment("skipped test for small position since it is always small");
+    } else if (exact_type<BeamTypeId::Integer>(Pos)) {
+        comment("simplified test for small position since it is always an "
+                "integer");
+        can_fail = mark_fail(Fail, can_fail);
+        emit_is_not_boxed(error, pos.reg);
+    } else {
+        a.and_(TMP1, pos.reg, imm(_TAG_IMMED1_MASK));
+        a.cmp(TMP1, imm(_TAG_IMMED1_SMALL));
+        can_fail = mark_fail(Fail, can_fail);
+        a.b_ne(error);
+    }
+
+    /* Do a special optimization of `element(1, Tuple)`. */
+    if (size < 0 && Pos.isSmall() && Pos.as<ArgSmall>().getSigned() == 1) {
+        comment("optimized element(1, Tuple)");
+
+        if (Fail.get() == 0) {
+            emit_is_boxed(fail, Tuple, tuple.reg);
+        } else {
+            emit_is_boxed(resolve_beam_label(Fail, dispUnknown),
+                          Tuple,
+                          tuple.reg);
+        }
+
+        boxed_ptr = emit_ptr_val(TMP1, tuple.reg);
+        lea(TMP1, emit_boxed_val(boxed_ptr, 0));
+        a.ldp(TMP1, TMP2, a64::Mem(TMP1));
+        a.tst(TMP1, imm(_TAG_HEADER_MASK));
+        a.ccmp(TMP1, imm(0), imm(NZCV::kZF), imm(arm::CondCode::kEQ));
+
+        if (Fail.get() != 0) {
+            a.b_eq(resolve_beam_label(Fail, disp1MB));
+            a.bind(fail);
+        } else {
+            a.b_ne(next);
+
+            a.bind(fail);
+            {
+                mov_arg(ARG1, Pos);
+                a.mov(ARG2, tuple.reg);
+                fragment_call(ga->get_handle_element_error_shared());
             }
+        }
 
-            comment("skipped tuple test since source is always a literal "
-                    "tuple");
-            a64::Gp boxed_ptr = emit_ptr_val(TMP1, tuple.reg);
-            lea(TMP1, emit_boxed_val(boxed_ptr));
+        a.bind(next);
+        {
+            a.mov(dst.reg, TMP2);
+            flush_var(dst);
+        }
 
-            a.asr(TMP3, pos.reg, imm(_TAG_IMMED1_SIZE));
+        return;
+    }
 
-            if (1 <= min && max <= size) {
-                comment("skipped check for known safe position");
+    if (!exact_type<BeamTypeId::Tuple>(Tuple)) {
+        can_fail = mark_fail(Fail, can_fail);
+    }
+    emit_is_boxed(error, Tuple, tuple.reg);
+    boxed_ptr = emit_ptr_val(TMP1, tuple.reg);
+
+    if (!Pos.isSmall()) {
+        a.asr(TMP3, pos.reg, imm(_TAG_IMMED1_SIZE));
+    }
+
+    if (size < 0) {
+        a.ldur(TMP4, emit_boxed_val(boxed_ptr));
+    }
+
+    bool need_branch = false;
+    if (exact_type<BeamTypeId::Tuple>(Tuple)) {
+        comment("skipped tuple test since source is always a tuple");
+    } else {
+        ERTS_CT_ASSERT(make_arityval_zero() == 0);
+        a.tst(TMP4, imm(_TAG_HEADER_MASK));
+        need_branch = true;
+    }
+
+    if (size < 0) {
+        /* The size of tuple Tuple is unknown. */
+
+        can_fail = mark_fail(Fail, can_fail);
+        if (Pos.isSmall()) {
+            /* The position is known at load-time. */
+            Uint pos = Pos.as<ArgSmall>().getUnsigned() - 1;
+            if (pos > MAX_ARITYVAL) {
+                a.tst(a64::wzr, a64::wzr); /* Force failure */
+            } else if (need_branch) {
+                mov_imm(TMP2, make_arityval(pos));
+                a.ccmp(TMP4, TMP2, imm(NZCV::kZF), imm(arm::CondCode::kEQ));
+            } else {
+                cmp(TMP4, make_arityval(pos));
+            }
+            a.b_ls(error);
+        } else {
+            /* The position is not known at load-time. */
+            if (min > 0) {
+                comment("skipping test for zero for known positive position");
+                if (need_branch) {
+                    a.lsr(TMP4, TMP4, imm(_HEADER_ARITY_OFFS));
+                    a.ccmp(TMP3, TMP4, imm(NZCV::kZF), imm(arm::CondCode::kEQ));
+                } else {
+                    a.cmp(TMP3, TMP4, a64::lsr(_HEADER_ARITY_OFFS));
+                }
+                a.b_hi(error);
             } else {
                 a.sub(TMP2, TMP3, imm(1));
-                cmp(TMP2, size);
-                a.b_hs(fail);
-            }
-
-            a.ldr(dst.reg, a64::Mem(TMP1, TMP3, a64::lsl(3)));
-
-            if (can_fail) {
-                a.b(next);
-            }
-
-            a.bind(fail);
-            if (can_fail) {
-                if (Fail.get() != 0) {
-                    a.b(resolve_beam_label(Fail, disp128MB));
+                if (need_branch) {
+                    a.lsr(TMP4, TMP4, imm(_HEADER_ARITY_OFFS));
+                    a.ccmp(TMP2, TMP4, imm(NZCV::kCF), imm(arm::CondCode::kEQ));
                 } else {
-                    a.mov(ARG1, pos.reg);
-                    a.mov(ARG2, tuple.reg);
-                    fragment_call(ga->get_handle_element_error_shared());
+                    a.cmp(TMP2, TMP4, a64::lsr(_HEADER_ARITY_OFFS));
                 }
+                a.b_hs(error);
             }
-
-            a.bind(next);
-            flush_var(dst);
-
-            return;
         }
-    }
-
-    bool const_position;
-
-    const_position = Pos.isSmall() && Pos.as<ArgSmall>().getSigned() > 0 &&
-                     Pos.as<ArgSmall>().getSigned() <= (Sint)MAX_ARITYVAL;
-
-    if (const_position) {
-        if (exact_type<BeamTypeId::Tuple>(Tuple)) {
-            comment("simplified element/2 because arguments are known types");
-        } else {
-            comment("simplified element/2 because position is constant");
+    } else if (1 <= min && max <= size) {
+        /* A literal tuple of known size. */
+        if (need_branch) {
+            can_fail = mark_fail(Fail, can_fail);
+            a.b_ne(error);
         }
-        auto tuple = load_source(Tuple, ARG2);
-        auto dst = init_destination(Dst, ARG1);
-        Uint position = Pos.as<ArgSmall>().getUnsigned();
-        a64::Gp boxed_ptr;
-        Label fail = a.new_label();
-
-        if (exact_type<BeamTypeId::Tuple>(Tuple)) {
-            boxed_ptr = emit_ptr_val(TMP1, tuple.reg);
-            a.ldur(TMP2, emit_boxed_val(boxed_ptr));
-            ERTS_CT_ASSERT(make_arityval_zero() == 0);
-            cmp(TMP2, position << _HEADER_ARITY_OFFS);
-        } else {
-            if (Fail.get() != 0) {
-                emit_is_boxed(resolve_beam_label(Fail, dispUnknown),
-                              Tuple,
-                              tuple.reg);
-            } else {
-                emit_is_boxed(fail, Tuple, tuple.reg);
-            }
-            boxed_ptr = emit_ptr_val(TMP1, tuple.reg);
-            a.ldur(TMP2, emit_boxed_val(boxed_ptr));
-            mov_imm(TMP3, position << _HEADER_ARITY_OFFS);
-            ERTS_CT_ASSERT(make_arityval_zero() == 0);
-            a.tst(TMP2, imm(_TAG_HEADER_MASK));
-            a.ccmp(TMP2, TMP3, imm(NZCV::kNone), imm(arm::CondCode::kEQ));
-        }
-
-        if (Fail.get() != 0) {
-            a.b_lo(resolve_beam_label(Fail, disp1MB));
-            a.bind(fail);
-        } else {
-            Label good = a.new_label();
-
-            a.b_hs(good);
-
-            a.bind(fail);
-            mov_arg(ARG1, Pos);
-            mov_var(ARG2, tuple);
-            fragment_call(ga->get_handle_element_error_shared());
-
-            a.bind(good);
-        }
-
-        /* Fetch the element. */
-        safe_ldur(dst.reg, emit_boxed_val(boxed_ptr, position << 3));
-        flush_var(dst);
-    } else if (exact_type<BeamTypeId::Tuple>(Tuple) && Fail.get() == 0) {
-        auto [pos, tuple] = load_sources(Pos, ARG1, Tuple, ARG2);
-        auto dst = init_destination(Dst, ARG1);
-        a64::Gp boxed_ptr = emit_ptr_val(TMP1, tuple.reg);
-        Label fail = a.new_label();
-        Label good = a.new_label();
-
-        lea(TMP1, emit_boxed_val(boxed_ptr));
-        a.ldr(TMP2, a64::Mem(TMP1));
-
-        if (always_one_of<BeamTypeId::Integer, BeamTypeId::AlwaysBoxed>(Pos)) {
-            ERTS_CT_ASSERT(_TAG_PRIMARY_MASK - TAG_PRIMARY_LIST ==
-                           TAG_PRIMARY_BOXED);
-            a.tst(pos.reg, imm(TAG_PRIMARY_LIST));
-            a.ccmp(pos.reg,
-                   make_small(0),
-                   imm(NZCV::kZF),
-                   imm(arm::CondCode::kNE));
-        } else {
-            a.and_(TMP3, pos.reg, imm(_TAG_IMMED1_MASK));
-            a.cmp(TMP3, imm(_TAG_IMMED1_SMALL));
-            a.ccmp(pos.reg,
-                   make_small(0),
-                   imm(NZCV::kZF),
-                   imm(arm::CondCode::kEQ));
-        }
-        a.b_eq(fail);
-
-        /* Ensure that the position points within the tuple. */
-        a.asr(TMP3, pos.reg, imm(_TAG_IMMED1_SIZE));
-        a.cmp(TMP3, TMP2, a64::lsr(_HEADER_ARITY_OFFS));
-        a.b_ls(good);
-
-        a.bind(fail);
-        mov_arg(ARG1, Pos);
-        mov_var(ARG2, tuple);
-        fragment_call(ga->get_handle_element_error_shared());
-
-        a.bind(good);
-        a.ldr(dst.reg, a64::Mem(TMP1, TMP3, a64::lsl(3)));
-        flush_var(dst);
+        comment("skipped check for known safe position");
     } else {
-        /* Too much code to inline. Call a helper fragment. */
-        mov_arg(ARG1, Pos);
-        mov_arg(ARG2, Tuple);
-
-        if (Fail.get() != 0) {
-            fragment_call(ga->get_bif_element_guard_shared());
-            emit_branch_if_not_value(ARG1,
-                                     resolve_beam_label(Fail, dispUnknown));
-        } else {
-            fragment_call(ga->get_bif_element_body_shared());
+        /* A literal tuple of known size. */
+        can_fail = mark_fail(Fail, can_fail);
+        if (need_branch) {
+            a.b_ne(error);
         }
-
-        auto dst = init_destination(Dst, ARG1);
-        mov_var(dst, ARG1);
-        flush_var(dst);
+        if (Pos.isSmall()) {
+            /* Can only happen for non-optimized code or when when the
+             * position is known to be invalid. */
+            mov_imm(TMP3, Pos.as<ArgSmall>().getSigned() >> _TAG_IMMED1_SIZE);
+        }
+        a.sub(TMP2, TMP3, imm(1));
+        cmp(TMP2, size);
+        a.b_hs(error);
     }
+
+    /* Fetch the tuple element. */
+    if (Pos.isSmall()) {
+        Uint offset = Pos.as<ArgSmall>().getUnsigned() << 3;
+        safe_ldur(dst.reg, emit_boxed_val(boxed_ptr, offset));
+    } else {
+        lea(TMP1, emit_boxed_val(boxed_ptr));
+        a.ldr(dst.reg, a64::Mem(TMP1, TMP3, a64::lsl(3)));
+    }
+
+    if (can_fail) {
+        a.b(next);
+    }
+
+    a.bind(fail);
+    if (can_fail) {
+        ASSERT(Fail.get() == 0);
+        if (Pos.isSmall()) {
+            mov_arg(ARG1, Pos);
+        } else {
+            a.mov(ARG1, pos.reg);
+        }
+        a.mov(ARG2, tuple.reg);
+        fragment_call(ga->get_handle_element_error_shared());
+    }
+
+    a.bind(next);
+    flush_var(dst);
 }
 
 /* ================================================================
