@@ -52,12 +52,14 @@ void BeamModuleAssembler::emit_is_native_record(const ArgLabel &Fail,
 
     preserve_cache(
             [&]() {
+                a64::Gp boxed_ptr = emit_ptr_val(TMP1, src.reg);
                 a.ldur(TMP1,
-                       emit_boxed_val(src.reg,
+                       emit_boxed_val(boxed_ptr,
                                       offsetof(ErtsRecordInstance,
                                                record_definition)));
+                boxed_ptr = emit_ptr_val(TMP1, TMP1);
                 lea(TMP1,
-                    emit_boxed_val(TMP1,
+                    emit_boxed_val(boxed_ptr,
                                    offsetof(ErtsRecordDefinition, module)));
                 ERTS_CT_ASSERT_FIELD_PAIR(ErtsRecordDefinition, module, name);
                 a.ldp(TMP2, TMP3, a64::Mem(TMP1));
@@ -80,13 +82,15 @@ void BeamModuleAssembler::emit_is_record_accessible(const ArgLabel &Fail,
 
     preserve_cache(
             [&]() {
+                a64::Gp boxed_ptr = emit_ptr_val(TMP1, src.reg);
                 a.ldur(TMP1,
-                       emit_boxed_val(src.reg,
+                       emit_boxed_val(boxed_ptr,
                                       offsetof(ErtsRecordInstance,
                                                record_definition)));
+                boxed_ptr = emit_ptr_val(TMP1, TMP1);
                 a.ldr(TMP2,
                       emit_boxed_val(
-                              TMP1,
+                              boxed_ptr,
                               offsetof(ErtsRecordDefinition, is_exported)));
                 if (Scope.get() == am_external) {
                     const Uint bit_num = _TAG_IMMED2_SIZE;
