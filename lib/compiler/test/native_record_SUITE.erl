@@ -131,6 +131,12 @@ local_basic(_Config) ->
     true = is_int_ax(ARec),
     false = is_int_ax(id(#a{x=a,y=b})),
 
+    false = is_int_ax_guard_2(#b{}),
+    false = is_int_ax_guard_2(#b{x=42}),
+
+    false = is_int_ax_guard_1(#b{}),
+    false = is_int_ax_guard_1(#b{x=42}),
+
     try id(throw(ARec)) of
         _ ->
             error(should_fail)
