@@ -680,8 +680,6 @@ expr({map,Line,E0,Fs0}, Bs0, Ieval0) ->
 expr({record_field,_Anno,{atom,_,N},V0}, Bs0, Ieval) ->
     {value,V1,Bs1} = expr(V0, Bs0, Ieval),
     {value, {N,V1}, Bs1};
-expr({record_field,Line,Name,_}, Bs, Ieval) ->
-    exception(error, {undef_record,Name}, Bs, Ieval#ieval{line=Line});
 %% Native record field access
 expr({record_field,Line,Src0,{M,N},{atom,_,K}}, Bs0, Ieval) ->
     {value, Src1, Bs} = expr(Src0, Bs0, Ieval),
@@ -720,16 +718,6 @@ expr({record_field,Line,Src0,N,{atom,_,K}}, Bs0, #ieval{module=M}=Ieval) ->
         false ->
             native_record_error(Line, Src0, Src1, Bs, Ieval)
     end;
-expr({record_field,Line,Src,Name,K}, Bs, Ieval) ->
-    case Src of
-        {var,_,_V} -> ok;
-        _ -> exception(error, {badarg,Src}, Bs, Ieval#ieval{line=Line})
-    end,
-    case K of
-        {atom,_,_Key} -> ok;
-        _ -> exception(error, {badarg,K}, Bs, Ieval#ieval{line=Line})
-    end,
-    exception(error, {badarg,Name}, Bs, Ieval#ieval{line=Line});
 %% Native record creation
 expr({record,Line,{M,N},Es}, Bs0, Ieval) ->
     try records:get_definition(M, N) of
@@ -767,20 +755,16 @@ expr({record,Line,N,Es}, Bs0, #ieval{module=M}=Ieval) when is_atom(N)->
         _:_ ->
             exception(error, {undef_record,{M, N}}, Bs0, Ieval#ieval{line=Line})
     end;
-expr({record,Line,Name,_Es}, Bs, Ieval) ->
-    exception(error, {undef_record,Name}, Bs, Ieval#ieval{line=Line});
 %% Native record update
 expr({record,Line,Src0,{M,N},Es}, Bs0, Ieval) ->
     {value, Src1, Bs} = expr(Src0, Bs0, Ieval),
-    try {records:is_exported(Src1), is_record(Src1, M, N)} of
-        {false, _} ->
-            native_record_error(Line, Src0, Src1, Bs, Ieval);
-        {true, true} ->
+    try records:is_exported(Src1) andalso is_record(Src1, M, N) of
+        true ->
             {Vs,Bs1} = eval_list(Es, Bs, Ieval#ieval{line=Line}),
             Updates = #{K => V || {K, V} <:- Vs},
             R = records:update(Src1, M, N, Updates),
             {value, R, Bs1};
-        {true, false} ->
+        false ->
             native_record_error(Line, Src0, Src1, Bs, Ieval)
     catch
         _:_ ->
@@ -813,12 +797,7 @@ expr({record,Line,Src0,N,Es}, Bs0, #ieval{module=M}=Ieval) when is_atom(N) ->
             R = records:update(Src1, M, N, Updates),
             {value, R, Bs};
         false ->
-            case Src0 of
-                {value, _, Value} ->
-                    exception(error, {badrecord,Value}, Bs, Ieval#ieval{line=Line});
-                _ ->
-                    exception(error, {badrecord,Src1}, Bs, Ieval#ieval{line=Line})
-            end
+            native_record_error(Line, Src0, Src1, Bs, Ieval)
     end;
 expr({record,Line,Src,Name,_Es}, Bs, Ieval) ->
     case Src of

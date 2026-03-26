@@ -157,12 +157,6 @@ store_forms([{function,_,Name,Arity,Cs0}|Fs], Mod, Db, #{exp:=Exp} = St) ->
     Exported = lists:member(FA, Exp),
     dbg_idb:insert(Db, {Mod,Name,Arity,Exported}, Cs),
     store_forms(Fs, Mod, Db, St);
-store_forms([{attribute,_,native_record,{Name,Defs}}|Fs], Mod, Db, St) ->
-    NDefs = normalise_rec_fields(Defs),
-    Fields = [F || {record_field, _, {atom, _, F}, _} <- NDefs],
-    dbg_idb:insert(Db, {native_record,Mod,Name}, Fields),
-    Recs = maps:get(native_recs, St, #{}),
-    store_forms(Fs, Mod, Db, St#{native_recs => Recs#{Name => {local,NDefs}}});
 store_forms([{attribute,_,record,{Name,Defs}}|Fs], Mod, Db, St) ->
     NDefs = normalise_rec_fields(Defs),
     Fields = [F || {record_field, _, {atom, _, F}, _} <- NDefs],
