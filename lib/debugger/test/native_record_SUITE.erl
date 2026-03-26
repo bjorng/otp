@@ -297,6 +297,7 @@ external_records(_Config) ->
     #vector{x=10, y=1, z=5} = DefVector,
     #ext_records:vector{x=10, y=1, z=5} = DefVector,
     true = records:is_exported(DefVector),
+    10 = DefVector#vector.x,
 
     ExtLocal = ext_records:local([1,2,3], {a,b,c}),
     false = records:is_exported(ExtLocal),

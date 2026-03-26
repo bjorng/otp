@@ -948,17 +948,15 @@ native_record_inits(Anno0, Inits0, Is) ->
                              ordsets:from_list(InitKeys)),
     [{record_field,Anno0,{atom,Anno0,F},{nil,badfield}} || F <- NoDef] ++
         lists:map(fun ({record_field,A1,{atom,A2,F},D}) ->
-                    case find_field(F, Is) of
-                        {ok,Init} -> {record_field,A1,{atom,A2,F},Init};
-                        error ->
-                            {record_field,A1,{atom,A2,F},D}
-                    end;
-                ({record_field,A1,{atom,A2,F}}) ->
-                    case find_field(F, Is) of
-                        {ok,Init} -> {record_field,A1,{atom,A2,F},Init};
-                        error -> {record_field,A1,{atom,A2,F},{nil,novalue}}
-                    end
-            end, Inits2).
+                          case find_field(F, Is) of
+                              {ok,Init} -> {record_field,A1,{atom,A2,F},Init};
+                              error ->
+                                  {record_field,A1,{atom,A2,F},D}
+                          end;
+                      ({record_field,A1,{atom,A2,F}}) ->
+                          {ok,Init} = find_field(F, Is),
+                          {record_field,A1,{atom,A2,F},Init}
+                  end, Inits2).
 
 native_record_no_type([{typed_record_field,Field,_Type} | Fs], Acc) ->
     native_record_no_type([Field | Fs], Acc);
