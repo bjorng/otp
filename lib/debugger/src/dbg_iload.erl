@@ -441,7 +441,13 @@ gexpr({call,Anno,{remote,_,{atom,_,erlang},{atom,_,is_record}}, [A,{atom,_,Name}
 gexpr({call,Anno,{tuple,_,[{atom,_,erlang},{atom,_,is_record}]},
        [A,{atom,_,Name}]}, St) ->
     record_test_in_guard(Anno, A, Name, St);
-gexpr({record_field,_A,R,Name,F}, St) ->
+gexpr({record_field,_A,R,{_,_}=Name,{atom,_,F}}, St) ->
+    ExpR = expr(R, false, St),
+    {record_guard_field,Name,F,ExpR};
+gexpr({record_field,_A,R,[],{atom,_,F}}, St) ->
+    ExpR = expr(R, false, St),
+    {record_guard_wildcard_field,F,ExpR};
+gexpr({record_field,_A,R,Name,F}, St) when is_atom(Name) ->
     Anno = erl_parse:first_anno(R),
     get_record_field_guard(Anno, R, F, Name, St);
 gexpr({record_index,Anno,Name,F}, St) ->
@@ -1095,12 +1101,18 @@ get_record_field_body(Anno, R, {atom,_,F}, Name, St) ->
              [{tuple,Anno,[{atom,Anno,badrecord},{atom,Anno,Name}]}]}]}]},
     expr(E, false, St).
 
-get_record_field_guard(Anno, R, {atom,_,F}, Name, St=#{native_recs:=Recs}) ->
+get_record_field_guard(Anno, R, {atom,_,F}, Name, #{native_recs:=Recs,
+                                                    mod:=Mod}=St) ->
     ExpR = expr(R, false, St),
     case Recs of
-        #{Name := {_,_}} ->
-            {safe_bif,ln(Anno),records,get,[{atom,ln(Anno),F},ExpR]};
+        #{Name := {local,_}} ->
+            %% Native record.
+            {record_guard_field,{Mod,Name},F,ExpR};
+        #{Name := {imported,Module}} ->
+            %% Native record.
+            {record_guard_field,{Module,Name},F,ExpR};
         #{} ->
+            %% Tuple record.
             Fs = record_fields(Name, Anno, St),
             I = index_expr(F, Fs, 2),
             {safe_bif,ln(Anno),erlang,element,[{value,ln(Anno),I},ExpR]}

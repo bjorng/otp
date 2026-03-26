@@ -2012,10 +2012,17 @@ guard_expr({dbg,_,self,[]}, _) ->
 guard_expr({safe_bif,_,erlang,'not',As0}, Bs) ->
     {values,As} = guard_exprs(As0, Bs),
     {value,apply(erlang, 'not', As)};
-guard_expr({safe_bif,_,records,get,[{atom,_,K}, Src0]}, Bs) ->
-    %% TODO: Check record name.
+guard_expr({record_guard_wildcard_field,K,Src0}, Bs) ->
     {value,Src1} = guard_expr(Src0, Bs),
     {value, records:get(K, Src1)};
+guard_expr({record_guard_field,{Mod,Name},K,Src0}, Bs) ->
+    {value,Src1} = guard_expr(Src0, Bs),
+    case is_record(Src1, Mod, Name) of
+        true ->
+            {value, records:get(K, Src1)};
+        false ->
+            error(failed)
+    end;
 guard_expr({safe_bif,_,Mod,Func,As0}, Bs) ->
     {values,As} = guard_exprs(As0, Bs),
     {value,apply(Mod, Func, As)};

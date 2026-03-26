@@ -143,6 +143,11 @@ local_basic(_Config) ->
     false = is_int_ax_guard_1(#b{}),
     false = is_int_ax_guard_1(#b{x=42}),
 
+    if
+        is_integer(ARec#_.x) ->
+            ok
+    end,
+
     try id(throw(ARec)) of
         _ ->
             error(should_fail)
@@ -308,6 +313,23 @@ external_records(_Config) ->
         #local{x=X, y=Y} ->
             error({should_fail,X,Y});
         _ ->
+            ok
+    end,
+
+    if
+        is_integer(DefVector#ext_records:vector.x) ->
+            ok
+    end,
+
+    if
+        is_integer(ExtLocal#ext_records:vector.x) ->
+            error(should_fail);
+        true ->
+            ok
+    end,
+
+    if
+        is_integer(DefVector#_.x) ->
             ok
     end,
 
