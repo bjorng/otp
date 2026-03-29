@@ -170,7 +170,17 @@ void BeamModuleAssembler::emit_i_plus(const ArgLabel &Fail,
 
     Label next = a.new_label();
 
-    auto [lhs, rhs] = load_sources(LHS, ARG2, RHS, ARG3);
+    Variable<a64::Gp> lhs = a64::xzr;
+    Variable<a64::Gp> rhs = a64::xzr;
+
+    if (rhs_is_arm_literal) {
+        comment("delayed fetching of immediate RHS operand");
+        lhs = load_source(LHS, ARG2);
+    } else {
+        auto p = load_sources(LHS, ARG2, RHS, ARG3);
+        lhs = p.first;
+        rhs = p.second;
+    }
 
     if (RHS.isLiteral()) {
         comment("skipped test for small because one operand is never small");
@@ -185,6 +195,9 @@ void BeamModuleAssembler::emit_i_plus(const ArgLabel &Fail,
     emit_add_sub_types(is_small_result, LHS, lhs.reg, RHS, rhs.reg, next);
 
     mov_var(ARG2, lhs);
+    if (rhs.reg == a64::xzr) {
+        rhs = load_source(RHS, ARG3);
+    }
     mov_var(ARG3, rhs);
 
     if (Fail.get() != 0) {
@@ -358,7 +371,18 @@ void BeamModuleAssembler::emit_i_minus(const ArgLabel &Fail,
     }
 
     Label next = a.new_label();
-    auto [lhs, rhs] = load_sources(LHS, ARG2, RHS, ARG3);
+
+    Variable<a64::Gp> lhs = a64::xzr;
+    Variable<a64::Gp> rhs = a64::xzr;
+
+    if (rhs_is_arm_literal) {
+        comment("delayed fetching of immediate RHS operand");
+        lhs = load_source(LHS, ARG2);
+    } else {
+        auto p = load_sources(LHS, ARG2, RHS, ARG3);
+        lhs = p.first;
+        rhs = p.second;
+    }
 
     if (RHS.isLiteral()) {
         comment("skipped test for small because one operand is never small");
@@ -373,6 +397,9 @@ void BeamModuleAssembler::emit_i_minus(const ArgLabel &Fail,
     emit_add_sub_types(is_small_result, LHS, lhs.reg, RHS, rhs.reg, next);
 
     mov_var(ARG2, lhs);
+    if (rhs.reg == a64::xzr) {
+        rhs = load_source(RHS, ARG3);
+    }
     mov_var(ARG3, rhs);
 
     if (Fail.get() != 0) {
@@ -1661,7 +1688,6 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
         return;
     }
 
-    auto [lhs, rhs] = load_sources(LHS, ARG2, RHS, ARG3);
     Label generic = a.new_label(), next = a.new_label();
     bool inline_shift = true;
 
@@ -1681,6 +1707,18 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
                 RHS.as<ArgSmall>().getSigned() >= SMALL_BITS - 1)) {
         /* Constant shift is invalid or always produces a bignum. */
         inline_shift = false;
+    }
+
+    Variable<a64::Gp> lhs = a64::xzr;
+    Variable<a64::Gp> rhs = a64::xzr;
+
+    if (RHS.isSmall() && inline_shift) {
+        comment("delayed fetching of immediate RHS operand");
+        lhs = load_source(LHS, ARG2);
+    } else {
+        auto p = load_sources(LHS, ARG2, RHS, ARG3);
+        lhs = p.first;
+        rhs = p.second;
     }
 
     if (inline_shift) {
@@ -1753,13 +1791,15 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
         a.emit(a64::Inst::kIdLsl, TMP1, TMP1, shiftCount);
         a.orr(dst.reg, TMP1, imm(_TAG_IMMED1_SMALL));
 
-        flush_var(dst);
         a.b(next);
     }
 
     a.bind(generic);
     {
         mov_var(ARG2, lhs);
+        if (rhs.reg == a64::xzr) {
+            rhs = load_source(RHS, ARG3);
+        }
         mov_var(ARG3, rhs);
 
         if (Fail.get() != 0) {
@@ -1776,8 +1816,8 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
         }
 
         mov_var(dst, ARG1);
-        flush_var(dst);
     }
 
     a.bind(next);
+    flush_var(dst);
 }
