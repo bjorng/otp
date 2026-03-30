@@ -1372,6 +1372,20 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
                                       const ArgSource &LHS,
                                       const ArgSource &RHS,
                                       const ArgRegister &Dst) {
+    if (always_small(LHS) && RHS.isSmall()) {
+        uint64_t mask = RHS.as<ArgSmall>().get() & ~_TAG_IMMED1_MASK;
+        if (a64::Utils::is_logical_imm(mask, 64)) {
+            comment("skipped test for small operands since they are always "
+                    "small");
+            auto lhs = load_source(LHS);
+            auto dst = init_destination(Dst, ARG1);
+
+            a.eor(dst.reg, lhs.reg, imm(mask));
+            flush_var(dst);
+            return;
+        }
+    }
+
     auto [lhs, rhs] = load_sources(LHS, ARG2, RHS, ARG3);
     auto dst = init_destination(Dst, ARG1);
 
@@ -1422,29 +1436,6 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
  * The module code must have executed emit_enter_runtime()
  * before calling this function.
  *
- * The result is returned in ARG1. Error is indicated by
- * THE_NON_VALUE.
- */
-void BeamGlobalAssembler::emit_i_bnot_guard_shared() {
-    emit_enter_runtime_frame();
-
-    /* Undo the speculative inversion in module code. */
-    a.eor(ARG2, ARG1, imm(~_TAG_IMMED1_MASK));
-
-    a.mov(ARG1, c_p);
-    runtime_call<Eterm (*)(Process *, Eterm), erts_bnot>();
-
-    emit_leave_runtime_frame();
-
-    a.ret(a64::x30);
-}
-
-/*
- * ARG1 = Src
- *
- * The module code must have executed emit_enter_runtime()
- * before calling this function.
- *
  * The result is returned in ARG1.
  */
 void BeamGlobalAssembler::emit_i_bnot_body_shared() {
@@ -1484,6 +1475,11 @@ void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
                                       const ArgWord &Live,
                                       const ArgSource &Src,
                                       const ArgRegister &Dst) {
+    if (Fail.get() != 0 || always_small(Src)) {
+        emit_i_bxor(Fail, Live, Src, ArgSmall(make_small(-1)), Dst);
+        return;
+    }
+
     Label next = a.new_label();
     auto src = load_source(Src, TMP2);
     auto dst = init_destination(Dst, ARG1);
@@ -1500,16 +1496,10 @@ void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
         a.b_eq(next);
     }
 
-    if (Fail.get() != 0) {
-        emit_enter_runtime<Update::eReductions>(Live.get());
-        fragment_call(ga->get_i_bnot_guard_shared());
-        emit_leave_runtime<Update::eReductions>(Live.get());
-        emit_branch_if_not_value(ARG1, resolve_beam_label(Fail, dispUnknown));
-    } else {
-        emit_enter_runtime<Update::eReductions>(Live.get());
-        fragment_call(ga->get_i_bnot_body_shared());
-        emit_leave_runtime<Update::eReductions>(Live.get());
-    }
+    ASSERT(Fail.get() == 0);
+    emit_enter_runtime<Update::eReductions>(Live.get());
+    fragment_call(ga->get_i_bnot_body_shared());
+    emit_leave_runtime<Update::eReductions>(Live.get());
 
     a.bind(next);
     mov_var(dst, ARG1);

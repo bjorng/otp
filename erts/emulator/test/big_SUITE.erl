@@ -449,13 +449,17 @@ system_limit(Config) when is_list(Config) ->
     ?assertError(system_limit, 2*Maxbig),
     ?assertError(system_limit, bnot Maxbig),
     ?assertError(system_limit, apply(erlang, id('bnot'), [Maxbig])),
+    if
+        is_integer(bnot Maxbig) -> error(should_fail);
+        true -> ok
+    end,
     ?assertError(system_limit, Maxbig bsl 2),
     ?assertError(system_limit, apply(erlang, id('bsl'), [Maxbig,2])),
     ?assertError(system_limit, id(1) bsl (1 bsl 45)),
     ?assertError(system_limit, id(1) bsl (1 bsl 69)),
 
     ?assertError(system_limit, Maxbig bxor -1),
-    ?assertError(system_limit, apply(erlang, id('bxor'), [Maxbig,-1])),
+    ?assertError(system_limit, apply(erlang, id('bxor'), [Maxbig, -1])),
     if
         is_integer(Maxbig bxor -1) -> error(should_fail);
         true -> ok
@@ -477,6 +481,7 @@ system_limit(Config) when is_list(Config) ->
     Erlang = id(erlang),
     0 = Erlang:'bsl'(id(0), 1 bsl 128),
     0 = Erlang:'bsr'(id(0), -(1 bsl 128)),
+
     ok.
 
 maxbig() ->
@@ -663,6 +668,11 @@ test_properties(A, B, C) ->
     Diff = -id(B - A),
     Diff = id(A + NegB),
     Diff = -id(NegA + B),
+
+    BnotA = bnot id(A),
+    BnotA = id(A) bxor -1,
+    BnotNegA = bnot id(NegA),
+    BnotNegA = id(NegA) bxor -1,
 
     SquaredSum = id(Sum * Sum),
     SquaredSum = Sum * id(A + B),
