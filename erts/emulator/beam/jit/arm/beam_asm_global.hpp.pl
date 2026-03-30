@@ -72,8 +72,6 @@ my @beam_global_funcs = qw(
     generic_bp_global
     generic_bp_local
     i_band_body_shared
-    i_bnot_body_shared
-    i_bnot_guard_shared
     i_bor_body_shared
     i_bif_body_shared
     i_bif_guard_shared

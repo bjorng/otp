@@ -1470,100 +1470,10 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
     mov_arg(Dst, RET);
 }
 
-/* RET (!) = Src
- *
- * Result is returned in RET. Error is indicated by ZF. */
-void BeamGlobalAssembler::emit_i_bnot_guard_shared() {
-    emit_enter_frame();
-
-    /* Undo the speculative inversion in module code */
-    a.xor_(RET, imm(~_TAG_IMMED1_MASK));
-
-    emit_enter_runtime();
-
-    a.mov(ARG1, c_p);
-    a.mov(ARG2, RET);
-    runtime_call<Eterm (*)(Process *, Eterm), erts_bnot>();
-
-    emit_leave_runtime();
-    emit_leave_frame();
-
-    emit_test_the_non_value(RET);
-    a.ret();
-}
-
-/* RET (!) = Src
- *
- * Result is returned in RET. */
-void BeamGlobalAssembler::emit_i_bnot_body_shared() {
-    static const ErtsCodeMFA bif_mfa = {am_erlang, am_bnot, 1};
-
-    Label error = a.new_label();
-
-    emit_enter_frame();
-
-    /* Undo the speculative inversion in module code */
-    a.xor_(RET, imm(~_TAG_IMMED1_MASK));
-
-    emit_enter_runtime();
-
-    /* Save original arguments for the error path. */
-    a.mov(TMP_MEM1q, RET);
-
-    a.mov(ARG1, c_p);
-    a.mov(ARG2, RET);
-    runtime_call<Eterm (*)(Process *, Eterm), erts_bnot>();
-
-    emit_leave_runtime();
-    emit_leave_frame();
-
-    emit_test_the_non_value(RET);
-    a.short_().je(error);
-    a.ret();
-
-    a.bind(error);
-    {
-        /* Place the original arguments in x-registers. */
-        a.mov(ARG1, TMP_MEM1q);
-        a.mov(getXRef(0), ARG1);
-
-        a.mov(ARG4, imm(&bif_mfa));
-        a.jmp(labels[raise_exception]);
-    }
-}
-
 void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
                                       const ArgSource &Src,
                                       const ArgRegister &Dst) {
-    Label next = a.new_label();
-
-    mov_arg(RET, Src);
-
-    /* Invert everything except the tag so we don't have to tag it again. */
-    a.xor_(RET, imm(~_TAG_IMMED1_MASK));
-
-    /* Fall through to the generic path if the result is not a small, where the
-     * above operation will be reverted. */
-    if (always_one_of<BeamTypeId::Number>(Src)) {
-        comment("simplified test for small operand since it is a number");
-        a.test(RETb, imm(TAG_PRIMARY_LIST));
-        a.short_().jne(next);
-    } else {
-        a.mov(ARG1d, RETd);
-        a.and_(ARG1d, imm(_TAG_IMMED1_MASK));
-        a.cmp(ARG1d, imm(_TAG_IMMED1_SMALL));
-        a.short_().je(next);
-    }
-
-    if (Fail.get() != 0) {
-        safe_fragment_call(ga->get_i_bnot_guard_shared());
-        a.je(resolve_beam_label(Fail));
-    } else {
-        safe_fragment_call(ga->get_i_bnot_body_shared());
-    }
-
-    a.bind(next);
-    mov_arg(Dst, RET);
+    emit_i_bxor(Fail, Src, ArgSmall(make_small(-1)), Dst);
 }
 
 /* ARG2 (!) = LHS, RET (!) = RHS

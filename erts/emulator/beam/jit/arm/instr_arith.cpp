@@ -1372,6 +1372,20 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
                                       const ArgSource &LHS,
                                       const ArgSource &RHS,
                                       const ArgRegister &Dst) {
+    if (always_small(LHS) && RHS.isSmall()) {
+        uint64_t mask = RHS.as<ArgSmall>().get() & ~_TAG_IMMED1_MASK;
+        if (a64::Utils::is_logical_imm(mask, 64)) {
+            comment("skipped test for small operands since they are always "
+                    "small");
+            auto lhs = load_source(LHS);
+            auto dst = init_destination(Dst, ARG1);
+
+            a.eor(dst.reg, lhs.reg, imm(mask));
+            flush_var(dst);
+            return;
+        }
+    }
+
     auto [lhs, rhs] = load_sources(LHS, ARG2, RHS, ARG3);
     auto dst = init_destination(Dst, ARG1);
 
@@ -1416,104 +1430,11 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
     }
 }
 
-/*
- * ARG1 = Src
- *
- * The module code must have executed emit_enter_runtime()
- * before calling this function.
- *
- * The result is returned in ARG1. Error is indicated by
- * THE_NON_VALUE.
- */
-void BeamGlobalAssembler::emit_i_bnot_guard_shared() {
-    emit_enter_runtime_frame();
-
-    /* Undo the speculative inversion in module code. */
-    a.eor(ARG2, ARG1, imm(~_TAG_IMMED1_MASK));
-
-    a.mov(ARG1, c_p);
-    runtime_call<Eterm (*)(Process *, Eterm), erts_bnot>();
-
-    emit_leave_runtime_frame();
-
-    a.ret(a64::x30);
-}
-
-/*
- * ARG1 = Src
- *
- * The module code must have executed emit_enter_runtime()
- * before calling this function.
- *
- * The result is returned in ARG1.
- */
-void BeamGlobalAssembler::emit_i_bnot_body_shared() {
-    Label error = a.new_label();
-
-    emit_enter_runtime_frame();
-
-    /* Undo the speculative inversion in module code. */
-    a.eor(ARG2, ARG1, imm(~_TAG_IMMED1_MASK));
-
-    /* Save original arguments for the error path. */
-    a.str(ARG2, TMP_MEM1q);
-
-    a.mov(ARG1, c_p);
-    runtime_call<Eterm (*)(Process *, Eterm), erts_bnot>();
-
-    emit_leave_runtime_frame();
-
-    emit_branch_if_not_value(ARG1, error);
-    a.ret(a64::x30);
-
-    a.bind(error);
-    {
-        static const ErtsCodeMFA bif_mfa = {am_erlang, am_bnot, 1};
-
-        /* emit_enter_runtime() was done in the module code. */
-        emit_leave_runtime(0);
-
-        /* Place the original arguments in X registers. */
-        a.ldr(XREG0, TMP_MEM1q);
-        mov_imm(ARG4, &bif_mfa);
-        a.b(labels[raise_exception]);
-    }
-}
-
 void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
                                       const ArgWord &Live,
                                       const ArgSource &Src,
                                       const ArgRegister &Dst) {
-    Label next = a.new_label();
-    auto src = load_source(Src, TMP2);
-    auto dst = init_destination(Dst, ARG1);
-
-    /* Invert everything except the tag so we don't have to tag it again. */
-    a.eor(ARG1, src.reg, imm(~_TAG_IMMED1_MASK));
-
-    if (always_one_of<BeamTypeId::Number>(Src)) {
-        comment("simplified test for small operand since it is a number");
-        emit_is_boxed(next, Src, ARG1);
-    } else {
-        a.and_(TMP1, src.reg, imm(_TAG_IMMED1_MASK));
-        a.cmp(TMP1, imm(_TAG_IMMED1_SMALL));
-        a.b_eq(next);
-    }
-
-    if (Fail.get() != 0) {
-        emit_enter_runtime(Live.get());
-        fragment_call(ga->get_i_bnot_guard_shared());
-        emit_leave_runtime(Live.get());
-        emit_branch_if_not_value(ARG1, resolve_beam_label(Fail, dispUnknown));
-    } else {
-        emit_enter_runtime(Live.get());
-        fragment_call(ga->get_i_bnot_body_shared());
-        emit_leave_runtime(Live.get());
-    }
-
-    a.bind(next);
-    mov_var(dst, ARG1);
-    flush_var(dst);
+    emit_i_bxor(Fail, Live, Src, ArgSmall(make_small(-1)), Dst);
 }
 
 /*
