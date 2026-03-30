@@ -1544,7 +1544,9 @@ void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
 
     /* Fall through to the generic path if the result is not a small, where the
      * above operation will be reverted. */
-    if (always_one_of<BeamTypeId::Number>(Src)) {
+    if (always_small(Src)) {
+        comment("skipped test for small operand since it is always small");
+    } else if (always_one_of<BeamTypeId::Number>(Src)) {
         comment("simplified test for small operand since it is a number");
         a.test(RETb, imm(TAG_PRIMARY_LIST));
         a.short_().jne(next);
@@ -1555,11 +1557,13 @@ void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
         a.short_().je(next);
     }
 
-    if (Fail.get() != 0) {
-        safe_fragment_call(ga->get_i_bnot_guard_shared());
-        a.je(resolve_beam_label(Fail));
-    } else {
-        safe_fragment_call(ga->get_i_bnot_body_shared());
+    if (!always_small(Src)) {
+        if (Fail.get() != 0) {
+            safe_fragment_call(ga->get_i_bnot_guard_shared());
+            a.je(resolve_beam_label(Fail));
+        } else {
+            safe_fragment_call(ga->get_i_bnot_body_shared());
+        }
     }
 
     a.bind(next);
