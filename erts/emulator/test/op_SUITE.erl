@@ -21,11 +21,13 @@
 %%
 
 -module(op_SUITE).
+-feature(compr_assign, enable).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -export([all/0, suite/0,
-         bsl_bsr/1,logical/1,t_not/1,relop_simple/1,relop/1,
+         bsl_bsr/1,t_bnot/1,logical/1,t_not/1,relop_simple/1,relop/1,
          complex_relop/1,unsafe_fusing/1,
          range_tests/1,combined_relops/1,typed_relop/1,
          term_equivalence/1]).
@@ -37,7 +39,7 @@ suite() ->
      {timetrap, {minutes, 5}}].
 
 all() ->
-    [bsl_bsr, logical, t_not, relop_simple, relop,
+    [bsl_bsr, t_bnot, logical, t_not, relop_simple, relop,
      complex_relop, unsafe_fusing, range_tests,
      combined_relops, typed_relop, term_equivalence].
 
@@ -126,6 +128,28 @@ bsl_bsr_compare_results({'EXIT',{Reason,[_|_]}}, {'EXIT',{Reason,[_|_]}}) ->
     %% The applied and inlined implementations may differ in whether they include
     %% the operator as the top element of the stack.
     ok.
+
+%% Test the `bnot` operator.
+t_bnot(Config) ->
+    Ints = [-(P-1),-P,-(P+1),P-1,P,P+1 ||
+               E <- [27,59,64],
+               P = 1 bsl E],
+    _ = [do_bnot(I) || I <- Ints],
+    _ = [?assertError(badarith, do_bnot(id(Bad))) ||
+            Bad <- [bad,42.0,Config,{a,b}]],
+
+    ok.
+
+do_bnot(I) ->
+    Res = bnot id(I),
+    if
+        is_integer(I, -1 bsl 59, (1 bsl 59) - 1) ->
+            Res = bnot I,
+            Res = id(-I - 1);
+        true ->
+            Res = bnot I,
+            Res = id(-I - 1)
+    end.
 
 %% Test the logical operators and internal BIFs.
 logical(Config) when is_list(Config) ->

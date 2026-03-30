@@ -1472,28 +1472,6 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
 
 /* RET (!) = Src
  *
- * Result is returned in RET. Error is indicated by ZF. */
-void BeamGlobalAssembler::emit_i_bnot_guard_shared() {
-    emit_enter_frame();
-
-    /* Undo the speculative inversion in module code */
-    a.xor_(RET, imm(~_TAG_IMMED1_MASK));
-
-    emit_enter_runtime<Update::eReductions>();
-
-    a.mov(ARG1, c_p);
-    a.mov(ARG2, RET);
-    runtime_call<Eterm (*)(Process *, Eterm), erts_bnot>();
-
-    emit_leave_runtime<Update::eReductions>();
-    emit_leave_frame();
-
-    emit_test_the_non_value(RET);
-    a.ret();
-}
-
-/* RET (!) = Src
- *
  * Result is returned in RET. */
 void BeamGlobalAssembler::emit_i_bnot_body_shared() {
     static const ErtsCodeMFA bif_mfa = {am_erlang, am_bnot, 1};
@@ -1535,6 +1513,11 @@ void BeamGlobalAssembler::emit_i_bnot_body_shared() {
 void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
                                       const ArgSource &Src,
                                       const ArgRegister &Dst) {
+    if (Fail.get() != 0 || always_small(Src)) {
+        emit_i_bxor(Fail, Src, ArgSmall(make_small(-1)), Dst);
+        return;
+    }
+
     Label next = a.new_label();
 
     mov_arg(RET, Src);
@@ -1555,12 +1538,8 @@ void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
         a.short_().je(next);
     }
 
-    if (Fail.get() != 0) {
-        safe_fragment_call(ga->get_i_bnot_guard_shared());
-        a.je(resolve_beam_label(Fail));
-    } else {
-        safe_fragment_call(ga->get_i_bnot_body_shared());
-    }
+    ASSERT(Fail.get() == 0);
+    safe_fragment_call(ga->get_i_bnot_body_shared());
 
     a.bind(next);
     mov_arg(Dst, RET);
