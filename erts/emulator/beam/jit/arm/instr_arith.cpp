@@ -1484,9 +1484,18 @@ void BeamModuleAssembler::emit_i_bnot(const ArgLabel &Fail,
                                       const ArgWord &Live,
                                       const ArgSource &Src,
                                       const ArgRegister &Dst) {
-    Label next = a.new_label();
     auto src = load_source(Src, TMP2);
     auto dst = init_destination(Dst, ARG1);
+
+    if (always_small(Src)) {
+        comment("skipped test for small operands since they are always small");
+        a.eor(dst.reg, src.reg, imm(~_TAG_IMMED1_MASK));
+        flush_var(dst);
+
+        return;
+    }
+
+    Label next = a.new_label();
 
     /* Invert everything except the tag so we don't have to tag it again. */
     a.eor(ARG1, src.reg, imm(~_TAG_IMMED1_MASK));
