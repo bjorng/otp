@@ -54,6 +54,7 @@
     "reference_manual/expressions.md": [],
     "reference_manual/macros.md": [],
     "reference_manual/ref_man_records.md": [],
+    "reference_manual/ref_man_native_records.md": [],
     "reference_manual/errors.md": [],
     "reference_manual/features.md": [],
     "reference_manual/ref_man_processes.md": [],
