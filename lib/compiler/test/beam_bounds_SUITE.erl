@@ -21,6 +21,7 @@
 %%
 
 -module(beam_bounds_SUITE).
+-feature(compr_assign, enable).
 -include_lib("stdlib/include/assert.hrl").
 
 -export([all/0, suite/0, groups/0, init_per_suite/1, end_per_suite/1,
@@ -34,12 +35,15 @@
          min_bounds/1, max_bounds/1,
          abs_bounds/1,
          infer_lt_gt_bounds/1,
-         redundant_masking/1]).
+         redundant_masking/1,
+         erl_md5/1
+        ]).
 
 suite() -> [{ct_hooks,[ts_install_cth]}].
 
 all() ->
-    [{group,p}].
+    [erl_md5,
+     {group,p}].
 
 groups() ->
     [{p,[parallel],
@@ -423,7 +427,84 @@ infer_lt_gt_bounds(_Config) ->
 
     ok.
 
-%%% Utilities
+
+redundant_masking(_Config) ->
+    Min = -7,
+    Max = 15,
+    Seq = lists:seq(Min, Max),
+    _ = [test_redundant_masking({A,B}, M) ||
+            A <- Seq,
+            B <- lists:nthtail(A-Min, Seq),
+            M <- Seq],
+
+    false = beam_bounds:is_masking_redundant({'-inf',10}, 16#ff),
+    false = beam_bounds:is_masking_redundant({0,'+inf'}, 16#ff),
+    ok.
+
+test_redundant_masking({A,B}=R, M) ->
+    ShouldBe = test_redundant_masking(A, B, M),
+    case beam_bounds:is_masking_redundant(R, M) of
+        ShouldBe ->
+            ok;
+        false when M band (M + 1) =/= 0 ->
+            %% M + 1 is not a power of two.
+            ok;
+        false when A =:= B ->
+            ok;
+        Unexpected ->
+            io:format("beam_bounds:is_masking_redundant(~p, ~p) "
+                      "evaluates to ~p; should be ~p\n",
+                      [R,M,Unexpected,ShouldBe]),
+            ct:fail(bad_boolean)
+    end.
+
+test_redundant_masking(A, B, M) when A =< B ->
+    A band M =:= A andalso test_redundant_masking(A + 1, B, M);
+test_redundant_masking(_, _, _) -> true.
+
+erl_md5(_Config) ->
+    281949768489412648962353822266799178366 = check_md5(~""),
+    123957004363873451094272536567338222994 = check_md5(~"hello"),
+
+    [] = [Size || Size <- lists:seq(0, 127),
+                  Bin = rand:bytes(Size),
+                  erlang:md5(Bin) =/= erl_md5:md5(Bin)],
+
+    Msg = rand:bytes(1_000_000),
+
+    F1 = fun() -> erlang:md5(Msg) end,
+    F2 = fun() -> erl_md5:md5(Msg) end,
+
+    {T1,MD5} = bench(F1),
+    {T2,MD5} = bench(F2),
+
+    Comment = io_lib:format("erl_md5 is ~p times slower than the md5/1 BIF",
+                            [round(T2 / T1 * 100) / 100]),
+    {comment, Comment}.
+
+check_md5(Bin) ->
+    MD5 = erlang:md5(Bin),
+    MD5 = erl_md5:md5(Bin),
+    <<Res:128>> = MD5,
+    Res.
+
+bench(F) ->
+    %% Return the shortest time.
+    lists:min([do_bench(F) || _ <- lists:seq(1, 100)]).
+
+do_bench(F) ->
+    G = fun() ->
+                exit(timer:tc(F))
+        end,
+    {Pid,Ref} = spawn_monitor(G),
+    receive
+        {'DOWN',Ref,process,Pid,Result} ->
+            Result
+    end.
+
+%%%
+%%% Common utilities.
+%%%
 
 infer_lt_gt(R1, R2) ->
     case beam_bounds:infer_relop_types('>', R2, R1) of
@@ -596,44 +677,6 @@ rel_op_2(Op, A, C, D, BoolResult0) when C =< D ->
     rel_op_2(Op, A, C + 1, D, BoolResult);
 rel_op_2(_Op, _, _, _, BoolResult) ->
     BoolResult.
-
-redundant_masking(_Config) ->
-    Min = -7,
-    Max = 15,
-    Seq = lists:seq(Min, Max),
-    _ = [test_redundant_masking({A,B}, M) ||
-            A <- Seq,
-            B <- lists:nthtail(A-Min, Seq),
-            M <- Seq],
-
-    false = beam_bounds:is_masking_redundant({'-inf',10}, 16#ff),
-    false = beam_bounds:is_masking_redundant({0,'+inf'}, 16#ff),
-    ok.
-
-test_redundant_masking({A,B}=R, M) ->
-    ShouldBe = test_redundant_masking(A, B, M),
-    case beam_bounds:is_masking_redundant(R, M) of
-        ShouldBe ->
-            ok;
-        false when M band (M + 1) =/= 0 ->
-            %% M + 1 is not a power of two.
-            ok;
-        false when A =:= B ->
-            ok;
-        Unexpected ->
-            io:format("beam_bounds:is_masking_redundant(~p, ~p) "
-                      "evaluates to ~p; should be ~p\n",
-                      [R,M,Unexpected,ShouldBe]),
-            ct:fail(bad_boolean)
-    end.
-
-test_redundant_masking(A, B, M) when A =< B ->
-    A band M =:= A andalso test_redundant_masking(A + 1, B, M);
-test_redundant_masking(_, _, _) -> true.
-
-%%%
-%%% Common utilities.
-%%%
 
 id(I) ->
     I.
