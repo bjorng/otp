@@ -76,7 +76,8 @@ MODULES= \
 	warnings_SUITE \
 	z_SUITE \
 	zlc_SUITE \
-	test_lib
+	test_lib \
+        erl_md5
 
 NO_BOOL_OPT= \
 	guard \
