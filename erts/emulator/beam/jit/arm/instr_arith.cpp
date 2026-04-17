@@ -1519,6 +1519,7 @@ void BeamModuleAssembler::emit_i_bsr(const ArgLabel &Fail,
 
         if (shift >= 0) {
             a64::Gp small_tag = TMP1;
+
             if (always_small(LHS)) {
                 comment("skipped test for small left operand because it is "
                         "always small");
@@ -1550,29 +1551,42 @@ void BeamModuleAssembler::emit_i_bsr(const ArgLabel &Fail,
         }
     } else {
         auto rhs = load_source(RHS, ARG3);
+        auto [min_shift, max_shift] = getClampedRange(RHS);
 
         /* Ensure that both operands are small and that the shift
          * count is positive. */
-        ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
-        a.ands(TMP1, rhs.reg, imm((1ull << 63) | _TAG_IMMED1_MASK));
-        a.and_(TMP1, lhs.reg, TMP1);
-        a.ccmp(TMP1,
-               imm(_TAG_IMMED1_SMALL),
-               imm(NZCV::kNone),
-               arm::CondCode::kPL);
-        a.b_ne(generic);
+        if (always_small(LHS) && always_small(RHS) && min_shift >= 0) {
+            comment("skipped test for small operands and positive shift count");
+            need_generic = false;
+        } else {
+            ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
+            a.ands(TMP1, rhs.reg, imm((1ull << 63) | _TAG_IMMED1_MASK));
+            a.and_(TMP1, lhs.reg, TMP1);
+            a.ccmp(TMP1,
+                   imm(_TAG_IMMED1_SMALL),
+                   imm(NZCV::kNone),
+                   arm::CondCode::kPL);
+            a.b_ne(generic);
+        }
 
         /* Calculate shift count. */
         a.asr(TMP1, rhs.reg, imm(_TAG_IMMED1_SIZE));
-        mov_imm(TMP2, 63);
-        a.cmp(TMP1, TMP2);
-        a.csel(TMP1, TMP1, TMP2, imm(arm::CondCode::kLE));
+        if (max_shift <= 63) {
+            comment("skipped capping of shift count");
+        } else {
+            mov_imm(TMP2, 63);
+            a.cmp(TMP1, TMP2);
+            a.csel(TMP1, TMP1, TMP2, imm(arm::CondCode::kLE));
+        }
 
         /* Shift right. */
         ERTS_CT_ASSERT(_TAG_IMMED1_MASK == _TAG_IMMED1_SMALL);
         a.asr(dst.reg, lhs.reg, TMP1);
         a.orr(dst.reg, dst.reg, imm(_TAG_IMMED1_SMALL));
-        a.b(next);
+
+        if (need_generic) {
+            a.b(next);
+        }
     }
 
     a.bind(generic);
@@ -1631,27 +1645,13 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
                                      const ArgSource &RHS,
                                      const ArgRegister &Dst) {
     auto dst = init_destination(Dst, ARG1);
-
-    if (is_bsl_small(LHS, RHS)) {
-        comment("skipped tests because operands and result are always small");
-        if (RHS.isSmall()) {
-            auto lhs = load_source(LHS);
-            a.and_(TMP1, lhs.reg, imm(~_TAG_IMMED1_MASK));
-            a.lsl(TMP1, TMP1, imm(RHS.as<ArgSmall>().getSigned()));
-        } else {
-            auto [lhs, rhs] = load_sources(LHS, ARG2, RHS, ARG3);
-            a.and_(TMP1, lhs.reg, imm(~_TAG_IMMED1_MASK));
-            a.lsr(TMP2, rhs.reg, imm(_TAG_IMMED1_SIZE));
-            a.lsl(TMP1, TMP1, TMP2);
-        }
-        a.orr(dst.reg, TMP1, imm(_TAG_IMMED1_SMALL));
-        flush_var(dst);
-        return;
-    }
-
-    auto [lhs, rhs] = load_sources(LHS, ARG2, RHS, ARG3);
     Label generic = a.new_label(), next = a.new_label();
     bool inline_shift = true;
+    a64::Gp small_tag;
+    bool small_result = is_bsl_small(LHS, RHS);
+    bool need_generic = true;
+    Variable<a64::Gp> lhs = a64::xzr;
+    Variable<a64::Gp> rhs = a64::xzr;
 
     if (LHS.isImmed() && RHS.isImmed()) {
         /* The compiler should've optimized this away, so we'll fall
@@ -1671,6 +1671,18 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
         inline_shift = false;
     }
 
+    if (LHS.isSmall() && inline_shift) {
+        comment("delayed fetching of immediate LHS operand");
+        rhs = load_source(RHS, ARG3);
+    } else if (RHS.isSmall() && inline_shift) {
+        comment("delayed fetching of immediate RHS operand");
+        lhs = load_source(LHS, ARG2);
+    } else {
+        auto p = load_sources(LHS, ARG2, RHS, ARG3);
+        lhs = p.first;
+        rhs = p.second;
+    }
+
     if (inline_shift) {
         /* shiftLimit will be calculated as the number of leading sign
          * bits not counting the sign bit. Note that this value is one
@@ -1678,17 +1690,21 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
          * x86_64 JIT. */
         Operand shiftLimit, shiftCount;
 
+        need_generic = false;
+
         ASSERT(!(LHS.isImmed() && RHS.isImmed()));
         if (LHS.isRegister()) {
-            /* Count the number of leading sign bits so we can test
-             * whether the shift will overflow. (The count does not
-             * include the sign bit.) To ensure that the tag bits are
-             * not counted, we must make sure that the topmost tag bit
-             * is equal to the inverted value of the sign bit. */
-            ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
-            a.eor(TMP1, lhs.reg, lhs.reg, a64::lsr(64 - _TAG_IMMED1_SIZE));
-            a.cls(ARG4, TMP1);
-            shiftLimit = ARG4;
+            if (!small_result) {
+                /* Count the number of leading sign bits so we can test
+                 * whether the shift will overflow. (The count does not
+                 * include the sign bit.) To ensure that the tag bits are
+                 * not counted, we must make sure that the topmost tag bit
+                 * is equal to the inverted value of the sign bit. */
+                ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
+                a.eor(TMP1, lhs.reg, lhs.reg, a64::lsr(64 - _TAG_IMMED1_SIZE));
+                a.cls(ARG4, TMP1);
+                shiftLimit = ARG4;
+            }
 
             if (always_small(LHS)) {
                 comment("skipped test for small operand since it is always "
@@ -1696,10 +1712,13 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
             } else if (always_one_of<BeamTypeId::Number>(LHS)) {
                 comment("simplified test for small operand since it is a "
                         "number");
+                need_generic = true;
                 emit_is_not_boxed(generic, TMP1);
             } else {
-                a.and_(TMP1, lhs.reg, imm(_TAG_IMMED1_MASK));
-                a.cmp(TMP1, imm(_TAG_IMMED1_SMALL));
+                need_generic = true;
+                small_tag = TMP2;
+                a.and_(small_tag, lhs.reg, imm(_TAG_IMMED1_MASK));
+                a.cmp(small_tag, imm(_TAG_IMMED1_SMALL));
                 a.b_ne(generic);
             }
         } else {
@@ -1713,11 +1732,16 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
         }
 
         if (RHS.isRegister()) {
-            /* Negate the tag bits and then rotate them out, forcing the
-             * comparison below to fail for non-smalls. */
-            ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
-            a.eor(ARG5, rhs.reg, imm(_TAG_IMMED1_SMALL));
-            a.ror(ARG5, ARG5, imm(_TAG_IMMED1_SIZE));
+            if (always_small(RHS)) {
+                a.lsr(ARG5, rhs.reg, imm(_TAG_IMMED1_SIZE));
+            } else {
+                /* Negate the tag bits and then rotate them out,
+                 * forcing the comparison below to fail for
+                 * non-smalls. */
+                ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
+                a.eor(ARG5, rhs.reg, imm(_TAG_IMMED1_SMALL));
+                a.ror(ARG5, ARG5, imm(_TAG_IMMED1_SIZE));
+            }
             shiftCount = ARG5;
 
             /* Fall back to generic path when the shift magnitude is negative or
@@ -1726,28 +1750,56 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
              * The raw emit form is used since `shiftLimit` may be a register
              * or immediate, and the `cmp` helper doesn't accept untyped
              * `Operand`s. */
-            a.emit(a64::Inst::kIdCmp, ARG5, shiftLimit);
-            a.b_hi(generic);
+            if (!small_result) {
+                need_generic = true;
+                a.emit(a64::Inst::kIdCmp, shiftCount, shiftLimit);
+                a.b_hi(generic);
+            }
         } else {
-            ASSERT(!shiftLimit.is_imm());
-
+            ASSERT(RHS.isSmall());
             shiftCount = imm(RHS.as<ArgSmall>().getSigned());
 
-            a.emit(a64::Inst::kIdCmp, shiftLimit, shiftCount);
-            a.b_lo(generic);
+            if (!small_result) {
+                need_generic = true;
+                a.emit(a64::Inst::kIdCmp, shiftLimit, shiftCount);
+                a.b_lo(generic);
+            }
         }
 
-        a.and_(TMP1, lhs.reg, imm(~_TAG_IMMED1_MASK));
-        a.emit(a64::Inst::kIdLsl, TMP1, TMP1, shiftCount);
-        a.orr(dst.reg, TMP1, imm(_TAG_IMMED1_SMALL));
+        if (lhs.reg == a64::xzr) {
+            auto val = LHS.as<ArgSmall>().get() & ~_TAG_IMMED1_MASK;
+            mov_imm(dst.reg, val);
+        } else {
+            a.and_(dst.reg, lhs.reg, imm(~_TAG_IMMED1_MASK));
+        }
 
-        flush_var(dst);
-        a.b(next);
+        if (shiftCount.is_reg()) {
+            a.emit(a64::Inst::kIdLsl, dst.reg, dst.reg, shiftCount);
+            a.orr(dst.reg, dst.reg, imm(_TAG_IMMED1_SMALL));
+        } else {
+            ASSERT(shiftCount.is_imm());
+            if (!small_tag.is_valid()) {
+                small_tag = TMP2;
+                mov_imm(small_tag, _TAG_IMMED1_SMALL);
+            }
+            a.emit(a64::Inst::kIdOrr, dst.reg, small_tag, dst.reg, shiftCount);
+        }
+
+        if (need_generic) {
+            a.b(next);
+        }
     }
 
     a.bind(generic);
-    {
+    if (need_generic) {
+        if (lhs.reg == a64::xzr) {
+            lhs = load_source(LHS, ARG2);
+        }
         mov_var(ARG2, lhs);
+
+        if (rhs.reg == a64::xzr) {
+            rhs = load_source(RHS, ARG3);
+        }
         mov_var(ARG3, rhs);
 
         if (Fail.get() != 0) {
@@ -1764,8 +1816,8 @@ void BeamModuleAssembler::emit_i_bsl(const ArgLabel &Fail,
         }
 
         mov_var(dst, ARG1);
-        flush_var(dst);
     }
 
     a.bind(next);
+    flush_var(dst);
 }
