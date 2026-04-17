@@ -1621,22 +1621,40 @@ void BeamModuleAssembler::emit_i_bsr(const ArgSource &LHS,
              * path. */
         }
     } else if (hasCpuFeature(CpuFeatures::X86::kBMI2)) {
+        auto [min_shift, max_shift] = getClampedRange(RHS);
+
         mov_arg(RET, RHS);
         need_register_load = false;
 
+        if (always_small(LHS) && always_small(RHS)) {
+            need_generic = false;
+        }
         emit_are_both_small(generic, LHS, ARG2, RHS, RET);
 
         a.mov(ARG1, RET);
         a.sar(ARG1, imm(_TAG_IMMED1_SIZE));
-        a.js(generic);
 
-        mov_imm(RET, 63);
-        a.cmp(ARG1, RET);
-        a.cmova(ARG1, RET);
+        if (min_shift >= 0) {
+            comment("skipped test for positive shift count");
+        } else {
+            need_generic = true;
+            a.js(generic);
+        }
+
+        if (max_shift <= 63) {
+            comment("skipped capping of shift count");
+        } else {
+            mov_imm(RET, 63);
+            a.cmp(ARG1, RET);
+            a.cmova(ARG1, RET);
+        }
 
         a.sarx(RET, ARG2, ARG1);
         a.or_(RET, imm(_TAG_IMMED1_SMALL));
-        a.short_().jmp(next);
+
+        if (need_generic) {
+            a.short_().jmp(next);
+        }
     }
 
     a.bind(generic);
