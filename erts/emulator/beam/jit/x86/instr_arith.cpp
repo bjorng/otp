@@ -1611,7 +1611,7 @@ void BeamModuleAssembler::emit_i_bsr(const ArgSource &LHS,
             ERTS_CT_ASSERT(_TAG_IMMED1_MASK == _TAG_IMMED1_SMALL);
             shift = std::min<Sint>(shift, 63);
             a.sar(RET, imm(shift));
-            a.or_(RET, imm(_TAG_IMMED1_SMALL));
+            a.or_(RETb, imm(_TAG_IMMED1_SMALL));
 
             if (need_generic) {
                 a.short_().jmp(next);
@@ -1621,22 +1621,40 @@ void BeamModuleAssembler::emit_i_bsr(const ArgSource &LHS,
              * path. */
         }
     } else if (hasCpuFeature(CpuFeatures::X86::kBMI2)) {
+        auto [min_shift, max_shift] = getClampedRange(RHS);
+
         mov_arg(RET, RHS);
         need_register_load = false;
 
+        if (always_small(LHS) && always_small(RHS)) {
+            need_generic = false;
+        }
         emit_are_both_small(generic, LHS, ARG2, RHS, RET);
 
         a.mov(ARG1, RET);
         a.sar(ARG1, imm(_TAG_IMMED1_SIZE));
-        a.js(generic);
 
-        mov_imm(RET, 63);
-        a.cmp(ARG1, RET);
-        a.cmova(ARG1, RET);
+        if (min_shift >= 0) {
+            comment("skipped test for positive shift count");
+        } else {
+            need_generic = true;
+            a.js(generic);
+        }
+
+        if (max_shift <= 63) {
+            comment("skipped capping of shift count");
+        } else {
+            mov_imm(RET, 63);
+            a.cmp(ARG1, RET);
+            a.cmova(ARG1, RET);
+        }
 
         a.sarx(RET, ARG2, ARG1);
-        a.or_(RET, imm(_TAG_IMMED1_SMALL));
-        a.short_().jmp(next);
+        a.or_(RETb, imm(_TAG_IMMED1_SMALL));
+
+        if (need_generic) {
+            a.short_().jmp(next);
+        }
     }
 
     a.bind(generic);
@@ -1691,7 +1709,7 @@ void BeamModuleAssembler::emit_i_bsl(const ArgSource &LHS,
         comment("skipped tests because operands and result are always small");
         mov_arg(RET, LHS);
         ERTS_CT_ASSERT(_TAG_IMMED1_MASK == _TAG_IMMED1_SMALL);
-        a.xor_(RET, imm(_TAG_IMMED1_MASK));
+        a.xor_(RETb, imm(_TAG_IMMED1_MASK));
         if (RHS.isSmall()) {
             a.shl(RET, imm(RHS.as<ArgSmall>().getSigned()));
         } else {
@@ -1774,7 +1792,7 @@ void BeamModuleAssembler::emit_i_bsl(const ArgSource &LHS,
             /* Negate the tag bits and then rotate them out, forcing the
              * comparison below to fail for non-smalls. */
             ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
-            a.xor_(x86::rcx, imm(_TAG_IMMED1_SMALL));
+            a.xor_(x86::cl, imm(_TAG_IMMED1_SMALL));
             a.ror(x86::rcx, imm(_TAG_IMMED1_SIZE));
 
             /* Fall back to generic path when the shift magnitude is negative or
