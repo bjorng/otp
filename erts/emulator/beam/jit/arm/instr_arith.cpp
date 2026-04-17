@@ -1550,29 +1550,41 @@ void BeamModuleAssembler::emit_i_bsr(const ArgLabel &Fail,
         }
     } else {
         auto rhs = load_source(RHS, ARG3);
+        auto [min_shift, max_shift] = getClampedRange(RHS);
 
         /* Ensure that both operands are small and that the shift
          * count is positive. */
-        ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
-        a.ands(TMP1, rhs.reg, imm((1ull << 63) | _TAG_IMMED1_MASK));
-        a.and_(TMP1, lhs.reg, TMP1);
-        a.ccmp(TMP1,
-               imm(_TAG_IMMED1_SMALL),
-               imm(NZCV::kNone),
-               arm::CondCode::kPL);
-        a.b_ne(generic);
+        if (always_small(LHS) && always_small(RHS) && min_shift >= 0) {
+            comment("skipped test for small operands and positive shift count");
+            need_generic = false;
+        } else {
+            ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
+            a.ands(TMP1, rhs.reg, imm((1ull << 63) | _TAG_IMMED1_MASK));
+            a.and_(TMP1, lhs.reg, TMP1);
+            a.ccmp(TMP1,
+                   imm(_TAG_IMMED1_SMALL),
+                   imm(NZCV::kNone),
+                   arm::CondCode::kPL);
+            a.b_ne(generic);
+        }
 
         /* Calculate shift count. */
         a.asr(TMP1, rhs.reg, imm(_TAG_IMMED1_SIZE));
-        mov_imm(TMP2, 63);
-        a.cmp(TMP1, TMP2);
-        a.csel(TMP1, TMP1, TMP2, imm(arm::CondCode::kLE));
+        if (max_shift <= 63) {
+            comment("skipped capping of shift count");
+        } else {
+            mov_imm(TMP2, 63);
+            a.cmp(TMP1, TMP2);
+            a.csel(TMP1, TMP1, TMP2, imm(arm::CondCode::kLE));
+        }
 
         /* Shift right. */
         ERTS_CT_ASSERT(_TAG_IMMED1_MASK == _TAG_IMMED1_SMALL);
         a.asr(dst.reg, lhs.reg, TMP1);
         a.orr(dst.reg, dst.reg, imm(_TAG_IMMED1_SMALL));
-        a.b(next);
+        if (need_generic) {
+            a.b(next);
+        }
     }
 
     a.bind(generic);
