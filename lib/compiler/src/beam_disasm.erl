@@ -1477,6 +1477,12 @@ resolve_bs_match_commands([{atom,skip},Stride|Rest]) ->
     [{skip,Stride} | resolve_bs_match_commands(Rest)];
 resolve_bs_match_commands([{atom,get_tail},Live,Src,Dst|Rest]) ->
     [{get_tail,Live,Src,Dst} | resolve_bs_match_commands(Rest)];
+resolve_bs_match_commands([{atom,save},Dst,Live|Rest]) ->
+    [{save,Dst,Live} | resolve_bs_match_commands(Rest)];
+resolve_bs_match_commands([{atom,restore},Src|Rest]) ->
+    [{restore,Src} | resolve_bs_match_commands(Rest)];
+resolve_bs_match_commands([{atom,skip_dynamic},Skip,Unit|Rest]) ->
+    [{skip_dynamic,Skip,Unit} | resolve_bs_match_commands(Rest)];
 resolve_bs_match_commands([]) ->
     [].
 

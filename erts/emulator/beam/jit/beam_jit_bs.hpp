@@ -88,7 +88,10 @@ struct BsmSegment {
         SKIP,
         DROP,
         GET_TAIL,
-        EQ
+        EQ,
+        SKIP_DYNAMIC,
+        SAVE,
+        RESTORE
     } action;
     ArgVal live;
     Uint size;

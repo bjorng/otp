@@ -3164,13 +3164,75 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                  segments[i + 1].action == BsmSegment::action::TEST_HEAP);
 
         switch (seg.action) {
+        case BsmSegment::action::SKIP_DYNAMIC: {
+            Label fail;
+
+            comment("skip a variable number of bits");
+            mov_arg(ctx, Ctx);
+
+            fail = resolve_beam_label(Fail);
+            if (emit_bs_get_field_size(seg.dst, seg.unit, fail, bin_position) >=
+                0) {
+                mov_arg(ctx, Ctx);
+
+                a.add(bin_position,
+                      emit_boxed_val(ctx, offsetof(ErlSubBits, start)));
+                a.cmp(bin_position,
+                      emit_boxed_val(ctx, offsetof(ErlSubBits, end)));
+                a.ja(resolve_beam_label(Fail));
+
+                a.mov(emit_boxed_val(ctx, offsetof(ErlSubBits, start)),
+                      bin_position);
+                is_ctx_valid = is_position_valid = true;
+            }
+            break;
+        }
+        case BsmSegment::action::SAVE: {
+            comment("save current position in a BEAM register");
+            if (!is_ctx_valid) {
+                mov_arg(ctx, Ctx);
+            }
+
+            if (!is_position_valid) {
+                a.mov(bin_position,
+                      emit_boxed_val(ctx, offsetof(ErlSubBits, start)));
+            }
+
+            a.mov(RET, bin_position);
+            a.shl(RET, imm(_TAG_IMMED1_SIZE));
+            a.or_(RETb, imm(_TAG_IMMED1_SMALL));
+            mov_arg(seg.dst, RET);
+
+            is_ctx_valid = is_position_valid = true;
+            break;
+        }
+        case BsmSegment::action::RESTORE: {
+            comment("restore position from BEAM register");
+
+            mov_arg(bin_position, seg.dst);
+
+            if (!is_ctx_valid) {
+                mov_arg(ctx, Ctx);
+            }
+
+            a.sar(bin_position, imm(_TAG_IMMED1_SIZE));
+            a.mov(emit_boxed_val(ctx, offsetof(ErlSubBits, start)),
+                  bin_position);
+            is_ctx_valid = is_position_valid = true;
+            break;
+        }
         case BsmSegment::action::ENSURE_AT_LEAST: {
             auto size = seg.size;
             auto unit = seg.unit;
             comment("ensure_at_least %ld %ld", size, seg.unit);
-            mov_arg(ctx, Ctx);
+            if (!is_ctx_valid) {
+                mov_arg(ctx, Ctx);
+            }
+
             if (unit == 1) {
-                a.mov(bin_position, emit_boxed_val(ctx, start_offset));
+                if (!is_position_valid) {
+                    a.mov(bin_position, emit_boxed_val(ctx, start_offset));
+                }
                 a.lea(RET, qword_ptr(bin_position, size));
                 a.cmp(RET, emit_boxed_val(ctx, end_offset));
                 a.ja(resolve_beam_label(Fail));
@@ -3180,7 +3242,9 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                 is_ctx_valid = is_position_valid = false;
             } else {
                 a.mov(RET, emit_boxed_val(ctx, end_offset));
-                a.mov(bin_position, emit_boxed_val(ctx, start_offset));
+                if (!is_position_valid) {
+                    a.mov(bin_position, emit_boxed_val(ctx, start_offset));
+                }
                 a.sub(RET, bin_position);
                 cmp(RET, size, tmp);
                 a.jl(resolve_beam_label(Fail));
@@ -3211,13 +3275,20 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
             auto size = seg.size;
             comment("ensure_exactly %ld", size);
 
-            mov_arg(ctx, Ctx);
+            if (!is_ctx_valid) {
+                mov_arg(ctx, Ctx);
+            }
+
             a.mov(RET, emit_boxed_val(ctx, end_offset));
-            if (next_instr_clobbers) {
+            if (is_position_valid) {
+                a.sub(RET, bin_position);
+            } else if (next_instr_clobbers) {
                 a.sub(RET, emit_boxed_val(ctx, start_offset));
                 is_ctx_valid = is_position_valid = false;
             } else {
-                a.mov(bin_position, emit_boxed_val(ctx, start_offset));
+                if (!is_position_valid) {
+                    a.mov(bin_position, emit_boxed_val(ctx, start_offset));
+                }
                 a.sub(RET, bin_position);
                 is_ctx_valid = is_position_valid = true;
             }
