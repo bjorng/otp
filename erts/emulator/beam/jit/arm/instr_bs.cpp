@@ -453,54 +453,14 @@ void BeamModuleAssembler::emit_bs_get_tail(const ArgRegister &Ctx,
     mov_arg(Dst, ARG1);
 }
 
-/* Bits to skip are passed in ARG1 */
-void BeamModuleAssembler::emit_bs_skip_bits(const ArgLabel &Fail,
-                                            const ArgRegister &Ctx) {
-    const int start_offset = offsetof(ErlSubBits, start);
-    const int end_offset = offsetof(ErlSubBits, end);
-
-    auto ctx_reg = load_source(Ctx, TMP1);
-
-    a.ldur(TMP2, emit_boxed_val(ctx_reg.reg, start_offset));
-    a.ldur(TMP3, emit_boxed_val(ctx_reg.reg, end_offset));
-
-    a.add(TMP2, TMP2, ARG1);
-    a.cmp(TMP2, TMP3);
-    a.b_hi(resolve_beam_label(Fail, disp1MB));
-
-    a.stur(TMP2, emit_boxed_val(ctx_reg.reg, start_offset));
-}
-
 void BeamModuleAssembler::emit_i_bs_skip_bits2(const ArgRegister &Ctx,
                                                const ArgSource &Size,
                                                const ArgLabel &Fail,
                                                const ArgWord &Unit) {
-    Label fail = resolve_beam_label(Fail, dispUnknown);
+    const ArgVal match[] = {ArgAtom(am_skip_dynamic), Size, Unit};
+    const Span<const ArgVal> args(match, sizeof(match) / sizeof(match[0]));
 
-    bool can_fail = true;
-
-    if (always_small(Size)) {
-        auto [min, max] = getClampedRange(Size);
-        can_fail = !(0 <= min && (max >> (SMALL_BITS - ERL_UNIT_BITS)) == 0);
-    }
-
-    if (!can_fail && Unit.get() == 1) {
-        comment("simplified skipping because the types are known");
-
-        auto [ctx, size] = load_sources(Ctx, TMP1, Size, TMP2);
-
-        emit_untag_ptr(TMP5, ctx.reg);
-        ERTS_CT_ASSERT_FIELD_PAIR(ErlSubBits, start, end);
-        a.ldp(TMP3, TMP4, a64::Mem(TMP5, offsetof(ErlSubBits, start)));
-
-        a.add(TMP3, TMP3, size.reg, a64::lsr(_TAG_IMMED1_SIZE));
-        a.cmp(TMP3, TMP4);
-        a.b_hi(resolve_beam_label(Fail, disp1MB));
-
-        a.str(TMP3, a64::Mem(TMP5, offsetof(ErlSubBits, start)));
-    } else if (emit_bs_get_field_size(Size, Unit.get(), fail, ARG1) >= 0) {
-        emit_bs_skip_bits(Fail, Ctx);
-    }
+    emit_i_bs_match(Fail, Ctx, args);
 }
 
 void BeamModuleAssembler::emit_bs_get_binary(const ArgWord heap_need,
@@ -2933,63 +2893,182 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
     const a64::Gp bin_position = ARG3;
     const a64::Gp bin_size = ARG4;
     const a64::Gp small_tag = ARG5;
+    const a64::Gp current_size = ARG6;
     const a64::Gp bitdata = ARG8;
     bool position_is_valid = false;
     bool small_tag_valid = false;
+    bool current_size_is_valid = false;
     Uint offset_in_bitdata = 0;
 
     for (auto seg : segments) {
         switch (seg.action) {
+        case BsmSegment::action::SKIP_DYNAMIC: {
+            Label fail = resolve_beam_label(Fail, dispUnknown);
+            bool can_fail = true;
+            a64::Gp skipReg;
+
+            const ArgVal Skip = seg.dst;
+            const auto unit = seg.unit;
+            int trailing_bits = Support::ctz<Eterm>(unit);
+
+            comment("skip a variable number of bits");
+
+            auto [ctx, skip] = load_sources(Ctx, TMP1, Skip, TMP2);
+
+            emit_untag_ptr(TMP3, ctx.reg);
+            ERTS_CT_ASSERT_FIELD_PAIR(ErlSubBits, start, end);
+            a.ldp(bin_position, bin_size, a64::Mem(TMP3, start_offset));
+            position_is_valid = true;
+
+            if (always_small(Skip)) {
+                auto [min, max] = getClampedRange(Skip);
+                can_fail = !(0 <= min &&
+                             (max >> (SMALL_BITS - ERL_UNIT_BITS)) == 0);
+            }
+
+            if (!can_fail) {
+                comment("simplified skipping because the types are known");
+            }
+
+            if (can_fail) {
+                skipReg = TMP4;
+                a.eor(skipReg, skip.reg, imm(_TAG_IMMED1_SMALL));
+                a.tst(skipReg, imm(0xFFF0000000000000UL | _TAG_IMMED1_MASK));
+                a.b_ne(fail);
+            } else if (trailing_bits == 0) {
+                skipReg = skip.reg;
+            } else {
+                skipReg = TMP4;
+                a.eor(skipReg, skip.reg, imm(_TAG_IMMED1_SMALL));
+            }
+
+            if (!Support::is_power_of_2(unit)) {
+                a.lsr(TMP4, skip.reg, imm(_TAG_IMMED1_SIZE));
+                mov_imm(TMP5, unit);
+                a.madd(bin_position, skip.reg, TMP5, bin_position);
+            } else if (trailing_bits <= _TAG_IMMED1_SIZE) {
+                a.add(bin_position,
+                      bin_position,
+                      skipReg,
+                      a64::lsr(_TAG_IMMED1_SIZE - trailing_bits));
+            } else if (trailing_bits > _TAG_IMMED1_SIZE) {
+                a.add(bin_position,
+                      bin_position,
+                      skipReg,
+                      a64::lsl(trailing_bits - _TAG_IMMED1_SIZE));
+            }
+
+            a.subs(current_size, bin_size, bin_position);
+            current_size_is_valid = true;
+            a.b_lo(resolve_beam_label(Fail, disp1MB));
+
+            a.str(bin_position, a64::Mem(TMP3, offsetof(ErlSubBits, start)));
+
+            break;
+        }
+        case BsmSegment::action::RESTORE: {
+            comment("restore position from BEAM register");
+            auto [ctx, position] = load_sources(Ctx, TMP1, seg.dst, TMP2);
+
+            a.lsr(bin_position, position.reg, imm(_TAG_IMMED1_SIZE));
+            a.stur(bin_position, emit_boxed_val(ctx.reg, start_offset));
+            position_is_valid = true;
+
+            break;
+        }
+        case BsmSegment::action::SAVE: {
+            comment("save current position in a BEAM register");
+            auto dst = init_destination(seg.dst, TMP1);
+
+            if (!position_is_valid) {
+                auto ctx = load_source(Ctx, TMP1);
+                a.ldur(bin_position, emit_boxed_val(ctx.reg, start_offset));
+                position_is_valid = true;
+            }
+
+            if (!small_tag_valid) {
+                mov_imm(small_tag, _TAG_IMMED1_SMALL);
+                small_tag_valid = true;
+            }
+
+            a.orr(dst.reg, small_tag, bin_position, a64::lsl(_TAG_IMMED1_SIZE));
+            flush_var(dst);
+
+            break;
+        }
         case BsmSegment::action::ENSURE_AT_LEAST: {
             comment("ensure_at_least %ld %ld", seg.size, seg.unit);
-            auto ctx_reg = load_source(Ctx, TMP1);
+            auto ctx = load_source(Ctx, TMP1);
             auto stride = seg.size;
             auto unit = seg.unit;
 
-            a.ldur(bin_position, emit_boxed_val(ctx_reg.reg, start_offset));
-            a.ldur(bin_size, emit_boxed_val(ctx_reg.reg, end_offset));
-            a.sub(TMP5, bin_size, bin_position);
+            if (!current_size_is_valid) {
+                if (position_is_valid) {
+                    a.ldur(bin_size, emit_boxed_val(ctx.reg, end_offset));
+                } else {
+                    emit_untag_ptr(TMP3, ctx.reg);
+                    ERTS_CT_ASSERT_FIELD_PAIR(ErlSubBits, start, end);
+                    a.ldp(bin_position, bin_size, a64::Mem(TMP3, start_offset));
+                    position_is_valid = true;
+                }
+                a.sub(current_size, bin_size, bin_position);
+            }
+
             if (stride != 0) {
-                cmp(TMP5, stride);
+                cmp(current_size, stride);
                 a.b_lo(resolve_beam_label(Fail, disp1MB));
             }
 
             if (unit != 1) {
                 if (stride % unit != 0) {
-                    sub(TMP5, TMP5, stride);
+                    sub(current_size, current_size, stride);
                 }
 
                 if ((unit & (unit - 1)) != 0) {
                     mov_imm(TMP4, unit);
 
-                    a.udiv(TMP3, TMP5, TMP4);
-                    a.msub(TMP5, TMP3, TMP4, TMP5);
+                    a.udiv(TMP3, current_size, TMP4);
+                    a.msub(current_size, TMP3, TMP4, current_size);
 
-                    a.cbnz(TMP5, resolve_beam_label(Fail, disp1MB));
+                    a.cbnz(current_size, resolve_beam_label(Fail, disp1MB));
                 } else {
-                    a.tst(TMP5, imm(unit - 1));
+                    a.tst(current_size, imm(unit - 1));
                     a.b_ne(resolve_beam_label(Fail, disp1MB));
                 }
             }
 
-            position_is_valid = true;
             break;
         }
         case BsmSegment::action::ENSURE_EXACTLY: {
             comment("ensure_exactly %ld", seg.size);
-            auto ctx_reg = load_source(Ctx, TMP1);
+            auto ctx = load_source(Ctx, TMP1);
             auto size = seg.size;
 
-            a.ldur(bin_position, emit_boxed_val(ctx_reg.reg, start_offset));
-            a.ldur(TMP3, emit_boxed_val(ctx_reg.reg, end_offset));
-            if (size != 0) {
-                a.sub(TMP1, TMP3, bin_position);
-                cmp(TMP1, size);
+            if (current_size_is_valid) {
+                if (size == 0) {
+                    a.cbnz(current_size, resolve_beam_label(Fail, disp1MB));
+                } else {
+                    cmp(current_size, size);
+                    a.b_ne(resolve_beam_label(Fail, disp1MB));
+                }
             } else {
-                a.subs(TMP1, TMP3, bin_position);
+                if (position_is_valid) {
+                    a.ldur(TMP3, emit_boxed_val(ctx.reg, end_offset));
+                } else {
+                    emit_untag_ptr(TMP3, ctx.reg);
+                    ERTS_CT_ASSERT_FIELD_PAIR(ErlSubBits, start, end);
+                    a.ldp(bin_position, TMP3, a64::Mem(TMP3, start_offset));
+                    position_is_valid = true;
+                }
+                if (size == 0) {
+                    a.cmp(TMP3, bin_position);
+                } else {
+                    a.sub(TMP1, TMP3, bin_position);
+                    cmp(TMP1, size);
+                }
+                a.b_ne(resolve_beam_label(Fail, disp1MB));
             }
-            a.b_ne(resolve_beam_label(Fail, disp1MB));
-            position_is_valid = true;
+
             break;
         }
         case BsmSegment::action::EQ: {
@@ -3098,7 +3177,10 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
             }
 
             offset_in_bitdata = 64 - bits;
-            mov_imm(small_tag, _TAG_IMMED1_SMALL);
+            if (!small_tag_valid) {
+                small_tag_valid = true;
+                mov_imm(small_tag, _TAG_IMMED1_SMALL);
+            }
             emit_extract_integer(bitdata,
                                  small_tag,
                                  flags,

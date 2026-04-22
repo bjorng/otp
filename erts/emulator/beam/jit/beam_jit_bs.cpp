@@ -353,6 +353,30 @@ std::vector<BsmSegment> beam_jit_bsm_init(const BeamFile *beam,
             current += 3;
             break;
         }
+        case am_skip_dynamic: {
+            seg.action = BsmSegment::action::SKIP_DYNAMIC;
+            seg.dst = current[0].as<ArgRegister>();
+            seg.unit = current[1].as<ArgWord>().get();
+            seg.flags = 0;
+            current += 2;
+            break;
+        }
+        case am_save: {
+            seg.action = BsmSegment::action::SAVE;
+            seg.dst = current[0].as<ArgRegister>();
+            seg.unit = 0;
+            seg.flags = 0;
+            current += 2;
+            break;
+        }
+        case am_restore: {
+            seg.action = BsmSegment::action::RESTORE;
+            seg.dst = current[0].as<ArgRegister>();
+            seg.unit = 0;
+            seg.flags = 0;
+            current += 1;
+            break;
+        }
         default:
             abort();
             break;

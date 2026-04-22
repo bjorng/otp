@@ -2763,14 +2763,49 @@ bs_translate([{bs_get_tail,_,_,_}=I|Is]) ->
     %% A lone bs_get_tail. There is no advantage to incorporating it into
     %% a bs_match instruction.
     [I|bs_translate(Is)];
+bs_translate([{bs_get_position,Ctx,Dst,Live}=I|Is0]) ->
+    case bs_translate(Is0) of
+        [{bs_match,Fail,Ctx,{commands,Instrs}}|Is] ->
+            SaveI = {save,Dst,Live},
+            [{bs_match,Fail,Ctx,{commands,[SaveI|Instrs]}}|Is];
+        Is ->
+            [I|Is]
+    end;
+bs_translate([{bs_set_position,Ctx,Src}=I|Is0]) ->
+    case bs_translate(Is0) of
+        [{bs_match,Fail,Ctx,{commands,Instrs}}|Is] ->
+            SaveI = {restore,Src},
+            [{bs_match,Fail,Ctx,{commands,[SaveI|Instrs]}}|Is];
+        Is ->
+            [I|Is]
+    end;
+bs_translate([{test,bs_skip_bits2,Fail,[Ctx0,Skip,Unit,_]}=I|Is0]) ->
+    Ctx = case Ctx0 of
+              #tr{r=Ctx1} -> Ctx1;
+              _ -> Ctx0
+          end,
+    case bs_translate(Is0) of
+        [{bs_match,Fail,Ctx,{commands,Instrs}}|Is] ->
+            SkipI = {skip_dynamic,Skip,Unit},
+            [{bs_match,Fail,Ctx,{commands,[SkipI|Instrs]}}|Is];
+        Is ->
+            [I|Is]
+    end;
 bs_translate([I|Is0]) ->
     case bs_translate_instr(I) of
         none ->
             [I|bs_translate(Is0)];
         {Ctx,Fail0,First} ->
-            {Instrs0,Fail,Is} = bs_translate_collect(Is0, Ctx, Fail0, [First]),
+            {Instrs0,Fail,Is1} = bs_translate_collect(Is0, Ctx, Fail0, [First]),
             Instrs1 = bs_seq_match_fixup(Instrs0),
-            Instrs = bs_eq_fixup(Instrs1),
+            Instrs2 = bs_eq_fixup(Instrs1),
+            {Instrs,Is} =
+                case Is1 of
+                    [{bs_get_position,Ctx,Dst,Live}|Is2] ->
+                        {Instrs2 ++ [{save,Dst,Live}],Is2};
+                    _ ->
+                        {Instrs2,Is1}
+                end,
             [{bs_match,Fail,Ctx,{commands,Instrs}}|bs_translate(Is)]
     end;
 bs_translate([]) -> [].
