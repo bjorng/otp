@@ -1758,7 +1758,30 @@ validate_bs_match([I|Is], Ctx, Ensured, Unit0, Vst0) ->
             Vst = extract_term(Type, get_tail, [Ctx], Dst, Vst1, Vst0),
             %% In rare circumstances, there can be multiple `get_tail` sub
             %% commands.
-            validate_bs_match(Is, Ctx, 0, Unit, Vst)
+            validate_bs_match(Is, Ctx, 0, Unit, Vst);
+        {skip_dynamic, Skip0, Unit} when is_integer(Unit), 1 =< Unit, Unit =< 256 ->
+            Skip = unpack_typed_arg(Skip0, Vst0),
+            _ = get_term_type(Skip, Vst0),
+            Ensured = 0,                         %Assertion.
+            validate_bs_match(Is,
+                              Ctx,
+                              0,
+                              Unit0,
+                              Vst0);
+        {save, Dst, Live} ->
+            Vst = vi({bs_get_position, Ctx, Dst, Live}, Vst0),
+            validate_bs_match(Is,
+                              Ctx,
+                              Ensured,
+                              Unit0,
+                              Vst);
+        {restore, Pos} ->
+            Vst = vi({bs_set_position, Ctx, Pos}, Vst0),
+            validate_bs_match(Is,
+                              Ctx,
+                              Ensured,
+                              Unit0,
+                              Vst)
     end;
 validate_bs_match([], _Ctx, _Ensured, _Unit, Vst) ->
     Vst.
@@ -1773,6 +1796,9 @@ validate_ctx_live({x,X}=Ctx, Live) when X >= Live ->
 validate_ctx_live(_, _) ->
     ok.
 
+validate_failed_bs_match([{save, Dst, Live}|Is], Ctx, Vst0) ->
+    Vst = vi({bs_get_position, Ctx, Dst, Live}, Vst0),
+    validate_failed_bs_match(Is, Ctx, Vst);
 validate_failed_bs_match([{ensure_at_least,_Size,Unit}|_], Ctx, Vst) ->
     Type = #t_bs_context{tail_unit=Unit},
     update_type(fun subtract/2, Type, Ctx, Vst);
