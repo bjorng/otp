@@ -5759,7 +5759,8 @@ do_coverage() ->
     io:format("~p\n", [Res]),
     ok.
 
-native_records(Config) ->
+native_records(Conf) ->
+    DataDir = ?datadir,
     Ts = [{basic,
            ~"""
            -record #r{x=42::integer(), y::integer()}.
@@ -6049,13 +6050,15 @@ native_records(Config) ->
             []}
           },
           {native_record_header,
-            <<"-include(\"native_record_header.hrl\", 1).
-               id() -> ok.">>,
-            [],
-            {errors, [{{2,3},erl_lint,{native_record_header,a}}]}
+           ~"""
+           -include("native_record_header.hrl").
+               id() -> ok.
+           """,
+           [{i,DataDir}, {keep_all_warnings,true}],
+           {warnings, [{{1,2},erl_lint,{native_record_header,a}}]}
           }
          ],
-    [] = run(Config, Ts),
+    [] = run(Conf, Ts),
     ok.
 
 %%%
@@ -6136,7 +6139,8 @@ run_test2(Conf, Test, Warnings0) ->
 
     case compile:file(File, [binary|Opts]) of
         {ok, _M, Code, Ws} when is_binary(Code) ->
-            warnings(File, Ws, Test);
+            KeepAllWarnings = proplists:get_bool(keep_all_warnings, Opts),
+            warnings(File, Ws, Test, KeepAllWarnings);
         {error, [{File,Es}], []} ->
             print_diagnostics(Es, Test),
 	    {errors, call_format_error(Es), []};
@@ -6150,8 +6154,9 @@ run_test2(Conf, Test, Warnings0) ->
 	    {errors2, Es1, Es2}
     end.
 
-warnings(File, Ws, Source) ->
-    case lists:append([W || {F, W} <- Ws, F =:= File]) of
+warnings(File, Ws, Source, KeepAllWarnings) ->
+    case lists:append([W || {F, W} <- Ws,
+                            KeepAllWarnings orelse F =:= File]) of
         [] ->
 	    [];
         L ->
