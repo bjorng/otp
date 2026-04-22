@@ -6047,6 +6047,12 @@ native_records(Config) ->
            {errors,[{{3,36},erl_lint,native_record_field_types},
                     {{5,39},erl_lint,native_record_field_types}],
             []}
+          },
+          {native_record_header,
+            <<"-include(\"native_record_header.hrl\", 1).
+               id() -> ok.">>,
+            [],
+            {errors, [{{2,3},erl_lint,{native_record_header,a}}]}
           }
          ],
     [] = run(Config, Ts),

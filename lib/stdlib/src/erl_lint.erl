@@ -523,6 +523,8 @@ format_error_1({unused_record,T}) ->
     {~"record ~tw is unused", [T]};
 format_error_1({untyped_record,T}) ->
     {~"record ~tw has field(s) without type information", [T]};
+format_error_1({native_record_header,T}) ->
+    {~"record ~tw is defined in a header file", [T]};
 %% --- variables ----
 format_error_1({unbound_var,V}) ->
     {~"variable ~w is unbound", [V]};
@@ -977,7 +979,8 @@ bool_options() ->
      {novalue,true},
      {undefined_field,true},
      {unsafe_function,true},
-     {possibly_unsafe_function,false}].
+     {possibly_unsafe_function,false},
+     {native_record_header, true}].
 
 %% is_warn_enabled(Category, St) -> boolean().
 %%  Check whether a warning of category Category is enabled.
@@ -1401,13 +1404,14 @@ post_traversal_check(Forms, St0) ->
     StD = check_on_load(StC),
     StE = check_export_record(Forms, StD),
     StF = check_unused_records(Forms, StE),
-    StG = check_local_opaque_types(StF),
-    StH = check_dialyzer_attribute(Forms, StG),
-    StI = check_callback_information(StH),
-    StJ = check_nifs(Forms, StI),
-    StK = check_unexported_functions(StJ),
-    StL = check_removed(Forms, StK),
-    check_unsafe(Forms, StL).
+    StG = check_native_records_header(Forms, StF),
+    StH = check_local_opaque_types(StG),
+    StI = check_dialyzer_attribute(Forms, StH),
+    StJ = check_callback_information(StI),
+    StK = check_nifs(Forms, StJ),
+    StL = check_unexported_functions(StK),
+    StM = check_removed(Forms, StL),
+    check_unsafe(Forms, StM).
 
 %% check_behaviour(State0) -> State
 %% Check that the behaviour attribute is valid.
@@ -1963,6 +1967,20 @@ check_unused_records(Forms, St0) ->
             foldl(fun ({N,Anno}, St) ->
                           add_warning(Anno, {unused_record, N}, St)
                   end, St1, Unused);
+        _ ->
+            St0
+    end.
+
+check_native_records_header(Forms, #lint{records = Records}=St0) ->
+    AttrFiles = [File || {attribute,_A,file,{File,_Line}} <- Forms],
+    case {is_warn_enabled(native_record_header, St0),AttrFiles} of
+        {true,[FirstFile|_]} ->
+            InHeader = [{Name,Anno} ||
+                Name := {Anno,native,_Fields} <- Records,
+                element(1, loc(Anno, St0)) =/= FirstFile],
+            foldl(fun ({N,Anno}, St) ->
+                          add_warning(Anno, {native_record_header, N}, St)
+                  end, St0, InHeader);
         _ ->
             St0
     end.
