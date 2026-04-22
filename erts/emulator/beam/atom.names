@@ -631,6 +631,7 @@ atom report_errors
 atom reset
 atom reset_seq_trace
 atom restart
+atom restore
 atom resume
 atom return_from
 atom return_to
@@ -649,6 +650,7 @@ atom running_ports
 atom running_procs
 atom runtime
 atom safe
+atom save
 atom save_calls
 atom sbct
 atom scheduler 
@@ -699,6 +701,7 @@ atom siginfo
 atom silent
 atom size
 atom skip
+atom skip_dynamic
 atom slots
 atom spawn_executable
 atom spawn_driver

@@ -2659,7 +2659,8 @@ expand_and_squeeze(Config) when is_list(Config) ->
 
     %% Groups of diverse bits go with minimum possible but are recursive...
     [{bs_match,{f,_},_Ctx,
-      {commands,[{ensure_at_least,Size,1},
+      {commands,[{save,_,_},
+                 {ensure_at_least,Size,1},
                  {integer,_Live,_Flags,Size,1,_Dst}]}} | RestDiverse] =
         binary_match_to_asm([?Q("<<\"aaa\",_/binary>>"),
                              ?Q("<<\"abb\",_/binary>>"),
@@ -2715,7 +2716,8 @@ expand_and_squeeze(Config) when is_list(Config) ->
 
 ensure_squeezed(ExpectedSize, Fields) ->
     [{bs_match,{f,_},_,
-      {commands,[{ensure_at_least,ExpectedSize,1},
+      {commands,[{save,_,_},
+                 {ensure_at_least,ExpectedSize,1},
                  {integer,_Live,_Flags,ExpectedSize,1,_Dst}]}} | _] =
         binary_match_to_asm(Fields).
 
@@ -2738,7 +2740,8 @@ binary_match_to_asm(Matches) ->
 
     [{function,example,1,2,AllInstructions}|_] = Funs,
     [{label,_},{line,_},{func_info,_,_,_},{label,_},{'%',_},
-     {test,bs_start_match3,_,_,_,_},{bs_get_position,_,_,_}|Instructions] = AllInstructions,
+     {test,bs_start_match3,_,_,_,_} |
+     Instructions] = AllInstructions,
     Instructions.
 
 many_clauses(_Config) ->
