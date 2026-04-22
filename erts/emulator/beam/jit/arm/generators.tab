@@ -551,9 +551,12 @@ gen.bs_match(Fail, Ctx, N, List) {
         switch (current.val) {
         case am_ensure_exactly:
         case am_skip:
+        case am_restore:
             i += 1;
             break;
         case am_ensure_at_least:
+        case am_save:
+        case am_skip_dynamic:
             i += 2;
             break;
         case am_get_tail:
