@@ -326,18 +326,24 @@ void BeamModuleAssembler::emit_i_minus(const ArgSource &LHS,
 
     if (always_small(LHS) && always_small(RHS) && small_result) {
         comment("subtract without overflow check");
-        mov_arg(RET, LHS);
 
         if (is_rhs_literal) {
+            mov_arg(RET, LHS);
             preserve_cache(
                     [&]() {
                         a.sub(RET, imm(rhs_untagged));
                     },
                     RET);
+        } else if (LHS.isSmall()) {
+            mov_arg(ARG2, RHS);
+            mov_imm(RET, LHS.as<ArgSmall>().get() + _TAG_IMMED1_SMALL);
+            a.sub(RET, ARG2);
         } else if (RHS.isSmall()) {
+            mov_arg(RET, LHS);
             mov_imm(ARG2, RHS.as<ArgSmall>().get() & ~_TAG_IMMED1_MASK);
             a.sub(RET, ARG2);
         } else {
+            mov_arg(RET, LHS);
             mov_arg(ARG2, RHS);
             a.and_(ARG2, imm(~_TAG_IMMED1_MASK));
             a.sub(RET, ARG2);
@@ -448,8 +454,7 @@ void BeamModuleAssembler::emit_i_unary_minus(const ArgSource &Src,
     if (always_small(Src) && small_result) {
         comment("negation without overflow test");
         mov_arg(ARG2, Src);
-        a.mov(RETd, imm(_TAG_IMMED1_SMALL));
-        a.and_(ARG2, imm(~_TAG_IMMED1_MASK));
+        mov_imm(RET, 2 * _TAG_IMMED1_SMALL);
         a.sub(RET, ARG2);
         mov_arg(Dst, RET);
 
