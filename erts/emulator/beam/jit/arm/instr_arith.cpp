@@ -264,19 +264,19 @@ void BeamModuleAssembler::emit_i_unary_minus(const ArgLabel &Fail,
     auto zero = ArgImmed(make_small(0));
     bool is_small_result = is_diff_small_if_args_are_small(zero, Src);
 
-    a.mov(TMP1, imm(_TAG_IMMED1_SMALL));
-    a.and_(TMP2, src.reg, imm(~_TAG_IMMED1_MASK));
-
     if (always_small(Src) && is_small_result) {
         auto dst = init_destination(Dst, ARG1);
         comment("no overflow test because result is always small");
-        a.sub(dst.reg, TMP1, TMP2);
+        mov_imm(TMP1, 2 * _TAG_IMMED1_SMALL);
+        a.sub(dst.reg, TMP1, src.reg);
         flush_var(dst);
         return;
     }
 
     Label next = a.new_label();
 
+    mov_imm(TMP1, _TAG_IMMED1_SMALL);
+    a.and_(TMP2, src.reg, imm(~_TAG_IMMED1_MASK));
     a.subs(ARG1, TMP1, TMP2);
 
     /* Test for not overflow AND small operands. */
@@ -360,6 +360,11 @@ void BeamModuleAssembler::emit_i_minus(const ArgLabel &Fail,
             Uint cleared_tag = RHS.as<ArgSmall>().get() & ~_TAG_IMMED1_MASK;
             comment("subtract small constant without overflow check");
             a.sub(dst.reg, lhs.reg, imm(cleared_tag));
+        } else if (LHS.isSmall()) {
+            auto rhs = load_source(RHS, ARG2);
+            comment("subtraction from small constant without overflow check");
+            mov_imm(ARG3, LHS.as<ArgSmall>().get() + _TAG_IMMED1_SMALL);
+            a.sub(dst.reg, ARG3, rhs.reg);
         } else {
             auto [lhs, rhs] = load_sources(LHS, ARG2, RHS, ARG3);
             comment("subtraction without overflow check");
