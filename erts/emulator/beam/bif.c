@@ -57,6 +57,7 @@
 #endif
 #include "jit/beam_asm.h"
 #include "erl_global_literals.h"
+#include "erl_based_float.h"
 #include "beam_load.h"
 #include "beam_common.h"
 #include "dtrace-wrapper.h"
@@ -3394,6 +3395,8 @@ static int do_float_to_charbuf(Process *p, Eterm efloat, Eterm list,
             if (*tp == arity_two && is_small(tp[2])) {
                 decimals = signed_val(tp[2]);
                 switch (tp[1]) {
+                    case am_base:
+                        continue;
                     case am_decimals:
                         fmt_type = FMT_FIXED;
                         continue;
@@ -3438,7 +3441,7 @@ badarg:
 
 /* convert a float to a list of ascii characters */
 
-static BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, Eterm opts) {
+BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, Eterm opts) {
   int used;
   Eterm* hp;
   char fbuf[256];
@@ -3456,14 +3459,9 @@ BIF_RETTYPE float_to_list_1(BIF_ALIST_1)
   return do_float_to_list(BIF_P,BIF_ARG_1,NIL);
 }
 
-BIF_RETTYPE float_to_list_2(BIF_ALIST_2)
-{
-  return do_float_to_list(BIF_P,BIF_ARG_1,BIF_ARG_2);
-}
-
 /* convert a float to a binary of ascii characters */
 
-static BIF_RETTYPE do_float_to_binary(Process *BIF_P, Eterm arg, Eterm opts) {
+BIF_RETTYPE do_float_to_binary(Process *BIF_P, Eterm arg, Eterm opts) {
   char fbuf[256];
   int used;
   
@@ -3477,11 +3475,6 @@ static BIF_RETTYPE do_float_to_binary(Process *BIF_P, Eterm arg, Eterm opts) {
 BIF_RETTYPE float_to_binary_1(BIF_ALIST_1)
 {
   return do_float_to_binary(BIF_P,BIF_ARG_1,NIL);
-}
-
-BIF_RETTYPE float_to_binary_2(BIF_ALIST_2)
-{
-  return do_float_to_binary(BIF_P,BIF_ARG_1,BIF_ARG_2);
 }
 
 /**********************************************************************/
@@ -3671,7 +3664,7 @@ BIF_RETTYPE string_list_to_float_1(BIF_ALIST_1)
     BIF_RET(tup);
 }
 
-static BIF_RETTYPE do_charbuf_to_float(Process *BIF_P,char *buf) {
+BIF_RETTYPE do_charbuf_to_float(Process *BIF_P,char *buf) {
   FloatDef f;
   Eterm res;
   Eterm* hp;
