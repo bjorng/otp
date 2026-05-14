@@ -2344,7 +2344,7 @@ reduce_bif_call_1(erlang, element, 2, [X, Y], _Env) ->
 	    %% the elements, so lifting out a particular element is OK.
 	    T = list_to_tuple(tuple_es(Y)),
 	    N = int_val(X),
-	    if is_integer(N), N > 0, N =< tuple_size(T) ->
+	    if is_integer(N, 1, tuple_size(T)) ->
 		    E = element(N, T),
 		    Es = tuple_to_list(setelement(N, T, void())),
 		    {true, make_seq(c_tuple(Es), E)};
@@ -2388,7 +2388,7 @@ reduce_bif_call_1(erlang, setelement, 3, [X, Y, Z], Env) ->
 	    %% evaluated before any part of `Y'.
 	    T = list_to_tuple(tuple_es(Y)),
 	    N = int_val(X),
-	    if is_integer(N), N > 0, N =< tuple_size(T) ->
+	    if is_integer(N, 1, tuple_size(T)) ->
 		    E = element(N, T),
 		    case is_simple(Z) of
 			true ->
