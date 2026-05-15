@@ -52,7 +52,7 @@ void BeamModuleAssembler::emit_bif_is_eq_ne_exact(const ArgSource &LHS,
     /* `mov_imm` may clobber the flags if either value is zero. */
     ASSERT(fail_value && succ_value);
 
-    cmp_arg(getArgRef(LHS), RHS);
+    cmp_arg(LHS, getArgRef(LHS), RHS);
     mov_imm(RET, succ_value);
 
     if (always_immediate(LHS) || always_immediate(RHS)) {
