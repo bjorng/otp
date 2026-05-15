@@ -1915,7 +1915,7 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
     if (X.isRegister() && always_immediate(Y)) {
         comment("simplified check since one argument is an immediate");
 
-        cmp_arg(getArgRef(X), Y);
+        cmp_arg(X, getArgRef(X), Y);
         preserve_cache([&]() {
             a.jne(resolve_beam_label(Fail));
         });
@@ -2079,7 +2079,7 @@ void BeamModuleAssembler::emit_is_ne_exact(const ArgLabel &Fail,
     if (X.isRegister() && always_immediate(Y)) {
         comment("simplified check since one argument is an immediate");
 
-        cmp_arg(getArgRef(X), Y);
+        cmp_arg(X, getArgRef(X), Y);
         preserve_cache([&]() {
             a.je(resolve_beam_label(Fail));
         });

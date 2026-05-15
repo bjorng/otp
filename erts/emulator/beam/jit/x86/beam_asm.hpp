@@ -1467,7 +1467,8 @@ protected:
     void emit_validate(const ArgWord &arity);
     void emit_bs_skip_bits(const ArgLabel &Fail, const ArgRegister &Ctx);
 
-    void emit_linear_search(x86::Gp val,
+    void emit_linear_search(const ArgVal &Src,
+                            x86::Gp val,
                             const ArgVal &Fail,
                             const Span<const ArgVal> &args);
 
@@ -1508,7 +1509,8 @@ protected:
     void emit_nyi(const char *msg);
     void emit_nyi(void);
 
-    void emit_binsearch_nodes(size_t Left,
+    void emit_binsearch_nodes(const ArgVal &Src,
+                              size_t Left,
                               size_t Right,
                               const ArgVal &Fail,
                               const Span<const ArgVal> &args);
@@ -1585,20 +1587,34 @@ protected:
 
     template<typename T>
     void cmp_arg(T oper, const ArgVal &val) {
-        cmp_arg(oper, val, ARG1);
+        cmp_arg(ArgNil(), oper, val, ARG1);
+    }
+
+    template<typename T>
+    void cmp_arg(const ArgVal &src, T oper, const ArgVal &val) {
+        cmp_arg(src, oper, val, ARG1);
     }
 
     void cmp_arg(x86::Mem mem, const ArgVal &val, const x86::Gp &spill) {
+        cmp_arg(ArgNil(), mem, val, spill);
+    }
+
+    void cmp_arg(const ArgVal &src,
+                 x86::Mem mem,
+                 const ArgVal &val,
+                 const x86::Gp &spill) {
         x86::Gp reg = find_cache(mem);
 
         if (reg.is_valid()) {
+            auto narrowed_reg = narrow_gp(src, reg, val);
+
             /* Note that the cast to Sint is necessary to handle
              * negative numbers such as NIL. */
             if (val.isImmed() &&
                 Support::is_int_n<32>((Sint)val.as<ArgImmed>().get())) {
                 comment("simplified compare of BEAM register");
                 preserve_cache([&]() {
-                    a.cmp(reg, imm(val.as<ArgImmed>().get()));
+                    a.cmp(narrowed_reg, imm(val.as<ArgImmed>().get()));
                 });
             } else if (reg != spill) {
                 comment("simplified compare of BEAM register");
@@ -1609,12 +1625,14 @@ protected:
                 cmp_preserve_cache(mem, spill);
             }
         } else {
+            auto narrowed_mem = narrow_mem(src, mem, val);
+
             /* Note that the cast to Sint is necessary to handle
              * negative numbers such as NIL. */
             if (val.isImmed() &&
                 Support::is_int_n<32>((Sint)val.as<ArgImmed>().get())) {
                 preserve_cache([&]() {
-                    a.cmp(mem, imm(val.as<ArgImmed>().get()));
+                    a.cmp(narrowed_mem, imm(val.as<ArgImmed>().get()));
                 });
             } else {
                 mov_arg(spill, val);
@@ -1624,14 +1642,74 @@ protected:
     }
 
     void cmp_arg(x86::Gp gp, const ArgVal &val, const x86::Gp &spill) {
+        cmp_arg(ArgNil(), gp, val, spill);
+    }
+
+    void cmp_arg(const ArgVal &src,
+                 x86::Gp gp,
+                 const ArgVal &val,
+                 const x86::Gp &spill) {
+        auto narrowed_reg = narrow_gp(src, gp, val);
+
         if (val.isImmed() &&
             Support::is_int_n<32>((Sint)val.as<ArgImmed>().get())) {
             preserve_cache([&]() {
-                a.cmp(gp, imm(val.as<ArgImmed>().get()));
+                a.cmp(narrowed_reg, imm(val.as<ArgImmed>().get()));
             });
         } else {
             mov_arg(spill, val);
             cmp_preserve_cache(gp, spill);
+        }
+    }
+
+    x86::Gp narrow_gp(const ArgVal &src, x86::Gp reg, const ArgVal &val) {
+        switch (value_size(src, val)) {
+        case 1:
+            return reg.r8();
+        case 2:
+            return reg.r16();
+        case 4:
+            return reg.r32();
+        default:
+            return reg;
+        }
+    }
+
+    x86::Mem narrow_mem(const ArgVal &src,
+                        const x86::Mem mem,
+                        const ArgVal &val) {
+        auto size = value_size(src, val);
+
+        if (size < mem.size()) {
+            return mem.clone_resized(size);
+        }
+        return mem;
+    }
+
+    uint32_t value_size(const ArgVal &Src, const ArgVal &Val) {
+        auto [min0, max0] = getClampedRange(Src);
+        Eterm min = make_small(min0);
+        Eterm max = make_small(max0);
+        Sint val;
+
+        if (!(always_small(Src) && Val.isImmed() &&
+              Support::is_int_n<32>((Sint)Val.as<ArgImmed>().get()))) {
+            return 8;
+        }
+
+        val = (Sint)Val.as<ArgImmed>().get();
+
+        if (Support::is_int_n<8>(min) && Support::is_int_n<8>(max) &&
+            Support::is_int_n<8>(val)) {
+            return 1;
+        } else if (Support::is_int_n<16>(min) && Support::is_int_n<16>(max) &&
+                   Support::is_int_n<16>(val)) {
+            return 2;
+        } else if (Support::is_int_n<32>(min) && Support::is_int_n<32>(max) &&
+                   Support::is_int_n<32>(val)) {
+            return 4;
+        } else {
+            return 8;
         }
     }
 
