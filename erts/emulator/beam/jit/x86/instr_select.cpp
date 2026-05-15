@@ -24,7 +24,8 @@
 
 using namespace asmjit;
 
-void BeamModuleAssembler::emit_linear_search(x86::Gp comparand,
+void BeamModuleAssembler::emit_linear_search(const ArgVal &Src,
+                                             x86::Gp comparand,
                                              const ArgVal &Fail,
                                              const Span<const ArgVal> &args) {
     int count = args.size() / 2;
@@ -43,7 +44,7 @@ void BeamModuleAssembler::emit_linear_search(x86::Gp comparand,
             }
         }
 
-        cmp_arg(comparand, value, ARG1);
+        cmp_arg(Src, comparand, value, ARG1);
         a.je(resolve_beam_label(label));
     }
 
@@ -100,7 +101,7 @@ void BeamModuleAssembler::emit_i_select_val_lins(
 
     mov_arg(ARG2, Src);
 
-    emit_linear_search(ARG2, Fail, args);
+    emit_linear_search(Src, ARG2, Fail, args);
 }
 
 void BeamModuleAssembler::emit_i_select_val_bins(
@@ -123,7 +124,7 @@ void BeamModuleAssembler::emit_i_select_val_bins(
 
     mov_arg(ARG2, Src);
     comment("Binary search in table of %lu elements", count);
-    emit_binsearch_nodes(0, count - 1, Fail, args);
+    emit_binsearch_nodes(Src, 0, count - 1, Fail, args);
 
     if (Fail.isNil()) {
         a.bind(fail);
@@ -136,7 +137,8 @@ void BeamModuleAssembler::emit_i_select_val_bins(
  *
  * ARG2 is the value being looked up.
  */
-void BeamModuleAssembler::emit_binsearch_nodes(size_t Left,
+void BeamModuleAssembler::emit_binsearch_nodes(const ArgVal &Src,
+                                               size_t Left,
                                                size_t Right,
                                                const ArgVal &Fail,
                                                const Span<const ArgVal> &args) {
@@ -168,13 +170,13 @@ void BeamModuleAssembler::emit_binsearch_nodes(size_t Left,
                       args.begin() + Left + count,
                       args.begin() + count + Left + remaining);
 
-        emit_linear_search(ARG2, Fail, Span(shrunk.data(), shrunk.size()));
+        emit_linear_search(Src, ARG2, Fail, Span(shrunk.data(), shrunk.size()));
 
         return;
     }
 
     comment("Subtree [%lu..%lu], pivot %lu", Left, Right, mid);
-    cmp_arg(ARG2, midval, ARG1);
+    cmp_arg(Src, ARG2, midval, ARG1);
 
     if (Left == Right) {
         a.je(resolve_beam_label(args[mid + count]));
@@ -189,11 +191,11 @@ void BeamModuleAssembler::emit_binsearch_nodes(size_t Left,
     } else {
         Label right_tree = a.new_label();
         a.ja(right_tree);
-        emit_binsearch_nodes(Left, mid - 1, Fail, args);
+        emit_binsearch_nodes(Src, Left, mid - 1, Fail, args);
         a.bind(right_tree);
     }
 
-    emit_binsearch_nodes(mid + 1, Right, Fail, args);
+    emit_binsearch_nodes(Src, mid + 1, Right, Fail, args);
 }
 
 void BeamModuleAssembler::emit_i_jump_on_val(const ArgSource &Src,
