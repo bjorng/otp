@@ -259,7 +259,7 @@ void BeamModuleAssembler::emit_i_bs_get_position(const ArgRegister &Ctx,
     preserve_cache(
             [&]() {
                 a.sal(tmp_reg, imm(_TAG_IMMED1_SIZE));
-                a.or_(tmp_reg, imm(_TAG_IMMED1_SMALL));
+                a.or_(tmp_reg.r32(), imm(_TAG_IMMED1_SMALL));
             },
             tmp_reg);
 
@@ -737,7 +737,7 @@ void BeamGlobalAssembler::emit_bs_get_utf8_short_shared() {
     a.bind(ascii);
     a.add(x86::qword_ptr(ctx, start_offset), imm(8));
     a.shr(RET, imm(56 - _TAG_IMMED1_SIZE));
-    a.or_(RET, imm(_TAG_IMMED1_SMALL)); /* Always clears ZF. */
+    a.or_(RETb, imm(_TAG_IMMED1_SMALL)); /* Always clears ZF. */
     a.ret();
 }
 
@@ -2953,7 +2953,7 @@ void BeamModuleAssembler::emit_read_integer(const x86::Gp bin_base,
 
     a.bind(store);
     a.shl(RET, imm(_TAG_IMMED1_SIZE));
-    a.or_(RET, imm(_TAG_IMMED1_SMALL));
+    a.or_(RETb, imm(_TAG_IMMED1_SMALL));
     mov_arg(Dst, RET);
 }
 
@@ -3036,7 +3036,7 @@ void BeamModuleAssembler::emit_extract_integer(const x86::Gp bitdata,
         comment("store extracted integer as a small");
         a.bind(small);
         a.shl(RET, imm(_TAG_IMMED1_SIZE));
-        a.or_(RET, imm(_TAG_IMMED1_SMALL));
+        a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         a.short_().jmp(done);
     } else {
         /* This segment always fits in a small. */
@@ -3049,7 +3049,7 @@ void BeamModuleAssembler::emit_extract_integer(const x86::Gp bitdata,
             a.sar(RET, imm(64 - bits - _TAG_IMMED1_SIZE));
         }
         ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == (1 << _TAG_IMMED1_SIZE) - 1);
-        a.or_(RET, imm(_TAG_IMMED1_SMALL));
+        a.or_(RETb, imm(_TAG_IMMED1_SMALL));
     }
 
     a.bind(big);
@@ -3377,7 +3377,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
             comment("extract integer %ld", bits);
             if (next_instr_clobbers && flags == 0 && bits < SMALL_BITS) {
                 a.shr(bitdata, imm(64 - bits - _TAG_IMMED1_SIZE));
-                a.or_(bitdata, imm(_TAG_IMMED1_SMALL));
+                a.or_(bitdata.r32(), imm(_TAG_IMMED1_SMALL));
                 mov_arg(Dst, bitdata);
             } else {
                 emit_extract_integer(bitdata, tmp, flags, bits, Dst);

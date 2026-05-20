@@ -530,8 +530,8 @@ void BeamGlobalAssembler::emit_int_div_rem_guard_shared() {
     /* Speculatively tag the result as overflow is very rare. */
     a.sal(x86::rax, imm(_TAG_IMMED1_SIZE));
     a.sal(x86::rdx, imm(_TAG_IMMED1_SIZE));
-    a.or_(x86::rax, imm(_TAG_IMMED1_SMALL));
-    a.or_(x86::rdx, imm(_TAG_IMMED1_SMALL));
+    a.or_(x86::al, imm(_TAG_IMMED1_SMALL));
+    a.or_(x86::dl, imm(_TAG_IMMED1_SMALL));
 
     /* MIN_SMALL divided by -1 will overflow, and we'll need to fall back to the
      * generic handler in that case. */
@@ -611,8 +611,8 @@ void BeamGlobalAssembler::emit_int_div_rem_body_shared() {
     /* Speculatively tag the result as overflow is very rare. */
     a.sal(x86::rax, imm(_TAG_IMMED1_SIZE));
     a.sal(x86::rdx, imm(_TAG_IMMED1_SIZE));
-    a.or_(x86::rax, imm(_TAG_IMMED1_SMALL));
-    a.or_(x86::rdx, imm(_TAG_IMMED1_SMALL));
+    a.or_(x86::al, imm(_TAG_IMMED1_SMALL));
+    a.or_(x86::dl, imm(_TAG_IMMED1_SMALL));
 
     /* MIN_SMALL divided by -1 will overflow, and we'll need to fall back to the
      * generic handler in that case. */
@@ -735,7 +735,7 @@ void BeamModuleAssembler::emit_div_rem(const ArgLabel &Fail,
                 comment("optimized div by replacing with right shift");
                 ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
                 a.shr(x86::rax, imm(trailing_bits));
-                a.or_(x86::rax, imm(_TAG_IMMED1_SMALL));
+                a.or_(x86::al, imm(_TAG_IMMED1_SMALL));
             }
         } else if (Support::is_power_of_2(divisor)) {
             /* Signed integer division. */
@@ -778,7 +778,7 @@ void BeamModuleAssembler::emit_div_rem(const ArgLabel &Fail,
             if (need_div) {
                 ERTS_CT_ASSERT(_TAG_IMMED1_SMALL == _TAG_IMMED1_MASK);
                 a.sar(x86::rax, imm(shift));
-                a.or_(x86::rax, imm(_TAG_IMMED1_SMALL));
+                a.or_(x86::al, imm(_TAG_IMMED1_SMALL));
             }
         } else {
             comment("divide with inlined code");
@@ -796,11 +796,11 @@ void BeamModuleAssembler::emit_div_rem(const ArgLabel &Fail,
             }
 
             if (need_div) {
-                a.or_(x86::rax, imm(_TAG_IMMED1_SMALL));
+                a.or_(x86::al, imm(_TAG_IMMED1_SMALL));
             }
 
             if (need_rem) {
-                a.or_(x86::rdx, imm(_TAG_IMMED1_SMALL));
+                a.or_(x86::dl, imm(_TAG_IMMED1_SMALL));
             }
         }
 
@@ -1118,7 +1118,7 @@ void BeamModuleAssembler::emit_i_mul_add(const ArgLabel &Fail,
         }
 
         if (is_increment_zero) {
-            a.or_(RET, imm(_TAG_IMMED1_SMALL));
+            a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         } else {
             mov_arg(ARG2, Src4);
             a.add(RET, ARG2);
@@ -1180,7 +1180,7 @@ void BeamModuleAssembler::emit_i_mul_add(const ArgLabel &Fail,
         }
 
         if (is_increment_zero) {
-            a.or_(RET, imm(_TAG_IMMED1_SMALL));
+            a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         } else {
             a.add(RET, ARG4);
             if (is_sum_small) {
@@ -1441,7 +1441,7 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
                     [&]() {
                         /* TAG ^ TAG = 0, so we need to tag it again. */
                         a.xor_(RET, ARG2);
-                        a.or_(RET, imm(_TAG_IMMED1_SMALL));
+                        a.or_(RETb, imm(_TAG_IMMED1_SMALL));
                     },
                     RET);
         }
@@ -1458,7 +1458,7 @@ void BeamModuleAssembler::emit_i_bxor(const ArgLabel &Fail,
 
     /* TAG ^ TAG = 0, so we need to tag it again. */
     a.xor_(RET, ARG2);
-    a.or_(RET, imm(_TAG_IMMED1_SMALL));
+    a.or_(RETb, imm(_TAG_IMMED1_SMALL));
     a.short_().jmp(next);
 
     a.bind(generic);
@@ -1632,7 +1632,7 @@ void BeamModuleAssembler::emit_i_bsl(const ArgSource &LHS,
             a.shr(x86::rcx, imm(_TAG_IMMED1_SIZE));
             a.shl(RET, x86::cl);
         }
-        a.or_(RET, imm(_TAG_IMMED1_SMALL));
+        a.or_(RETb, imm(_TAG_IMMED1_SMALL));
         mov_arg(Dst, RET);
         return;
     }

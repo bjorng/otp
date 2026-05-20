@@ -223,7 +223,7 @@ void BeamModuleAssembler::emit_bif_bit_size(const ArgWord &Bif,
     a.bind(not_sub_bits);
 
     a.shl(ARG1, imm(_TAG_IMMED1_SIZE));
-    a.or_(ARG1, imm(_TAG_IMMED1_SMALL));
+    a.or_(ARG1.r8(), imm(_TAG_IMMED1_SMALL));
 
     mov_arg(Dst, ARG1);
 }
@@ -262,7 +262,7 @@ void BeamModuleAssembler::emit_bif_byte_size(const ArgWord &Bif,
     /* Round up to the nearest byte. */
     a.add(ARG1, imm(7));
     a.shl(ARG1, imm(_TAG_IMMED1_SIZE - 3));
-    a.or_(ARG1, imm(_TAG_IMMED1_SMALL));
+    a.or_(ARG1d, imm(_TAG_IMMED1_SMALL));
 
     mov_arg(Dst, ARG1);
 }
