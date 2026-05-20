@@ -3319,7 +3319,7 @@ void BeamModuleAssembler::emit_i_perf_counter() {
     a.bind(small);
     {
         a.shl(RET, imm(_TAG_IMMED1_SIZE));
-        a.or_(RET, imm(_TAG_IMMED1_SMALL));
+        a.or_(RETb, imm(_TAG_IMMED1_SMALL));
     }
 
     a.bind(next);
