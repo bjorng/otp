@@ -211,21 +211,21 @@ void BeamModuleAssembler::emit_bif_bit_size(const ArgWord &Bif,
     x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
 
     ERTS_CT_ASSERT(offsetof(ErlHeapBits, size) == sizeof(Eterm));
-    a.mov(ARG1, emit_boxed_val(boxed_ptr, sizeof(Eterm)));
+    a.mov(RET, emit_boxed_val(boxed_ptr, sizeof(Eterm)));
 
     Label not_sub_bits = a.new_label();
     a.cmp(emit_boxed_val(boxed_ptr), imm(HEADER_SUB_BITS));
     a.short_().jne(not_sub_bits);
     {
-        a.mov(ARG1, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, end)));
-        a.sub(ARG1, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, start)));
+        a.mov(RET, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, end)));
+        a.sub(RET, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, start)));
     }
     a.bind(not_sub_bits);
 
-    a.shl(ARG1, imm(_TAG_IMMED1_SIZE));
-    a.or_(ARG1, imm(_TAG_IMMED1_SMALL));
+    a.shl(RET, imm(_TAG_IMMED1_SIZE));
+    a.or_(RETb, imm(_TAG_IMMED1_SMALL));
 
-    mov_arg(Dst, ARG1);
+    mov_arg(Dst, RET);
 }
 
 /* ================================================================
@@ -248,23 +248,23 @@ void BeamModuleAssembler::emit_bif_byte_size(const ArgWord &Bif,
     x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
 
     ERTS_CT_ASSERT(offsetof(ErlHeapBits, size) == sizeof(Eterm));
-    a.mov(ARG1, emit_boxed_val(boxed_ptr, offsetof(ErlHeapBits, size)));
+    a.mov(RET, emit_boxed_val(boxed_ptr, offsetof(ErlHeapBits, size)));
 
     Label not_sub_bits = a.new_label();
     a.cmp(emit_boxed_val(boxed_ptr), imm(HEADER_SUB_BITS));
     a.short_().jne(not_sub_bits);
     {
-        a.mov(ARG1, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, end)));
-        a.sub(ARG1, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, start)));
+        a.mov(RET, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, end)));
+        a.sub(RET, emit_boxed_val(boxed_ptr, offsetof(ErlSubBits, start)));
     }
     a.bind(not_sub_bits);
 
     /* Round up to the nearest byte. */
-    a.add(ARG1, imm(7));
-    a.shl(ARG1, imm(_TAG_IMMED1_SIZE - 3));
-    a.or_(ARG1, imm(_TAG_IMMED1_SMALL));
+    a.add(RET, imm(7));
+    a.shl(RET, imm(_TAG_IMMED1_SIZE - 3));
+    a.or_(RETb, imm(_TAG_IMMED1_SMALL));
 
-    mov_arg(Dst, ARG1);
+    mov_arg(Dst, RET);
 }
 
 /* ================================================================
