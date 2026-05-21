@@ -30,8 +30,8 @@
 -export([opt/1]).
 
 -include("beam_ssa.hrl").
--import(lists, [append/1,foldl/3,keymember/3,last/1,member/2,
-                reverse/1,reverse/2,takewhile/2]).
+-import(lists, [append/1,foldl/3,last/1,member/2,
+                reverse/1,reverse/2,search/2,takewhile/2]).
 
 -type used_vars() :: #{beam_ssa:label():=sets:set(beam_ssa:b_var())}.
 
@@ -58,6 +58,7 @@
       Block :: beam_ssa:b_blk().
 
 opt(Linear0) ->
+    kill_types(Linear0),
     {Used,Skippable} = used_vars(Linear0),
     Blocks0 = maps:from_list(Linear0),
     St0 = #st{bs=Blocks0,us=Used,skippable=Skippable},
@@ -371,8 +372,11 @@ update_unset_vars(L, Is, Br, UnsetVars, #st{skippable=Skippable}) ->
             %% variables to the set of unset variables.
             case Br of
                 #b_br{bool=#b_var{}=Bool} ->
-                    case keymember(Bool, #b_set.dst, Is) of
-                        true ->
+                    IsExpected = fun(#b_set{dst=Dst}) ->
+                                         Dst =:= Bool
+                                 end,
+                    case search(IsExpected, Is) of
+                        {value,_} ->
                             %% Bool is a variable defined in this
                             %% block. Using the br instruction from
                             %% this block (and skipping the body of
@@ -1210,7 +1214,7 @@ opt_redundant_tests([L|Ls], Blocks, All0) ->
             Blk0 = map_get(L, Blocks),
             Tests = map_get(L, All0),
             Blk1 = opt_switch(Blk0, Tests),
-            #b_blk{is=Is0} = Blk1,
+            #b_blk{is=Is0} = kill_types(Blk1),
             case opt_redundant_tests_is(Is0, Tests, []) of
                 none ->
                     All = update_successors(Blk1, Tests, All0),
@@ -1234,6 +1238,9 @@ opt_redundant_tests([L|Ls], Blocks, All0) ->
             opt_redundant_tests(Ls, Blocks, All0)
     end;
 opt_redundant_tests([], _Blocks, _All) -> [].
+
+%% FIXME: Workaround for bug in beam_validator.
+kill_types(I) -> I.
 
 opt_switch(#b_blk{last=#b_switch{arg=Arg,list=List0}=Sw}=Blk, Tests)
   when map_size(Tests) =/= 0 ->
