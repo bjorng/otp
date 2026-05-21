@@ -37,17 +37,17 @@
                 member/2,reverse/1,reverse/2,sort/1,
                 splitwith/2,takewhile/2]).
 
--record(cg, {lcount=1 :: beam_label(),          %Label counter
-             vcount=1 :: pos_integer(),         %Variable counter
-	     functable=#{} :: #{fa() => beam_label()},
-             labels=#{} :: #{ssa_label() => 0|beam_label()},
-             used_labels=gb_sets:empty() :: gb_sets:set(ssa_label()),
-             regs=#{} :: #{beam_ssa:b_var() => ssa_register()},
-             ultimate_fail=1 :: beam_label(),
-             catches=gb_sets:empty() :: gb_sets:set(ssa_label()),
-             fc_label=1 :: beam_label(),
-             debug_info=false :: boolean()
-            }).
+-record #cg{lcount=1 :: beam_label(),          %Label counter
+            vcount=1 :: pos_integer(),         %Variable counter
+            functable=#{} :: #{fa() => beam_label()},
+            labels=#{} :: #{ssa_label() => 0|beam_label()},
+            used_labels :: gb_sets:set(ssa_label()),
+            regs=#{} :: #{beam_ssa:b_var() => ssa_register()},
+            ultimate_fail=1 :: beam_label(),
+            catches :: gb_sets:set(ssa_label()),
+            fc_label=1 :: beam_label(),
+            debug_info=false :: boolean()
+           }.
 
 -spec module(beam_ssa:b_module(), [compile:option()]) ->
           {'ok',beam_asm:module_code()}.
@@ -116,8 +116,12 @@ module(#b_module{anno=Anno,name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) 
 -type ssa_register() :: xreg() | yreg() | freg() | zreg().
 
 functions(Forms, AtomMod, DebugInfo) ->
+    Empty = gb_sets:empty(),
     mapfoldl(fun (F, St) -> function(F, AtomMod, St) end,
-             #cg{lcount=1,debug_info=DebugInfo}, Forms).
+             #cg{lcount=1,
+                 used_labels=Empty,
+                 catches=Empty,
+                 debug_info=DebugInfo}, Forms).
 
 function(#b_function{anno=Anno,bs=Blocks,args=Args,cnt=Count},
          AtomMod, St0) ->

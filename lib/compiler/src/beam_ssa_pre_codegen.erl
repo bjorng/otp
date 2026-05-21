@@ -102,16 +102,16 @@ functions([], _Ps) -> [].
 -type ssa_register() :: beam_ssa_codegen:ssa_register().
 
 -define(TC(Body), tc(fun() -> Body end, ?FILE, ?LINE)).
--record(st, {ssa :: beam_ssa:block_map(),
-             args :: [b_var()],
-             cnt :: beam_ssa:label(),
-             frames=[] :: [beam_ssa:label()],
-             intervals=[] :: [{b_var(),[range()]}],
-             res=[] :: [{b_var(),reservation()}] | #{b_var():=reservation()},
-             regs=#{} :: #{b_var():=ssa_register()},
-             extra_annos=[] :: [{atom(),term()}],
-             location :: term()
-            }).
+-record #st{ssa :: beam_ssa:block_map(),
+            args :: [b_var()],
+            cnt :: beam_ssa:label(),
+            frames=[] :: [beam_ssa:label()],
+            intervals=[] :: [{b_var(),[range()]}],
+            res=[] :: [{b_var(),reservation()}] | #{b_var():=reservation()},
+            regs=#{} :: #{b_var():=ssa_register()},
+            extra_annos=[] :: [{atom(),term()}],
+            location :: term()
+           }.
 -define(PASS(N), {N,fun N/1}).
 
 passes(Opts) ->
