@@ -27,9 +27,11 @@
 
 %% Tests the BIFs:
 %% 	abs/1
+%%      binary_to_float/2
 %%	float/1
 %%	float_to_list/1
-%%  float_to_list/2
+%%      float_to_list/2
+%%      float_to_binary/2
 %%	integer_to_list/1
 %%	list_to_float/1
 %%	list_to_integer/1
@@ -368,6 +370,8 @@ max_diff_decimals(F, D) ->
 %% Tests float_to_list/2, float_to_binary/2 with {base, B} option.
 
 t_based_float(Config) when is_list(Config) ->
+    rand_seed(),
+
     %% Default format (scientific 20 decimals)
     test_bfs("1.10101100000000000000#e3", 13.375, [{base, 2}]),
     test_bfs("d.60000000000000000000#e0", 13.375, [{base, 16}]),
@@ -456,7 +460,18 @@ t_based_float(Config) when is_list(Config) ->
     %% Short option - scientific notation for very small values
     test_bfs("1.0#e-10", math:pow(2, -10), [{base, 2}, short]),
 
-    %% Short option - round-trip consistency
+    %% Test many trailing zeroes
+    OneDotZero = "1.0" ++ lists:duplicate(10_000, $0),
+    _ = [?assertEqual(1.0, list_to_float(OneDotZero, Base)) ||
+	    Base <- lists:seq(2, 36)],
+
+    %% Test random floats
+    _ = [test_rand_bfs(Base) ||
+	    _ <- lists:seq(1, 50),
+	    Base <- lists:seq(2, 36)],
+
+    %% Short option - round-trip consistency.
+    %% TODO: Simplify this.
     F1 = 3.141592653589793,
     F1 = list_to_float(float_to_list(F1, [{base, 2}, short]), 2),
     F1 = list_to_float(float_to_list(F1, [{base, 16}, short]), 16),
@@ -474,6 +489,7 @@ t_based_float(Config) when is_list(Config) ->
     F4 = list_to_float(float_to_list(F4, [{base, 36}, short]), 36),
 
     %% Error cases
+    %% TODO: Use ?assertError().
     {'EXIT', {badarg, _}} = (catch float_to_list(1.0, [{base, 1}])),
     {'EXIT', {badarg, _}} = (catch float_to_list(1.0, [{base, 37}])),
     {'EXIT', {badarg, _}} = (catch float_to_list(1.0, [{base, 0}])),
@@ -485,12 +501,42 @@ t_based_float(Config) when is_list(Config) ->
     {'EXIT', {badarg, _}} = (catch float_to_binary(1.0, [{base, -1}])),
     {'EXIT', {badarg, _}} = (catch float_to_binary(foo, [{base, 2}])),
 
+    ?assertError(badarg, binary_to_float(~"abc", 10)),
+    ?assertError(badarg, float_to_binary(1.0, [{base, bar}])),
+
+    HugeInt = lists:duplicate(10_000, $1) ++ ".0",
+    _ = [?assertError(badarg, list_to_float(HugeInt, Base)) ||
+	    Base <- lists:seq(2, 36)],
+
     ok.
 
 test_bfs(Expect, Float, Args) ->
-    ?assertEqual(Expect, float_to_list(Float, Args)),
     BinExpect = list_to_binary(Expect),
-    ?assertEqual(BinExpect, float_to_binary(Float, Args)).
+    {base, Base} = lists:keyfind(base, 1, Args),
+
+    ?assertEqual(Expect, float_to_list(Float, Args)),
+    ?assertEqual(Float, list_to_float(Expect, Base)),
+
+    ?assertEqual(BinExpect, float_to_binary(Float, Args)),
+    ?assertEqual(Float, binary_to_float(BinExpect, Base)).
+
+test_rand_bfs(Base) ->
+    F = rand_float(),
+    Expect = float_to_list(F, [{base, Base}, short]),
+    io:format("~p: ~p ~ts\n", [Base, F, Expect]),
+    case Base band (Base - 1) of
+	0 ->
+	    %% Power of two. Exact roundtrip is possible.
+	    test_bfs(Expect, F, [{base, Base}, short]);
+	_ ->
+	    %% Exact roundtrip might not be possible.
+	    BinExpect = list_to_binary(Expect),
+	    ok = fcmp(F, list_to_float(Expect, Base)),
+	    ok = fcmp(F, binary_to_float(BinExpect, Base))
+    end.
+
+fcmp(F1, F2) when F1 == 0.0, F2 == 0.0 -> ok;
+fcmp(F1, F2) when (F1 - F2) / F2 < 0.0000001 -> ok.
 
 t_binary_to_float_2(Config) when is_list(Config) ->
     %% Base 2
@@ -700,7 +746,7 @@ rand_seed() ->
     ok.
 
 rand_float() ->
-    F0 = rand:uniform() * math:pow(10, 50*rand:normal()),
+    F0 = rand:uniform() * math:pow(10, rand:normal(0.0, 2500.0)),
     case rand:uniform() of
         U when U < 0.5 -> -F0;
         _ -> F0

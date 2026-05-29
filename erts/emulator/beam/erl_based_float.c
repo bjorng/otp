@@ -60,16 +60,18 @@ static int digit_val(char c, int base)
  * convert it into a C double.
  * The string must contain a dot, can optionally contain a sign
  * and an exponent.
- * Return 0 on success and -1 on failure.
+ * Return true on success and false on failure.
  */
-static int based_charbuf_to_float(char *buf, int len, int base, double *result)
+static bool based_charbuf_to_float(char *buf, int len, int base, double *result)
 {
     int i = 0;
     int negative = 0;
-    int d, dot_pos = -1;
-    char digits[256];
+    int d;
+    int frac_len = 0;
     int ndigits = 0;
     int exp = 0;
+    double N = 0.0;
+    double F = 0.0;
 
     /* Optional sign */
     if (buf[i] == '-') {
@@ -87,15 +89,17 @@ static int based_charbuf_to_float(char *buf, int len, int base, double *result)
         }
         d = digit_val(buf[i], base);
         if (d < 0)
-            return -1;
-        digits[ndigits++] = buf[i];
-        i++;
+            return false;
+        N = N * base + d;
+        i++, ndigits++;
     }
+
+    if (!erts_isfinite(N))
+        return false;
 
     /* Error if no dot */
     if (i >= len || buf[i] != '.')
-        return -1;
-    dot_pos = ndigits;
+        return false;
     i++;
 
     /* Fractional part. Skip underscore. Stop at '#' or end */
@@ -106,8 +110,11 @@ static int based_charbuf_to_float(char *buf, int len, int base, double *result)
         }
         d = digit_val(buf[i], base);
         if (d < 0)
-            return -1;
-        digits[ndigits++] = buf[i];
+            return false;
+        if (frac_len < 60) {
+            F = F * base + d;
+            frac_len++;
+        }
         i++;
     }
 
@@ -116,7 +123,7 @@ static int based_charbuf_to_float(char *buf, int len, int base, double *result)
         int negative_exp = 0;
         i++;
         if (i >= len || (buf[i] != 'e' && buf[i] != 'E'))
-            return -1;
+            return false;
         i++;
         if (i < len && buf[i] == '+') {
             i++;
@@ -125,14 +132,14 @@ static int based_charbuf_to_float(char *buf, int len, int base, double *result)
             i++;
         }
         if (i >= len || buf[i] < '0' || buf[i] > '9')
-            return -1;
+            return false;
         while (i < len) {
             if (buf[i] == '_') {
                 i++;
                 continue;
             }
             if (buf[i] < '0' || buf[i] > '9')
-                return -1;
+                return false;
             exp = exp * 10 + (buf[i] - '0');
             i++;
         }
@@ -141,37 +148,32 @@ static int based_charbuf_to_float(char *buf, int len, int base, double *result)
 
 
     if (i != len)
-        return -1;
+        return false;
 
     /* Convert to base 10 using the same algorithm as erl_scan:
      * Collect all digits to create an integer N, then scale according
      * to dot position, exponent, and sign.
      */
     {
-        double N = 0.0;
-        int j;
-        int frac_len;
+        double int_part;
+        double frac_part;
         double val;
 
-        for (j = 0; j < ndigits; j++) {
-            d = digit_val(digits[j], base);
-            N = N * base + d;
-        }
-
-        frac_len = ndigits - dot_pos;
-        val = N * pow((double)base, (double)(exp - frac_len));
+        int_part = N * pow((double)base, (double)exp);
+        frac_part = F * pow((double)base, (double)exp-frac_len);
+        val = int_part + frac_part;
 
         if (negative)
             val = -val;
 
         /* Reject infinity or NaN */
         if (!erts_isfinite(val))
-            return -1;
+            return false;
 
         *result = val;
     }
 
-    return 0;
+    return true;
 }
 
 /*
@@ -429,7 +431,7 @@ static int do_based_float_to_charbuf(double num, double frac, int base,
                 trial_len = (int)(tp - trial);
 
                 /* Round-trip test: try one fewer digit */
-                if (based_charbuf_to_float(trial, trial_len, base, &roundtrip) == 0
+                if (based_charbuf_to_float(trial, trial_len, base, &roundtrip)
                     && roundtrip == (num + frac)) {
                     sig_digits--;
                 } else {
@@ -695,18 +697,15 @@ BIF_RETTYPE list_to_float_2(BIF_ALIST_2)
     buf[len] = '\0';
 
     if (base == 10) {
-        Eterm res;
-        if((res = do_charbuf_to_float(BIF_P, buf)) == THE_NON_VALUE)
-            goto badarg;
+        Eterm res = do_charbuf_to_float(BIF_P, buf);
         erts_free(ERTS_ALC_T_TMP, (void *) buf);
         BIF_RET(res);
     }
 
-    if (based_charbuf_to_float(buf, len, base, &result) != 0)
-        goto badarg;
-
-    erts_free(ERTS_ALC_T_TMP, (void *) buf);
-    BIF_RET(make_float_term(BIF_P, result));
+    if (based_charbuf_to_float(buf, len, base, &result)) {
+        erts_free(ERTS_ALC_T_TMP, (void *) buf);
+        BIF_RET(make_float_term(BIF_P, result));
+    }
 
 badarg:
     erts_free(ERTS_ALC_T_TMP, (void *) buf);
@@ -729,27 +728,24 @@ BIF_RETTYPE binary_to_float_2(BIF_ALIST_2)
     ERTS_GET_BITSTRING(BIF_ARG_1, bin_base, offset, size);
 
     if (size > 0 && TAIL_BITS(size) == 0) {
-        byte *char_buf;
         double result;
 
-        char_buf = erts_alloc(ERTS_ALC_T_TMP, NBYTES(size) + 1);
-        copy_binary_to_buffer(char_buf, 0, bin_base, offset, size);
-        char_buf[NBYTES(size)] = '\0';
-
         if (base == 10) {
-            Eterm res = do_charbuf_to_float(BIF_P, (char*)char_buf);
-            erts_free(ERTS_ALC_T_TMP, (void*)char_buf);
-            if (is_value(res))
-                BIF_RET(res);
-        }
+            byte *char_buf;
+            Eterm res;
 
-        if (based_charbuf_to_float((char*)char_buf, NBYTES(size), base, &result) != 0) {
-            erts_free(ERTS_ALC_T_TMP, (void*)char_buf);
-            BIF_ERROR(BIF_P, BADARG);
-        }
+            char_buf = erts_alloc(ERTS_ALC_T_TMP, NBYTES(size) + 1);
+            copy_binary_to_buffer(char_buf, 0, bin_base, offset, size);
+            char_buf[NBYTES(size)] = '\0';
 
-        erts_free(ERTS_ALC_T_TMP, (void*)char_buf);
-        BIF_RET(make_float_term(BIF_P, result));
+            res = do_charbuf_to_float(BIF_P, (char*)char_buf);
+            erts_free(ERTS_ALC_T_TMP, (void*)char_buf);
+            BIF_RET(res);
+        } else if (based_charbuf_to_float((char*)bin_base + offset,
+                                          NBYTES(size),
+                                          base, &result)) {
+            BIF_RET(make_float_term(BIF_P, result));
+        }
     }
 
     BIF_ERROR(BIF_P, BADARG);
