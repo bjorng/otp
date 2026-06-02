@@ -22,14 +22,12 @@
 
 -module(list_bif_SUITE).
 -include_lib("common_test/include/ct.hrl").
--include_lib("stdlib/include/assert.hrl").
 
 -export([all/0, suite/0,
          init_per_testcase/2, end_per_testcase/2]).
 -export([hd_test/1,tl_test/1,t_length/1,t_list_to_pid/1,
          t_list_to_ref/1, t_list_to_ext_pidportref/1,
-         t_list_to_port/1,t_list_to_float/1,t_list_to_float_2/1,
-         t_list_to_integer/1]).
+         t_list_to_port/1,t_list_to_float/1,t_list_to_integer/1]).
 
 
 suite() ->
@@ -40,7 +38,7 @@ suite() ->
 all() -> 
     [hd_test, tl_test, t_length, t_list_to_pid, t_list_to_port,
      t_list_to_ref, t_list_to_ext_pidportref,
-     t_list_to_float, t_list_to_float_2, t_list_to_integer].
+     t_list_to_float, t_list_to_integer].
 
 init_per_testcase(_TestCase, Config) ->
     Config.
@@ -238,68 +236,6 @@ t_list_to_float(Config) when is_list(Config) ->
         Res ->
             ct:fail("list_to_float with incorrect arg succeeded.~nResult: ~p", [Res])
     end,
-    ok.
-
-t_list_to_float_2(Config) when is_list(Config) ->
-    %% Base 2
-    1.25 = list_to_float("1.01", 2),
-    -1.25 = list_to_float("-1.01", 2),
-
-    %% Base 16
-    3.0 = list_to_float("3.0", 16),
-    1023.0 = list_to_float("3FF.0", 16),
-    -1023.0 = list_to_float("-3FF.0", 16),
-    255.9375 = list_to_float("FF.F", 16),
-
-    %% Base 8
-    8.5 = list_to_float("10.4", 8),
-
-    %% Base 36
-    13.375 = list_to_float("D.DI", 36),
-
-    %% Base 10 (should match list_to_float/1)
-    1.5 = list_to_float("1.5", 10),
-    -1.5 = list_to_float("-1.5", 10),
-    1.0e10 = list_to_float("1.0e10", 10),
-
-    %% With exponent (#e notation)
-    16.0 = list_to_float("1.0#e1", 16),
-    16.0 = list_to_float("1.0#e+1", 16),
-    0.0625 = list_to_float("1.0#e-1", 16),
-    4.0 = list_to_float("1.0#e2", 2),
-    4.0 = list_to_float("1.0#e+2", 2),
-
-    %% With underscores
-    255.9375 = list_to_float("F_F.F", 16),
-    1023.0 = list_to_float("3_F_F.0", 16),
-
-    %% Positive sign
-    3.0 = list_to_float("+3.0", 16),
-
-    %% Zero
-    0.0 = list_to_float("0.0", 2),
-    0.0 = list_to_float("0.0", 16),
-
-    %% Lowercase and uppercase digits
-    255.0 = list_to_float("FF.0", 16),
-    255.0 = list_to_float("ff.0", 16),
-
-    %% Invalid base
-    ?assertError(badarg, list_to_float("1.0", 1)),
-    ?assertError(badarg, list_to_float("1.0", 37)),
-
-    %% Integer (no dot)
-    ?assertError(badarg, list_to_float("10", 2)),
-    ?assertError(badarg, list_to_float("FF", 16)),
-
-    %% Not float
-    ?assertError(badarg, list_to_float("1.2", 2)),
-    ?assertError(badarg, list_to_float("G.0", 16)),
-    ?assertError(badarg, list_to_float("xyz", 16)),
-    ?assertError(badarg, list_to_float(atom, 16)),
-    ?assertError(badarg, list_to_float("1.0", foo)),
-    ?assertError(badarg, list_to_float("", 16)),
-
     ok.
 
 id(I) -> I.

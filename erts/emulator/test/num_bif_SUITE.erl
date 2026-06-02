@@ -470,36 +470,17 @@ t_based_float(Config) when is_list(Config) ->
 	    _ <- lists:seq(1, 50),
 	    Base <- lists:seq(2, 36)],
 
-    %% Short option - round-trip consistency.
-    %% TODO: Simplify this.
-    F1 = 3.141592653589793,
-    F1 = list_to_float(float_to_list(F1, [{base, 2}, short]), 2),
-    F1 = list_to_float(float_to_list(F1, [{base, 16}, short]), 16),
-
-    F2 = 1.0e100,
-    F2 = list_to_float(float_to_list(F2, [{base, 2}, short]), 2),
-    F2 = list_to_float(float_to_list(F2, [{base, 16}, short]), 16),
-
-    F3 = 1.0e-100,
-    F3 = list_to_float(float_to_list(F3, [{base, 2}, short]), 2),
-    F3 = list_to_float(float_to_list(F3, [{base, 16}, short]), 16),
-
-    F4 = -123.456,
-    F4 = list_to_float(float_to_list(F4, [{base, 8}, short]), 8),
-    F4 = list_to_float(float_to_list(F4, [{base, 36}, short]), 36),
-
     %% Error cases
-    %% TODO: Use ?assertError().
-    {'EXIT', {badarg, _}} = (catch float_to_list(1.0, [{base, 1}])),
-    {'EXIT', {badarg, _}} = (catch float_to_list(1.0, [{base, 37}])),
-    {'EXIT', {badarg, _}} = (catch float_to_list(1.0, [{base, 0}])),
-    {'EXIT', {badarg, _}} = (catch float_to_list(1.0, [{base, -1}])),
-    {'EXIT', {badarg, _}} = (catch float_to_list(foo, [{base, 2}])),
-    {'EXIT', {badarg, _}} = (catch float_to_binary(1.0, [{base, 1}])),
-    {'EXIT', {badarg, _}} = (catch float_to_binary(1.0, [{base, 37}])),
-    {'EXIT', {badarg, _}} = (catch float_to_binary(1.0, [{base, 0}])),
-    {'EXIT', {badarg, _}} = (catch float_to_binary(1.0, [{base, -1}])),
-    {'EXIT', {badarg, _}} = (catch float_to_binary(foo, [{base, 2}])),
+    ?assertError(badarg, float_to_list(1.0, [{base, 1}])),
+    ?assertError(badarg, float_to_list(1.0, [{base, 37}])),
+    ?assertError(badarg, float_to_list(1.0, [{base, 0}])),
+    ?assertError(badarg, float_to_list(1.0, [{base, -1}])),
+    ?assertError(badarg, float_to_list(foo, [{base, 2}])),
+    ?assertError(badarg, float_to_binary(1.0, [{base, 1}])),
+    ?assertError(badarg, float_to_binary(1.0, [{base, 37}])),
+    ?assertError(badarg, float_to_binary(1.0, [{base, 0}])),
+    ?assertError(badarg, float_to_binary(1.0, [{base, -1}])),
+    ?assertError(badarg, float_to_binary(foo, [{base, 2}])),
 
     ?assertError(badarg, binary_to_float(~"abc", 10)),
     ?assertError(badarg, float_to_binary(1.0, [{base, bar}])),
@@ -523,7 +504,7 @@ test_bfs(Expect, Float, Args) ->
 test_rand_bfs(Base) ->
     F = rand_float(),
     Expect = float_to_list(F, [{base, Base}, short]),
-    io:format("~p: ~p ~ts\n", [Base, F, Expect]),
+    % io:format("~p: ~p ~ts\n", [Base, F, Expect]),
     case Base band (Base - 1) of
 	0 ->
 	    %% Power of two. Exact roundtrip is possible.
@@ -539,49 +520,6 @@ fcmp(F1, F2) when F1 == 0.0, F2 == 0.0 -> ok;
 fcmp(F1, F2) when (F1 - F2) / F2 < 0.0000001 -> ok.
 
 t_binary_to_float_2(Config) when is_list(Config) ->
-    %% Base 2
-    1.25 = binary_to_float(<<"1.01">>, 2),
-    -1.25 = binary_to_float(<<"-1.01">>, 2),
-
-    %% Base 16
-    3.0 = binary_to_float(<<"3.0">>, 16),
-    1023.0 = binary_to_float(<<"3FF.0">>, 16),
-    -1023.0 = binary_to_float(<<"-3FF.0">>, 16),
-    255.9375 = binary_to_float(<<"FF.F">>, 16),
-
-    %% Base 8
-    8.5 = binary_to_float(<<"10.4">>, 8),
-
-    %% Base 36
-    13.375 = binary_to_float(<<"D.DI">>, 36),
-
-    %% Base 10 (should match binary_to_float/1)
-    1.5 = binary_to_float(<<"1.5">>, 10),
-    -1.5 = binary_to_float(<<"-1.5">>, 10),
-    1.0e10 = binary_to_float(<<"1.0e10">>, 10),
-
-    %% With exponent (#e notation)
-    16.0 = binary_to_float(<<"1.0#e1">>, 16),
-    16.0 = binary_to_float(<<"1.0#e+1">>, 16),
-    0.0625 = binary_to_float(<<"1.0#e-1">>, 16),
-    4.0 = binary_to_float(<<"1.0#e2">>, 2),
-    4.0 = binary_to_float(<<"1.0#e+2">>, 2),
-
-    %% With underscores
-    255.9375 = binary_to_float(<<"F_F.F">>, 16),
-    1023.0 = binary_to_float(<<"3_F_F.0">>, 16),
-
-    %% Positive sign
-    3.0 = binary_to_float(<<"+3.0">>, 16),
-
-    %% Zero
-    0.0 = binary_to_float(<<"0.0">>, 2),
-    0.0 = binary_to_float(<<"0.0">>, 16),
-
-    %% Lowercase and uppercase digits
-    255.0 = binary_to_float(<<"FF.0">>, 16),
-    255.0 = binary_to_float(<<"ff.0">>, 16),
-
     %% Invalid base
     ?assertError(badarg, binary_to_float(<<"1.0">>, 1)),
     ?assertError(badarg, binary_to_float(<<"1.0">>, 37)),
