@@ -3439,6 +3439,69 @@ badarg:
     return -1;
 }
 
+enum erl_fmt_type {
+    FMT_LEGACY,
+    FMT_SHORT,
+    FMT_FIXED,
+    FMT_SCIENTIFIC
+};
+
+struct erl_float_opts {
+    int base;
+    enum erl_fmt_type fmt_type;
+    bool compact;
+    int decimals;
+};
+
+static Eterm handle_float_opts(Process *c_p, Eterm Opts, struct erl_float_opts *opts)
+{
+    const Eterm arity_two = make_arityval(2);
+    opts->base = 10;
+    opts->fmt_type = FMT_LEGACY;
+    opts->compact = false;
+    opts->decimals = SYS_DEFAULT_FLOAT_DECIMALS;
+
+    for (; is_list(Opts); Opts = CDR(list_val(Opts))) {
+        Eterm arg = CAR(list_val(Opts));
+        if (arg == am_compact) {
+            opts->compact = true;
+            continue;
+        } else if (is_tuple(arg)) {
+            Eterm* tp = tuple_val(arg);
+            if (*tp == arity_two && is_small(tp[2])) {
+                Sint opt_arg = signed_val(tp[2]);
+                
+                if (tp[1] == am_base) {
+                    if (opt_arg < 2 || opt_arg > 36) {
+                        goto badarg;
+                    }
+                    opts->base = opt_arg;
+                    continue;
+                } else if (tp[1] == am_decimals) {
+                    opts->fmt_type = FMT_FIXED;
+                    /* TODO: Needs range check. */
+                    opts->decimals = opt_arg;
+                    continue;
+                } else if (tp[1] == am_scientific) {
+                    opts->fmt_type = FMT_SCIENTIFIC;
+                    continue;
+                }
+            }
+        } else if (arg == am_short) {
+            opts->fmt_type = FMT_SHORT;
+            continue;
+        }
+        goto badarg;
+    }
+
+    if (is_not_nil(Opts)) {
+    badarg:
+        BIF_ERROR(c_p, BADARG);
+    }
+
+    return am_true;
+}
+
 /* convert a float to a list of ascii characters */
 
 BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, Eterm opts) {
