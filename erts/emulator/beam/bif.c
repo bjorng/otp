@@ -3437,6 +3437,8 @@ static Eterm check_float_args(Process *c_p, Eterm Float, Eterm Opts, struct erl_
                     continue;
                 } else if (tp[1] == am_scientific) {
                     opts->fmt_type = FMT_SCIENTIFIC;
+                    /* TODO: Needs range check. */
+                    opts->decimals = opt_arg;
                     continue;
                 }
             }

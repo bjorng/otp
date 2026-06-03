@@ -134,6 +134,7 @@ t_float_to_string(Config) when is_list(Config) ->
     test_fts("1.00000000000000000000e+00",1.0,  []),
     test_fts("-1.00000000000000000000e+00",-1.0, []),
     test_fts("-1.00000000000000000000",-1.0, [{decimals, 20}]),
+    %% FIXME: Cleanup.
     {'EXIT', {badarg, _}} = (catch float_to_list(1.0,  [{decimals, -1}])),
     {'EXIT', {badarg, _}} = (catch float_to_list(1.0,  [{decimals, 254}])),
     {'EXIT', {badarg, _}} = (catch float_to_list(1.0,  [{scientific, 250}])),
