@@ -194,56 +194,15 @@ static Eterm make_float_term(Process *c_p, double val)
 static int do_based_float_to_charbuf(double num, double frac, struct erl_float_opts *opts,
                                      char *fbuf, int sizeof_fbuf)
 {
-    /* Eterm arity_two = make_arityval(2); */
-    /* int decimals = SYS_DEFAULT_FLOAT_DECIMALS; */
-    /* int compact = 0; */
-    /* enum fmt_type_ { */
-    /*     FMT_LEGACY, */
-    /*     FMT_SHORT, */
-    /*     FMT_FIXED, */
-    /*     FMT_SCIENTIFIC */
-    /* } fmt_type = FMT_LEGACY; */
-    /* Eterm arg; */
-
     enum erl_fmt_type fmt_type = opts->fmt_type;
     int base = opts->base;
     int decimals = opts->decimals;
     bool compact = opts->compact;
-    
+
     char *p = fbuf;
     char int_digits[128];
     int int_len = 0;
     int i, d;
-
-    /* for (; is_list(opts); opts = CDR(list_val(opts))) { */
-    /*     arg = CAR(list_val(opts)); */
-    /*     if (arg == am_compact) { */
-    /*         compact = 1; */
-    /*         continue; */
-    /*     } else if (is_tuple(arg)) { */
-    /*         Eterm* tp = tuple_val(arg); */
-    /*         if (*tp == arity_two && is_small(tp[2])) { */
-    /*             if (tp[1] == am_base) */
-    /*                 continue; */
-    /*             decimals = signed_val(tp[2]); */
-    /*             if (tp[1] == am_decimals) { */
-    /*                 fmt_type = FMT_FIXED; */
-    /*                 continue; */
-    /*             } else if (tp[1] == am_scientific) { */
-    /*                 fmt_type = FMT_SCIENTIFIC; */
-    /*                 continue; */
-    /*             } */
-    /*         } */
-    /*     } else if (arg == am_short) { */
-    /*         fmt_type = FMT_SHORT; */
-    /*         continue; */
-    /*     } */
-    /*     goto badarg; */
-    /* } */
-
-    /* if (is_not_nil(opts)) */
-    /*     goto badarg; */
-
     if (fmt_type == FMT_LEGACY || fmt_type == FMT_SCIENTIFIC) {
         /* One digit before dot */
         int exp = 0;

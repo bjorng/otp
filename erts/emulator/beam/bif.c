@@ -3369,16 +3369,6 @@ BIF_RETTYPE integer_to_list_2(BIF_ALIST_2)
 static int do_float_to_charbuf(Process *p, Eterm efloat, struct erl_float_opts *opts,
                                char *fbuf, int sizeof_fbuf) {
 
-    /* Eterm arity_two = make_arityval(2); */
-    /* int decimals = SYS_DEFAULT_FLOAT_DECIMALS; */
-    /* int compact = 0; */
-    /* enum fmt_type_ { */
-    /*     FMT_LEGACY, */
-    /*     FMT_SHORT, */
-    /*     FMT_FIXED, */
-    /*     FMT_SCIENTIFIC */
-    /* } fmt_type = FMT_LEGACY; */
-    /* Eterm arg; */
     FloatDef f;
     enum erl_fmt_type fmt_type = opts->fmt_type;
 
@@ -3413,7 +3403,7 @@ static Eterm check_float_args(Process *c_p, Eterm Float, Eterm Opts, struct erl_
     if (is_not_float(Float)) {
         goto badarg;
     }
-    
+
     for (; is_list(Opts); Opts = CDR(list_val(Opts))) {
         Eterm arg = CAR(list_val(Opts));
         if (arg == am_compact) {
@@ -3423,7 +3413,7 @@ static Eterm check_float_args(Process *c_p, Eterm Float, Eterm Opts, struct erl_
             Eterm* tp = tuple_val(arg);
             if (*tp == arity_two && is_small(tp[2])) {
                 Sint opt_arg = signed_val(tp[2]);
-                
+
                 if (tp[1] == am_base) {
                     if (opt_arg < 2 || opt_arg > 36) {
                         goto badarg;
@@ -3463,7 +3453,7 @@ static BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, struct erl_float_
     int used;
     Eterm* hp;
     char fbuf[256];
-    
+
     if ((used = do_float_to_charbuf(BIF_P, arg, opts, fbuf, sizeof(fbuf))) <= 0) {
         BIF_ERROR(BIF_P, BADARG);
     }
@@ -3484,12 +3474,12 @@ BIF_RETTYPE float_to_list_2(BIF_ALIST_2)
 {
     struct erl_float_opts opts;
     Eterm res;
-    
+
     res = check_float_args(BIF_P, BIF_ARG_1, BIF_ARG_2, &opts);
     if (is_non_value(res)) {
         BIF_RET(res);
     }
-    
+
     if (opts.base != 10) {
         return erl_based_float_to_list(BIF_P, BIF_ARG_1, &opts);
     } else {
@@ -3523,42 +3513,17 @@ BIF_RETTYPE float_to_binary_2(BIF_ALIST_2)
 {
     struct erl_float_opts opts;
     Eterm res;
-    
+
     res = check_float_args(BIF_P, BIF_ARG_1, BIF_ARG_2, &opts);
     if (is_non_value(res)) {
         BIF_RET(res);
     }
-    
+
     if (opts.base != 10) {
         return erl_based_float_to_binary(BIF_P, BIF_ARG_1, &opts);
     } else {
         return do_float_to_binary(BIF_P, BIF_ARG_1, &opts);
     }
-
-    /* Eterm arity_two = make_arityval(2); */
-    /* Eterm opts = BIF_ARG_2; */
-    /* Eterm arg; */
-    /* SWord base = 10; */
-
-    /* for (; is_list(opts); opts = CDR(list_val(opts))) { */
-    /*     arg = CAR(list_val(opts)); */
-    /*     if (is_tuple(arg)) { */
-    /*         Eterm* tp = tuple_val(arg); */
-    /*         if (*tp == arity_two && tp[1] == am_base && is_small(tp[2])) { */
-    /*             base = signed_val(tp[2]); */
-    /*             continue; */
-    /*         } */
-    /*     } */
-    /* } */
-
-    /* if (base != 10) { */
-    /*     if (is_not_float(BIF_ARG_1) || base < 2 || base > 36) { */
-    /*         BIF_ERROR(BIF_P, BADARG); */
-    /*     } */
-    /*     return erl_based_float_to_binary(BIF_P, BIF_ARG_1, NULL); */
-    /* } */
-
-    /* return do_float_to_binary(BIF_P, BIF_ARG_1, BIF_ARG_2); */
 }
 
 /**********************************************************************/
