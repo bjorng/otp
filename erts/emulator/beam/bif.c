@@ -3498,7 +3498,7 @@ BIF_RETTYPE float_to_list_2(BIF_ALIST_2)
 
 /* convert a float to a binary of ascii characters */
 
-BIF_RETTYPE do_float_to_binary(Process *BIF_P, Eterm arg, Eterm opts) {
+static BIF_RETTYPE do_float_to_binary(Process *BIF_P, Eterm arg, struct erl_float_opts *opts) {
     char fbuf[256];
     int used;
   
