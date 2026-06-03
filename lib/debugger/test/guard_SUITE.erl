@@ -368,7 +368,7 @@ type_tests(Test, [Type|T], Allowed) ->
 		    ok;
 		{'EXIT',Other} ->
 		    ct:fail({unexpected_error_reason,Other});
-		tuple when is_function(Value) ->
+                tuple when is_function(Value) ->
 		    io:format("Standard violation: Test ~p(~p) should fail",
 			      [Test, Value]),
 		    put(violations, get(violations) + 1);
@@ -457,8 +457,8 @@ const_cond(Config) when is_list(Config) ->
 const_cond(T, Sz) ->
     case T of
 	_X when false -> never;
-	_X when is_tuple(T), eq == eq, size(T) == Sz -> ok;
-	_X when is_tuple(T), eq == leq, size(T) =< Sz -> ok;
+        _X when is_tuple(T), eq == eq, size(T) == Sz -> ok;
+        _X when is_tuple(T), eq == leq, size(T) =< Sz -> ok;
 	_X -> error
     end.
 

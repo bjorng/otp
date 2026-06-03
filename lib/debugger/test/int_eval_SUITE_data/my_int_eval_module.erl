@@ -164,7 +164,7 @@ give_me_a_fun_1(Min, Max) ->
     Seq = lists:seq(Min, Max),
     fun (L) when is_list(L) ->
 	    [Info || {Key,Info} <- L, lists:member(Key, Seq)];
-	(T) when is_tuple(T) ->
+        (T) when is_tuple(T) ->
 	    L = tuple_to_list(T),
 	    F = fun({Key,Info}) ->
 			case lists:member(Key, Seq) of

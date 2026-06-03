@@ -80,21 +80,21 @@ f() ->
 %% The following tests are always true.
 ct(X) ->
     case X of
-	Y when is_integer(42) ->
+        Y when is_integer(42) ->
 	    ok;
-	Y when is_float(2.0) ->
+        Y when is_float(2.0) ->
 	    ok;
-	Y when is_number(7) ->
+        Y when is_number(7) ->
 	    ok;
-	Y when is_number(3.14) ->
+        Y when is_number(3.14) ->
 	    ok;
-	Y when is_atom(error) ->
+        Y when is_atom(error) ->
 	    ok;
-	Y when is_list([a]) ->
+        Y when is_list([a]) ->
 	    ok;
-	Y when is_tuple({}) ->
+        Y when is_tuple({}) ->
 	    ok;
-	Y when is_tuple({1, 2}) ->
+        Y when is_tuple({1, 2}) ->
 	    ok
     end.
 

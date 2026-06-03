@@ -33,7 +33,7 @@
 	 or_guard/1,more_or_guards/1,
 	 complex_or_guards/1,and_guard/1,
 	 xor_guard/1,more_xor_guards/1,
-	 complex_guard/1,
+         complex_guard/1,
 	 build_in_guard/1,gbif/1,
 	 t_is_boolean/1,is_function_2/1,
 	 tricky/1,rel_ops/1,rel_op_combinations/1,

@@ -492,7 +492,7 @@ mapfoldr(F, Eas, Accu, []) -> {[],Accu}.
 
 member_1(X, L) when is_list(L) ->
     case erlang:member_1(X, L) of
-	L1 when is_list(L1) ->
+        L1 when is_list(L1) ->
 	    receive after 1 -> ok end,
 	    member_1(X, L1);
 	Boolean ->
@@ -956,7 +956,7 @@ mapfoldr_1(F, Eas, Accu, []) -> {[],Accu}.
 
 member_2(X, L) when is_list(L) ->
     case erlang:member_2(X, L) of
-	L1 when is_list(L1) ->
+        L1 when is_list(L1) ->
 	    receive after 1 -> ok end,
 	    member_2(X, L1);
 	Boolean ->
@@ -1418,7 +1418,7 @@ mapfoldr_2(F, Eas, Accu, []) -> {[],Accu}.
 
 member_3(X, L) when is_list(L) ->
     case erlang:member(X, L) of
-	L1 when is_list(L1) ->
+        L1 when is_list(L1) ->
 	    receive after 1 -> ok end,
 	    member_3(X, L1);
 	Boolean ->
