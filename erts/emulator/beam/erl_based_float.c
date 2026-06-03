@@ -583,8 +583,8 @@ badarg:
     BIF_ERROR(BIF_P, BADARG);
 }
 
-static BIF_RETTYPE based_float_to_binary(Process *BIF_P, Eterm efloat,
-                                         struct erl_float_opts *opts)
+BIF_RETTYPE erl_based_float_to_binary(Process *BIF_P, Eterm efloat,
+                                      struct erl_float_opts *opts)
 {
     FloatDef f;
     char fbuf[256];
