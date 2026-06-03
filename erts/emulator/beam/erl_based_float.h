@@ -37,6 +37,9 @@ struct erl_float_opts {
     int decimals;
 };
 
+
+BIF_RETTYPE erl_based_float_to_list(Process *BIF_P, Eterm arg, struct erl_float_opts *opts);
+
 /* Defined in bif.c, used for base-10 fallback */
 BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, Eterm opts);
 BIF_RETTYPE do_float_to_binary(Process *BIF_P, Eterm arg, Eterm opts);
