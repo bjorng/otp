@@ -3366,8 +3366,8 @@ BIF_RETTYPE integer_to_list_2(BIF_ALIST_2)
 
 /**********************************************************************/
 
-static int do_float_to_charbuf(Process *p, Eterm efloat, Eterm list, 
-			char *fbuf, int sizeof_fbuf) {
+static int do_float_to_charbuf(Process *p, Eterm efloat, struct erl_float_opts *opts,
+                               char *fbuf, int sizeof_fbuf) {
 
     Eterm arity_two = make_arityval(2);
     int decimals = SYS_DEFAULT_FLOAT_DECIMALS;
@@ -3499,7 +3499,7 @@ BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, struct erl_float_opts *o
     Eterm* hp;
     char fbuf[256];
     
-    if ((used = do_float_to_charbuf(BIF_P,arg,opts,fbuf,sizeof(fbuf))) <= 0) {
+    if ((used = do_float_to_charbuf(BIF_P, arg, opts, fbuf, sizeof(fbuf))) <= 0) {
         BIF_ERROR(BIF_P, BADARG);
     }
     hp = HAlloc(BIF_P, (Uint)used*2);
