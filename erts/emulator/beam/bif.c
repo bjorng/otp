@@ -3439,7 +3439,7 @@ badarg:
     return -1;
 }
 
-static Eterm handle_float_opts(Process *c_p, Eterm Opts, struct erl_float_opts *opts)
+static Eterm check_float_args(Process *c_p, Eterm Float, Eterm Opts, struct erl_float_opts *opts)
 {
     const Eterm arity_two = make_arityval(2);
     opts->base = 10;
@@ -3447,6 +3447,10 @@ static Eterm handle_float_opts(Process *c_p, Eterm Opts, struct erl_float_opts *
     opts->compact = false;
     opts->decimals = SYS_DEFAULT_FLOAT_DECIMALS;
 
+    if (is_not_float(Float)) {
+        goto badarg;
+    }
+    
     for (; is_list(Opts); Opts = CDR(list_val(Opts))) {
         Eterm arg = CAR(list_val(Opts));
         if (arg == am_compact) {
@@ -3490,7 +3494,7 @@ static Eterm handle_float_opts(Process *c_p, Eterm Opts, struct erl_float_opts *
 
 /* convert a float to a list of ascii characters */
 
-BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, Eterm opts) {
+BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, struct erl_float_opts *opts) {
     int used;
     Eterm* hp;
     char fbuf[256];
@@ -3505,8 +3509,29 @@ BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, Eterm opts) {
 
 BIF_RETTYPE float_to_list_1(BIF_ALIST_1)
 {
-  return do_float_to_list(BIF_P,BIF_ARG_1,NIL);
+    struct erl_float_opts opts;
+
+    check_float_args(BIF_P, BIF_ARG_1, NIL, &opts);
+    return do_float_to_list(BIF_P, BIF_ARG_1, &opts);
 }
+
+BIF_RETTYPE float_to_list_2(BIF_ALIST_2)
+{
+    struct erl_float_opts opts;
+    Eterm res;
+    
+    res = check_float_args(BIF_P, BIF_ARG_1, BIF_ARG_2, &opts);
+    if (is_non_value(res)) {
+        BIF_RET(res);
+    }
+    
+    if (base != 10) {
+        return erl_based_float_to_list(BIF_P, BIF_ARG_1, &opts);
+    }
+
+    return do_float_to_list(BIF_P, BIF_ARG_1, &opts);
+}
+
 
 /* convert a float to a binary of ascii characters */
 

@@ -582,35 +582,6 @@ badarg:
     BIF_ERROR(BIF_P, BADARG);
 }
 
-
-BIF_RETTYPE float_to_list_2(BIF_ALIST_2)
-{
-    Eterm arity_two = make_arityval(2);
-    Eterm opts = BIF_ARG_2;
-    Eterm arg;
-    SWord base = 10;
-
-    for (; is_list(opts); opts = CDR(list_val(opts))) {
-        arg = CAR(list_val(opts));
-        if (is_tuple(arg)) {
-            Eterm* tp = tuple_val(arg);
-            if (*tp == arity_two && tp[1] == am_base && is_small(tp[2])) {
-                base = signed_val(tp[2]);
-                continue;
-            }
-        }
-    }
-
-    if (base != 10) {
-        if (is_not_float(BIF_ARG_1) || base < 2 || base > 36) {
-            BIF_ERROR(BIF_P, BADARG);
-        }
-        return based_float_to_list(BIF_P, BIF_ARG_1, base, BIF_ARG_2);
-    }
-
-    return do_float_to_list(BIF_P, BIF_ARG_1, BIF_ARG_2);
-}
-
 static BIF_RETTYPE based_float_to_binary(Process *BIF_P, Eterm efloat, int base,
                                        Eterm opts)
 {
