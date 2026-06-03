@@ -81,21 +81,21 @@ f() ->
 ct(X) ->
     case X of
         Y when is_integer(42) ->
-	    ok;
+            ok;
         Y when is_float(2.0) ->
-	    ok;
+            ok;
         Y when is_number(7) ->
-	    ok;
+            ok;
         Y when is_number(3.14) ->
-	    ok;
+            ok;
         Y when is_atom(error) ->
-	    ok;
+            ok;
         Y when is_list([a]) ->
-	    ok;
+            ok;
         Y when is_tuple({}) ->
-	    ok;
+            ok;
         Y when is_tuple({1, 2}) ->
-	    ok
+            ok
     end.
 
 multi(X) ->
