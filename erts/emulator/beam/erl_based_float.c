@@ -191,53 +191,58 @@ static Eterm make_float_term(Process *c_p, double val)
     return res;
 }
 
-static int do_based_float_to_charbuf(double num, double frac, int base,
-                                     Eterm opts, char *fbuf, int sizeof_fbuf)
+static int do_based_float_to_charbuf(double num, double frac, struct erl_float_opts *opts,
+                                     char *fbuf, int sizeof_fbuf)
 {
-    Eterm arity_two = make_arityval(2);
-    int decimals = SYS_DEFAULT_FLOAT_DECIMALS;
-    int compact = 0;
-    enum fmt_type_ {
-        FMT_LEGACY,
-        FMT_SHORT,
-        FMT_FIXED,
-        FMT_SCIENTIFIC
-    } fmt_type = FMT_LEGACY;
-    Eterm arg;
+    /* Eterm arity_two = make_arityval(2); */
+    /* int decimals = SYS_DEFAULT_FLOAT_DECIMALS; */
+    /* int compact = 0; */
+    /* enum fmt_type_ { */
+    /*     FMT_LEGACY, */
+    /*     FMT_SHORT, */
+    /*     FMT_FIXED, */
+    /*     FMT_SCIENTIFIC */
+    /* } fmt_type = FMT_LEGACY; */
+    /* Eterm arg; */
 
+    enum erl_fmt_type fmt_type = opts->fmt_type;
+    int base = opts->base;
+    int decimals = opts->decimals;
+    bool compact = opts->compact;
+    
     char *p = fbuf;
     char int_digits[128];
     int int_len = 0;
     int i, d;
 
-    for (; is_list(opts); opts = CDR(list_val(opts))) {
-        arg = CAR(list_val(opts));
-        if (arg == am_compact) {
-            compact = 1;
-            continue;
-        } else if (is_tuple(arg)) {
-            Eterm* tp = tuple_val(arg);
-            if (*tp == arity_two && is_small(tp[2])) {
-                if (tp[1] == am_base)
-                    continue;
-                decimals = signed_val(tp[2]);
-                if (tp[1] == am_decimals) {
-                    fmt_type = FMT_FIXED;
-                    continue;
-                } else if (tp[1] == am_scientific) {
-                    fmt_type = FMT_SCIENTIFIC;
-                    continue;
-                }
-            }
-        } else if (arg == am_short) {
-            fmt_type = FMT_SHORT;
-            continue;
-        }
-        goto badarg;
-    }
+    /* for (; is_list(opts); opts = CDR(list_val(opts))) { */
+    /*     arg = CAR(list_val(opts)); */
+    /*     if (arg == am_compact) { */
+    /*         compact = 1; */
+    /*         continue; */
+    /*     } else if (is_tuple(arg)) { */
+    /*         Eterm* tp = tuple_val(arg); */
+    /*         if (*tp == arity_two && is_small(tp[2])) { */
+    /*             if (tp[1] == am_base) */
+    /*                 continue; */
+    /*             decimals = signed_val(tp[2]); */
+    /*             if (tp[1] == am_decimals) { */
+    /*                 fmt_type = FMT_FIXED; */
+    /*                 continue; */
+    /*             } else if (tp[1] == am_scientific) { */
+    /*                 fmt_type = FMT_SCIENTIFIC; */
+    /*                 continue; */
+    /*             } */
+    /*         } */
+    /*     } else if (arg == am_short) { */
+    /*         fmt_type = FMT_SHORT; */
+    /*         continue; */
+    /*     } */
+    /*     goto badarg; */
+    /* } */
 
-    if (is_not_nil(opts))
-        goto badarg;
+    /* if (is_not_nil(opts)) */
+    /*     goto badarg; */
 
     if (fmt_type == FMT_LEGACY || fmt_type == FMT_SCIENTIFIC) {
         /* One digit before dot */
@@ -540,11 +545,7 @@ static int do_based_float_to_charbuf(double num, double frac, int base,
         return (int)(p - fbuf);
     }
 
-
     return (int)(p - fbuf);
-
-badarg:
-    return -1;
 }
 
 BIF_RETTYPE erl_based_float_to_list(Process *BIF_P, Eterm efloat,
@@ -569,7 +570,7 @@ BIF_RETTYPE erl_based_float_to_list(Process *BIF_P, Eterm efloat,
 
     frac = modf(f.fd, &num);
 
-    used = do_based_float_to_charbuf(num, frac, base, opts,
+    used = do_based_float_to_charbuf(num, frac, opts,
                                      p, sizeof(fbuf) - (int)(p - fbuf));
     if (used <= 0)
         goto badarg;
@@ -582,8 +583,8 @@ badarg:
     BIF_ERROR(BIF_P, BADARG);
 }
 
-static BIF_RETTYPE based_float_to_binary(Process *BIF_P, Eterm efloat, int base,
-                                       Eterm opts)
+static BIF_RETTYPE based_float_to_binary(Process *BIF_P, Eterm efloat,
+                                         struct erl_float_opts *opts)
 {
     FloatDef f;
     char fbuf[256];
@@ -603,7 +604,7 @@ static BIF_RETTYPE based_float_to_binary(Process *BIF_P, Eterm efloat, int base,
 
     frac = modf(f.fd, &num);
 
-    used = do_based_float_to_charbuf(num, frac, base, opts,
+    used = do_based_float_to_charbuf(num, frac, opts,
                                      p, sizeof(fbuf) - (int)(p - fbuf));
     if (used <= 0)
         goto badarg;
@@ -613,34 +614,6 @@ static BIF_RETTYPE based_float_to_binary(Process *BIF_P, Eterm efloat, int base,
 
 badarg:
     BIF_ERROR(BIF_P, BADARG);
-}
-
-BIF_RETTYPE float_to_binary_2(BIF_ALIST_2)
-{
-    Eterm arity_two = make_arityval(2);
-    Eterm opts = BIF_ARG_2;
-    Eterm arg;
-    SWord base = 10;
-
-    for (; is_list(opts); opts = CDR(list_val(opts))) {
-        arg = CAR(list_val(opts));
-        if (is_tuple(arg)) {
-            Eterm* tp = tuple_val(arg);
-            if (*tp == arity_two && tp[1] == am_base && is_small(tp[2])) {
-                base = signed_val(tp[2]);
-                continue;
-            }
-        }
-    }
-
-    if (base != 10) {
-        if (is_not_float(BIF_ARG_1) || base < 2 || base > 36) {
-            BIF_ERROR(BIF_P, BADARG);
-        }
-        return based_float_to_binary(BIF_P, BIF_ARG_1, base, BIF_ARG_2);
-    }
-
-    return do_float_to_binary(BIF_P, BIF_ARG_1, BIF_ARG_2);
 }
 
 BIF_RETTYPE list_to_float_2(BIF_ALIST_2)
