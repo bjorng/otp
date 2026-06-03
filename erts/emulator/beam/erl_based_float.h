@@ -23,6 +23,20 @@
 #ifndef ERL_BASED_FLOAT_H__
 #define ERL_BASED_FLOAT_H__
 
+enum erl_fmt_type {
+    FMT_LEGACY,
+    FMT_SHORT,
+    FMT_FIXED,
+    FMT_SCIENTIFIC
+};
+
+struct erl_float_opts {
+    int base;
+    enum erl_fmt_type fmt_type;
+    bool compact;
+    int decimals;
+};
+
 /* Defined in bif.c, used for base-10 fallback */
 BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, Eterm opts);
 BIF_RETTYPE do_float_to_binary(Process *BIF_P, Eterm arg, Eterm opts);

@@ -3439,20 +3439,6 @@ badarg:
     return -1;
 }
 
-enum erl_fmt_type {
-    FMT_LEGACY,
-    FMT_SHORT,
-    FMT_FIXED,
-    FMT_SCIENTIFIC
-};
-
-struct erl_float_opts {
-    int base;
-    enum erl_fmt_type fmt_type;
-    bool compact;
-    int decimals;
-};
-
 static Eterm handle_float_opts(Process *c_p, Eterm Opts, struct erl_float_opts *opts)
 {
     const Eterm arity_two = make_arityval(2);
@@ -3505,15 +3491,15 @@ static Eterm handle_float_opts(Process *c_p, Eterm Opts, struct erl_float_opts *
 /* convert a float to a list of ascii characters */
 
 BIF_RETTYPE do_float_to_list(Process *BIF_P, Eterm arg, Eterm opts) {
-  int used;
-  Eterm* hp;
-  char fbuf[256];
-  
-  if ((used = do_float_to_charbuf(BIF_P,arg,opts,fbuf,sizeof(fbuf))) <= 0) {
-    BIF_ERROR(BIF_P, BADARG);
-  }
-  hp = HAlloc(BIF_P, (Uint)used*2);
-  BIF_RET(buf_to_intlist(&hp, fbuf, (Uint)used, NIL));
+    int used;
+    Eterm* hp;
+    char fbuf[256];
+    
+    if ((used = do_float_to_charbuf(BIF_P,arg,opts,fbuf,sizeof(fbuf))) <= 0) {
+        BIF_ERROR(BIF_P, BADARG);
+    }
+    hp = HAlloc(BIF_P, (Uint)used*2);
+    BIF_RET(buf_to_intlist(&hp, fbuf, (Uint)used, NIL));
 }
   
 
