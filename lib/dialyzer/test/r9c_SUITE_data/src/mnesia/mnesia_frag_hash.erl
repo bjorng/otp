@@ -46,7 +46,7 @@ init_state(_Tab, State) when State == undefined ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-add_frag(State) when record(State, hash_state) ->
+add_frag(State) when is_record(State, hash_state) ->
     SplitN = State#hash_state.next_n_to_split,
     P = SplitN + 1,
     L = State#hash_state.n_doubles,
@@ -64,7 +64,7 @@ add_frag(State) when record(State, hash_state) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-del_frag(State) when record(State, hash_state) ->
+del_frag(State) when is_record(State, hash_state) ->
     P = State#hash_state.next_n_to_split - 1,
     L = State#hash_state.n_doubles,
     N = State#hash_state.n_fragments,
@@ -85,7 +85,7 @@ del_frag(State) when record(State, hash_state) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-key_to_frag_number(State, Key) when record(State, hash_state) ->
+key_to_frag_number(State, Key) when is_record(State, hash_state) ->
     L = State#hash_state.n_doubles,
     A = erlang:phash(Key, trunc(math:pow(2, L))),
     P = State#hash_state.next_n_to_split,
@@ -98,9 +98,9 @@ key_to_frag_number(State, Key) when record(State, hash_state) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-match_spec_to_frag_numbers(State, MatchSpec) when record(State, hash_state) ->
+match_spec_to_frag_numbers(State, MatchSpec) when is_record(State, hash_state) ->
     case MatchSpec of
-	[{HeadPat, _, _}] when tuple(HeadPat), size(HeadPat) > 2 ->
+        [{HeadPat, _, _}] when is_tuple(HeadPat), size(HeadPat) > 2 ->
 	    KeyPat = element(2, HeadPat),
 	    case has_var(KeyPat) of
 		false ->

@@ -421,7 +421,7 @@ set_read_lock_on_all_keys(Tid, From, Tab, [RealKey | Tail], Orig, Ack) ->
 	yes ->
 	    {granted, Val} = grant_lock(Tid, read, read, Oid),
 	    case opt_lookup_in_client(Val, Oid, read) of  % Ought to be invoked
-		C when record(C, cyclic) ->               % in the client
+                C when is_record(C, cyclic) ->               % in the client
 		    reply(From, {not_granted, C});
 		Val2 ->
 		    Ack2 = lists:append(Val2, Ack),
@@ -691,7 +691,7 @@ do_sticky_lock(Tid, Store, {Tab, Key} = Oid, Lock) ->
 	    granted;
 	{?MODULE, _N, {granted, Val}} -> %% for rwlocks
 	    case opt_lookup_in_client(Val, Oid, write) of
-		C when record(C, cyclic) ->
+                C when is_record(C, cyclic) ->
 		    exit({aborted, C});
 		Val2 ->
 		    ?ets_insert(Store, {{locks, Tab, Key}, write}),
@@ -820,7 +820,7 @@ receive_wlocks([Node | Tail], Res, Store, Oid) ->
 	{?MODULE, Node, {granted, Val}} -> %% for rwlocks
 	    del_debug(Node),
 	    case opt_lookup_in_client(Val, Oid, write) of
-		C when record(C, cyclic) ->
+                C when is_record(C, cyclic) ->
 		    flush_remaining(Tail, Node, {aborted, C});
 		Val2 ->
 		    receive_wlocks(Tail, Val2, Store, Oid)
@@ -934,7 +934,7 @@ rlock_get_reply(Node, Store, Oid, {granted, V}) ->
     ?ets_insert(Store, {{locks, Tab, Key}, read}),
     ?ets_insert(Store, {nodes, Node}),
     case opt_lookup_in_client(V, Oid, read) of
-	C when record(C, cyclic) ->
+        C when is_record(C, cyclic) ->
 	    mnesia:abort(C);
 	Val ->
 	    Val

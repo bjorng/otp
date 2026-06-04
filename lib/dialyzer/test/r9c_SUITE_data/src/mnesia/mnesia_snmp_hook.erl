@@ -38,7 +38,7 @@ check_ustruct([{key, Types}]) ->
     is_snmp_type(to_list(Types));
 check_ustruct(_) -> false.
 
-to_list(Tuple) when tuple(Tuple) -> tuple_to_list(Tuple);
+to_list(Tuple) when is_tuple(Tuple) -> tuple_to_list(Tuple);
 to_list(X) -> [X].
 
 is_snmp_type([integer | T]) -> is_snmp_type(T);
@@ -112,7 +112,7 @@ update(Op, Tree, MnesiaKey, _) ->
 key_to_oid(Tab, Key, [{key, Types}]) ->
     MnesiaOid = {Tab, Key},
     if
-	tuple(Key), tuple(Types) ->
+        is_tuple(Key), is_tuple(Types) ->
 	    case {size(Key), size(Types)} of
 		{Size, Size} ->
 		    keys_to_oid(MnesiaOid, Size, Key, [], Types);
@@ -123,9 +123,9 @@ key_to_oid(Tab, Key, [{key, Types}]) ->
 	    key_to_oid_i(MnesiaOid, Key, Types)
     end.
 
-key_to_oid_i(_MnesiaOid, Key, integer) when integer(Key) -> [Key];
-key_to_oid_i(_MnesiaOid, Key, fix_string) when list(Key) -> Key;
-key_to_oid_i(_MnesiaOid, Key, string) when list(Key) -> [length(Key) | Key];
+key_to_oid_i(_MnesiaOid, Key, integer) when is_integer(Key) -> [Key];
+key_to_oid_i(_MnesiaOid, Key, fix_string) when is_list(Key) -> Key;
+key_to_oid_i(_MnesiaOid, Key, string) when is_list(Key) -> [length(Key) | Key];
 key_to_oid_i(MnesiaOid, Key, Type) ->
     exit({bad_snmp_key, [MnesiaOid, Key, Type]}).
 
