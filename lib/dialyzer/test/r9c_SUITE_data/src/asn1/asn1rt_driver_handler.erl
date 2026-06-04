@@ -73,12 +73,12 @@ open_named_port(From) ->
 
 is_port_open(Name) ->
     case whereis(Name) of
-	Port when port(Port) ->
+        Port when is_port(Port) ->
 	    true;
 	_ -> false
     end.
 
-register_and_loop(Port) when port(Port) ->
+register_and_loop(Port) when is_port(Port) ->
     register(asn1_driver_owner,self()),
     loop();
 register_and_loop(_) ->
@@ -88,7 +88,7 @@ loop() ->
     receive
 	unload ->
 	    case whereis(drv_complete) of
-		Port when port(Port) ->
+                Port when is_port(Port) ->
 		    port_close(Port);
 		_ -> ok
 	    end,
@@ -100,7 +100,7 @@ loop() ->
 
 unload_driver() ->
     case whereis(asn1_driver_owner) of
-	Pid when pid(Pid) ->
+        Pid when is_pid(Pid) ->
 	    Pid ! unload,
 	    ok;
 	_ ->
