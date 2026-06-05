@@ -12,13 +12,13 @@
 -define(LIST(S), (S)#?TAG.data).
 -define(TYPE(S), (S)#?TAG.type).
 -define(SET(L, T), #?TAG{data = L, type = T}).
--define(IS_SET(S), record(S, ?TAG)).
+-define(IS_SET(S), is_record(S, ?TAG)).
 
 %% Ordered sets and atoms:
 -define(ORDDATA(S), (S)#?ORDTAG.orddata).
 -define(ORDTYPE(S), (S)#?ORDTAG.ordtype).
 -define(ORDSET(L, T), #?ORDTAG{orddata = L, ordtype = T}).
--define(IS_ORDSET(S), record(S, ?ORDTAG)).
+-define(IS_ORDSET(S), is_record(S, ?ORDTAG)).
 
 %% When IS_SET is true:
 -define(ANYTYPE, '_').
@@ -69,7 +69,7 @@ match_types1(_, ?ANYTYPE) ->
     true;
 match_types1(?SET_OF(Type1), ?SET_OF(Type2)) ->
     match_types1(Type1, Type2);
-match_types1(T1, T2) when tuple(T1), tuple(T2), size(T1) =:= size(T2) ->
+match_types1(T1, T2) when is_tuple(T1), is_tuple(T2), size(T1) =:= size(T2) ->
     match_typesl(size(T1), T1, T2);
 match_types1(_T1, _T2) ->
     false.
