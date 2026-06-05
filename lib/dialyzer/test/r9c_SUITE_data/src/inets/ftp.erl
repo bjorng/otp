@@ -1352,7 +1352,7 @@ sock_name(Sock) ->
   {IP, Port}.
 
 sock_listen_port(LSock) ->
-  {ok, Port} = inet:is_port(LSock),
+  {ok, Port} = inet:port(LSock),
   Port.
 
 
