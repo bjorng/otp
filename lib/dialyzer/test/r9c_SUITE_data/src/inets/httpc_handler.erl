@@ -34,7 +34,7 @@
 
 %%% ==========================================================================
 %%% "Main" function in the spawned process for the session.
-init_connection(Req,Session) when record(Req,request) ->
+init_connection(Req,Session) when is_record(Req,request) ->
     case catch http_lib:connect(Req) of
 	{ok,Socket} ->
 	    case catch http_request(Req,Socket) of
@@ -254,7 +254,7 @@ headers(#req_headers{expect=Expect,
 
 headers_other([]) ->
     [];
-headers_other([{Key,Value}|Rest]) when atom(Key) ->
+headers_other([{Key,Value}|Rest]) when is_atom(Key) ->
     Head = atom_to_list(Key)++": "++Value++"\r\n",
     Head ++ headers_other(Rest);
 headers_other([{Key,Value}|Rest]) ->

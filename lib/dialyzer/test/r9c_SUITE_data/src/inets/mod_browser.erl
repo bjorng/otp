@@ -116,7 +116,7 @@ browserType(Unknown)->
 
 browserVersion([$/|VsnString]) ->
     case catch list_to_float(VsnString) of
-	Number when float(Number) ->
+        Number when is_float(Number) ->
 	    Number;
 	Whatever ->
 	    case string:span(VsnString,"1234567890.") of

@@ -217,9 +217,9 @@ recv({ssl,SSLConfig},Socket,Length,Timeout) ->
     ssl:recv(Socket,Length,Timeout).
 
 -ifdef(inets_debug).
-data_size(L) when list(L) ->
+data_size(L) when is_list(L) ->
     httpd_util:flatlength(L);
-data_size(B) when binary(B) ->
+data_size(B) when is_binary(B) ->
     size(B);
 data_size(O) ->
     {unknown_size,O}.
@@ -352,7 +352,7 @@ ssl_password(ConfigDB) ->
 		    [];
 		Function ->
 		    case catch apply(Module, Function, []) of
-			Password when list(Password) ->
+                        Password when is_list(Password) ->
 			    [{password, Password}];
 			Error ->
 			    error_report(ssl_password,Module,Function,Error),

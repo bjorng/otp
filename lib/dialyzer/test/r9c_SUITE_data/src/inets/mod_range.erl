@@ -213,7 +213,7 @@ send_part_start(SocketType,Socket,FileDescriptor,Start,End) ->
 	from_start ->
 	    file:position(FileDescriptor,{bof,End}),
 	    send_body(SocketType,Socket,FileDescriptor);
-	Byte when integer(Byte) ->
+        Byte when is_integer(Byte) ->
 	    file:position(FileDescriptor,{bof,Start}),
 	    send_part(SocketType,Socket,FileDescriptor,End)
     end,

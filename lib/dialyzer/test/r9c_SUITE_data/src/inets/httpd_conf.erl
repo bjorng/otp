@@ -210,13 +210,13 @@ load_traverse(Line, [Context|Contexts], [Module|Modules], NewContexts, ConfigLis
 		    ?CDEBUG("load_traverse -> ~n"
 			    "     NewContext: ~p",[NewContext]),
 		    load_traverse(Line, Contexts, Modules, [NewContext|NewContexts], ConfigList,yes);
-		{ok, NewContext, ConfigEntry} when tuple(ConfigEntry) ->
+                {ok, NewContext, ConfigEntry} when is_tuple(ConfigEntry) ->
 		    ?CDEBUG("load_traverse (tuple) -> ~n"
 			    "     NewContext:  ~p~n"
 			    "     ConfigEntry: ~p",[NewContext,ConfigEntry]),
 		    load_traverse(Line, Contexts, Modules, [NewContext|NewContexts],
 				  [ConfigEntry|ConfigList], yes);
-		{ok, NewContext, ConfigEntry} when list(ConfigEntry) ->
+                {ok, NewContext, ConfigEntry} when is_list(ConfigEntry) ->
 		    ?CDEBUG("load_traverse (list) -> ~n"
 			    "     NewContext:  ~p~n"
 			    "     ConfigEntry: ~p",[NewContext,ConfigEntry]),
@@ -486,14 +486,14 @@ store(ConfigDB, ConfigList, Modules, [ConfigListEntry|Rest]) ->
     ?CDEBUG("store -> "
 	"~n   ConfigListEntry: ~p",[ConfigListEntry]),
     case store_traverse(ConfigListEntry,ConfigList,Modules) of
-	{ok, ConfigDBEntry} when tuple(ConfigDBEntry) ->
+        {ok, ConfigDBEntry} when is_tuple(ConfigDBEntry) ->
 	    ?vtrace("store -> ConfigDBEntry(tuple): "
 		    "~n   ~p",[ConfigDBEntry]),
 	    ?CDEBUG("store -> ConfigDBEntry(tuple): "
 		    "~n   ~p",[ConfigDBEntry]),
 	    ets:insert(ConfigDB,ConfigDBEntry),
 	    store(ConfigDB,ConfigList,Modules,Rest);
-	{ok, ConfigDBEntry} when list(ConfigDBEntry) ->
+        {ok, ConfigDBEntry} when is_list(ConfigDBEntry) ->
 	    ?vtrace("store -> ConfigDBEntry(list): "
 		    "~n   ~p",[ConfigDBEntry]),
 	    ?CDEBUG("store -> ConfigDBEntry(list): "

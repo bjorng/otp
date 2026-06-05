@@ -878,7 +878,7 @@ stop_block_tmr(Ref) ->
 
 
 %% Monitor blocker functions
-monitor_blocker(Pid) when pid(Pid) ->
+monitor_blocker(Pid) when is_pid(Pid) ->
     case (catch erlang:monitor(process,Pid)) of
 	MonitorRef ->
 	    MonitorRef;
@@ -916,21 +916,21 @@ update_status_with_time(Status,Key) ->
 universal_time() -> calendar:universal_time().
 
 
-auth_status(P) when pid(P) ->
+auth_status(P) when is_pid(P) ->
     Items = [status, message_queue_len, reductions,
 	     heap_size, stack_size, current_function],
     {auth_status, process_status(P,Items,[])};
 auth_status(_) ->
     {auth_status, undefined}.
 
-sec_status(P) when pid(P) ->
+sec_status(P) when is_pid(P) ->
     Items = [status, message_queue_len, reductions,
 	     heap_size, stack_size, current_function],
     {security_status, process_status(P,Items,[])};
 sec_status(_) ->
     {security_status, undefined}.
 
-acceptor_status(P) when pid(P) ->
+acceptor_status(P) when is_pid(P) ->
     Items = [status, message_queue_len, reductions,
 	     heap_size, stack_size, current_function],
     {acceptor_status, process_status(P,Items,[])};
@@ -972,7 +972,7 @@ set_verbosity(V) ->
     case httpd_util:key1search(V, all) of
 	undefined ->
 	    set_verbosity(V, Units);
-	Verbosity when atom(Verbosity) ->
+        Verbosity when is_atom(Verbosity) ->
 	    V1 = [{Unit, Verbosity} || Unit <- Units],
 	    set_verbosity(V1, Units)
     end.

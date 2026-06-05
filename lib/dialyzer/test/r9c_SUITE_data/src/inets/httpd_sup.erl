@@ -96,9 +96,9 @@ start_link2(ConfigList, Verbosity) ->
 
 
 
-stop(Pid) when pid(Pid) ->
+stop(Pid) when is_pid(Pid) ->
     do_stop(Pid);
-stop(ConfigFile) when list(ConfigFile) ->
+stop(ConfigFile) when is_list(ConfigFile) ->
     case get_addr_and_port(ConfigFile) of
 	{ok, _, Addr, Port} ->
 	    stop(Addr, Port);
@@ -110,17 +110,17 @@ stop(StartArgs) ->
     ok.
 
 
-stop(Addr, Port) when integer(Port) ->
+stop(Addr, Port) when is_integer(Port) ->
     Name = make_name(Addr, Port),
     case whereis(Name) of
-	Pid when pid(Pid) ->
+        Pid when is_pid(Pid) ->
 	    do_stop(Pid),
 	    ok;
 	_ ->
 	    not_started
     end.
 
-stop2(ConfigList) when list(ConfigList) ->
+stop2(ConfigList) when is_list(ConfigList) ->
     {ok, Addr, Port} = get_addr_and_port2(ConfigList),
     stop(Addr, Port).
 

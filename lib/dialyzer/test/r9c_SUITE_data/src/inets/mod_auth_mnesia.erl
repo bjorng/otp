@@ -156,7 +156,7 @@ get_user(DirData, UserName) ->
 	    {error, Reason};
 	{'atomic',[]} ->
 	    {error, no_such_user};
-	{'atomic', [Record]} when record(Record, httpd_user) ->
+        {'atomic', [Record]} when is_record(Record, httpd_user) ->
 	    {ok, Record#httpd_user{username=UserName}};
 	Other ->
 	    {error, no_such_user}

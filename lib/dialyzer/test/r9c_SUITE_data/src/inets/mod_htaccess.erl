@@ -823,7 +823,7 @@ insertData(AccessData,FileData)->
 	    lists:foreach(fun(Elem)->
 				  ets:insert(AccessData,Elem)
 			  end,FileData);
-	[{allow_over_ride,Directives}]when list(Directives)->
+        [{allow_over_ride,Directives}]when is_list(Directives)->
 	    lists:foreach(fun({Key,Value})->
 				  case lists:member(Key,Directives) of
 				      true->

@@ -203,10 +203,10 @@ create_settings([{http_autoredirect,Val}|Settings],Out) ->
 create_settings([{http_ssl,Val}|Settings],Out) ->
     create_settings(Settings,Out#client_settings{ssl=Val});
 create_settings([{http_pipelinesize,Val}|Settings],Out)
-  when integer(Val),Val>0 ->
+  when is_integer(Val),Val>0 ->
     create_settings(Settings,Out#client_settings{max_quelength=Val});
 create_settings([{http_sessions,Val}|Settings],Out)
-  when integer(Val),Val>0 ->
+  when is_integer(Val),Val>0 ->
     create_settings(Settings,Out#client_settings{max_sessions=Val});
 create_settings([{Key,_Val}|_Settings],_Out) ->
     io:format("ERROR bad settings, got ~p~n",[Key]),

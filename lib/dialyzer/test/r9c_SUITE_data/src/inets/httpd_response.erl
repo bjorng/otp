@@ -239,7 +239,7 @@ send_body(_, _, nobody) ->
     ok;
 
 send_body(#mod{socket_type = Type, socket = Sock},
-	  StatusCode, Body) when list(Body) ->
+          StatusCode, Body) when is_list(Body) ->
     ?vtrace("deliver body of size ~p", [length(Body)]),
     httpd_socket:deliver(Type, Sock, Body);
 

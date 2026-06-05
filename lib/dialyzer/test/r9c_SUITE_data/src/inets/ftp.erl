@@ -78,7 +78,7 @@ open({option_list,Option_list})->
 
 
 %%The only option was the tuple form of the ip-number
-open(Host)when tuple(Host) ->
+open(Host)when is_tuple(Host) ->
     open(Host, ?FTP_PORT, []);
 
 %%Host is the string form of the hostname
@@ -87,13 +87,13 @@ open(Host)->
 
 
 
-open(Host, Port) when integer(Port) ->
+open(Host, Port) when is_integer(Port) ->
     open(Host,Port,[]);
 
-open(Host, Flags) when list(Flags) ->
+open(Host, Flags) when is_list(Flags) ->
     open(Host,?FTP_PORT, Flags).
 
-open(Host,Port,Flags) when integer(Port), list(Flags) ->
+open(Host,Port,Flags) when is_integer(Port), is_list(Flags) ->
     %% Dbg = {debug,[trace,log,statistics]},
     %% Options = [Dbg],
     Options = [],
@@ -271,7 +271,7 @@ send(Pid, LFile, RFile) ->
 %% Args:     Pid = pid(), Bin = binary(), RFile = string()
 %% Returns:  ok | {error, epath} | {error, elogin} | {error, enotbinary}
 %%           | {error, econn}
-send_bin(Pid, Bin, RFile) when binary(Bin) ->
+send_bin(Pid, Bin, RFile) when is_binary(Bin) ->
   gen_server:call(Pid, {send_bin, Bin, RFile}, infinity);
 send_bin(Pid, Bin, RFile) ->
   {error, enotbinary}.
@@ -300,7 +300,7 @@ append_chunk_start(Pid, RFile) ->
 %% Args:     Pid = pid(), Bin = binary().
 %% Returns:  ok | {error, elogin} | {error, enotbinary} | {error, echunk}
 %%           | {error, econn}
-send_chunk(Pid, Bin) when binary(Bin) ->
+send_chunk(Pid, Bin) when is_binary(Bin) ->
   gen_server:call(Pid, {send_chunk, Bin}, infinity);
 send_chunk(Pid, Bin) ->
   {error, enotbinary}.
@@ -311,7 +311,7 @@ send_chunk(Pid, Bin) ->
 %% Args:     Pid = pid(), Bin = binary().
 %% Returns:  ok | {error, elogin} | {error, enotbinary} | {error, echunk}
 %%           | {error, econn}
-append_chunk(Pid, Bin) when binary(Bin) ->
+append_chunk(Pid, Bin) when is_binary(Bin) ->
   gen_server:call(Pid, {append_chunk, Bin}, infinity);
 append_chunk(Pid, Bin) ->
   {error, enotbinary}.
@@ -349,7 +349,7 @@ append(Pid, LFile, RFile) ->
 %% Args:     Pid = pid(), Bin = binary(), RFile = string()
 %% Returns:  ok | {error, epath} | {error, elogin} | {error, enotbinary}
 %%           | {error, econn}
-append_bin(Pid, Bin, RFile) when binary(Bin) ->
+append_bin(Pid, Bin, RFile) when is_binary(Bin) ->
   gen_server:call(Pid, {append_bin, Bin, RFile}, infinity);
 append_bin(Pid, Bin, RFile) ->
   {error, enotbinary}.
@@ -1352,7 +1352,7 @@ sock_name(Sock) ->
   {IP, Port}.
 
 sock_listen_port(LSock) ->
-  {ok, Port} = inet:port(LSock),
+  {ok, Port} = inet:is_port(LSock),
   Port.
 
 

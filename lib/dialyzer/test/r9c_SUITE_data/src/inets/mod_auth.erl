@@ -534,7 +534,7 @@ remove(ConfigDB) ->
 update_password(Port, Dir, Old, New, New)->
     update_password(undefined, Port, Dir, Old, New, New).
 
-update_password(Addr, Port, Dir, Old, New, New) when list(New) ->
+update_password(Addr, Port, Dir, Old, New, New) when is_list(New) ->
     mod_auth_server:update_password(Addr, Port, Dir, Old, New);
 
 update_password(_Addr, _Port, _Dir, _Old, New, New) ->
@@ -712,9 +712,9 @@ list_group_members(GroupName, Addr, Port, Dir) ->
 %%        {authPassword, AuthPassword} | FunctionSpecificData]
 get_options(Opt, mandatory)->
     case httpd_util:key1search(Opt, port, undefined) of
-	Port when integer(Port) ->
+        Port when is_integer(Port) ->
 	    case httpd_util:key1search(Opt, dir, undefined) of
-		Dir when list(Dir) ->
+                Dir when is_list(Dir) ->
 		    Addr = httpd_util:key1search(Opt,
 						 addr,
 						 undefined),

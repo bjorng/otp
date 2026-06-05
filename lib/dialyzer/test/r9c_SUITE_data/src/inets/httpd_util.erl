@@ -377,9 +377,9 @@ e(X) ->                     exit({bad_encode_base64_token, X}).
 flatlength(List) ->
     flatlength(List, 0).
 
-flatlength([H|T],L) when list(H) ->
+flatlength([H|T],L) when is_list(H) ->
     flatlength(H,flatlength(T,L));
-flatlength([H|T],L) when binary(H) ->
+flatlength([H|T],L) when is_binary(H) ->
     flatlength(T,L+size(H));
 flatlength([H|T],L) ->
     flatlength(T,L+1);
@@ -530,10 +530,10 @@ do_split(String,RegExp,Limit) ->
     end.
 
 %% header
-header(StatusCode,Date)when list(Date)->
+header(StatusCode,Date)when is_list(Date)->
     header(StatusCode,"text/plain",false);
 
-header(StatusCode, PersistentConnection) when integer(StatusCode)->
+header(StatusCode, PersistentConnection) when is_integer(StatusCode)->
     Date = rfc1123_date(),
     Connection =
 	case PersistentConnection of
@@ -548,11 +548,11 @@ header(StatusCode, PersistentConnection) when integer(StatusCode)->
 
 %%----------------------------------------------------------------------
 
-header(StatusCode, MimeType, Date) when list(Date) ->
+header(StatusCode, MimeType, Date) when is_list(Date) ->
     header(StatusCode, MimeType, false,rfc1123_date());
 
 
-header(StatusCode, MimeType, PersistentConnection) when integer(StatusCode) ->
+header(StatusCode, MimeType, PersistentConnection) when is_integer(StatusCode) ->
     header(StatusCode, MimeType, PersistentConnection,rfc1123_date()).
 
 
@@ -573,7 +573,7 @@ header(416, MimeType,PersistentConnection,Date)->
 		   Date, ?SERVER_SOFTWARE, MimeType, Connection]);
 
 
-header(StatusCode, MimeType,PersistentConnection,Date) when integer(StatusCode)->
+header(StatusCode, MimeType,PersistentConnection,Date) when is_integer(StatusCode)->
     Connection =
 	case PersistentConnection of
 	    true ->
