@@ -469,7 +469,9 @@ eval_is([#b_set{op={bif,_},dst=Dst}=I0|Is], From, Bs, St) ->
             eval_is(Is, From, Bs, St)
     end;
 eval_is([#b_set{op=Op,dst=Dst}=I|Is], From, Bs, St)
-  when Op =:= is_tagged_tuple; Op =:= is_nonempty_list ->
+  when Op =:= is_tagged_tuple;
+       Op =:= is_nonempty_list;
+       Op =:= is_record_accessible ->
     #b_set{args=Args} = sub(I, Bs),
     case eval_test(Op, Args, St) of
         #b_literal{}=Val ->
@@ -650,6 +652,8 @@ normalize_test(is_tagged_tuple, [Arg,#b_literal{val=Size},#b_literal{val=Tag}])
     {{is_tagged_tuple,Size,Tag},Arg};
 normalize_test(is_nonempty_list, [Arg]) ->
     {is_nonempty_list,Arg};
+normalize_test(is_record_accessible, [Arg,#b_literal{val=How}]) ->
+    {{is_record_accessible,How},Arg};
 normalize_test({bif,Bif}, [Arg]) ->
     case erl_internal:new_type_test(Bif, 1) of
         true -> {Bif,Arg};
