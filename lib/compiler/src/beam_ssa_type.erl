@@ -685,6 +685,8 @@ benefits_from_type_anno(get_map_element, _Args) ->
     true;
 benefits_from_type_anno(has_map_field, _Args) ->
     true;
+benefits_from_type_anno(is_record_accessible, _Args) ->
+    true;
 
 %% The types are used to avoid falsely detecting aliasing of
 %% non-boxed things.
@@ -953,6 +955,24 @@ simplify(#b_set{op=bs_create_bin=Op,dst=Dst,args=Args0,anno=Anno}=I0,
                 end,
             I = beam_ssa:add_anno(unit, Unit, I2),
             Ts = Ts0#{ Dst => T },
+            Ds = Ds0#{ Dst => I },
+            {I, Ts, Ds}
+    end;
+simplify(#b_set{op=is_record_accessible,args=Args0,dst=Dst}=I0,
+         _Uvs, Ts0, Ds0, _Ls, Sub) ->
+    Args = simplify_args(Args0, Ts0, Sub),
+    [Var, _] = Args,
+    VarType = normalized_type(Var, Ts0),
+    case VarType of
+        #t_record{exported=yes} ->
+            Lit = #b_literal{val=true},
+            Sub#{ Dst => Lit};
+        #t_record{exported=no} ->
+            Lit = #b_literal{val=false},
+            Sub#{ Dst => Lit};
+        _ ->
+            I = I0#b_set{args=Args},
+            Ts = update_types(I, Ts0, Ds0),
             Ds = Ds0#{ Dst => I },
             {I, Ts, Ds}
     end;
