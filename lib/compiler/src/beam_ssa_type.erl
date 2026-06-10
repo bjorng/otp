@@ -965,9 +965,6 @@ simplify(#b_set{op=is_record_accessible,args=Args0,dst=Dst}=I0,
         #t_record{exported=yes} ->
             Lit = #b_literal{val=true},
             Sub#{ Dst => Lit};
-        #t_record{exported=no} ->
-            Lit = #b_literal{val=false},
-            Sub#{ Dst => Lit};
         _ ->
             I = I0#b_set{args=Args},
             Ts = update_types(I, Ts0, Ds0),
