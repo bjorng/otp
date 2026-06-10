@@ -685,8 +685,6 @@ benefits_from_type_anno(get_map_element, _Args) ->
     true;
 benefits_from_type_anno(has_map_field, _Args) ->
     true;
-benefits_from_type_anno(is_record_accessible, _Args) ->
-    true;
 
 %% The types are used to avoid falsely detecting aliasing of
 %% non-boxed things.
