@@ -2950,6 +2950,12 @@ infer_type({bif,'and'}, [#b_var{}=LHS,#b_var{}=RHS], Ts, Ds) ->
 
     True = beam_types:make_atom(true),
     {[{LHS, True}, {RHS, True}] ++ LHSPos ++ RHSPos, []};
+infer_type(is_record_accessible, [#b_var{}=R,#b_literal{val=external}],
+	   Ts, _Ds) ->
+    T0 = concrete_type(R, Ts),
+    T1 = T0#t_record{exported=yes},
+    T = {R, T1},
+    {[T], []};
 infer_type(_Op, _Args, _Ts, _Ds) ->
     {[], []}.
 
