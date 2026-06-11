@@ -633,6 +633,10 @@ t_integer_to_string_large(Config) when is_list(Config) ->
     NegPow = -PowBase10,
     NegList = integer_to_list(NegPow),
     NegPow = list_to_integer(NegList),
+
+    %% Try a an integer near the system limit.
+    9943072 = bit_size(integer_to_binary(1 bsl (63 bsl 16))),
+
     ok.
 
 check_int_to_str_size(NumDigits, Base) ->
