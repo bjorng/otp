@@ -3020,9 +3020,7 @@ static dsize_t barrett_divmod(ErtsDigit *v, dsize_t vl,
         /* Should not happen with the +1 ErtsDigit precision; safety
          * fallback. v is unmodified at this point so I_div_dispatch
          * may destroy it. */
-        erts_free(ERTS_ALC_T_TMP, prod);
-        erts_free(ERTS_ALC_T_TMP, qd);
-        return I_div_dispatch(v, vl, d, dsz, q, r, rsz_out);
+        ERTS_INTERNAL_ERROR("cannot happen");
     }
     rsz = I_sub(v, v_trim, qd, qd_sz, r);
 
@@ -3037,9 +3035,7 @@ static dsize_t barrett_divmod(ErtsDigit *v, dsize_t vl,
             if (corrections > BARRETT_MAX_CORRECTIONS) {
                 /* Should not exceed 2 in theory; safety fallback. v is
                  * unmodified by the steps above (I_sub reads only). */
-                erts_free(ERTS_ALC_T_TMP, prod);
-                erts_free(ERTS_ALC_T_TMP, qd);
-                return I_div_dispatch(v, vl, d, dsz, q, r, rsz_out);
+                ERTS_INTERNAL_ERROR("too many corrections");
             }
         }
     }
@@ -3089,11 +3085,8 @@ static void write_big_dc_padded(ErtsDigit *v, dsize_t vl, int base,
     }
     if (i < 0) {
         /* width > THRESHOLD but all cache widths exceed width/2 — only
-         * possible when no cache was built. Fall through to schoolbook. */
-        n = write_big_simple(v, vl, base, out_end_pp, width);
-        ASSERT(n == width);
-        (void) n;
-        return;
+         * possible when no cache was built. */
+        ERTS_INTERNAL_ERROR("unexpected missing cache");
     }
 
     p = c->vals[i];
