@@ -1686,6 +1686,12 @@ match_value(Us0, cg_map=T, Cs0, Def, St0) ->
     {Cs1,St1} = remove_unreachable(Cs0, St0),
     {Us1,Cs2,St2} = partition_intersection(Us0, Cs1, St1),
     do_match_value(Us1, T, Cs2, Def, St2);
+match_value(Us0, cg_record=T, Cs0, Def, St0) ->
+    %% {Cs1,St1} = remove_unreachable(Cs0, St0),
+    Cs1 = Cs0,
+    St1 = St0,
+    {Us1,Cs2,St2} = partition_intersection(Us0, Cs1, St1),
+    do_match_value(Us1, T, Cs2, Def, St2);
 match_value(Us0, T, Cs0, Def, St0) ->
     do_match_value(Us0, T, Cs0, Def, St0).
 
@@ -1765,6 +1771,14 @@ partition_keys(#cg_map{es=Pairs}=Map, Ks) ->
         end,
     {Ps1,Ps2} = partition(F, Pairs),
     {Map#cg_map{es=Ps1},Map#cg_map{es=Ps2}};
+partition_keys(#cg_record{rec=#cg_record_id{es=Es0}=Rid}=R, Ks) ->
+    F = fun(#cg_record_pair{key=Key}) ->
+                sets:is_element(Key, Ks)
+        end,
+    #cg_record_pairs{es=Ps0} = Es0,
+    {Ps1,Ps2} = partition(F, Ps0),
+    {R#cg_record{rec=Rid#cg_record_id{es=Es0#cg_record_pairs{es=Ps1}}},
+     R#cg_record{rec=Rid#cg_record_id{es=Es0#cg_record_pairs{es=Ps2}}}};
 partition_keys(#ialias{pat=Map}=Alias, Ks) ->
     %% Only alias one of them.
     {Map1,Map2} = partition_keys(Map, Ks),
@@ -2263,6 +2277,8 @@ arg_val(Arg, C) ->
                          %% as intended.
                          erts_internal:cmp_term(A, B) < 0
                  end, [Key || #cg_map_pair{key=Key} <:- Es]);
+        #cg_record{rec=#cg_record_id{es=Pairs}} ->
+            arg_val(Pairs, C);
         #cg_record_pairs{es=Es} ->
             sort([K || #cg_record_pair{key=K} <:- Es])
     end.
