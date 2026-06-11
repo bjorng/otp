@@ -610,6 +610,8 @@ test_its(List,Int,Base) ->
 %% list_to_integer/binary_to_integer. Includes negatives and the
 %% high-half-zero split case (a power of the rendering base).
 t_integer_to_string_large(Config) when is_list(Config) ->
+    rand_seed(),
+
     Sizes = [240, 250, 260,                 % WRITE_BIG_DC_THRESHOLD = 250
              499, 500, 501,                 % 2 * threshold (use_dc gate)
              999, 1000, 1001,               % first D&C split level
@@ -617,13 +619,13 @@ t_integer_to_string_large(Config) when is_list(Config) ->
              7999, 8000, 8001,              % spans BARRETT_LEVEL_THRESHOLD = 100 ErtsDigit
              16383, 16384, 16385,
              65535, 65536, 65537],          % deep recursion through the cache
-    Bases = [2, 8, 10, 16, 36],
-    Seed = rand:seed_s(exsplus, {1, 2, 3}),
-    lists:foldl(fun(Size, S0) ->
-                        lists:foldl(fun(Base, S1) ->
-                                            check_int_to_str_size(Size, Base, S1)
-                                    end, S0, Bases)
-                end, Seed, Sizes),
+    ImportantBases = [2, 8, 10, 16, 36],
+    Bases = lists:seq(2, 36),
+    _ = [check_int_to_str_size(Size, Base) ||
+            Size <- Sizes,
+            Base <- Bases,
+            Size < 10_000 orelse lists:member(Base, ImportantBases)],
+
     %% Power of base => high-half-zero branch in write_big_dc_padded.
     PowBase10 = pow_int(10, 1024),
     PowList = integer_to_list(PowBase10),
@@ -633,8 +635,8 @@ t_integer_to_string_large(Config) when is_list(Config) ->
     NegPow = list_to_integer(NegList),
     ok.
 
-check_int_to_str_size(NumDigits, Base, S0) ->
-    {N, S1} = random_int_with_digits(NumDigits, Base, S0),
+check_int_to_str_size(NumDigits, Base) ->
+    N = random_int_with_digits(NumDigits, Base),
     Pos = N,
     Neg = -N,
     PosList = integer_to_list(Pos, Base),
@@ -656,20 +658,11 @@ check_int_to_str_size(NumDigits, Base, S0) ->
             Pos = binary_to_integer(PosBin);
         _ ->
             ok
-    end,
-    S1.
+    end.
 
-random_int_with_digits(NumDigits, Base, S0) ->
-    %% Build an integer with exactly NumDigits in the given base by
-    %% picking a non-zero leading digit and uniform-random remaining
-    %% digits, then evaluating the polynomial.
-    {Lead, S1} = rand:uniform_s(Base - 1, S0),
-    {Tail, S2} = lists:foldl(fun(_, {Acc, Si}) ->
-                                     {D, Sn} = rand:uniform_s(Base, Si),
-                                     {[D - 1 | Acc], Sn}
-                             end, {[], S1}, lists:seq(1, NumDigits - 1)),
-    Digits = [Lead | lists:reverse(Tail)],
-    {lists:foldl(fun(D, Acc) -> Acc * Base + D end, 0, Digits), S2}.
+random_int_with_digits(NumDigits, Base) ->
+    N = pow_int(Base, NumDigits-1),
+    N + rand:uniform(N).
 
 pow_int(_, 0) -> 1;
 pow_int(B, N) when N rem 2 =:= 0 ->
