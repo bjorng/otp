@@ -3271,15 +3271,7 @@ static Uint write_big(Eterm x, int base, void (*write_func)(void *, char),
         MOVE_DIGITS(tmp, dx, xl);
 
         if (!build_dc_powers(&cache, base, width_estimate)) {
-            /* Cache build refused (overflow); fall back to schoolbook. */
-            buf = (char *) erts_alloc(ERTS_ALC_T_TMP, width_estimate);
-            out_end = buf + width_estimate;
-            n = write_big_simple(tmp, xl, base, &out_end, 0);
-            for (i = 0; i < n; i++) {
-                (*write_func)(arg, out_end[n - 1 - i]);
-            }
-            erts_free(ERTS_ALC_T_TMP, buf);
-            erts_free(ERTS_ALC_T_TMP, tmp);
+            ERTS_INTERNAL_ERROR("cache build failed");
         } else {
             buf = (char *) erts_alloc(ERTS_ALC_T_TMP, width_estimate);
             out_end = buf + width_estimate;
