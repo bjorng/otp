@@ -207,20 +207,24 @@ void BeamModuleAssembler::emit_i_jump_on_val(const ArgSource &Src,
 
     ASSERT(Size.get() == args.size());
 
+    if (Fail.isNil()) {
+        /* NIL means fallthrough to the next instruction. */
+        fail = a.new_label();
+    }
+
     mov_arg(ARG1, Src);
 
-    a.mov(RETd, ARG1d);
-    a.and_(RETb, imm(_TAG_IMMED1_MASK));
-    a.cmp(RETb, imm(_TAG_IMMED1_SMALL));
-
-    if (Fail.isLabel()) {
-        a.jne(resolve_beam_label(Fail));
+    if (always_small(Src)) {
+        comment("(skipped type test)");
     } else {
-        /* NIL means fallthrough to the next instruction. */
-        ASSERT(Fail.isNil());
-
-        fail = a.new_label();
-        a.short_().jne(fail);
+        a.mov(RETd, ARG1d);
+        a.and_(RETb, imm(_TAG_IMMED1_MASK));
+        a.cmp(RETb, imm(_TAG_IMMED1_SMALL));
+        if (Fail.isLabel()) {
+            a.jne(resolve_beam_label(Fail));
+        } else {
+            a.short_().jne(fail);
+        }
     }
 
     a.sar(ARG1, imm(_TAG_IMMED1_SIZE));
