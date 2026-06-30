@@ -127,7 +127,10 @@ ber_encode(Tlv) when is_binary(Tlv) ->
     Tlv;
 ber_encode(Tlv) ->
     {T1,Bin} = timer:tc(fun() -> asn1rt_nif:encode_ber_tlv(Tlv) end),
-    {T2,OtherBin} = timer:tc(fun() -> iolist_to_binary(do_ber_encode(Tlv)) end),
+    {T2,OtherBin} = timer:tc(fun() ->
+                                     {L,_} = do_ber_encode(Tlv),
+                                     iolist_to_binary(L)
+                             end),
     io:format("times: ~p ~p\n", [T1,T2]),
     case OtherBin of
         Bin ->
@@ -143,22 +146,31 @@ ber_encode(Tlv) ->
 do_ber_encode({Tag,Primitive}) when is_binary(Primitive) ->
     case byte_size(Primitive) of
         Size when Size < 16#80, is_integer(Tag, 0, 30) ->
-            [<<Tag,Size>>,Primitive];
+            {[<<Tag,Size>>,Primitive], Size + 2};
         Size ->
-            [ber_encode_tag(Tag, ?PRIMITIVE),ber_encode_length(Size),Primitive]
+            EnTag = ber_encode_tag(Tag, ?PRIMITIVE),
+            EnSize = ber_encode_length(Size),
+            {[EnTag, EnSize, Primitive], Size + byte_size(EnTag) + byte_size(EnSize)}
     end;
 do_ber_encode({Tag,Constructed0}) when is_list(Constructed0) ->
-    Constructed = ber_encode_list(Constructed0),
-    case iolist_size(Constructed) of
-        Size when Size < 16#80, is_integer(Tag, 0, 30) ->
-            [<<(Tag bor ?CONSTRUCTED),Size>> | Constructed];
-        Size ->
-            [ber_encode_tag(Tag, ?CONSTRUCTED),ber_encode_length(Size) | Constructed]
+    {Constructed,Size} = ber_encode_list(Constructed0),
+    if
+        is_integer(Size, 0, 16#80), is_integer(Tag, 0, 30) ->
+            {[<<(Tag bor ?CONSTRUCTED),Size>> | Constructed], Size + 2};
+        true ->
+            EnTag = ber_encode_tag(Tag, ?CONSTRUCTED),
+            EnSize = ber_encode_length(Size),
+            {[EnTag, EnSize | Constructed], Size + byte_size(EnTag) + byte_size(EnSize)}
     end.
 
-ber_encode_list([H|T]) ->
-    do_ber_encode(H) ++ ber_encode_list(T);
-ber_encode_list([]) -> [].
+%% ber_encode_list([H0]) ->
+%%     do_ber_encode(H0);
+ber_encode_list([H0|T0]) ->
+    {H,Sz0} = do_ber_encode(H0),
+    {T,Sz1} = ber_encode_list(T0),
+    {[H|T],Sz0+Sz1};
+ber_encode_list([]) ->
+    {[],0}.
 
 ber_encode_length(Length) when Length < 16#80 ->
     <<Length>>;
