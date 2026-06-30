@@ -126,7 +126,36 @@ ber_encode([Tlv]) ->
 ber_encode(Tlv) when is_binary(Tlv) ->
     Tlv;
 ber_encode(Tlv) ->
-    asn1rt_nif:encode_ber_tlv(Tlv).
+    Bin = asn1rt_nif:encode_ber_tlv(Tlv),
+    Bin = iolist_to_binary(do_ber_encode(Tlv))
+
+ber_encode({Tag,Primitive}) when is_list(Constructed) ->
+    Constructed = ber_encode(Constructed0),
+    Size = iolist_size(Constructed),
+    [ber_encode_tag(Tag, ?PRIMITIVE),ber_encode_size(Size),Constructed];
+ber_encode({Tag,Constructed0}) when is_list(Constructed) ->
+    Constructed = ber_encode(Constructed0),
+    Size = iolist_size(Constructed),
+    [ber_encode_tag(Tag, ?CONSTRUCTED),ber_encode_size(Size),Constructed];
+ber_encode([H|T]) ->
+    ber_encode(H) ++ ber_encode(T);
+ber_encode([]) -> [].
+
+ber_encode_size(Size) when Size < 128 ->
+    <<Size>>;
+ber_encode_size(Size) ->
+    {L,_} = encode_length(Size),
+    list_to_binary(L).
+
+ber_encode_tag(Tag0, Form) ->
+    Tag = Tag band 16#ffff,
+    HeadTag = (Tag bsr 10) bor Form,
+    if
+        Tag < 30 ->
+            <<(HeadTag bor Tag):8>>;
+        true ->
+            blurf
+
 
 ber_decode_nif(B) ->
     asn1rt_nif:decode_ber_tlv(B).
