@@ -126,20 +126,33 @@ ber_encode([Tlv]) ->
 ber_encode(Tlv) when is_binary(Tlv) ->
     Tlv;
 ber_encode(Tlv) ->
-    Bin = asn1rt_nif:encode_ber_tlv(Tlv),
-    Bin = iolist_to_binary(do_ber_encode(Tlv))
+    {T1,Bin} = timer:tc(fun() -> asn1rt_nif:encode_ber_tlv(Tlv) end),
+    {T2,OtherBin} = timer:tc(fun() -> iolist_to_binary(ber_encode_1(Tlv)) end),
+    io:format("times: ~p ~p\n", [T1,T2]),
+    case OtherBin of
+        Bin ->
+            io:format("~P\n", [Bin,10]),
+            Bin;
+        Wrong ->
+            io:format("~p", [Tlv]),
+            io:format("~p\n~p\n", [Bin,Wrong]),
+            Bin
+    end.
 
-ber_encode({Tag,Primitive}) when is_list(Constructed) ->
-    Constructed = ber_encode(Constructed0),
-    Size = iolist_size(Constructed),
-    [ber_encode_tag(Tag, ?PRIMITIVE),ber_encode_size(Size),Constructed];
-ber_encode({Tag,Constructed0}) when is_list(Constructed) ->
-    Constructed = ber_encode(Constructed0),
+ber_encode_1({Tag,Primitive}) when is_binary(Primitive) ->
+    case byte_size(Primitive) of
+        Size when Size < 16#80, Tag =< 30 ->
+            [<<Tag,Size>>,Primitive];
+        Size ->
+            [ber_encode_tag(Tag, ?PRIMITIVE),ber_encode_size(Size),Primitive]
+    end;
+ber_encode_1({Tag,Constructed0}) when is_list(Constructed0) ->
+    Constructed = ber_encode_1(Constructed0),
     Size = iolist_size(Constructed),
     [ber_encode_tag(Tag, ?CONSTRUCTED),ber_encode_size(Size),Constructed];
-ber_encode([H|T]) ->
-    ber_encode(H) ++ ber_encode(T);
-ber_encode([]) -> [].
+ber_encode_1([H|T]) ->
+    ber_encode_1(H) ++ ber_encode_1(T);
+ber_encode_1([]) -> [].
 
 ber_encode_size(Size) when Size < 128 ->
     <<Size>>;
@@ -148,14 +161,19 @@ ber_encode_size(Size) ->
     list_to_binary(L).
 
 ber_encode_tag(Tag0, Form) ->
-    Tag = Tag band 16#ffff,
-    HeadTag = (Tag bsr 10) bor Form,
-    if
-        Tag < 30 ->
+    HeadTag = ((Tag0 band 16#30000) bsr 10) bor Form,
+    case Tag0 band 16#ffff of
+        Tag when Tag =< 30 ->
             <<(HeadTag bor Tag):8>>;
-        true ->
-            blurf
+        Tag ->
+            ber_encode_tag_1(Tag bsr 7, HeadTag bor 16#1f, 0, Tag band 16#7f)
+    end.
 
+ber_encode_tag_1(0, HeadTag, Size, Acc) ->
+    <<HeadTag:8,Acc:Size/little-integer>>;
+ber_encode_tag_1(Tag, HeadTag, Size, Acc0) ->
+    Acc = (Acc0 bsl 8) bor (Tag band 16#7f),
+    ber_encode_tag_1(Tag bsr 7, HeadTag, Size + 8, Acc).
 
 ber_decode_nif(B) ->
     asn1rt_nif:decode_ber_tlv(B).
