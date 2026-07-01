@@ -191,6 +191,8 @@ static Eterm make_float_term(Process *c_p, double val)
     return res;
 }
 
+#define FORMAT_DIGIT(d) (((d) < 10) ? '0' + d : ('a' - 10) + d)
+
 static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
                                      char *fbuf, int sizeof_fbuf)
 {
@@ -237,7 +239,7 @@ static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
 
         d = (int)val;
         if (d >= base) d = base - 1;
-        *p++ = (d < 10) ? '0' + d : 'a' + d - 10;
+        *p++ = FORMAT_DIGIT(d);
         val -= d;
 
         *p++ = '.';
@@ -245,7 +247,7 @@ static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
             val *= base;
             d = (int)val;
             if (d >= base) d = base - 1;
-            *p++ = (d < 10) ? '0' + d : 'a' + d - 10;
+            *p++ = FORMAT_DIGIT(d);
             val -= d;
         }
 
@@ -283,7 +285,7 @@ static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
             unsigned long ip = (unsigned long)num;
             while (ip > 0) {
                 d = ip % base;
-                int_digits[int_len++] = (d < 10) ? '0' + d : 'a' + d - 10;
+                int_digits[int_len++] = FORMAT_DIGIT(d);
                 ip /= base;
             }
         }
@@ -295,7 +297,7 @@ static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
             frac *= base;
             d = (int)frac;
             if (d >= base) d = base - 1;
-            *p++ = (d < 10) ? '0' + d : 'a' + d - 10;
+            *p++ = FORMAT_DIGIT(d);
             frac -= d;
         }
 
@@ -356,7 +358,7 @@ static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
 
             d = (int)sv;
             if (d >= base) d = base - 1;
-            *sp++ = (d < 10) ? '0' + d : 'a' + d - 10;
+            *sp++ = FORMAT_DIGIT(d);
             sv -= d;
 
             *sp++ = '.';
@@ -364,7 +366,7 @@ static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
                 sv *= base;
                 d = (int)sv;
                 if (d >= base) d = base - 1;
-                *sp++ = (d < 10) ? '0' + d : 'a' + d - 10;
+                *sp++ = FORMAT_DIGIT(d);
                 sv -= d;
             }
 
