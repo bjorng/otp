@@ -225,20 +225,19 @@ static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
         int exp = 0;
         double val = num + frac;
 
-        if (val >= (double)base) {
-            while (val >= (double)base) {
-                val /= (double)base;
-                exp++;
-            }
-        } else if (val > 0.0 && val < 1.0) {
+        if (val > 0.0 && val < 1.0) {
             while (val < 1.0) {
                 val *= (double)base;
                 exp--;
             }
         }
 
+        while (val >= (double)base) {
+            val /= (double)base;
+            exp++;
+        }
+
         d = (int)val;
-        if (d >= base) d = base - 1;
         *p++ = FORMAT_DIGIT(d);
         val -= d;
 
@@ -246,14 +245,17 @@ static int do_based_float_to_charbuf(Eterm efloat, struct erl_float_opts *opts,
         for (i = 0; i < decimals; i++) {
             val *= base;
             d = (int)val;
-            if (d >= base) d = base - 1;
             *p++ = FORMAT_DIGIT(d);
             val -= d;
         }
 
         if (compact) {
-            while (p > fbuf + 2 && *(p - 1) == '0' && *(p - 2) != '.')
+            while (p[-1] == '0') {
+                ASSERT(p > fbuf);
                 p--;
+            }
+            if (p[-1] == '.')
+                p++;
         }
 
         /* Exponent in decimal */
