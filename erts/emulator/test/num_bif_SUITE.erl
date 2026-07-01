@@ -466,6 +466,25 @@ t_based_float(Config) when is_list(Config) ->
     _ = [?assertEqual(1.0, list_to_float(OneDotZero, Base)) ||
             Base <- lists:seq(2, 36)],
 
+    %% Test a number as close to 1 as we can get
+    AlmostOne = 1 - math:pow(2, -53),
+    io:format("~p\n", [AlmostOne]),
+    _ = [begin
+             Args = [{base, Base} | Opts],
+             io:format("~p\n", [Args]),
+             Bin = float_to_binary(AlmostOne, Args),
+             io:format("~p ~p\n", [Args,Bin]),
+             AlmostOne = binary_to_float(Bin, Base)
+         end ||
+            Base <- lists:seq(2, 36),
+            %% Base band (Base - 1) =:= 0,
+            Opts <- [[short],
+                     [{scientific, 64}],
+                     [{scientific, 64}, compact],
+                     [{decimals, 64}],
+                     [{decimals, 64}, compact]
+                    ]],
+
     %% Test random floats
     _ = [test_rand_bfs(Base) ||
             _ <- lists:seq(1, 50),
@@ -505,7 +524,7 @@ test_bfs(Expect, Float, Args) ->
 test_rand_bfs(Base) ->
     F = rand_float(),
     Expect = float_to_list(F, [{base, Base}, short]),
-    % io:format("~p: ~p ~ts\n", [Base, F, Expect]),
+    %% io:format("~p: ~p ~ts\n", [Base, F, Expect]),
     case Base band (Base - 1) of
         0 ->
             %% Power of two. Exact roundtrip is possible.
