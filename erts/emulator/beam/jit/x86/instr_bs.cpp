@@ -3150,6 +3150,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
 
     bool is_ctx_valid = false;
     bool is_position_valid = false;
+    bool is_base_valid = false;
     bool next_instr_clobbers = false;
     int count = segments.size();
 
@@ -3199,7 +3200,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                     mov_imm(tmp, unit);
                     a.div(tmp);
                     a.test(x86::rdx, x86::rdx);
-                    is_ctx_valid = is_position_valid = false;
+                    is_ctx_valid = is_position_valid = is_base_valid = false;
                 } else {
                     a.test(RETb, imm(unit - 1));
                 }
@@ -3261,7 +3262,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
         case BsmSegment::action::TEST_HEAP: {
             comment("test_heap %ld", seg.size);
             emit_gc_test(ArgWord(0), ArgWord(seg.size), seg.live);
-            is_ctx_valid = is_position_valid = false;
+            is_ctx_valid = is_position_valid = is_base_valid = false;
             break;
         }
         case BsmSegment::action::READ: {
@@ -3277,8 +3278,13 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                     a.mov(bin_position, emit_boxed_val(ctx, start_offset));
                     is_position_valid = true;
                 }
-                a.mov(bin_base, emit_boxed_val(ctx, base_offset));
-                a.and_(bin_base, imm(~ERL_SUB_BITS_FLAG_MASK));
+                if (is_base_valid) {
+                    comment("skipped reloading of base address");
+                } else {
+                    a.mov(bin_base, emit_boxed_val(ctx, base_offset));
+                    a.and_(bin_base, imm(~ERL_SUB_BITS_FLAG_MASK));
+                    is_base_valid = true;
+                }
                 a.add(emit_boxed_val(ctx, start_offset), imm(seg.size));
 
                 emit_read_bits(seg.size, bin_base, bin_position, bitdata);
@@ -3334,8 +3340,13 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                 is_position_valid = true;
             }
 
-            a.mov(bin_base, emit_boxed_val(ctx, base_offset));
-            a.and_(bin_base, imm(~ERL_SUB_BITS_FLAG_MASK));
+            if (is_base_valid) {
+                comment("skipped reloading of base address");
+            } else {
+                a.mov(bin_base, emit_boxed_val(ctx, base_offset));
+                a.and_(bin_base, imm(~ERL_SUB_BITS_FLAG_MASK));
+                is_base_valid = true;
+            }
             a.add(emit_boxed_val(ctx, start_offset), imm(seg.size));
             emit_read_integer(bin_base, bin_position, tmp, flags, bits, Dst);
 
@@ -3368,7 +3379,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
 
             mov_arg(Dst, RET);
 
-            is_ctx_valid = is_position_valid = false;
+            is_ctx_valid = is_position_valid = is_base_valid = false;
             break;
         }
         case BsmSegment::action::GET_BITSTRING: {
@@ -3406,7 +3417,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
             emit_leave_runtime<Update::eHeapOnlyAlloc>();
             mov_arg(seg.dst, RET);
 
-            is_ctx_valid = is_position_valid = false;
+            is_ctx_valid = is_position_valid = is_base_valid = false;
             break;
         }
         case BsmSegment::action::GET_TAIL: {
@@ -3418,7 +3429,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
             }
             safe_fragment_call(ga->get_bs_get_tail_shared());
             mov_arg(seg.dst, RET);
-            is_ctx_valid = is_position_valid = false;
+            is_ctx_valid = is_position_valid = is_base_valid = false;
             break;
         }
         case BsmSegment::action::SKIP: {
