@@ -1822,7 +1822,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
 
     /* Generate code for calculating the size of the binary to be
      * created. */
-    for (auto seg : segments) {
+    for (const auto &seg : segments) {
         if (seg.effectiveSize >= 0) {
             continue;
         }
@@ -2161,7 +2161,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
     bool is_byte_aligned = true;
 
     /* Build each segment of the binary. */
-    for (auto seg : segments) {
+    for (const auto &seg : segments) {
         switch (seg.type) {
         case am_append:
         case am_private_append:
