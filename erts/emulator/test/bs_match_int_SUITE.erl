@@ -736,6 +736,42 @@ mixed_sizes(_Config) ->
                   {A,B,C,D,E,F,G,H}
           end),
 
+    %% The `bs_match` instruction caches in CPU registers information
+    %% from the match state. If an operation (such as a function call
+    %% to the runtime system) clobbers this cached information, the
+    %% next operation must reload anything that was clobbered. The
+    %% following test attempts to provoke clobbering of the cache
+    %% registers.
+    mixed(fun({A,B,C,D,E,F,G,H,I}) when is_integer(B) ->
+                  %% All components are integers. The resulting binary
+                  %% will only be used to determine the size.
+                  <<A:20,B:10/unit:8,C:10,D:70,E:11,
+                    F:64/integer,G:17,H:8,I:15>>;
+             ({A,B,C,D,E,F,G,H,I}) when is_binary(B) ->
+                  %% Build binary from components extracted from the
+                  %% third clause.
+                  <<A:20,B:10/binary,C:10,D:70/little-integer,E:11,
+                    F:64/integer,G:17/bits,H:8,I:15>>;
+             (<<A:20,B:10/binary,C:10,D:70/little-integer,E:11,
+                F:64/integer,G:17/bits,H:8,I:15>> = Bin) ->
+                  case <<F:64>> of
+                      <<Float:64/float>> ->
+                          <<A:20,B:10/binary,C:10,D:70/little-integer,E:11,
+                            Float:64/float,G:17/bits,H:8,I:15>> = id(Bin);
+                      _ ->
+                          %% Not a valid float. Happens infrequently.
+                          ok
+                  end,
+
+                  <<_:20,_:10/binary,_:10,_:70/little-integer,_:11,
+                    _:64/float,_:17/bits,_:8,_:15>> = id(Bin),
+                  Seventy = id(70),
+                  <<A:20,B:10/binary,C:10,_:Seventy/little-integer,E:11,
+                    F:64/integer,G:17/bits,H:8,I:15>> = id(Bin),
+                  <<A:20,B:10/binary,C:10,D:70/little-integer,E:11,
+                    F:64/integer,G:17/bits,_:8,I:15>> = id(Bin)
+          end),
+
     ok.
 
 mixed(F) when is_function(F, 1) ->
