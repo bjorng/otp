@@ -1536,7 +1536,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
 
     /* Generate code for calculating the size of the binary to be
      * created. */
-    for (auto seg : segments) {
+    for (const auto &seg : segments) {
         if (seg.effectiveSize >= 0) {
             continue;
         }
@@ -1951,7 +1951,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
     bool is_byte_aligned = true;
 
     /* Build each segment of the binary. */
-    for (auto seg : segments) {
+    for (const auto &seg : segments) {
         switch (seg.type) {
         case am_append:
         case am_private_append:
@@ -2901,7 +2901,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
     bool current_size_is_valid = false;
     Uint offset_in_bitdata = 0;
 
-    for (auto seg : segments) {
+    for (const auto &seg : segments) {
         switch (seg.action) {
         case BsmSegment::action::SKIP_DYNAMIC: {
             Label fail = resolve_beam_label(Fail, dispUnknown);
