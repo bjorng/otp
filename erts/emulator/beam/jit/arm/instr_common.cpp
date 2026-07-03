@@ -2088,7 +2088,7 @@ void BeamModuleAssembler::emit_is_eq(const ArgLabel &Fail,
     a.b_eq(next);
 
     if (always_one_of<BeamTypeId::Cons, BeamTypeId::AlwaysBoxed>(X) ||
-        always_one_of<BeamTypeId::Cons, BeamTypeId::AlwaysBoxed>(X)) {
+        always_one_of<BeamTypeId::Cons, BeamTypeId::AlwaysBoxed>(Y)) {
         comment("skipped test for immediate because one operand never is");
     } else {
         /* We can skip deep comparisons when both args are immediates. */
@@ -2114,7 +2114,7 @@ void BeamModuleAssembler::emit_is_ne(const ArgLabel &Fail,
     a.b_eq(resolve_beam_label(Fail, disp1MB));
 
     if (always_one_of<BeamTypeId::Cons, BeamTypeId::AlwaysBoxed>(X) ||
-        always_one_of<BeamTypeId::Cons, BeamTypeId::AlwaysBoxed>(X)) {
+        always_one_of<BeamTypeId::Cons, BeamTypeId::AlwaysBoxed>(Y)) {
         comment("skipped test for immediate because one operand never is");
     } else {
         /* We can skip deep comparisons when both args are immediates. */
