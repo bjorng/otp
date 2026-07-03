@@ -2934,6 +2934,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
     const a64::Gp bin_size = ARG4;
     const a64::Gp small_tag = ARG5;
     const a64::Gp bitdata = ARG8;
+    bool base_is_valid = false;
     bool position_is_valid = false;
     bool small_tag_valid = false;
     Uint offset_in_bitdata = 0;
@@ -3017,6 +3018,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
         case BsmSegment::action::TEST_HEAP: {
             comment("test_heap %ld", seg.size);
             emit_gc_test(ArgWord(0), ArgWord(seg.size), seg.live);
+            base_is_valid = false;
             position_is_valid = false;
             small_tag_valid = false;
             break;
@@ -3034,8 +3036,13 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                     position_is_valid = true;
                 }
 
-                a.ldur(bin_base, emit_boxed_val(ctx.reg, base_offset));
-                a.and_(bin_base, bin_base, imm(~ERL_SUB_BITS_FLAG_MASK));
+                if (base_is_valid) {
+                    comment("skipped reloading of base address");
+                } else {
+                    a.ldur(bin_base, emit_boxed_val(ctx.reg, base_offset));
+                    a.and_(bin_base, bin_base, imm(~ERL_SUB_BITS_FLAG_MASK));
+                    base_is_valid = true;
+                }
 
                 emit_read_bits(seg.size, bin_base, bin_position, bitdata);
 
@@ -3088,8 +3095,13 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                     position_is_valid = true;
                 }
 
-                a.ldur(bin_base, emit_boxed_val(ctx.reg, base_offset));
-                a.and_(bin_base, bin_base, imm(~ERL_SUB_BITS_FLAG_MASK));
+                if (base_is_valid) {
+                    comment("skipped reloading of base address");
+                } else {
+                    a.ldur(bin_base, emit_boxed_val(ctx.reg, base_offset));
+                    a.and_(bin_base, bin_base, imm(~ERL_SUB_BITS_FLAG_MASK));
+                    base_is_valid = true;
+                }
 
                 emit_read_bits(seg.size, bin_base, bin_position, bitdata);
 
@@ -3129,6 +3141,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
 
             mov_arg(Dst, ARG1);
 
+            base_is_valid = false;
             position_is_valid = false;
             small_tag_valid = false;
             break;
@@ -3170,6 +3183,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                     Live.as<ArgWord>().get());
 
             mov_arg(seg.dst, ARG1);
+            base_is_valid = false;
             position_is_valid = false;
             small_tag_valid = false;
             break;
@@ -3180,6 +3194,7 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
             mov_arg(ARG1, Ctx);
             fragment_call(ga->get_bs_get_tail_shared());
             mov_arg(seg.dst, ARG1);
+            base_is_valid = false;
             position_is_valid = false;
             small_tag_valid = false;
             break;
