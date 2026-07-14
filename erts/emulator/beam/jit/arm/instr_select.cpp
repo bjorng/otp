@@ -219,7 +219,7 @@ void BeamModuleAssembler::emit_linear_search(a64::Gp comparand,
         } else {
             int in_range = 1;
 
-            for (j = i + 1; j < n; j++) {
+            for (j = i + 1; j < i + n; j++) {
                 if (!(value.isWord() && value.as<ArgWord>().get() + in_range ==
                                                 args[j].as<ArgWord>().get())) {
                     break;
@@ -227,7 +227,7 @@ void BeamModuleAssembler::emit_linear_search(a64::Gp comparand,
                 in_range++;
             }
 
-            if (in_range > 2) {
+            if (in_range >= 2) {
                 uint64_t first = value.as<ArgWord>().get();
 
                 if (first == 0) {
@@ -543,16 +543,7 @@ void BeamModuleAssembler::emit_optimized_two_way_select(a64::Gp reg,
     /* Be sure to use a register not used by any caller. */
     a64::Gp tmp = TMP6;
 
-    if (x + 1 == y) {
-        comment("(Src == %ld || Src == %ld) <=> (Src - %ld) < 2", x, y, x);
-        if (x == 0) {
-            a.cmp(reg, imm(2));
-        } else {
-            sub(tmp, reg, x);
-            a.cmp(tmp, imm(2));
-        }
-        a.b_lo(resolve_beam_label(label, disp1MB));
-    } else if ((diff & (diff - 1)) == 0) {
+    if ((diff & (diff - 1)) == 0) {
         uint64_t combined = x | y;
         ArgWord val(combined);
 
