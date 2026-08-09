@@ -1386,6 +1386,7 @@ protected:
                              int bits,
                              const ArgRegister &Dst);
 
+    bool failure_possible(const ArgSource &Size, Uint unit);
     int emit_bs_get_field_size(const ArgSource &Size,
                                int unit,
                                Label Fail,

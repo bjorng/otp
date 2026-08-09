@@ -31,6 +31,25 @@ extern "C"
 #include "beam_common.h"
 }
 
+bool BeamModuleAssembler::failure_possible(const ArgSource &Size, Uint unit) {
+    byte unit_bits = 0;
+
+    if (!always_small(Size)) {
+        return true;
+    }
+
+    if (unit) {
+        unit_bits = 64 - Support::clz(unit);
+    }
+
+    if (Support::is_power_of_2(unit)) {
+        unit_bits--;
+    }
+
+    auto [min, max] = getClampedRange(Size);
+    return !(0 <= min && (max >> (SMALL_BITS - unit_bits)) == 0);
+}
+
 /* Clobbers RET + ARG3
  *
  * If max_size > 0, we jump to the fail label when Size > max_size
@@ -61,14 +80,11 @@ int BeamModuleAssembler::emit_bs_get_field_size(const ArgSource &Size,
         a.jmp(fail);
         return -1;
     } else {
-        bool can_fail = true;
+        bool can_fail = failure_possible(Size, unit);
 
         mov_arg(RET, Size);
 
         if (always_small(Size)) {
-            auto [min, max] = getClampedRange(Size);
-            can_fail =
-                    !(0 <= min && (max >> (SMALL_BITS - ERL_UNIT_BITS)) == 0);
             comment("simplified segment size checks because "
                     "the types are known");
         } else {
