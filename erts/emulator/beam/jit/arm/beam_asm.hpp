@@ -1299,6 +1299,7 @@ protected:
     void emit_error(int code);
     void emit_error(int reason, const ArgSource &Src);
 
+    bool failure_possible(const ArgSource &Size, Uint unit);
     int emit_bs_get_field_size(const ArgSource &Size,
                                int unit,
                                Label Fail,

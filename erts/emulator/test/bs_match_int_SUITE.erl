@@ -956,6 +956,8 @@ do_match_huge_int() ->
     nomatch = overflow_huge_int_skip_64(Bin),
     nomatch = overflow_huge_int_64(Bin),
 
+    overflow_strange_units(Bin),
+
     %% Test overflowing the size of an integer field using
     %% variables as sizes.
     Sizes = case erlang:system_info(wordsize) of
@@ -991,45 +993,140 @@ match_huge_int_1(I, Bin) ->
 skip_huge_int_1(I, Bin) ->
     <<_:I,13>> = Bin.
 
-overflow_huge_int_skip_32(<<_:4294967296,0,_/binary>>) -> 1; % 1 bsl 32
-overflow_huge_int_skip_32(<<_:33554432/unit:128,0,_/binary>>) -> 2; % 1 bsl 25
-overflow_huge_int_skip_32(<<_:67108864/unit:64,0,_/binary>>) -> 3; % 1 bsl 26
-overflow_huge_int_skip_32(<<_:134217728/unit:32,0,_/binary>>) -> 4; % 1 bsl 27
-overflow_huge_int_skip_32(<<_:268435456/unit:16,0,_/binary>>) -> 5; % 1 bsl 28
-overflow_huge_int_skip_32(<<_:536870912/unit:8,0,_/binary>>) -> 6; % 1 bsl 29
-overflow_huge_int_skip_32(<<_:1073741824/unit:8,0,_/binary>>) -> 7; % 1 bsl 30
-overflow_huge_int_skip_32(<<_:2147483648/unit:8,0,_/binary>>) -> 8; % 1 bsl 31
+overflow_huge_int_skip_32(<<_:(1 bsl 32),0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_32(<<_:(1 bsl 25)/unit:128,0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_32(<<_:(1 bsl 26)/unit:64,0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_32(<<_:(1 bsl 27)/unit:32,0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_32(<<_:(1 bsl 28)/unit:16,0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_32(<<_:(1 bsl 29)/unit:8,0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_32(<<_:(1 bsl 30)/unit:8,0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_32(<<_:(1 bsl 31)/unit:8,0,_/binary>>) -> ?LINE;
 overflow_huge_int_skip_32(_) -> nomatch.
 
-overflow_huge_int_32(<<Int:4294967296,_/binary>>) -> {1,Int}; % 1 bsl 32
-overflow_huge_int_32(<<Int:33554432/unit:128,0,_/binary>>) -> {2,Int}; % 1 bsl 25
-overflow_huge_int_32(<<Int:67108864/unit:128,0,_/binary>>) -> {3,Int}; % 1 bsl 26
-overflow_huge_int_32(<<Int:134217728/unit:128,0,_/binary>>) -> {4,Int}; % 1 bsl 27
-overflow_huge_int_32(<<Int:268435456/unit:128,0,_/binary>>) -> {5,Int}; % 1 bsl 28
-overflow_huge_int_32(<<Int:536870912/unit:128,0,_/binary>>) -> {6,Int}; % 1 bsl 29
-overflow_huge_int_32(<<Int:1073741824/unit:128,0,_/binary>>) -> {7,Int}; % 1 bsl 30
-overflow_huge_int_32(<<Int:2147483648/unit:128,0,_/binary>>) -> {8,Int}; % 1 bsl 31
+overflow_huge_int_32(<<Int:(1 bsl 32)/binary>>) -> {?LINE,Int};
+overflow_huge_int_32(<<Int:(1 bsl 25)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_32(<<Int:(1 bsl 26)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_32(<<Int:(1 bsl 27)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_32(<<Int:(1 bsl 28)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_32(<<Int:(1 bsl 29)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_32(<<Int:(1 bsl 30)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_32(<<Int:(1 bsl 31)/unit:128,0,_/binary>>) -> {?LINE,Int};
 overflow_huge_int_32(_) -> nomatch.
 
-overflow_huge_int_skip_64(<<_:18446744073709551616,_/binary>>) -> 1; % 1 bsl 64
-overflow_huge_int_skip_64(<<_:144115188075855872/unit:128,0,_/binary>>) -> 2; % 1 bsl 57
-overflow_huge_int_skip_64(<<_:288230376151711744/unit:64,0,_/binary>>) -> 3; % 1 bsl 58
-overflow_huge_int_skip_64(<<_:576460752303423488/unit:32,0,_/binary>>) -> 4; % 1 bsl 59
-overflow_huge_int_skip_64(<<_:1152921504606846976/unit:16,0,_/binary>>) -> 5; % 1 bsl 60
-overflow_huge_int_skip_64(<<_:2305843009213693952/unit:8,0,_/binary>>) -> 6; % 1 bsl 61
-overflow_huge_int_skip_64(<<_:4611686018427387904/unit:8,0,_/binary>>) -> 7; % 1 bsl 62
-overflow_huge_int_skip_64(<<_:9223372036854775808/unit:8,0,_/binary>>) -> 8; % 1 bsl 63
+overflow_huge_int_skip_64(<<_:(1 bsl 64),_/binary>>) -> ?LINE;
+overflow_huge_int_skip_64(<<_:(1 bsl 57)/unit:128,0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_64(<<_:(1 bsl 62)/unit:8,0,_/binary>>) -> ?LINE;
+overflow_huge_int_skip_64(<<_:(1 bsl 63)/unit:8,0,_/binary>>) -> ?LINE;
 overflow_huge_int_skip_64(_) -> nomatch.
 
-overflow_huge_int_64(<<Int:18446744073709551616,_/binary>>) -> {1,Int}; % 1 bsl 64
-overflow_huge_int_64(<<Int:144115188075855872/unit:128,0,_/binary>>) -> {2,Int}; % 1 bsl 57
-overflow_huge_int_64(<<Int:288230376151711744/unit:128,0,_/binary>>) -> {3,Int}; % 1 bsl 58
-overflow_huge_int_64(<<Int:576460752303423488/unit:128,0,_/binary>>) -> {4,Int}; % 1 bsl 59
-overflow_huge_int_64(<<Int:1152921504606846976/unit:128,0,_/binary>>) -> {5,Int}; % 1 bsl 60
-overflow_huge_int_64(<<Int:2305843009213693952/unit:128,0,_/binary>>) -> {6,Int}; % 1 bsl 61
-overflow_huge_int_64(<<Int:4611686018427387904/unit:128,0,_/binary>>) -> {7,Int}; % 1 bsl 62
-overflow_huge_int_64(<<Int:9223372036854775808/unit:128,0,_/binary>>) -> {8,Int}; % 1 bsl 63
+overflow_huge_int_64(<<Int:(1 bsl 64),_/binary>>) -> {?LINE,Int};
+overflow_huge_int_64(<<Int:(1 bsl 57)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_64(<<Int:(1 bsl 58)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_64(<<Int:(1 bsl 59)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_64(<<Int:(1 bsl 60)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_64(<<Int:(1 bsl 61)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_64(<<Int:(1 bsl 62)/unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_int_64(<<Int:(1 bsl 63)/unit:128,0,_/binary>>) -> {?LINE,Int};
 overflow_huge_int_64(_) -> nomatch.
+
+-define(OverflowUnit(Unit, Offset, Bin),
+        begin
+            (fun() ->
+                     Sz0 = (1 bsl 64) div Unit + Offset,
+                     assert_size_unit(Sz0, Unit, Bin),
+
+                     %% The effective size (Sz0 * Unit) doesn't fit in
+                     %% 64 bits. If truncated to 64 bits, the
+                     %% effective size will be relative small (< 512),
+                     %% and the following matches will succeed if the
+                     %% overflow check is broken.
+                     ?assertNotMatch(<<_:Sz0/unit:Unit,_/bits>>, Bin),
+
+                     Sz1 = id(Sz0),
+                     %% The type and range of `Sz1` are unknown.
+                     ?assertNotMatch(<<_:Sz1/unit:Unit,_/bits>>, Bin),
+
+                     if
+                         is_integer(Sz1, 0, Sz0) ->
+                             %% The type and range of `Sz` are known.
+                             ?assertNotMatch(<<_:Sz1/unit:Unit,_/bits>>, Bin),
+                             case Bin of
+                                 <<Int1:Sz1/unit:Unit,_/bits>> ->
+                                     error({not_supposed_to_match,Int1});
+                                 _ ->
+                                     ok
+                             end
+                     end,
+
+                     %% Calculate an effective size that (barely) fits
+                     %% in 64 bits. Matching should fail because the
+                     %% effective size exceeds the size of the binary.
+                     Sz2 = ((1 bsl 63)-1) div Unit,
+                     true = ((Sz2*Unit) band ((1 bsl 64) - 1)) bsr 64 =:= 0,
+                     ?assertNotMatch(<<_:Sz2/unit:Unit,_/bits>>, Bin),
+                     case id(Sz2) of
+                         Sz3 when is_integer(Sz3, 0, Sz2) ->
+                             ?assertNotMatch(<<_:Sz3/unit:Unit,_/bits>>, Bin),
+                             case Bin of
+                                 <<Int3:Sz3/unit:Unit,_/bits>> ->
+                                     error({not_supposed_to_match,Int3});
+                                 _ ->
+                                     ok
+                             end
+                     end
+             end)()
+        end).
+
+overflow_strange_units(Bin) ->
+    ?OverflowUnit(255, 1, Bin),
+    ?OverflowUnit(237, 1, Bin),
+    ?OverflowUnit(200, 1, Bin),
+    ?OverflowUnit(129, 1, Bin),
+    ?OverflowUnit(128, 1, Bin),
+    ?OverflowUnit(127, 1, Bin),
+    ?OverflowUnit(126, 1, Bin),
+    ?OverflowUnit(77, 1, Bin),
+    ?OverflowUnit(64, 1, Bin),
+    ?OverflowUnit(59, 1, Bin),
+    ?OverflowUnit(32, 1, Bin),
+    ?OverflowUnit(23, 1, Bin),
+    ?OverflowUnit(17, 1, Bin),
+    ?OverflowUnit(16, 1, Bin),
+    ?OverflowUnit(15, 1, Bin),
+    ?OverflowUnit(14, 1, Bin),
+    ?OverflowUnit(13, 1, Bin),
+    ?OverflowUnit(9, 1, Bin),
+    ?OverflowUnit(8, 1, Bin),
+    ?OverflowUnit(7, 1, Bin),
+
+    ok.
+
+assert_size_unit(Size, Unit, Bin) ->
+    EffectiveSize = Size * Unit,
+
+    Truncated = EffectiveSize band ((1 bsl 64) - 1),
+    io:format("size: ~p, unit: ~p, effective size: ~p",
+              [Size,Unit,EffectiveSize]),
+    io:format("truncated: ~.2B\n", [Truncated]),
+
+    if
+        EffectiveSize bsl 64 =:= 0 ->
+            %% The effective size (Size * Unit) must not fit in 64 bits.
+            error(effective_size_too_small);
+        true ->
+            ok
+    end,
+
+    if
+        Truncated < bit_size(Bin) ->
+            ok;
+        true ->
+            %% The truncated effective size (Size * Unit) exceeds the
+            %% size of the binary. We want a smaller size that will
+            %% cause the match to succeed if the overflow check is
+            %% broken.
+            error(truncated_size_exceeds_binary_size)
+    end.
 
 bignum(Config) when is_list(Config) ->
     Bin = id(<<42,0:1024/unit:8,43>>),
