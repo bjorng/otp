@@ -31,6 +31,38 @@ extern "C"
 #include "beam_common.h"
 }
 
+/* Check whether this operation can fail because Size is not a small
+ * integer or because Size*unit will overflow. */
+bool BeamModuleAssembler::failure_possible(const ArgSource &Size, Uint unit) {
+    byte unit_shift = 64;
+
+    if (!always_small(Size)) {
+        return true;
+    }
+
+    if (unit) {
+        unit_shift = Support::clz(unit);
+        if (Support::is_power_of_2(unit)) {
+            unit_shift++;
+        }
+    }
+
+    auto [min, max] = getClampedRange(Size);
+
+    if (min < 0) {
+        return true;
+    }
+
+    if (unit <= 1) {
+        /* We need this special case because unit_shift is equal to
+         * the word size and shifting by the word size is undefined
+         * behavior. */
+        return false;
+    } else {
+        return (max >> unit_shift) != 0;
+    }
+}
+
 /* Clobbers TMP1+TMP2
  *
  * Returns -1 when the field check always fails, 1 if it may fail, and 0 if it
@@ -39,31 +71,19 @@ int BeamModuleAssembler::emit_bs_get_field_size(const ArgSource &Size,
                                                 int unit,
                                                 Label fail,
                                                 const a64::Gp &out) {
-    if (Size.isImmed()) {
-        if (Size.isSmall()) {
-            Sint sval = Size.as<ArgSmall>().getSigned();
+    bool can_fail = failure_possible(Size, unit);
 
-            if (sval < 0) {
-                /* badarg */
-            } else if (sval > (MAX_SMALL / unit)) {
-                /* system_limit */
-            } else {
-                mov_imm(out, sval * unit);
-                return 0;
-            }
+    if (Size.isImmed()) {
+        if (!can_fail) {
+            Sint sval = Size.as<ArgSmall>().getSigned();
+            mov_imm(out, sval * unit);
+            return 0;
         }
 
         a.b(fail);
         return -1;
     } else {
         auto size_reg = load_source(Size, TMP2);
-        bool can_fail = true;
-
-        if (always_small(Size)) {
-            auto [min, max] = getClampedRange(Size);
-            can_fail =
-                    !(0 <= min && (max >> (SMALL_BITS - ERL_UNIT_BITS)) == 0);
-        }
 
         /* Negating the tag bits lets us guard against non-smalls, negative
          * numbers, and overflow with a single `tst` instruction. */
@@ -477,12 +497,7 @@ void BeamModuleAssembler::emit_i_bs_skip_bits2(const ArgRegister &Ctx,
                                                const ArgWord &Unit) {
     Label fail = resolve_beam_label(Fail, dispUnknown);
 
-    bool can_fail = true;
-
-    if (always_small(Size)) {
-        auto [min, max] = getClampedRange(Size);
-        can_fail = !(0 <= min && (max >> (SMALL_BITS - ERL_UNIT_BITS)) == 0);
-    }
+    bool can_fail = failure_possible(Size, Unit.get());
 
     if (!can_fail && Unit.get() == 1) {
         comment("simplified skipping because the types are known");

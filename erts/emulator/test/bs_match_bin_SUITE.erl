@@ -174,44 +174,36 @@ match_huge_bin_1(I, Bin) ->
 	_ -> nomatch
     end.
 
-overflow_huge_bin_skip_32(<<_:4294967296/binary,0,_/binary>>) -> 1; % 1 bsl 32
-overflow_huge_bin_skip_32(<<_:33554432/binary-unit:128,0,_/binary>>) -> 2; % 1 bsl 25
-overflow_huge_bin_skip_32(<<_:67108864/binary-unit:64,0,_/binary>>) -> 3; % 1 bsl 26
-overflow_huge_bin_skip_32(<<_:134217728/binary-unit:32,0,_/binary>>) -> 4; % 1 bsl 27
-overflow_huge_bin_skip_32(<<_:268435456/binary-unit:16,0,_/binary>>) -> 5; % 1 bsl 28
-overflow_huge_bin_skip_32(<<_:536870912/binary-unit:8,0,_/binary>>) -> 6; % 1 bsl 29
-overflow_huge_bin_skip_32(<<_:1073741824/binary-unit:8,0,_/binary>>) -> 7; % 1 bsl 30
-overflow_huge_bin_skip_32(<<_:2147483648/binary-unit:8,0,_/binary>>) -> 8; % 1 bsl 31
+overflow_huge_bin_skip_32(<<_:(1 bsl 32)/binary,_/binary>>) -> ?LINE;
+overflow_huge_bin_skip_32(<<_:(1 bsl 25)/binary-unit:128,0,_/binary>>) -> ?LINE;
+overflow_huge_bin_skip_32(<<_:(1 bsl 30)/binary-unit:8,0,_/binary>>) -> ?LINE;
+overflow_huge_bin_skip_32(<<_:(1 bsl 31)/binary-unit:8,0,_/binary>>) -> ?LINE;
 overflow_huge_bin_skip_32(_) -> nomatch.
 
-overflow_huge_bin_32(<<Bin:4294967296/binary,_/binary>>) -> {1,Bin}; % 1 bsl 32
-overflow_huge_bin_32(<<Bin:33554432/binary-unit:128,0,_/binary>>) -> {2,Bin}; % 1 bsl 25
-overflow_huge_bin_32(<<Bin:67108864/binary-unit:128,0,_/binary>>) -> {3,Bin}; % 1 bsl 26
-overflow_huge_bin_32(<<Bin:134217728/binary-unit:128,0,_/binary>>) -> {4,Bin}; % 1 bsl 27
-overflow_huge_bin_32(<<Bin:268435456/binary-unit:128,0,_/binary>>) -> {5,Bin}; % 1 bsl 28
-overflow_huge_bin_32(<<Bin:536870912/binary-unit:128,0,_/binary>>) -> {6,Bin}; % 1 bsl 29
-overflow_huge_bin_32(<<Bin:1073741824/binary-unit:128,0,_/binary>>) -> {7,Bin}; % 1 bsl 30
-overflow_huge_bin_32(<<Bin:2147483648/binary-unit:128,0,_/binary>>) -> {8,Bin}; % 1 bsl 31
+overflow_huge_bin_32(<<Bin:(1 bsl 32)/binary,_/binary>>) -> {?LINE,Bin};
+overflow_huge_bin_32(<<Bin:(1 bsl 25)/binary-unit:128,0,_/binary>>) -> {?LINE,Bin};
+overflow_huge_bin_32(<<Bin:(1 bsl 26)/binary-unit:128,0,_/binary>>) -> {?LINE,Bin};
+overflow_huge_bin_32(<<Bin:(1 bsl 27)/binary-unit:128,0,_/binary>>) -> {?LINE,Bin};
+overflow_huge_bin_32(<<Bin:(1 bsl 28)/binary-unit:128,0,_/binary>>) -> {?LINE,Bin};
+overflow_huge_bin_32(<<Bin:(1 bsl 29)/binary-unit:128,0,_/binary>>) -> {?LINE,Bin};
+overflow_huge_bin_32(<<Bin:(1 bsl 30)/binary-unit:128,0,_/binary>>) -> {?LINE,Bin};
+overflow_huge_bin_32(<<Bin:(1 bsl 31)/binary-unit:128,0,_/binary>>) -> {?LINE,Bin};
 overflow_huge_bin_32(_) -> nomatch.
 
-overflow_huge_bin_skip_64(<<_:18446744073709551616/binary,0,_/binary>>) -> 1; % 1 bsl 64
-overflow_huge_bin_skip_64(<<_:144115188075855872/binary-unit:128,0,_/binary>>) -> 2; % 1 bsl 57
-overflow_huge_bin_skip_64(<<_:288230376151711744/binary-unit:64,0,_/binary>>) -> 3; % 1 bsl 58
-overflow_huge_bin_skip_64(<<_:576460752303423488/binary-unit:32,0,_/binary>>) -> 4; % 1 bsl 59
-overflow_huge_bin_skip_64(<<_:1152921504606846976/binary-unit:16,0,_/binary>>) -> 5; % 1 bsl 60
-overflow_huge_bin_skip_64(<<_:2305843009213693952/binary-unit:8,0,_/binary>>) -> 6; % 1 bsl 61
-overflow_huge_bin_skip_64(<<_:4611686018427387904/binary-unit:8,0,_/binary>>) -> 7; % 1 bsl 62
-overflow_huge_bin_skip_64(<<_:9223372036854775808/binary-unit:8,_/binary>>) -> 8; % 1 bsl 63
+overflow_huge_bin_skip_64(<<_:(1 bsl 64)/binary,_/binary>>) -> ?LINE;
+overflow_huge_bin_skip_64(<<_:(1 bsl 57)/binary-unit:128,0,_/binary>>) -> ?LINE;
+overflow_huge_bin_skip_64(<<_:(1 bsl 62)/binary-unit:8,0,_/binary>>) -> ?LINE;
+overflow_huge_bin_skip_64(<<_:(1 bsl 63)/binary-unit:8,0,_/binary>>) -> ?LINE;
 overflow_huge_bin_skip_64(_) -> nomatch.
 
-overflow_huge_bin_64(<<Bin:18446744073709551616/binary,_/binary>>) -> {1,Bin}; % 1 bsl 64
-overflow_huge_bin_64(<<Bin:144115188075855872/binary-unit:128,0,_/binary>>) -> {2,Bin}; % 1 bsl 57
-overflow_huge_bin_64(<<Bin:288230376151711744/binary-unit:128,0,_/binary>>) -> {3,Bin}; % 1 bsl 58
-overflow_huge_bin_64(<<Bin:576460752303423488/binary-unit:128,0,_/binary>>) -> {4,Bin}; % 1 bsl 59
-overflow_huge_bin_64(<<Bin:1152921504606846976/binary-unit:128,0,_/binary>>) -> {5,Bin}; % 1 bsl 60
-overflow_huge_bin_64(<<Bin:2305843009213693952/binary-unit:128,0,_/binary>>) -> {6,Bin}; % 1 bsl 61
-overflow_huge_bin_64(<<Bin:4611686018427387904/binary-unit:128,0,_/binary>>) -> {7,Bin}; % 1 bsl 62
-overflow_huge_bin_64(<<Bin:9223372036854775808/binary-unit:128,0,_/binary>>) -> {8,Bin}; % 1 bsl 63
+overflow_huge_bin_64(<<Int:(1 bsl 64)/binary,_/binary>>) -> {?LINE,Int};
+overflow_huge_bin_64(<<Int:(1 bsl 57)/binary-unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_bin_64(<<Int:(1 bsl 58)/binary-unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_bin_64(<<Int:(1 bsl 59)/binary-unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_bin_64(<<Int:(1 bsl 60)/binary-unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_bin_64(<<Int:(1 bsl 61)/binary-unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_bin_64(<<Int:(1 bsl 62)/binary-unit:128,0,_/binary>>) -> {?LINE,Int};
+overflow_huge_bin_64(<<Int:(1 bsl 63)/binary-unit:128,0,_/binary>>) -> {?LINE,Int};
 overflow_huge_bin_64(_) -> nomatch.
 
 -define(MATCH512,
@@ -344,7 +336,7 @@ units(_Config) ->
     %% other than 1 and 8.
     ok = unit_13(<<>>),
     ok = unit_13(<<42:13>>),
-    ok = unit_13(<<-1:26>>),
+    ok = unit_13(<<-1:26/signed-integer>>),
     error = unit_13("a"),
     error = unit_13("ab"),
 

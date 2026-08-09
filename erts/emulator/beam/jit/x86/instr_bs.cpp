@@ -31,6 +31,38 @@ extern "C"
 #include "beam_common.h"
 }
 
+/* Check whether this operation can fail because Size is not a small
+ * integer or because Size*unit will overflow. */
+bool BeamModuleAssembler::failure_possible(const ArgSource &Size, Uint unit) {
+    byte unit_shift = 64;
+
+    if (!always_small(Size)) {
+        return true;
+    }
+
+    if (unit) {
+        unit_shift = Support::clz(unit);
+        if (Support::is_power_of_2(unit)) {
+            unit_shift++;
+        }
+    }
+
+    auto [min, max] = getClampedRange(Size);
+
+    if (min < 0) {
+        return true;
+    }
+
+    if (unit <= 1) {
+        /* We need this special case because unit_shift is equal to
+         * the word size and shifting by the word size is undefined
+         * behavior. */
+        return false;
+    } else {
+        return (max >> unit_shift) != 0;
+    }
+}
+
 /* Clobbers RET + ARG3
  *
  * If max_size > 0, we jump to the fail label when Size > max_size
@@ -42,33 +74,22 @@ int BeamModuleAssembler::emit_bs_get_field_size(const ArgSource &Size,
                                                 Label fail,
                                                 const x86::Gp &out,
                                                 unsigned max_size) {
+    bool can_fail = failure_possible(Size, unit);
+
     if (Size.isImmed()) {
-        if (Size.isSmall()) {
+        if (!can_fail) {
             Sint sval = Size.as<ArgSmall>().getSigned();
 
-            if (sval < 0) {
-                /* badarg */
-            } else if (max_size && sval > max_size) {
-                /* badarg */
-            } else if (sval > (MAX_SMALL / unit)) {
-                /* system_limit */
-            } else {
-                mov_imm(out, sval * unit);
-                return 0;
-            }
+            mov_imm(out, sval * unit);
+            return 0;
         }
 
         a.jmp(fail);
         return -1;
     } else {
-        bool can_fail = true;
-
         mov_arg(RET, Size);
 
         if (always_small(Size)) {
-            auto [min, max] = getClampedRange(Size);
-            can_fail =
-                    !(0 <= min && (max >> (SMALL_BITS - ERL_UNIT_BITS)) == 0);
             comment("simplified segment size checks because "
                     "the types are known");
         } else {
