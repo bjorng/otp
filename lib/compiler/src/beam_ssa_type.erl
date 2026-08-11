@@ -35,7 +35,7 @@
 -include("beam_ssa.hrl").
 -include("beam_types.hrl").
 
--import(lists, [duplicate/2,foldl/3,member/2,
+-import(lists, [any/2,duplicate/2,foldl/3,member/2,
                 keyfind/3,reverse/1,split/2,zip/2]).
 
 -type type() :: beam_types:type().
@@ -88,15 +88,34 @@
 %%
 
 -spec opt_start(term(), term()) -> term().
-opt_start(StMap, FuncDb0) when FuncDb0 =/= #{} ->
-    {ArgDb, MetaCache, FuncDb} = signatures(StMap, FuncDb0),
+opt_start(StMap0, FuncDb0) when FuncDb0 =/= #{} ->
+    {ArgDb, MetaCache, FuncDb1} = signatures(StMap0, FuncDb0),
 
-    opt_start_1(maps:keys(StMap), ArgDb, StMap, FuncDb, MetaCache);
+    {StMap, FuncDb} = opt_start_1(maps:keys(StMap0), ArgDb, StMap0,
+                                  FuncDb1, MetaCache),
+    remove_unreachable(maps:keys(StMap), StMap, FuncDb);
 opt_start(StMap, FuncDb) ->
     %% Module-level analysis is disabled, likely because of a call to
     %% load_nif/2 or similar. opt_continue/4 will assume that all arguments and
     %% return types are 'any'.
     {StMap, FuncDb}.
+
+remove_unreachable([Id | Ids], StMap0, FuncDb0) ->
+    case never_called(map_get(Id, FuncDb0)) of
+        true ->
+            StMap = maps:remove(Id, StMap0),
+            FuncDb = maps:remove(Id, FuncDb0),
+            remove_unreachable(Ids, StMap, FuncDb);
+        false ->
+            remove_unreachable(Ids, StMap0, FuncDb0)
+    end;
+remove_unreachable([], StMap, FuncDb) ->
+    {StMap, FuncDb}.
+
+never_called(#func_info{exported=false,arg_types=ArgTypes}) ->
+    any(fun(M) -> map_size(M) =:= 0 end, ArgTypes);
+never_called(#func_info{exported=true}) ->
+    false.
 
 %%
 %% After having completed the signature pass (see below), we start
