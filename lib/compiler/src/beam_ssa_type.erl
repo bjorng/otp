@@ -98,6 +98,19 @@ opt_start(StMap, FuncDb) ->
     %% return types are 'any'.
     {StMap, FuncDb}.
 
+%%
+%% After having completed the signature pass (see below), we start
+%% optimization of each function at a time.
+%%
+%% Here, as opposed to the signature pass, the important invariant is
+%% that types must only be monotonically narrowed, never widened.
+%%
+%% Here we also consolidate information kept in ArgDb and MetaCache
+%% into the function database FuncDb.
+%%
+%% The type optimizations continue in opt_continue/4.
+%%
+
 opt_start_1([Id | Ids], ArgDb, StMap0, FuncDb0, MetaCache) ->
     case ArgDb of
         #{ Id := ArgTypes } ->
@@ -129,11 +142,15 @@ opt_start_1([], _CommittedArgs, StMap, FuncDb, _MetaCache) ->
 %%
 %% The general idea is to start out at the module's entry points and propagate
 %% types to the functions we call. The argument types of all exported functions
-%% start out a 'any', whereas local functions start at 'none'. Every time a
+%% start out as 'any', whereas local functions start at 'none'. Every time a
 %% function call widens the argument types, we analyze the callee again and
 %% propagate its return types to the callers, analyzing them again, and
 %% continuing this process until all arguments and return types have been
 %% widened as far as they can be.
+%%
+%% During the signature pass an important invariant must be
+%% maintained: the types of the function arguments must only be
+%% monotonically widened, not narrowed.
 %%
 %% Note that we do not "jump-start the analysis" by first determining success
 %% types as in the paper because we need to know all possible inputs including
@@ -214,6 +231,7 @@ do_sig_function(Id, StMap, State0, FuncDb0) ->
             {State#sig_st{wl=Wl}, FuncDb}
     end.
 
+%% Returns: {SuccTypesChanged, WlChanged, #sig_st{}, FuncDb}
 sig_function_1(Id, StMap, State0, FuncDb) ->
     #opt_st{ssa=Linear,args=Args} = map_get(Id, StMap),
 
@@ -442,6 +460,15 @@ sig_update_args_1(Callee, Types, #sig_st{updates=Us0,wl=Wl0}=State) ->
                  Us0#{ Callee => Types }
          end,
     State#sig_st{updates=Us,wl=wl_add(Callee, Wl0)}.
+
+%%
+%% Continue type-based optimization of a single function.
+%%
+%% The invariant that types must only be monotonically narrowed, never
+%% widened, must still be maintained. The caller, when doing optimizations,
+%% must take care not to remove type test that could cause types to be
+%% widened.
+%%
 
 -spec opt_continue(Linear, Args, Anno, FuncDb) -> {Linear, FuncDb} when
       Linear :: [{non_neg_integer(), beam_ssa:b_blk()}],
