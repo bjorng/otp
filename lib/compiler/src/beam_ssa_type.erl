@@ -35,7 +35,7 @@
 -include("beam_ssa.hrl").
 -include("beam_types.hrl").
 
--import(lists, [duplicate/2,foldl/3,member/2,
+-import(lists, [any/2,duplicate/2,foldl/3,member/2,
                 keyfind/3,reverse/1,split/2,zip/2]).
 
 -type type() :: beam_types:type().
@@ -88,15 +88,56 @@
 %%
 
 -spec opt_start(term(), term()) -> term().
-opt_start(StMap, FuncDb0) when FuncDb0 =/= #{} ->
-    {ArgDb, MetaCache, FuncDb} = signatures(StMap, FuncDb0),
+opt_start(StMap0, FuncDb0) when FuncDb0 =/= #{} ->
+    {ArgDb, MetaCache, FuncDb1} = signatures(StMap0, FuncDb0),
 
-    opt_start_1(maps:keys(StMap), ArgDb, StMap, FuncDb, MetaCache);
+    %% Now that the signatures pass has finished, it's time do the
+    %% first round of type optimizations and toconsolidate information
+    %% kept in ArgDb and MetaCache into the function database FuncDb.
+    {StMap, FuncDb} = opt_start_1(maps:keys(StMap0), ArgDb, StMap0,
+                                  FuncDb1, MetaCache),
+
+    %% The first pass of type-based optimizations could have made some
+    %% functions unreachable. The compilation will crash unless we
+    %% remoe them.
+    remove_unreachable(maps:keys(StMap), StMap, FuncDb);
 opt_start(StMap, FuncDb) ->
     %% Module-level analysis is disabled, likely because of a call to
     %% load_nif/2 or similar. opt_continue/4 will assume that all arguments and
     %% return types are 'any'.
     {StMap, FuncDb}.
+
+remove_unreachable([Id | Ids], StMap0, FuncDb0) ->
+    case never_called(map_get(Id, FuncDb0)) of
+        true ->
+            StMap = maps:remove(Id, StMap0),
+            FuncDb = maps:remove(Id, FuncDb0),
+            remove_unreachable(Ids, StMap, FuncDb);
+        false ->
+            remove_unreachable(Ids, StMap0, FuncDb0)
+    end;
+remove_unreachable([], StMap, FuncDb) ->
+    {StMap, FuncDb}.
+
+never_called(#func_info{exported=false,arg_types=ArgTypes}) ->
+    %% An argument with an empty map for type information means that
+    %% this function is now uncreachable.
+    any(fun(M) -> M =:= #{} end, ArgTypes);
+never_called(#func_info{exported=true}) ->
+    false.
+
+%%
+%% After having completed the signature pass (see below), we start
+%% optimization of each function at a time.
+%%
+%% Here, as opposed to the signature pass, the important invariant is
+%% that types must only be monotonically narrowed, never widened.
+%%
+%% Here we also consolidate information kept in ArgDb and MetaCache
+%% into the function database FuncDb.
+%%
+%% The type optimizations continue in opt_continue/4.
+%%
 
 opt_start_1([Id | Ids], ArgDb, StMap0, FuncDb0, MetaCache) ->
     case ArgDb of
@@ -111,9 +152,10 @@ opt_start_1([Id | Ids], ArgDb, StMap0, FuncDb0, MetaCache) ->
 
             opt_start_1(Ids, ArgDb, StMap, FuncDb, MetaCache);
         #{} ->
-            %% Unreachable functions must be removed so that opt_continue/4
-            %% won't process them and potentially taint the argument types of
-            %% other functions.
+            %% This function was unreachable in the original program.
+            %% Unreachable functions must be removed so that
+            %% opt_continue/4 won't process them and potentially taint
+            %% the argument types of other functions.
             StMap = maps:remove(Id, StMap0),
             FuncDb = maps:remove(Id, FuncDb0),
 
@@ -129,11 +171,15 @@ opt_start_1([], _CommittedArgs, StMap, FuncDb, _MetaCache) ->
 %%
 %% The general idea is to start out at the module's entry points and propagate
 %% types to the functions we call. The argument types of all exported functions
-%% start out a 'any', whereas local functions start at 'none'. Every time a
+%% start out as 'any', whereas local functions start at 'none'. Every time a
 %% function call widens the argument types, we analyze the callee again and
 %% propagate its return types to the callers, analyzing them again, and
 %% continuing this process until all arguments and return types have been
 %% widened as far as they can be.
+%%
+%% During the signature pass an important invariant must be
+%% maintained: the types of the function arguments must only be
+%% monotonically widened, not narrowed.
 %%
 %% Note that we do not "jump-start the analysis" by first determining success
 %% types as in the paper because we need to know all possible inputs including
@@ -214,6 +260,7 @@ do_sig_function(Id, StMap, State0, FuncDb0) ->
             {State#sig_st{wl=Wl}, FuncDb}
     end.
 
+%% Returns: {SuccTypesChanged, WlChanged, #sig_st{}, FuncDb}
 sig_function_1(Id, StMap, State0, FuncDb) ->
     #opt_st{ssa=Linear,args=Args} = map_get(Id, StMap),
 
@@ -442,6 +489,15 @@ sig_update_args_1(Callee, Types, #sig_st{updates=Us0,wl=Wl0}=State) ->
                  Us0#{ Callee => Types }
          end,
     State#sig_st{updates=Us,wl=wl_add(Callee, Wl0)}.
+
+%%
+%% Continue type-based optimization of a single function.
+%%
+%% The invariant that types must only be monotonically narrowed, never
+%% widened, must still be maintained. The caller, when doing optimizations,
+%% must take care not to remove type test that could cause types to be
+%% widened.
+%%
 
 -spec opt_continue(Linear, Args, Anno, FuncDb) -> {Linear, FuncDb} when
       Linear :: [{non_neg_integer(), beam_ssa:b_blk()}],
