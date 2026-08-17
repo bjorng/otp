@@ -838,6 +838,9 @@ encode_alloc_list_1([{floats,Floats}|T], Dict, Acc0) ->
 encode_alloc_list_1([{funs,Funs}|T], Dict, Acc0) ->
     Acc = [Acc0,encode(?tag_u, 2),encode(?tag_u, Funs)],
     encode_alloc_list_1(T, Dict, Acc);
+encode_alloc_list_1([{records,Recs}|T], Dict, Acc0) ->
+    Acc = [Acc0,encode(?tag_u, 3),encode(?tag_u, Recs)],
+    encode_alloc_list_1(T, Dict, Acc);
 encode_alloc_list_1([], Dict, Acc) ->
     {iolist_to_binary(Acc),Dict}.
 

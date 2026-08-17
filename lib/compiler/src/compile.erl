@@ -1189,8 +1189,7 @@ expand_opt(report, Os) ->
 expand_opt(return, Os) ->
     [return_errors,return_warnings|Os];
 expand_opt(r29, Os) ->
-    %% Nothing... yet.
-    Os;
+    [no_native_record_opt|Os];
 expand_opt(r28, Os) ->
     expand_opt(r29, Os);
 expand_opt(r27, Os) ->

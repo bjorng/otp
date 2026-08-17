@@ -220,8 +220,11 @@ validate_0([{function, Name, Arity, Entry, Code} | Fs],
    %% Available heap size for funs (aka lambdas).
    hl=0,
 
-   %%Available heap size for floats.
+   %% Available heap size for floats.
    hf=0,
+
+   %% Available heap size for native records.
+   hnr=0,
 
    %% List of hot catch/try tags
    ct=[],
@@ -907,10 +910,19 @@ vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
 %%
 %% Native record instructions.
 %%
-vi({put_record,{f,Fail},Id,Src,Dst,Live,{list,List}}, Vst) ->
+vi({put_record,{f,Fail},Id,nil=Src,Dst,Live,{list,List}}, Vst) ->
     verify_put_record(Fail, Id, Src, Dst, Live, List, Vst);
-vi({get_record_elements,{f,Fail},Src,{list,List}}, Vst) ->
-    verify_get_record_elements(Fail, Src, List, Vst);
+vi({put_record,Id,Src,Dst,Live,{list,List}}, Vst) ->
+    %% OTP 29: Update a native record.
+    Hint = {atom,reuse},
+    verify_update_record_id(Hint, Id, Src, Dst, Live, List, Vst);
+vi({update_record_id,Hint,Id,Src,Dst,Live,{list,List}}, Vst) ->
+    %% OTP 30: Update a native record.
+    verify_update_record_id(Hint, Id, Src, Dst, Live, List, Vst);
+vi({get_record_elements,Fail,Src,{list,List}}, Vst) ->
+    verify_get_record_elements_id(Fail, nil, Src, List, Vst);
+vi({get_record_elements_id,Fail,Id,Src,{list,List}}, Vst) ->
+    verify_get_record_elements_id(Fail, Id, Src, List, Vst);
 
 %%
 %% Bit syntax matching
@@ -1436,6 +1448,39 @@ pmt_1([Key0, Value0 | List], Vst, Acc0) ->
 pmt_1([], _Vst, Acc) ->
     Acc.
 
+%% Verify update of a native record.
+verify_update_record_id(_Hint, Id, Src, Dst, Live, List, Vst0) ->
+    assert_term(Src, Vst0),
+    verify_live(Live, Vst0),
+    verify_y_init(Vst0),
+
+    _ = [assert_term(Term, Vst0) || Term <- List],
+
+    Vst1 = case Id of
+               {atom,_} ->
+                   %% Update of a native record value created in the
+                   %% current module. The size is known and the
+                   %% previous `test_heap` instruction includes the
+                   %% size for this update instruction.
+                   eat_heap_record(Vst0);
+               _ ->
+                   %% The size of the record is not known at compile
+                   %% time. There will be a garbage collection at
+                   %% runtime.
+                   heap_alloc(0, Vst0)
+           end,
+
+    Vst = prune_x_regs(Live, Vst1),
+    Keys = extract_keys(List, Vst),
+    EmptyHandling = case Src of
+                        nil -> allow_empty;
+                        _ -> forbid_empty
+                    end,
+    verify_keys(only_literals, EmptyHandling, Keys),
+
+    Type = put_record_type(Src, Id, List, Vst),
+    create_term(Type, put_record, [Src], Dst, Vst, Vst0).
+
 verify_put_record(Fail, Id, Src, Dst, Live, List, Vst0) ->
     assert_term(Src, Vst0),
     verify_live(Live, Vst0),
@@ -1483,6 +1528,10 @@ put_record_type(Src, Id, Fs0, Vst) ->
         {literal,{Mod,Tag}} when is_atom(Mod), is_atom(Tag) ->
             #t_record{name={Mod,Tag},type=Fs};
         {atom,'_'} ->
+            %% OTP 29 (from the put_record instruction).
+            #t_record{name=nil,type=Fs};
+        nil ->
+            %% OTP 30 (from the update_record_id instruction).
             #t_record{name=nil,type=Fs};
         {atom,Tag} when is_atom(Tag) ->
             Mod = Vst#vst.module,
@@ -1506,19 +1555,26 @@ record_field_types([{atom,Key}, Value0 | Fs], Vst, Acc) ->
 record_field_types([], _Vst, Acc) ->
     Acc.
 
-verify_get_record_elements(Fail, Src, List, Vst0) ->
+verify_get_record_elements_id({f,0}, _Id, Src, List, Vst0) ->
+    %% In this instruction, `{f,0}` means that it cannot fail.
+    assert_not_literal(Src),
+    verify_successful_gre(Src, List, Vst0);
+verify_get_record_elements_id({f,Fail}, _Id, Src, List, Vst0) ->
     assert_no_exception(Fail),
     assert_not_literal(Src),
     branch(Fail, Vst0,
            fun(FailVst) ->
                    clobber_record_vals(List, Src, FailVst)
            end,
-           fun(SuccVst0) ->
-                   Keys = extract_keys(List, SuccVst0),
-                   verify_keys(only_literals, forbid_empty, Keys),
-                   SuccVst1 = update_native_record_type(List, Src, SuccVst0),
-                   extract_vals(record_get, List, Src, SuccVst1)
+           fun(SuccVst) ->
+                   verify_successful_gre(Src, List, SuccVst)
            end).
+
+verify_successful_gre(Src, List, Vst0) ->
+    Keys = extract_keys(List, Vst0),
+    verify_keys(only_literals, forbid_empty, Keys),
+    SuccVst1 = update_native_record_type(List, Src, Vst0),
+    extract_vals(record_get, List, Src, SuccVst1).
 
 update_native_record_type([_|_]=Updates, Src, Vst) ->
     Es = #{Key => {present, any} || {atom,Key} <- Updates},
@@ -2101,25 +2157,27 @@ test_heap(Heap, Live, Vst0) ->
     heap_alloc(Heap, Vst).
 
 heap_alloc(Heap, #vst{current=St0}=Vst) ->
-    {HeapWords, Floats, Funs} = heap_alloc_1(Heap),
+    {HeapWords, Floats, Funs, Recs} = heap_alloc_1(Heap),
 
-    St = St0#st{h=HeapWords,hf=Floats,hl=Funs},
+    St = St0#st{h=HeapWords,hf=Floats,hl=Funs,hnr=Recs},
 
     Vst#vst{current=St}.
 
 heap_alloc_1({alloc, Alloc}) ->
-    heap_alloc_2(Alloc, 0, 0, 0);
+    heap_alloc_2(Alloc, 0, 0, 0, 0);
 heap_alloc_1(HeapWords) when is_integer(HeapWords) ->
-    {HeapWords, 0, 0}.
+    {HeapWords, 0, 0, 0}.
 
-heap_alloc_2([{words, HeapWords} | T], 0, Floats, Funs) ->
-    heap_alloc_2(T, HeapWords, Floats, Funs);
-heap_alloc_2([{floats, Floats} | T], HeapWords, 0, Funs) ->
-    heap_alloc_2(T, HeapWords, Floats, Funs);
-heap_alloc_2([{funs, Funs} | T], HeapWords, Floats, 0) ->
-    heap_alloc_2(T, HeapWords, Floats, Funs);
-heap_alloc_2([], HeapWords, Floats, Funs) ->
-    {HeapWords, Floats, Funs}.
+heap_alloc_2([{words, HeapWords} | T], 0, Floats, Funs, Recs) ->
+    heap_alloc_2(T, HeapWords, Floats, Funs, Recs);
+heap_alloc_2([{floats, Floats} | T], HeapWords, 0, Funs, Recs) ->
+    heap_alloc_2(T, HeapWords, Floats, Funs, Recs);
+heap_alloc_2([{funs, Funs} | T], HeapWords, Floats, 0, Recs) ->
+    heap_alloc_2(T, HeapWords, Floats, Funs, Recs);
+heap_alloc_2([{records, Recs} | T], HeapWords, Floats, Funs, 0) ->
+    heap_alloc_2(T, HeapWords, Floats, Funs, Recs);
+heap_alloc_2([], HeapWords, Floats, Funs, Recs) ->
+    {HeapWords, Floats, Funs, Recs}.
 
 schedule_out(Live, Vst0) when is_integer(Live) ->
     Vst1 = prune_x_regs(Live, Vst0),
@@ -3402,6 +3460,15 @@ eat_heap_fun(#vst{current=#st{hl=HeapFuns0}=St}=Vst) ->
 	    error({heap_overflow,{left,{HeapFuns0,funs}},{wanted,{1,funs}}});
 	HeapFuns ->
 	    Vst#vst{current=St#st{hl=HeapFuns}}
+    end.
+
+eat_heap_record(#vst{current=#st{hnr=HeapRecs0}=St}=Vst) ->
+    case HeapRecs0-1 of
+        Neg when Neg < 0 ->
+            error({heap_overflow,{left,{HeapRecs0,records}},
+                   {wanted,{1,records}}});
+        HeapRecs ->
+            Vst#vst{current=St#st{hl=HeapRecs}}
     end.
 
 eat_heap_float(#vst{current=#st{hf=HeapFloats0}=St}=Vst) ->

@@ -755,3 +755,40 @@ BEAM_FORMAT_NUMBER=0
 ##      if extracting the value fails; otherwise, jump to label Lbl if
 ##      extraction fails.
 191: get_record_field/5
+
+## @spec get_local_record_elements_id Fail Id Rec Elements=[FieldName, Register]
+## @doc Extract the values for each field name and store into the
+##      corresponding register.
+##
+##      If Id is an atom, the native record is known to have been
+##      created by the current instant of the current module; that is,
+##      this instruction can't fail and the the position of fields are
+##      known.
+##
+##      If Id is a {Module,Name} tuple, the record name is known,
+##      but it it not guaranteed that its definition known at
+##      load-time is the same as the definition captured in Rec.
+##
+##      If Id is [], this is an anonymous match and nothing is known
+##      about the record definition. The matching must be done using
+##      the captured record definition in Rec.
+192: get_record_elements_id/4
+
+## @spec update_record_id Hint Id Src Dst Live Updates
+## @doc Update a native record.
+##
+##      If Id is an atom, the native record is known to have been
+##      created by the current instant of the current module; that is,
+##      this instruction can't fail and the the position of fields are
+##      known.
+##
+##      If Id is a {Module,Name} tuple, the record name is known,
+##      but it it not guaranteed that its definition known at
+##      load-time is the same as the definition captured in Rec.
+##
+##      If Id is [], this is an anonymous update and nothing is known
+##      about the record definition. The matching must be done using
+##      the captured record definition in Rec.
+##
+##      Hint has the same meaning as in the update_record/5 instruction.
+193: update_record_id/6

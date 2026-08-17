@@ -46,7 +46,8 @@
             ultimate_fail=1 :: beam_label(),
             catches :: gb_sets:set(ssa_label()),
             fc_label=1 :: beam_label(),
-            debug_info=false :: boolean()
+            debug_info=false :: boolean(),
+            module :: module()
            }.
 
 -spec module(beam_ssa:b_module(), [compile:option()]) ->
@@ -59,7 +60,9 @@ module(#b_module{anno=Anno,name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) 
 
 -record #need{h=0 :: non_neg_integer(),   % heap words
               l=0 :: non_neg_integer(),   % lambdas (funs)
-              f=0 :: non_neg_integer()}.  % floats
+              f=0 :: non_neg_integer(),   % floats
+              nr=0 :: non_neg_integer()   % native records
+             }.
 
 -record #cg_blk{anno=#{} :: anno(),
                 is=[] :: [instruction()],
@@ -115,13 +118,14 @@ module(#b_module{anno=Anno,name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) 
 
 -type ssa_register() :: xreg() | yreg() | freg() | zreg().
 
-functions(Forms, AtomMod, DebugInfo) ->
+functions(Forms, {atom,Mod}=AtomMod, DebugInfo) ->
     Empty = gb_sets:empty(),
     mapfoldl(fun (F, St) -> function(F, AtomMod, St) end,
              #cg{lcount=1,
                  used_labels=Empty,
                  catches=Empty,
-                 debug_info=DebugInfo}, Forms).
+                 debug_info=DebugInfo,
+                 module=Mod}, Forms).
 
 function(#b_function{anno=Anno,bs=Blocks,args=Args,cnt=Count},
          AtomMod, St0) ->
@@ -242,7 +246,8 @@ collect_catch_labels_1([]) -> [].
 
 need_heap(Bs0) ->
     Bs1 = need_heap_allocs(Bs0, #{}),
-    {Bs,#need{h=0,l=0,f=0}} = need_heap_blks(reverse(Bs1), #need{}, []),
+    {Bs,Need} = need_heap_blks(reverse(Bs1), #need{}, []),
+    true = is_empty_need(Need),                 %Assertion.
     Bs.
 
 need_heap_allocs([{L,#cg_blk{is=Is0,last=Terminator}=Blk0}|Bs], Counts0) ->
@@ -314,6 +319,8 @@ need_heap_is([#cg_set{op=Op,args=Args}=I|Is], N, Acc) ->
             need_heap_is(Is, add_heap_words(N, Words), [I|Acc]);
         {put_fun,NArgs} ->
             need_heap_is(Is, add_heap_fun(N, NArgs), [I|Acc]);
+        put_native_record ->
+            need_heap_is(Is, add_heap_record(N, I), [I|Acc]);
         put_float ->
             need_heap_is(Is, add_heap_float(N), [I|Acc]);
         neutral ->
@@ -349,11 +356,17 @@ need_heap_terminator([{_,#cg_blk{}}|_], _, N) ->
 need_heap_terminator([], _, H) ->
     {need_heap_need(H),#need{}}.
 
-need_heap_need(#need{h=0,l=0,f=0}) -> [];
-need_heap_need(#need{}=N) -> [#cg_alloc{words=N}].
+need_heap_need(Need) ->
+    case is_empty_need(Need) of
+        true -> [];
+        false -> [#cg_alloc{words=Need}]
+    end.
 
-add_heap_words(#need{h=H1,l=L1,f=F1}, #need{h=H2,l=L2,f=F2}) ->
-    #need{h=H1+H2,l=L1+L2,f=F1+F2};
+is_empty_need(#need{h=0,l=0,f=0,nr=0}) -> true;
+is_empty_need(#need{}) -> false.
+
+add_heap_words(#need{h=H1,l=L1,f=F1,nr=R1}, #need{h=H2,l=L2,f=F2,nr=R2}) ->
+    #need{h=H1+H2,l=L1+L2,f=F1+F2,nr=R1+R2};
 add_heap_words(#need{h=Heap}=N, Words) when is_integer(Words) ->
     N#need{h=Heap+Words}.
 
@@ -363,8 +376,13 @@ add_heap_fun(#need{h=Heap, l=Lambdas}=N, NArgs) ->
 add_heap_float(#need{f=F}=N) ->
     N#need{f=F+1}.
 
+add_heap_record(#need{h=Heap, nr=NR}=N, I) ->
+    case I of
+        #cg_set{anno=#{record_num_fields := NFields}} ->
+            N#need{h=Heap+NFields, nr=NR+1}
+    end.
+
 %% classify_heap_need(Operation, Arguments) ->
-%%        gc | neutral | {put,Words} | put_float.
 %%  Classify the heap need for this instruction. The return
 %%  values have the following meaning.
 %%
@@ -374,6 +392,12 @@ add_heap_float(#need{f=F}=N) ->
 %%  'put_float' means that the instruction will build one floating point
 %%  number on the heap.
 %%
+%%  {put_fun,NumArgs} means that the instruction will build one fun
+%%  having NumArgs arguments.
+%%
+%%  `put_native_record` means that the instruction will build one
+%%  native record.
+%%
 %%  'gc' means that that the instruction can potentially do a GC or throw an
 %%  exception. That means that an allocation instruction for any building
 %%  must be placed after this instruction.
@@ -381,10 +405,11 @@ add_heap_float(#need{f=F}=N) ->
 %%  'neutral' means that the instruction does nothing to disturb the heap.
 
 -spec classify_heap_need(beam_ssa:op(), [beam_ssa:value()]) ->
-                                'gc' | 'neutral' |
-                                {'put',non_neg_integer()} |
-                                {'put_fun', non_neg_integer()} |
-                                'put_float'.
+          'gc' | 'neutral' |
+          {'put',non_neg_integer()} |
+          {'put_fun', non_neg_integer()} |
+          'put_native_record' |
+          'put_float'.
 
 classify_heap_need(put_list, _) ->
     {put,2};
@@ -403,7 +428,16 @@ classify_heap_need({float,Op}, _Args) ->
         _ -> neutral
     end;
 classify_heap_need(update_record, [_Flag, #b_literal{val=Size} |_ ]) ->
+    %% Tuple or tuple record.
     {put, Size + 1};
+classify_heap_need(update_record_id, Args) ->
+    %% Native record.
+    case Args of
+        [#b_literal{val=Id}|_] when is_atom(Id) ->
+            put_native_record;
+        _ ->
+            gc
+    end;
 classify_heap_need(Name, _Args) ->
     classify_heap_need(Name).
 
@@ -443,6 +477,7 @@ classify_heap_need(extract) -> gc;
 classify_heap_need(get_hd) -> neutral;
 classify_heap_need(get_map_element) -> neutral;
 classify_heap_need(get_record_element) -> neutral;
+classify_heap_need(get_record_element_id) -> neutral;
 classify_heap_need(get_tl) -> neutral;
 classify_heap_need(get_tuple_element) -> neutral;
 classify_heap_need(has_map_field) -> neutral;
@@ -755,6 +790,7 @@ need_live_anno(Op) ->
         put_map -> true;
         put_record -> true;
         update_record -> true;
+        update_record_id -> true;
         _ -> false
     end.
 
@@ -884,6 +920,7 @@ need_y_init(#cg_set{op=debug_line}) -> true;
 need_y_init(#cg_set{op=put_map}) -> true;
 need_y_init(#cg_set{op=put_record}) -> true;
 need_y_init(#cg_set{op=update_record}) -> true;
+need_y_init(#cg_set{op=update_record_id}) -> true;
 need_y_init(#cg_set{}) -> false.
 
 %% opt_allocate([{BlockLabel,Block}], #st{}) -> [BeamInstruction].
@@ -1729,12 +1766,14 @@ cg_block([#cg_set{op=get_map_element,dst=Dst0,args=Args0,anno=Anno},
     Dst = beam_arg(Dst0, St),
     Fail = ensure_label(Fail0, St),
     {[{get_map_elements,Fail,Map,{list,[Key,Dst]}}],St};
-cg_block([#cg_set{op=get_record_element,dst=Dst0,args=Args0,anno=Anno},
+cg_block([#cg_set{op=get_record_element_id,dst=Dst0,args=Args0},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail0}, St) ->
-    [Str,Key] = typed_args(Args0, Anno, St),
-    Dst = beam_arg(Dst0, St),
-    Fail = ensure_label(Fail0, St),
-    {[{get_record_elements,Fail,Str,{list,[Key,Dst]}}],St};
+    [Dst,Id,Src,Key] = beam_args([Dst0|Args0], St),
+    Fail = case Id of
+               {atom,_} -> {f,0};
+               _ -> bif_fail(Fail0)
+           end,
+    {[{get_record_elements_id,Fail,Id,Src,{list,[Key,Dst]}}],St};
 cg_block([#cg_set{op={float,convert},dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     {f,0} = bif_fail(Fail),                     %Assertion.
@@ -1745,6 +1784,15 @@ cg_block([#cg_set{op=bs_skip,args=Args0,anno=Anno}=I,
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     Args = typed_args(Args0, Anno, St),
     {cg_bs_skip(bif_fail(Fail), Args, I),St};
+cg_block([#cg_set{op=update_record_id,dst=Dst0,args=Args0}=Set,
+          #cg_set{op=succeeded,dst=Bool}], {Bool,Fail0}, St) ->
+    %% Update a native record.
+    {f,0} = bif_fail(Fail0),                    %Assertion.
+    Hint = {atom,reuse},
+    Live = get_live(Set),
+    [Dst,Id,Src|List] = beam_args([Dst0|Args0], St),
+    I = {update_record_id,Hint,Id,Src,Dst,Live,{list,List}},
+    {[I],St};
 cg_block([#cg_set{op=Op,dst=Dst0,args=Args0}=I,
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     [Dst|Args] = beam_args([Dst0|Args0], St),
@@ -2102,10 +2150,11 @@ is_killed({x,_}=R, [{init_yregs,_}|Is], Arity) ->
 is_killed({x,X}, [], Arity) ->
     X >= Arity.
 
-cg_alloc(#cg_alloc{stack=none,words=#need{h=0,l=0,f=0}}, _St) ->
-    [];
 cg_alloc(#cg_alloc{stack=none,words=Need,live=Live}, _St) ->
-    [{test_heap,alloc(Need),Live}];
+    case is_empty_need(Need) of
+        true -> [];
+        false -> [{test_heap,alloc(Need),Live}]
+    end;
 cg_alloc(#cg_alloc{stack=Stk,words=Need,live=Live,def_yregs=DefYregs},
          #cg{regs=Regs}) when is_integer(Stk) ->
     Alloc = alloc(Need),
@@ -2122,10 +2171,13 @@ init_yregs([_|_]=Yregs) ->
     [{init_yregs,{list,Yregs}}];
 init_yregs([]) -> [].
 
-alloc(#need{h=Words,l=0,f=0}) ->
+alloc(#need{h=Words,l=0,f=0,nr=0}) ->
     Words;
-alloc(#need{h=Words,l=Lambdas,f=Floats}) ->
-    {alloc,[{words,Words},{floats,Floats},{funs,Lambdas}]}.
+alloc(#need{h=Words,l=Lambdas,f=Floats,nr=Recs}) ->
+    AllocList0 = [{words,Words},{floats,Floats},
+                  {funs,Lambdas},{records,Recs}],
+    AllocList = [{Tag,N} || {Tag,N} <- AllocList0, N =/= 0],
+    {alloc,AllocList}.
 
 is_call([#cg_set{op=call,args=[#b_var{}|Args]}|_]) ->
     {yes,1+length(Args)};

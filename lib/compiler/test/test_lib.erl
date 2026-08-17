@@ -134,7 +134,8 @@ get_data_dir(Config) ->
                 "_no_module_opt_SUITE",
                 "_no_type_opt_SUITE",
                 "_no_ssa_opt_SUITE",
-                "_cover_SUITE"],
+                "_cover_SUITE",
+                "_r29_SUITE"],
     case filelib:is_dir(Data) of
         true ->
             %% Build system already provides it
