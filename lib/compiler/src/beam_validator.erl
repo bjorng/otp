@@ -907,10 +907,18 @@ vi({put_map_exact=Op,{f,Fail},Src,Dst,Live,{list,List}}, Vst) ->
 %%
 %% Native record instructions.
 %%
-vi({put_record,{f,Fail},Id,Src,Dst,Live,{list,List}}, Vst) ->
+vi({put_record,{f,Fail},Id,nil=Src,Dst,Live,{list,List}}, Vst) ->
     verify_put_record(Fail, Id, Src, Dst, Live, List, Vst);
+vi({put_record,Id,Src,Dst,Live,{list,List}}, Vst) ->
+    %% OTP 29: Update a native record.
+    verify_update_record_id(Id, Src, Dst, Live, List, Vst);
+vi({update_record_id,Id,Src,Dst,Live,{list,List}}, Vst) ->
+    %% OTP 30: Update a native record.
+    verify_update_record_id(Id, Src, Dst, Live, List, Vst);
 vi({get_record_elements,{f,Fail},Src,{list,List}}, Vst) ->
-    verify_get_record_elements(Fail, Src, List, Vst);
+    verify_get_record_elements_id(Fail, nil, Src, List, Vst);
+vi({get_record_elements_id,Fail,Id,Src,{list,List}}, Vst) ->
+    verify_get_record_elements_id(Fail, Id, Src, List, Vst);
 
 %%
 %% Bit syntax matching
@@ -1436,6 +1444,25 @@ pmt_1([Key0, Value0 | List], Vst, Acc0) ->
 pmt_1([], _Vst, Acc) ->
     Acc.
 
+%% Verify update of a native record.
+verify_update_record_id(Id, Src, Dst, Live, List, Vst0) ->
+    assert_term(Src, Vst0),
+    verify_live(Live, Vst0),
+    verify_y_init(Vst0),
+
+    _ = [assert_term(Term, Vst0) || Term <- List],
+    Vst1 = heap_alloc(0, Vst0),
+    Vst = prune_x_regs(Live, Vst1),
+    Keys = extract_keys(List, Vst),
+    EmptyHandling = case Src of
+                        nil -> allow_empty;
+                        _ -> forbid_empty
+                    end,
+    verify_keys(only_literals, EmptyHandling, Keys),
+
+    Type = put_record_type(Src, Id, List, Vst),
+    create_term(Type, put_record, [Src], Dst, Vst, Vst0).
+
 verify_put_record(Fail, Id, Src, Dst, Live, List, Vst0) ->
     assert_term(Src, Vst0),
     verify_live(Live, Vst0),
@@ -1483,6 +1510,10 @@ put_record_type(Src, Id, Fs0, Vst) ->
         {literal,{Mod,Tag}} when is_atom(Mod), is_atom(Tag) ->
             #t_record{name={Mod,Tag},type=Fs};
         {atom,'_'} ->
+            %% OTP 29 (from the put_record instruction).
+            #t_record{name=nil,type=Fs};
+        nil ->
+            %% OTP 30 (from the update_record_id instruction).
             #t_record{name=nil,type=Fs};
         {atom,Tag} when is_atom(Tag) ->
             Mod = Vst#vst.module,
@@ -1506,19 +1537,26 @@ record_field_types([{atom,Key}, Value0 | Fs], Vst, Acc) ->
 record_field_types([], _Vst, Acc) ->
     Acc.
 
-verify_get_record_elements(Fail, Src, List, Vst0) ->
+verify_get_record_elements_id({f,0}, _Id, Src, List, Vst0) ->
+    %% In this instruction, `{f,0}` means that it cannot fail.
+    assert_not_literal(Src),
+    verify_successful_gre(Src, List, Vst0);
+verify_get_record_elements_id({f,Fail}, _Id, Src, List, Vst0) ->
     assert_no_exception(Fail),
     assert_not_literal(Src),
     branch(Fail, Vst0,
            fun(FailVst) ->
                    clobber_record_vals(List, Src, FailVst)
            end,
-           fun(SuccVst0) ->
-                   Keys = extract_keys(List, SuccVst0),
-                   verify_keys(only_literals, forbid_empty, Keys),
-                   SuccVst1 = update_native_record_type(List, Src, SuccVst0),
-                   extract_vals(record_get, List, Src, SuccVst1)
+           fun(SuccVst) ->
+                   verify_successful_gre(Src, List, SuccVst)
            end).
+
+verify_successful_gre(Src, List, Vst0) ->
+    Keys = extract_keys(List, Vst0),
+    verify_keys(only_literals, forbid_empty, Keys),
+    SuccVst1 = update_native_record_type(List, Src, Vst0),
+    extract_vals(record_get, List, Src, SuccVst1).
 
 update_native_record_type([_|_]=Updates, Src, Vst) ->
     Es = #{Key => {present, any} || {atom,Key} <- Updates},

@@ -46,7 +46,8 @@
             ultimate_fail=1 :: beam_label(),
             catches :: gb_sets:set(ssa_label()),
             fc_label=1 :: beam_label(),
-            debug_info=false :: boolean()
+            debug_info=false :: boolean(),
+            module :: module()
            }.
 
 -spec module(beam_ssa:b_module(), [compile:option()]) ->
@@ -115,13 +116,14 @@ module(#b_module{anno=Anno,name=Mod,exports=Es,attributes=Attrs,body=Fs}, Opts) 
 
 -type ssa_register() :: xreg() | yreg() | freg() | zreg().
 
-functions(Forms, AtomMod, DebugInfo) ->
+functions(Forms, {atom,Mod}=AtomMod, DebugInfo) ->
     Empty = gb_sets:empty(),
     mapfoldl(fun (F, St) -> function(F, AtomMod, St) end,
              #cg{lcount=1,
                  used_labels=Empty,
                  catches=Empty,
-                 debug_info=DebugInfo}, Forms).
+                 debug_info=DebugInfo,
+                 module=Mod}, Forms).
 
 function(#b_function{anno=Anno,bs=Blocks,args=Args,cnt=Count},
          AtomMod, St0) ->
@@ -1731,10 +1733,25 @@ cg_block([#cg_set{op=get_map_element,dst=Dst0,args=Args0,anno=Anno},
     {[{get_map_elements,Fail,Map,{list,[Key,Dst]}}],St};
 cg_block([#cg_set{op=get_record_element,dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail0}, St) ->
-    [Str,Key] = typed_args(Args0, Anno, St),
     Dst = beam_arg(Dst0, St),
-    Fail = ensure_label(Fail0, St),
-    {[{get_record_elements,Fail,Str,{list,[Key,Dst]}}],St};
+    case typed_args(Args0, Anno, St) of
+        [{tr,Reg,#t_record{name={_,Name}, local_creation=true}}, Key]
+          when is_atom(Name) ->
+            %% This is local matching of a native record; that is, the
+            %% record was previously created by the current instance
+            %% of this module. This operation can be optimized by the
+            %% runtime because the position of each field is known.
+            I = {get_record_elements_id,{f,0},{atom,Name},
+                 Reg,{list,[Key,Dst]}},
+            {[I],St};
+        [{tr,Reg,#t_record{name={_,_}=Name, local_creation=false}}, Key] ->
+            I = {get_record_elements_id,Fail0,{literal,Name},
+                 Reg,{list,[Key,Dst]}},
+            {[I],St};
+        _ ->
+            [Src,Key] = beam_args(Args0, St),
+            {[{get_record_elements_id,Fail0,nil,Src,{list,[Key,Dst]}}],St}
+    end;
 cg_block([#cg_set{op={float,convert},dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     {f,0} = bif_fail(Fail),                     %Assertion.
@@ -1745,6 +1762,48 @@ cg_block([#cg_set{op=bs_skip,args=Args0,anno=Anno}=I,
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     Args = typed_args(Args0, Anno, St),
     {cg_bs_skip(bif_fail(Fail), Args, I),St};
+cg_block([#cg_set{op=put_record,dst=Dst0,
+                  args=[#b_var{}=Src0|Args0],anno=Anno}=Set,
+          #cg_set{op=succeeded,dst=Bool}], {Bool,Fail0}, St) ->
+    %% Update a native record.
+    {f,0} = bif_fail(Fail0),                    %Assertion.
+    {Src,LC} = case typed_args([Src0], Anno, St) of
+                   [{tr,Src1,#t_record{local_creation=LC0}}] ->
+                       {Src1,LC0};
+                   _ ->
+                       {beam_arg(Src0, St),false}
+               end,
+    case Args0 of
+        [#b_literal{val='_'}|_] ->
+            [Dst,Src,_Id0|List] = beam_args([Dst0,Src0|Args0], St),
+            Live = get_live(Set),
+            Id = nil,
+            I = {update_record_id,Id,Src,Dst,Live,{list,List}},
+            {[I],St};
+        [#b_literal{val=Name}|_] when is_atom(Name) ->
+            [Dst,Src,Id0|List] = beam_args([Dst0,Src0|Args0], St),
+            Live = get_live(Set),
+            Id = case LC of
+                     true ->
+                         %% This is local update of a native record;
+                         %% that is, the record was previously created
+                         %% by the current instance of this
+                         %% module. This operation can be optimized by
+                         %% the runtime because it can't fail and the
+                         %% position of each field is known.
+                         Id0;
+                     false ->
+                         {literal,{St#cg.module,Name}}
+                 end,
+            I = {update_record_id,Id,Src,Dst,Live,{list,List}},
+            {[I],St};
+        [#b_literal{val={_,_}}|_] ->
+            %% Update an external record.
+            [Dst,Src,Id|List] = beam_args([Dst0,Src0|Args0], St),
+            Live = get_live(Set),
+            I = {update_record_id,Id,Src,Dst,Live,{list,List}},
+            {[I],St}
+    end;
 cg_block([#cg_set{op=Op,dst=Dst0,args=Args0}=I,
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     [Dst|Args] = beam_args([Dst0|Args0], St),

@@ -465,6 +465,8 @@ disasm_instr(B, Bs, Atoms, Literals, Types) ->
 	    disasm_map_inst(get_map_elements, Arity, Bs, Atoms, Literals, Types);
 	get_record_elements ->
 	    disasm_map_inst(SymOp, Arity, Bs, Atoms, Literals, Types);
+        get_record_elements_id ->
+            disasm_map_inst(SymOp, Arity, Bs, Atoms, Literals, Types);
 	put_record ->
 	    disasm_map_inst(SymOp, Arity, Bs, Atoms, Literals, Types);
 	has_map_fields ->
@@ -480,7 +482,11 @@ disasm_instr(B, Bs, Atoms, Literals, Types) ->
 	bs_match ->
 	    disasm_bs_match(Bs, Atoms, Literals, Types);
 	update_record ->
+            %% Update a tuple record.
 	    disasm_update_record(Bs, Atoms, Literals, Types);
+        update_record_id ->
+            %% Updata a native record.
+            disasm_map_inst(SymOp, Arity, Bs, Atoms, Literals, Types);
 	_ ->
 	    try decode_n_args(Arity, Bs, Atoms, Literals, Types) of
 		{Args, RestBs} ->
@@ -1409,6 +1415,19 @@ resolve_inst({is_record_accessible,[Location,Src,Scope]},_,_,_) ->
 resolve_inst({get_record_field,[Location,Src,Id,Name,Dst]},_,_,_) ->
     {test,get_record_field,resolve_arg(Location),resolve_arg(Src),Id,
      resolve_arg(Name),resolve_arg(Dst)};
+
+%%
+%% OTP 30.
+%%
+
+resolve_inst({get_record_elements_id,Args0},_,_,_) ->
+    [Fail,Id,Src,{{z,1},{u,_Len},List0}] = Args0,
+    List = resolve_args(List0),
+    {get_record_elements_id,Fail,Id,Src,{list,List}};
+resolve_inst({update_record_id,Args0},_,_,_) ->
+    [Id,Src,Dst,{u,_},{{z,1},{u,_Len},List0}] = Args0,
+    List = resolve_args(List0),
+    {update_record_id,Id,Src,Dst,{list,List}};
 
 %%
 %% Catches instructions that are not yet handled.
