@@ -70,6 +70,43 @@ typedef struct {
     Eterm values[];
 } ErtsRecordInstance;
 
+typedef struct {
+    Eterm module;               /* Key */
+    Eterm name;                 /* Key */
+
+    struct erts_ext_mod_rec *states[ERTS_ADDRESSV_SIZE];
+} ErtsExtRecord;
+
+typedef struct erts_ext_mod_rec {
+    /* Literal-tagged CONS pointer if the module is loaded. The head
+     * of the CONS holds to pointer to the canonical
+     * ErtsRecordDefinition for each code generation, while the tail
+     * holds the default values.
+     *
+     * THE_NON_VALUE if the module is not loaded.
+     */
+    Eterm cons;
+
+    Hash rec_ops;               /* Hash table of ErtExtRecOp */
+} ErtsExtModRec;
+
+typedef struct {
+    Eterm code;
+    Uint64 ref_cnt;
+
+    enum {
+        create,                 /* Uses cons for creation. */
+        update,                 /* Only compares cons. */
+        get_elements            /* Only compares cons. */
+    } code_type;                /* Key */
+
+    
+    /* FieldName0 Dst0 FieldName1 Dst1 ... FieldNameN DstN;
+     * sorted in atom order of field names. */
+    Uint size;
+    Eterm names_and_dests[];    /* Key */
+} ErtsExtRecOp;
+
 #define RECORD_INST_SIZE(FieldCount)                                    \
     (sizeof(ErtsRecordInstance)/sizeof(Eterm) + (FieldCount))
 
