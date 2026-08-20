@@ -28,8 +28,21 @@
 #include "erl_record.h"
 #include "global.h"
 
+static HashValue
+ext_rec_op_hash(ErtsExtRecOp *obj)
+{
+    HashValue h;
+
+    h = erts_internal_hash(make_small(obj->code_type));
+    for (int i = 0; i < obj->size; i++) {
+        h ^= erts_internal_hash(obj->names_and_dests[i]);
+    }
+
+    return h;
+}
+
 static int
-record_cmp(const ErtsExtRecOp *tmpl, const ErtsExtRecOp *obj) {
+ext_rec_op_cmp(const ErtsExtRecOp *tmpl, const ErtsExtRecOp *obj) {
     if (!(tmpl->code_type == obj->code_type &&
           tmpl->size == obj->size)) {
         return false;
