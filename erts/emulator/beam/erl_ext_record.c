@@ -28,3 +28,18 @@
 #include "erl_record.h"
 #include "global.h"
 
+static int
+record_cmp(const ErtsExtRecOp *tmpl, const ErtsExtRecOp *obj) {
+    if (!(tmpl->code_type == obj->code_type &&
+          tmpl->size == obj->size)) {
+        return false;
+    }
+
+    for (int i = 0; i < tmpl->size; i++) {
+        if (tmpl->names_and_dests[i] != obj->names_and_dests[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}

@@ -99,10 +99,12 @@ typedef struct {
         update,                 /* Only compares cons. */
         get_elements            /* Only compares cons. */
     } code_type;                /* Key */
+
     
     /* FieldName0 Dst0 FieldName1 Dst1 ... FieldNameN DstN;
      * sorted in atom order of field names. */
-    Eterm names_and_dest[];     /* Key */
+    Uint size;
+    Eterm names_and_dests[];    /* Key */
 } ErtsExtRecOp;
 
 #define RECORD_INST_SIZE(FieldCount)                                    \
