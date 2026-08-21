@@ -341,28 +341,6 @@ Eterm erl_create_local_native_record(Process* p, Eterm* reg,
     return res;
 }
 
-static void print_key(ErtsRecordDefinition *defp, Uint size, const Eterm* new_p) {
-    /* char sbuf[10*1024]; */
-    /* int index = 0; */
-
-    erts_printf("%T:%T:", defp->module, defp->name);
-    for (int i = 0; i < size; i += 2) {
-        erts_printf("%T:", new_p[i]);
-        switch(loader_tag(new_p[i+1])) {
-        case LOADER_X_REG:
-            erts_printf("x%d:", loader_x_reg_index(new_p[i+1]));
-            break;
-        case LOADER_Y_REG:
-            erts_printf("y%d:", loader_y_reg_index(new_p[i+1]));
-            break;
-        default:
-            erts_printf("%T:", new_p[i+1]);
-            break;
-        }
-    }
-    erts_printf("\n");
-}
-
 Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
                                Uint size, const Eterm* new_p) {
     /* Module, Name */
@@ -388,7 +366,6 @@ Eterm erl_create_native_record(Process* p, Eterm* reg, Eterm id, Uint live,
 
             def = CAR(list_val(cons));
             defp = (ErtsRecordDefinition*)tuple_val(def);
-            print_key(defp, size, new_p);
             if (defp->is_exported == am_true) {
                 return erl_create_local_native_record(p, reg, cons,
                                                       live, size, new_p);

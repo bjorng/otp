@@ -1228,7 +1228,6 @@ RUN_OBJS += \
 	$(OBJDIR)/erl_etp.o \
 	$(OBJDIR)/erl_internal_test.o \
 	$(OBJDIR)/erl_record.o \
-	$(OBJDIR)/erl_ext_record.o \
 	$(OBJDIR)/erl_crash_dump.o
 
 
