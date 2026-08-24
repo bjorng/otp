@@ -345,12 +345,131 @@ void BeamModuleAssembler::emit_i_create_native_record(
 }
 
 void BeamModuleAssembler::emit_i_update_local_native_record(
+        const ArgAtom &Hint,
         const ArgLiteral &Def,
         const ArgSource &Src,
         const ArgRegister &Dst,
         const ArgWord &Live,
-        const ArgWord &size,
+        const ArgWord &Size,
         const Span<const ArgVal> &args) {
+    Label next = a.new_label();
+
+    // ASSERT(UpdateCount.get() == updates.size());
+    // ASSERT((UpdateCount.get() % 2) == 0);
+
+    Eterm cons = beamfile_get_literal(beam, Def.get());
+    Eterm def = CAR(list_val(cons));
+    ErtsRecordDefinition *defp = (ErtsRecordDefinition *)tuple_val(def);
+    int field_count = RECORD_DEF_FIELD_COUNT(defp);
+    // Uint num_words_needed = RECORD_INST_SIZE(field_count);
+    const size_t size_on_heap = RECORD_INST_SIZE(field_count);
+
+    comment("name: %T", defp->name);
+
+    auto destination = init_destination(Dst, ARG1);
+    auto src = load_source(Src, ARG2);
+
+    a64::Gp untagged_src = ARG3;
+    emit_untag_ptr(untagged_src, src.reg);
+
+    /* Setting a field to the same value is pretty common, so we'll check for
+     * that since it's vastly cheaper than copying if we're right, and doesn't
+     * cost much if we're wrong. */
+    // if (Hint.get() == am_reuse && updates.size() == 2) {
+    //     const auto next_index = updates[0].as<ArgWord>().get();
+    //     const auto &next_value = updates[1].as<ArgSource>();
+
+    //     safe_ldr(TMP1, a64::Mem(untagged_src, next_index * sizeof(Eterm)));
+    //     cmp_arg(TMP1, next_value);
+
+    //     if (destination.reg != src.reg) {
+    //         a.csel(destination.reg,
+    //                destination.reg,
+    //                src.reg,
+    //                imm(arm::CondCode::kNE));
+    //     }
+    //     a.b_eq(next);
+    // }
+
+    int argp = 0;
+    std::vector<ArgVal> updates;
+    updates.reserve(args.size());
+    for (int i = 0; i < field_count; i++) {
+        if (argp < args.size() && args[argp].as<ArgAtom>().get() == defp->keys[i]) {
+            Uint header_size = sizeof(ErtsRecordInstance) / sizeof(Eterm);
+            updates.emplace(updates.end(), ArgWord(header_size + i));
+            updates.emplace(updates.end(), args[argp+1]);
+            argp += 2;
+        }
+    }
+
+    size_t copy_index = 0;
+
+    for (size_t i = 0; i < updates.size(); i += 2) {
+        const auto next_index = updates[i].as<ArgWord>().get();
+        const auto &next_value = updates[i + 1].as<ArgSource>();
+        bool odd_copy;
+
+        ASSERT(next_index > 0 && next_index >= copy_index);
+
+        /* If we need to copy an odd number of elements, we'll do the last one
+         * ourselves to save us from having to increment `untagged_src`
+         * separately. */
+        odd_copy = (next_index - copy_index) & 1;
+        emit_copy_words_increment(untagged_src,
+                                  HTOP,
+                                  (next_index - copy_index) & ~1);
+
+        if ((i + 2) < updates.size()) {
+            const auto adjacent_index = updates[i + 2].as<ArgWord>().get();
+            const auto &adjacent_value = updates[i + 3].as<ArgSource>();
+
+            if (adjacent_index == next_index + 1) {
+                auto [first, second] =
+                        load_sources(next_value, TMP1, adjacent_value, TMP2);
+
+                if (odd_copy) {
+                    a.ldr(TMP3, a64::Mem(untagged_src).post(sizeof(Eterm[3])));
+                    a.stp(TMP3,
+                          first.reg,
+                          a64::Mem(HTOP).post(sizeof(Eterm[2])));
+                    a.str(second.reg, a64::Mem(HTOP).post(sizeof(Eterm)));
+                } else {
+                    a.add(untagged_src, untagged_src, imm(sizeof(Eterm[2])));
+                    a.stp(first.reg,
+                          second.reg,
+                          a64::Mem(HTOP).post(sizeof(Eterm[2])));
+                }
+
+                copy_index = next_index + 2;
+                i += 2;
+                continue;
+            }
+        }
+
+        auto value = load_source(next_value, TMP1);
+
+        if ((next_index - copy_index) & 1) {
+            a.ldr(TMP2, a64::Mem(untagged_src).post(sizeof(Eterm[2])));
+            a.stp(TMP2, value.reg, a64::Mem(HTOP).post(sizeof(Eterm[2])));
+        } else {
+            a.add(untagged_src, untagged_src, imm(sizeof(Eterm)));
+            a.str(value.reg, a64::Mem(HTOP).post(sizeof(Eterm)));
+        }
+
+        copy_index = next_index + 1;
+    }
+
+    emit_copy_words_increment(untagged_src, HTOP, size_on_heap - copy_index);
+
+    sub(destination.reg,
+        HTOP,
+        (size_on_heap * sizeof(Eterm)) - TAG_PRIMARY_BOXED);
+
+    a.bind(next);
+    flush_var(destination);
+
+#if 0
     Label next = a.new_label();
 
     mov_arg(ARG3, Src);
@@ -375,6 +494,7 @@ void BeamModuleAssembler::emit_i_update_local_native_record(
 
     a.bind(next);
     mov_arg(Dst, ARG1);
+#endif
 }
 
 void BeamModuleAssembler::emit_i_update_native_record(
