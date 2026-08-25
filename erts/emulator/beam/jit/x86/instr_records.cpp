@@ -255,35 +255,98 @@ void BeamModuleAssembler::emit_i_create_local_native_record(
     mov_arg(Dst, tmp_reg);
 }
 
+/*
+ * ARG4 = Id
+ * ARG5 = (size << 10) | live
+ * ARG6 = args
+ */
+void BeamGlobalAssembler::emit_create_native_record_shared() {
+    Label trap = a.new_label();
+    Label error = a.new_label();
+    Label ret = a.new_label();
+    Label finish_create = a.new_label();
+
+    emit_enter_frame();
+
+    load_x_reg_array(ARG2);
+    a.mov(ARG1, c_p);
+    a.mov(ARG3, active_code_ix);
+
+    emit_enter_runtime<Update::eHeapAlloc | Update::eReductions>();
+
+    runtime_call<Eterm (*)(Process *,
+                           Eterm *,
+                           ErtsCodeIndex,
+                           Eterm,
+                           Uint,
+                           const Eterm *),
+                 erl_create_native_record_jit>();
+
+    emit_leave_runtime<Update::eHeapAlloc | Update::eReductions>();
+
+    emit_test_the_non_value(RET);
+    a.short_().je(trap);
+
+    a.bind(ret);
+    emit_leave_frame();
+    a.ret();
+
+    a.bind(error);
+    {
+        emit_leave_frame();
+        mov_imm(ARG4, 0);
+        emit_raise_exception();
+    }
+
+    a.bind(trap);
+    {
+        a.cmp(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(TRAP));
+        a.jne(error);
+
+        /* Ensure that control is transferred to `finish_create` after
+         * having loaded the code. */
+        a.lea(RET, x86::qword_ptr(finish_create));
+        a.mov(getYRef(0), RET);
+        emit_enter_frame();
+
+        /* Dispatch directly to the trap code. There is no need to do
+         * a context switch. */
+        a.mov(RET, x86::qword_ptr(c_p, offsetof(Process, i)));
+        a.jmp(RET);
+    }
+
+    align_erlang_cp();
+    a.bind(finish_create);
+    {
+        /* Now, the module is probably loaded. Again try to create the
+         * record. */
+        load_x_reg_array(ARG2);
+        a.mov(ARG1, c_p);
+        a.mov(ARG3, active_code_ix);
+
+        emit_enter_runtime<Update::eHeapAlloc | Update::eReductions>();
+        runtime_call<Eterm (*)(Process *, Eterm *, ErtsCodeIndex),
+                     erl_finish_create_record_jit>();
+        emit_leave_runtime<Update::eHeapAlloc | Update::eReductions>();
+
+        emit_test_the_non_value(RET);
+        a.je(error);
+        a.jmp(ret);
+    }
+}
+
 void BeamModuleAssembler::emit_i_create_native_record(
         const ArgConstant &Id,
         const ArgRegister &Dst,
         const ArgWord &Live,
         const ArgWord &size,
         const Span<const ArgVal> &args) {
-    Label next = a.new_label();
+    Uint size_live = (args.size() << 10) | Live.get();
 
-    a.mov(ARG1, c_p);
-    load_x_reg_array(ARG2);
-    mov_arg(ARG3, Id);
-    mov_arg(ARG4, Live);
-    mov_imm(ARG5, args.size());
+    mov_arg(ARG4, Id);
+    mov_imm(ARG5, size_live);
     embed_vararg_rodata(args, ARG6, 0);
-
-    emit_enter_runtime<Update::eHeapAlloc | Update::eReductions>();
-
-    runtime_call<
-            Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *),
-            erl_create_native_record>();
-
-    emit_leave_runtime<Update::eHeapAlloc | Update::eReductions>();
-
-    emit_test_the_non_value(RET);
-    a.short_().jne(next);
-
-    emit_raise_exception();
-
-    a.bind(next);
+    fragment_call(ga->get_create_native_record_shared());
     mov_arg(Dst, RET);
 }
 
