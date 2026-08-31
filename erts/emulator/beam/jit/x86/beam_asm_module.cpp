@@ -99,10 +99,6 @@ void BeamModuleAssembler::embed_vararg_rodata(const Span<const ArgVal> &args,
                                               int y_offset) {
     Label label = a.new_label();
 
-#if !defined(NATIVE_ERLANG_STACK)
-    y_offset = CP_SIZE;
-#endif
-
     a.lea(reg, x86::qword_ptr(label));
 
     a.section(rodata);
@@ -255,12 +251,8 @@ void BeamGlobalAssembler::emit_i_line_breakpoint_trampoline_shared() {
     a.sub(TMP2, imm(8));   /* TMP2:= pc (CP adjusted to line of caller) */
     a.mov(saved_pc, TMP2); /* Stash pc */
 
-/* START allocate live live */
-#if !defined(NATIVE_ERLANG_STACK)
-    const int cp_space = CP_SIZE;
-#else
+    /* START allocate live live */
     const int cp_space = 0;
-#endif
 
     a.mov(ARG4, TMP1); /* ARG4 := live */
     a.lea(RET, x86::ptr_abs(cp_space * 8, TMP1, 3));
@@ -282,9 +274,6 @@ void BeamGlobalAssembler::emit_i_line_breakpoint_trampoline_shared() {
 
     a.sub(E, RET);
 
-#if !defined(NATIVE_ERLANG_STACK)
-    a.mov(getCPRef(), imm(NIL));
-#endif
     /* END allocate live live */
 
     a.mov(ARG1, c_p);

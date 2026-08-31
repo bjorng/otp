@@ -783,6 +783,7 @@ case $chk_opsys_ in
     linux*|Linux)		OPSYS=linux;;
     darwin|Darwin)		OPSYS=darwin;;
     freebsd|FreeBSD)		OPSYS=freebsd;;
+    openbsd|OpenBSD)		OPSYS=openbsd;;
     *)				OPSYS=noopsys
 esac
 
@@ -3067,8 +3068,18 @@ AS_IF([test ${enable_jit} != no],
                   JIT_ARCH=x86
                 else
                   enable_jit=no
-                  AC_MSG_WARN([JIT disabled due to annoying popus on x86 Macs with Sononma])
+                  AC_MSG_WARN([JIT disabled due to annoying popups on x86 Macs with Sonoma])
                 fi
+                ;;
+              openbsd)
+                # Whenever the kernel is entered (page faults, system calls, etc),
+                # OpenBSD checks whether the stack pointer is in an area
+                # allocated with MAP_STACK, so we can't use the native stack
+                # for Erlang code.
+                #
+                # https://undeadly.org/cgi?action=article;sid=20180310000858
+                enable_jit=no
+                AC_MSG_WARN([JIT disabled on OpenBSD])
                 ;;
               *)
                 JIT_ARCH=x86
@@ -3189,46 +3200,6 @@ AS_IF([test "$builtin_ryu" = "no"],
         ERTS_USE_BUILTIN_RYU=yes
       ])
 AC_SUBST(ERTS_USE_BUILTIN_RYU)
-
-
-dnl Test if we can use the native stack for Erlang code
-AS_IF([test ${enable_jit} != no],
- [
-  AS_CASE([$host_os],
-    [openbsd*],
-    [
-      # Whenever the kernel is entered (page faults, system calls, etc),
-      # OpenBSD checks whether the stack pointer is in an area allocated with
-      # MAP_STACK, so we can't use the native stack for Erlang code.
-      #
-      # https://undeadly.org/cgi?action=article;sid=20180310000858
-      enable_native_stack=no
-    ],
-    [
-      # Windows never messes with the stack under any circumstances (and RSP
-      # can safely be used as a general-purpose register).
-      #
-      # On other platforms we'll wrangle sigaltstack(2) to let signals execute
-      # on an alternate stack.
-      enable_native_stack=yes
-    ])
-
-  case "$JIT_ARCH" in
-    x86)
-      if test X${enable_native_stack} = Xyes; then
-        AC_DEFINE(NATIVE_ERLANG_STACK, [],
-                  [Define if we can use the native stack for Erlang code])
-      fi
-      ;;
-    arm)
-      # ARM JIT doesn't support native stack due to its 16-byte alignment
-      # requirement.
-      enable_native_stack=no
-      ;;
-    *)
-      ;;
-  esac
- ])
 
 dnl
 dnl Check if the `perf` profiler is supported. At the moment it assumes it

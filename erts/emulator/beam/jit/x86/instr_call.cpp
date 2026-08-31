@@ -28,12 +28,8 @@ extern "C"
 }
 
 void BeamGlobalAssembler::emit_dispatch_return() {
-#ifdef NATIVE_ERLANG_STACK
     /* ARG3 should contain the place to jump to. */
     a.pop(ARG3);
-#else
-    /* ARG3 already contains the place to jump to. */
-#endif
 
     a.mov(x86::qword_ptr(c_p, offsetof(Process, current)), imm(0));
     a.mov(x86::byte_ptr(c_p, offsetof(Process, arity)), imm(1));
@@ -52,16 +48,9 @@ void BeamModuleAssembler::emit_return_do(bool set_I) {
 
     emit_leave_frame();
 
-#if !defined(NATIVE_ERLANG_STACK)
-    a.mov(ARG3, getCPRef());
-    a.mov(getCPRef(), imm(NIL));
-#endif
-
     if (erts_alcu_enable_code_atags || set_I) {
         /* See emit_i_test_yield. */
-#if defined(NATIVE_ERLANG_STACK)
         a.mov(ARG3, x86::qword_ptr(E));
-#endif
         a.mov(x86::qword_ptr(c_p, offsetof(Process, i)), ARG3);
     }
 
@@ -70,11 +59,7 @@ void BeamModuleAssembler::emit_return_do(bool set_I) {
     a.dec(FCALLS);
     a.jl(resolve_fragment(ga->get_dispatch_return()));
 
-#ifdef NATIVE_ERLANG_STACK
     a.ret();
-#else
-    a.jmp(ARG3);
-#endif
 }
 
 void BeamModuleAssembler::emit_i_call(const ArgLabel &CallDest) {

@@ -104,24 +104,20 @@ protected:
      * the aux_regs field to be addressed with an 8-bit displacement. */
     const x86::Gp registers = x86::rbx;
 
-#ifdef NATIVE_ERLANG_STACK
     /* The Erlang stack pointer, note that it uses RSP and is therefore invalid
      * when running on the runtime stack. */
     const x86::Gp E = x86::rsp;
 
-#    ifdef ERLANG_FRAME_POINTERS
+#ifdef ERLANG_FRAME_POINTERS
     /* Current frame pointer, used when we emit native stack frames (e.g. to
      * better support `perf`). */
     const x86::Gp frame_pointer = x86::rbp;
-#    endif
+#endif
 
     /* When we're not using frame pointers, we can keep the Erlang stack in
      * RBP when running on the runtime stack, which is slightly faster than
      * reading and writing from c_p->stop. */
     const x86::Gp E_saved = x86::rbp;
-#else
-    const x86::Gp E = x86::rbp;
-#endif
 
     const x86::Gp c_p = x86::r13;
     const x86::Gp FCALLS = x86::r14d;
@@ -215,20 +211,6 @@ protected:
         return getSchedulerRegRef(base);
     }
 
-#if !defined(NATIVE_ERLANG_STACK)
-#    ifdef JIT_HARD_DEBUG
-    constexpr x86::Mem getInitialSPRef() const {
-        int base = offsetof(ErtsSchedulerRegisters, initial_sp);
-
-        return getSchedulerRegRef(base);
-    }
-#    endif
-
-    constexpr x86::Mem getCPRef() const {
-        return x86::qword_ptr(E);
-    }
-#endif
-
     constexpr x86::Mem getSchedulerRegRef(int offset,
                                           size_t size = sizeof(UWord)) const {
         const int x_reg_offset =
@@ -260,11 +242,7 @@ protected:
     constexpr x86::Mem getYRef(int index, size_t size = sizeof(UWord)) const {
         ASSERT(index >= 0 && index <= 1023);
 
-#ifdef NATIVE_ERLANG_STACK
         return x86::Mem(E, index * sizeof(Eterm), size);
-#else
-        return x86::Mem(E, (index + CP_SIZE) * sizeof(Eterm), size);
-#endif
     }
 
     constexpr x86::Mem getCARRef(x86::Gp Src,
@@ -326,25 +304,10 @@ protected:
      */
     template<typename Any>
     void erlang_call(Any Target, const x86::Gp &spill) {
-#ifdef NATIVE_ERLANG_STACK
         /* We use the Erlang stack as the native stack. We can use a
          * native `call` instruction. */
         emit_assert_redzone_unused();
         aligned_call(Target);
-#else
-        Label next = a.new_label();
-
-        /* Save the return CP on the stack. */
-        a.lea(spill, x86::qword_ptr(next));
-        a.mov(getCPRef(), spill);
-
-        a.jmp(Target);
-
-        /* Need to align this label in order for it to be recognized as
-         * is_CP. */
-        align_erlang_cp();
-        a.bind(next);
-#endif
     }
 
     /*
@@ -355,16 +318,6 @@ protected:
     template<typename Any>
     void fragment_call(Any Target) {
         emit_assert_redzone_unused();
-
-#if defined(JIT_HARD_DEBUG) && !defined(NATIVE_ERLANG_STACK)
-        /* Verify that the stack has not grown. */
-        Label next = a.new_label();
-        a.cmp(x86::rsp, getInitialSPRef());
-        a.short_().je(next);
-        comment("The stack has grown");
-        a.ud2();
-        a.bind(next);
-#endif
 
         aligned_call(Target);
     }
@@ -598,7 +551,6 @@ protected:
 #ifdef JIT_HARD_DEBUG
         Label crash = a.new_label(), next = a.new_label();
 
-#    ifdef NATIVE_ERLANG_STACK
         /* Ensure that we are using the runtime stack. */
         int end_offs, start_offs;
 
@@ -609,7 +561,6 @@ protected:
         a.short_().jbe(crash);
         a.cmp(E, getSchedulerRegRef(start_offs));
         a.short_().ja(crash);
-#    endif
 
         /* Are we 16-byte aligned? */
         a.test(x86::rsp, (16 - 1));
@@ -667,26 +618,22 @@ protected:
     };
 
     void emit_enter_frame() {
-#ifdef NATIVE_ERLANG_STACK
         if (ERTS_UNLIKELY(erts_frame_layout == ERTS_FRAME_LAYOUT_FP_RA)) {
-#    ifdef ERLANG_FRAME_POINTERS
+#ifdef ERLANG_FRAME_POINTERS
             a.push(frame_pointer);
             a.mov(frame_pointer, E);
-#    endif
+#endif
         } else {
             ASSERT(erts_frame_layout == ERTS_FRAME_LAYOUT_RA);
         }
-#endif
     }
 
     void emit_leave_frame() {
-#ifdef NATIVE_ERLANG_STACK
         if (ERTS_UNLIKELY(erts_frame_layout == ERTS_FRAME_LAYOUT_FP_RA)) {
             a.leave();
         } else {
             ASSERT(erts_frame_layout == ERTS_FRAME_LAYOUT_RA);
         }
-#endif
     }
 
     void emit_unwind_frame() {
@@ -752,11 +699,9 @@ protected:
                 }
             }
 
-#ifdef NATIVE_ERLANG_STACK
             if (!(Spec & Update::eStack)) {
                 a.mov(E_saved, E);
             }
-#endif
         } else {
 #ifdef ERLANG_FRAME_POINTERS
             ASSERT(erts_frame_layout == ERTS_FRAME_LAYOUT_FP_RA);
@@ -794,17 +739,8 @@ protected:
             a.mov(x86::dword_ptr(c_p, offsetof(Process, fcalls)), FCALLS);
         }
 
-#ifdef NATIVE_ERLANG_STACK
         a.lea(E, getRuntimeStackRef());
-#else
-        /* Keeping track of stack alignment across shared fragments would be
-         * too much of a maintenance burden, so we stash and align the stack
-         * pointer at runtime instead. */
-        a.mov(getRuntimeStackRef(), x86::rsp);
 
-        a.sub(x86::rsp, imm(15));
-        a.and_(x86::rsp, imm(-16));
-#endif
         /* If the emulator has not been compiled with AVX support (which stops
          * it from using legacy SSE instructions), we'll need to clear the upper
          * bits of all AVX registers to avoid AVX/SSE transition penalties.  */
@@ -826,9 +762,7 @@ protected:
             if (Spec & Update::eStack) {
                 a.mov(E, x86::qword_ptr(c_p, offsetof(Process, stop)));
             } else {
-#ifdef NATIVE_ERLANG_STACK
                 a.mov(E, E_saved);
-#endif
             }
         } else {
 #ifdef ERLANG_FRAME_POINTERS
@@ -860,11 +794,6 @@ protected:
             a.cmp(active_code_ix, imm(ERTS_SAVE_CALLS_CODE_IX));
             a.cmovne(active_code_ix, ARG1);
         }
-
-#if !defined(NATIVE_ERLANG_STACK)
-        /* Restore the unaligned stack pointer we saved on enter. */
-        a.mov(x86::rsp, getRuntimeStackRef());
-#endif
     }
 
     void emit_test(x86::Gp Src, byte mask) {

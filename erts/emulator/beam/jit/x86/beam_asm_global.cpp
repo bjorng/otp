@@ -209,11 +209,7 @@ void BeamGlobalAssembler::emit_export_trampoline() {
     {
         Label error;
 
-#ifdef NATIVE_ERLANG_STACK
         error = labels[raise_exception];
-#else
-        error = a.new_label();
-#endif
 
         a.lea(ARG2, x86::qword_ptr(RET, offsetof(Export, info.mfa)));
         a.mov(TMP_MEM1q, ARG2);
@@ -237,15 +233,6 @@ void BeamGlobalAssembler::emit_export_trampoline() {
         a.test(RET, RET);
         a.je(error);
         a.jmp(emit_setup_dispatchable_call(RET));
-
-#ifndef NATIVE_ERLANG_STACK
-        a.bind(error);
-        {
-            a.push(getCPRef());
-            a.mov(getCPRef(), imm(NIL));
-            a.jmp(labels[raise_exception]);
-        }
-#endif
     }
 }
 
@@ -284,19 +271,17 @@ void BeamModuleAssembler::emit_raise_exception(x86::Gp I,
 
     mov_imm(ARG4, exp);
 
-#ifdef NATIVE_ERLANG_STACK
     /* The CP must be reserved for try/catch to work, so we'll fake a call with
      * the return address set to the error address. */
     a.push(ARG2);
 
     if (erts_frame_layout == ERTS_FRAME_LAYOUT_FP_RA) {
-#    ifdef ERLANG_FRAME_POINTERS
+#ifdef ERLANG_FRAME_POINTERS
         a.push(frame_pointer);
-#    endif
+#endif
     } else {
         ASSERT(erts_frame_layout == ERTS_FRAME_LAYOUT_RA);
     }
-#endif
 
     a.jmp(resolve_fragment(ga->get_raise_exception_shared()));
 }
@@ -338,17 +323,15 @@ void BeamGlobalAssembler::emit_raise_exception() {
     a.pop(ARG2);
     a.and_(ARG2, imm(~_CPMASK));
 
-#ifdef NATIVE_ERLANG_STACK
     a.push(ARG2);
 
     if (erts_frame_layout == ERTS_FRAME_LAYOUT_FP_RA) {
-#    ifdef ERLANG_FRAME_POINTERS
+#ifdef ERLANG_FRAME_POINTERS
         a.push(frame_pointer);
-#    endif
+#endif
     } else {
         ASSERT(erts_frame_layout == ERTS_FRAME_LAYOUT_RA);
     }
-#endif
 
     a.jmp(labels[raise_exception_shared]);
 }

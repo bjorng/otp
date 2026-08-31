@@ -77,7 +77,7 @@ void BeamGlobalAssembler::emit_process_main() {
           x86::qword_ptr(x86::rsp,
                          offsetof(ErtsSchedulerRegisters, x_reg_array.d)));
 
-#if defined(DEBUG) && defined(NATIVE_ERLANG_STACK)
+#if defined(DEBUG)
     /* Save stack bounds so they can be tested without clobbering anything. */
     runtime_call<const void *(*)(void), erts_get_stacklimit>();
 
@@ -87,22 +87,6 @@ void BeamGlobalAssembler::emit_process_main() {
     a.mov(getSchedulerRegRef(
                   offsetof(ErtsSchedulerRegisters, runtime_stack_start)),
           x86::rsp);
-#elif !defined(NATIVE_ERLANG_STACK)
-    /* Save the initial SP of the thread so that we can verify that it
-     * doesn't grow. */
-#    ifdef JIT_HARD_DEBUG
-    a.mov(getInitialSPRef(), x86::rsp);
-#    endif
-
-    /* Manually do an `emit_enter_runtime` to match the `emit_leave_runtime`
-     * below. We avoid `emit_enter_runtime` because it may do additional
-     * assertions that may currently fail.
-     *
-     * IMPORTANT: We must ensure that this sequence leaves the stack
-     * aligned on a 16-byte boundary. */
-    a.mov(getRuntimeStackRef(), x86::rsp);
-    a.sub(x86::rsp, imm(15));
-    a.and_(x86::rsp, imm(-16));
 #endif
 
     a.mov(start_time_i, imm(0));

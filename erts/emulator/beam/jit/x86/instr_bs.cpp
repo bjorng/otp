@@ -1095,17 +1095,15 @@ void BeamGlobalAssembler::emit_bs_create_bin_error_shared() {
     a.pop(ARG2);
     a.and_(ARG2, imm(-8));
 
-#ifdef NATIVE_ERLANG_STACK
     a.push(ARG2);
 
     if (erts_frame_layout == ERTS_FRAME_LAYOUT_FP_RA) {
-#    ifdef ERLANG_FRAME_POINTERS
+#ifdef ERLANG_FRAME_POINTERS
         a.push(frame_pointer);
-#    endif
+#endif
     } else {
         ASSERT(erts_frame_layout == ERTS_FRAME_LAYOUT_RA);
     }
-#endif
 
     mov_imm(ARG4, nullptr);
     a.jmp(labels[raise_exception_shared]);

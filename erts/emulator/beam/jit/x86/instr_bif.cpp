@@ -573,10 +573,6 @@ void BeamGlobalAssembler::emit_call_light_bif_shared() {
                       imm(TRAP));
                 a.short_().jne(error);
 
-#if !defined(NATIVE_ERLANG_STACK)
-                a.pop(getCPRef());
-#endif
-
                 /* Trap out, our return address is on the Erlang stack.
                  *
                  * The BIF_TRAP macros all set up c_p->arity and c_p->current,
@@ -590,12 +586,6 @@ void BeamGlobalAssembler::emit_call_light_bif_shared() {
                 a.mov(ARG2, entry_mem);
                 a.mov(ARG4, export_mem);
                 a.add(ARG4, imm(offsetof(Export, info.mfa)));
-
-#if !defined(NATIVE_ERLANG_STACK)
-                /* Discard the continuation pointer as it will never be
-                 * used. */
-                emit_unwind_frame();
-#endif
 
                 /* Overwrite the return address with the entry address to
                  * ensure that only the entry address ends up in the stack
@@ -640,17 +630,11 @@ void BeamGlobalAssembler::emit_call_light_bif_shared() {
 
     a.bind(trace);
     {
-        /* Tail call the export entry instead of the BIF. If we use the native
-         * stack as the Erlang stack our return address is already on the
-         * Erlang stack. Otherwise we will have to move the return address from
-         * the native stack to the Erlang stack. */
+        /* Tail call the export entry instead of the BIF. Since we use
+         * the native stack as the Erlang stack our return address is
+         * already on the Erlang stack. */
 
         emit_leave_frame();
-
-#if !defined(NATIVE_ERLANG_STACK)
-        /* The return address must be on the Erlang stack. */
-        a.pop(getCPRef());
-#endif
 
         x86::Mem destination = emit_setup_dispatchable_call(ARG4);
         a.jmp(destination);
@@ -742,7 +726,6 @@ void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
 
     emit_leave_frame();
 
-#ifdef NATIVE_ERLANG_STACK
     if (erts_alcu_enable_code_atags) {
         /* See emit_i_test_yield. */
         a.mov(RET, x86::qword_ptr(E));
@@ -750,16 +733,6 @@ void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
     }
 
     a.ret();
-#else
-    a.mov(RET, getCPRef());
-    a.mov(getCPRef(), imm(NIL));
-
-    if (erts_alcu_enable_code_atags) {
-        a.mov(x86::qword_ptr(c_p, offsetof(Process, i)), RET);
-    }
-
-    a.jmp(RET);
-#endif
 
     a.bind(check_trap);
     a.cmp(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(TRAP));
@@ -1172,8 +1145,6 @@ void BeamModuleAssembler::emit_i_call_on_load_function() {
     erlang_call(RET, ARG1);
 }
 
-#ifdef NATIVE_ERLANG_STACK
-
 void BeamModuleAssembler::emit_i_load_nif() {
     Label entry = a.new_label(), yield = a.new_label(), next = a.new_label();
 
@@ -1197,41 +1168,3 @@ void BeamModuleAssembler::emit_i_load_nif() {
 
     a.bind(next);
 }
-
-#else
-
-void BeamModuleAssembler::emit_i_load_nif() {
-    static ErtsCodeMFA mfa = {am_erlang, am_load_nif, 2};
-
-    Label entry = a.new_label(), next = a.new_label(), schedule = a.new_label();
-
-    align_erlang_cp();
-    a.bind(entry);
-
-    emit_enter_runtime<Update::eHeapAlloc>();
-
-    a.mov(ARG1, c_p);
-    a.lea(ARG2, x86::qword_ptr(current_label));
-    load_x_reg_array(ARG3);
-    runtime_call<beam_jit_nif_load_ret (*)(Process *, ErtsCodePtr, Eterm *),
-                 beam_jit_load_nif>();
-
-    emit_leave_runtime<Update::eHeapAlloc>();
-
-    a.cmp(RET, imm(RET_NIF_yield));
-    a.je(schedule);
-    a.cmp(RET, imm(RET_NIF_success));
-    a.je(next);
-
-    emit_raise_exception(current_label, &mfa);
-
-    a.bind(schedule);
-    {
-        a.lea(ARG3, x86::qword_ptr(entry));
-        a.jmp(resolve_fragment(ga->get_context_switch_simplified()));
-    }
-
-    a.bind(next);
-}
-
-#endif
