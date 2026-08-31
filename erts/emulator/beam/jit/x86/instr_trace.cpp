@@ -59,7 +59,6 @@ void BeamGlobalAssembler::emit_generic_bp_global() {
 void BeamGlobalAssembler::emit_generic_bp_local() {
     emit_assert_erlang_stack();
 
-#ifdef NATIVE_ERLANG_STACK
     /* Since we've entered here on the Erlang stack, we need to stash our
      * return addresses in case `erts_generic_breakpoint` pushes any trace
      * frames.
@@ -70,9 +69,6 @@ void BeamGlobalAssembler::emit_generic_bp_local() {
      * leave the stack in an inconsistent state. */
     a.pop(TMP_MEM2q);
     a.pop(ARG2);
-#else
-    a.mov(ARG2, x86::qword_ptr(x86::rsp, 8));
-#endif
 
     a.mov(TMP_MEM1q, ARG2);
 
@@ -113,13 +109,11 @@ void BeamGlobalAssembler::emit_generic_bp_local() {
     a.cmp(RET, imm(BeamOpCodeAddr(op_i_debug_breakpoint)));
     a.je(labels[debug_bp]);
 
-#ifdef NATIVE_ERLANG_STACK
     /* Note that we don't restore our return addresses in the `debug_bp` case
      * above, since it tail calls the error handler and thus never returns to
      * module code or `call_nif_early`. */
     a.push(TMP_MEM1q);
     a.push(TMP_MEM2q);
-#endif
 
     a.ret();
 }
@@ -130,12 +124,6 @@ void BeamGlobalAssembler::emit_generic_bp_local() {
  * The only place that we can come to here is from generic_bp_local */
 void BeamGlobalAssembler::emit_debug_bp() {
     Label error = a.new_label();
-
-#ifndef NATIVE_ERLANG_STACK
-    /* We're never going to return to module code, so we have to discard the
-     * return addresses added by the breakpoint trampoline. */
-    a.add(x86::rsp, imm(sizeof(ErtsCodePtr[2])));
-#endif
 
     emit_assert_erlang_stack();
 
@@ -229,10 +217,6 @@ void BeamModuleAssembler::emit_i_call_trace_return() {
 void BeamModuleAssembler::emit_i_return_to_trace() {
     UWord frame_size = BEAM_RETURN_TO_TRACE_FRAME_SZ;
 
-#if !defined(NATIVE_ERLANG_STACK)
-    frame_size += CP_SIZE;
-#endif
-
     a.mov(ARG2, getYRef(0)); /* session_id */
     a.lea(ARG3, x86::qword_ptr(E, frame_size * sizeof(Eterm)));
 
@@ -265,15 +249,5 @@ void BeamModuleAssembler::emit_i_hibernate() {
            imm(~F_HIBERNATE_SCHED));
 
     a.mov(getXRef(0), imm(am_ok));
-#ifdef NATIVE_ERLANG_STACK
     fragment_call(resolve_fragment(ga->get_dispatch_return()));
-#else
-    Label next = a.new_label();
-
-    a.lea(ARG3, x86::qword_ptr(next));
-    a.jmp(resolve_fragment(ga->get_dispatch_return()));
-
-    a.align(AlignMode::kCode, 8);
-    a.bind(next);
-#endif
 }

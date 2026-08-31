@@ -32,7 +32,6 @@
 /* `valgrind` can't handle stack switching, so we will turn off native
  * stack. */
 #ifdef VALGRIND
-#undef NATIVE_ERLANG_STACK
 #undef ERLANG_FRAME_POINTERS
 #endif
 
@@ -103,9 +102,7 @@ extern ErtsFrameLayout ERTS_WRITE_UNLIKELY(erts_frame_layout);
  * on the stack that can be freely used by the JIT or interpreter for whatever
  * purpose. */
 
-#if defined(BEAMASM) && defined(NATIVE_ERLANG_STACK)
-#define S_REDZONE (CP_SIZE * 3)
-#elif defined(BEAMASM) && defined(__aarch64__)
+#if defined(BEAMASM)
 #define S_REDZONE (CP_SIZE * 3)
 #elif defined(DEBUG)
 /* Ensure that a redzone won't cause problems in the interpreter. */

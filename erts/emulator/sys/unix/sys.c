@@ -441,7 +441,7 @@ SIGFUNC sys_signal(int sig, SIGFUNC func)
 
     sigemptyset(&act.sa_mask);
 
-#if (defined(BEAMASM) && defined(NATIVE_ERLANG_STACK))
+#if defined(BEAMASM) && defined(__x86_64__)
     /* The JIT assumes that signals don't execute on the current stack (as our
      * Erlang process stacks may be too small to execute a signal handler).
      *

@@ -9263,6 +9263,7 @@ case $chk_opsys_ in
     linux*|Linux)		OPSYS=linux;;
     darwin|Darwin)		OPSYS=darwin;;
     freebsd|FreeBSD)		OPSYS=freebsd;;
+    openbsd|OpenBSD)		OPSYS=openbsd;;
     *)				OPSYS=noopsys
 esac
 
@@ -26422,9 +26423,20 @@ then :
                   JIT_ARCH=x86
                 else
                   enable_jit=no
-                  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: JIT disabled due to annoying popus on x86 Macs with Sononma" >&5
-printf "%s\n" "$as_me: WARNING: JIT disabled due to annoying popus on x86 Macs with Sononma" >&2;}
+                  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: JIT disabled due to annoying popups on x86 Macs with Sonoma" >&5
+printf "%s\n" "$as_me: WARNING: JIT disabled due to annoying popups on x86 Macs with Sonoma" >&2;}
                 fi
+                ;;
+              openbsd)
+                # Whenever the kernel is entered (page faults, system calls, etc),
+                # OpenBSD checks whether the stack pointer is in an area
+                # allocated with MAP_STACK, so we can't use the native stack
+                # for Erlang code.
+                #
+                # https://undeadly.org/cgi?action=article;sid=20180310000858
+                enable_jit=no
+                { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: JIT disabled on OpenBSD" >&5
+printf "%s\n" "$as_me: WARNING: JIT disabled on OpenBSD" >&2;}
                 ;;
               *)
                 JIT_ARCH=x86
@@ -26609,50 +26621,6 @@ printf "%s\n" "#define ERTS_USE_BUILTIN_RYU 1" >>confdefs.h
 esac
 fi
 
-
-
-if test ${enable_jit} != no
-then :
-
-  case $host_os in #(
-  openbsd*) :
-
-      # Whenever the kernel is entered (page faults, system calls, etc),
-      # OpenBSD checks whether the stack pointer is in an area allocated with
-      # MAP_STACK, so we can't use the native stack for Erlang code.
-      #
-      # https://undeadly.org/cgi?action=article;sid=20180310000858
-      enable_native_stack=no
-     ;; #(
-  *) :
-
-      # Windows never messes with the stack under any circumstances (and RSP
-      # can safely be used as a general-purpose register).
-      #
-      # On other platforms we'll wrangle sigaltstack(2) to let signals execute
-      # on an alternate stack.
-      enable_native_stack=yes
-     ;;
-esac
-
-  case "$JIT_ARCH" in
-    x86)
-      if test X${enable_native_stack} = Xyes; then
-
-printf "%s\n" "#define NATIVE_ERLANG_STACK /**/" >>confdefs.h
-
-      fi
-      ;;
-    arm)
-      # ARM JIT doesn't support native stack due to its 16-byte alignment
-      # requirement.
-      enable_native_stack=no
-      ;;
-    *)
-      ;;
-  esac
-
-fi
 
 case $OPSYS in
     linux*)
