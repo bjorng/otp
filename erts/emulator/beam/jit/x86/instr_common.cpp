@@ -222,19 +222,11 @@ void BeamModuleAssembler::emit_allocate_heap(const ArgWord &NeedStack,
     ASSERT(NeedStack.get() <= MAX_REG);
     ArgWord needed = NeedStack;
 
-#if !defined(NATIVE_ERLANG_STACK)
-    needed = needed + CP_SIZE;
-#endif
-
     emit_gc_test(needed, NeedHeap, Live);
 
     if (needed.get() > 0) {
         a.sub(E, imm(needed.get() * sizeof(Eterm)));
     }
-
-#if !defined(NATIVE_ERLANG_STACK)
-    a.mov(getCPRef(), imm(NIL));
-#endif
 }
 
 void BeamModuleAssembler::emit_allocate(const ArgWord &NeedStack,
@@ -247,10 +239,6 @@ void BeamModuleAssembler::emit_deallocate(const ArgWord &Deallocate) {
 
     if (ERTS_LIKELY(erts_frame_layout == ERTS_FRAME_LAYOUT_RA)) {
         ArgWord dealloc = Deallocate;
-
-#if !defined(NATIVE_ERLANG_STACK)
-        dealloc = dealloc + CP_SIZE;
-#endif
 
         if (dealloc.get() > 0) {
             a.add(E, imm(dealloc.get() * sizeof(Eterm)));
@@ -609,13 +597,8 @@ void BeamModuleAssembler::emit_init_yregs(const ArgWord &Size,
              * Use `stosq` with or without `rep`.
              */
             if (first_y == 0) {
-#ifdef NATIVE_ERLANG_STACK
                 /* `mov` is two bytes shorter than `lea`. */
                 a.mov(x86::rdi, E);
-#else
-                /* y(0) is at E+8. Must use `lea` here. */
-                a.lea(x86::rdi, getYRef(0));
-#endif
                 y_ptr = 0;
             } else if (y_ptr < 0) {
                 /* Initialize rdi for the first time. */
@@ -3253,17 +3236,7 @@ void BeamModuleAssembler::emit_i_test_yield() {
 
 void BeamModuleAssembler::emit_i_yield() {
     a.mov(getXRef(0), imm(am_true));
-#ifdef NATIVE_ERLANG_STACK
     fragment_call(resolve_fragment(ga->get_dispatch_return()));
-#else
-    Label next = a.new_label();
-
-    a.lea(ARG3, x86::qword_ptr(next));
-    a.jmp(resolve_fragment(ga->get_dispatch_return()));
-
-    a.align(AlignMode::kCode, 8);
-    a.bind(next);
-#endif
 }
 
 #if defined(ERTS_CCONV_DEBUG)

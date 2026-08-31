@@ -1332,9 +1332,6 @@
 /* Define as a string of monotonic clock id to use */
 #undef MONOTONIC_CLOCK_ID_STR
 
-/* Define if we can use the native stack for Erlang code */
-#undef NATIVE_ERLANG_STACK
-
 /* Define if netdb.h needs struct sockaddr_in ans in.h CAN be included before
    */
 #undef NETDB_H_NEEDS_IN_H
