@@ -2178,6 +2178,9 @@ update_types(#b_set{op=Op,dst=Dst,anno=Anno,args=Args}, Ts, Ds) ->
     T = type(Op, Args, Anno, Ts, Ds),
     Ts#{ Dst => T }.
 
+type({bif,Op}, [_,_]=Args, _Anno, Ts, _Ds) when Op =:= '+'; Op =:= '-' ->
+    ArgTypes = concrete_types(Args, Ts),
+    beam_call_types:conservative_arith_type(Op, Args, ArgTypes);
 type({bif,Bif}, Args, _Anno, Ts, _Ds) ->
     ArgTypes = concrete_types(Args, Ts),
     case beam_call_types:types(erlang, Bif, ArgTypes) of

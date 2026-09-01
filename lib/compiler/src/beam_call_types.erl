@@ -27,7 +27,7 @@
 
 -import(lists, [any/2,duplicate/2,foldl/3]).
 
--export([will_succeed/3, types/3, arith_type/2]).
+-export([will_succeed/3, types/3, arith_type/2, conservative_arith_type/3]).
 
 -type type() :: beam_types:type().
 -type normal_type() :: beam_types:normal_type().
@@ -522,25 +522,9 @@ types(erlang, 'rem', Args) ->
 
 %% Some mixed-type arithmetic.
 types(erlang, Op, [LHS, RHS]) when Op =:= '+'; Op =:= '-' ->
-    case get_range(LHS, RHS, #t_number{}) of
-        {Type, {A,B}, {C,_D}} when is_integer(C), C >= 0 ->
-            R = beam_bounds:bounds(Op, {A,B}, {C,'+inf'}),
-            RetType = case Type of
-                          integer -> #t_integer{elements=R};
-                          number -> #t_number{elements=R}
-                      end,
-            sub_unsafe(RetType, [#t_number{}, #t_number{}]);
-        {Type, {A,_B}, {C,D}} when Op =:= '+', is_integer(A), A >= 0 ->
-            R = beam_bounds:bounds(Op, {A,'+inf'}, {C,D}),
-            RetType = case Type of
-                          integer -> #t_integer{elements=R};
-                          number -> #t_number{elements=R}
-                      end,
-            sub_unsafe(RetType, [#t_number{}, #t_number{}]);
-        _ ->
-            mixed_arith_types([LHS, RHS])
-    end;
-
+    Arg = #beam_ssa:b_var{name=dummy},
+    RetType = conservative_arith_type(Op, [Arg,Arg], [LHS, RHS]),
+    sub_unsafe(RetType, [#t_number{}, #t_number{}]);
 types(erlang, '*', [LHS, RHS]) ->
     case get_range(LHS, RHS, #t_number{}) of
         {Type, {A,B}, {C,D}} ->
@@ -1237,9 +1221,55 @@ arith_type({bif,Op}, [_,_]=ArgTypes) when Op =:= 'band';
 arith_type(_Op, _Args) ->
     any.
 
+-spec conservative_arith_type(Op, Args, ArgTypes) -> RetType when
+      Op :: '+' | '-',
+      Args :: [beam_ssa:value()],
+      ArgTypes :: [type()],
+      RetType :: type().
+
+conservative_arith_type(Op, [A1,A2], [LHS, RHS])
+  when Op =:= '+'; Op =:= '-' ->
+    {Type, R1, R2} = get_range(LHS, RHS, #t_number{}),
+    R = mixed_arith_range(Op, A1, R1, A2, R2),
+    case Type of
+        float -> #t_float{elements=any};
+        integer -> #t_integer{elements=R};
+        number -> #t_number{elements=R}
+    end.
+
 %%
 %% Function-specific helpers.
 %%
+
+mixed_arith_range('-', Arg1, R1, Arg2, {C,D}) ->
+    %% Turn this into an addition by negating the RHS range.
+    R2 = beam_bounds:bounds('-', {0,0}, {C,D}),
+    mixed_arith_range('+', Arg1, R1, Arg2, R2);
+mixed_arith_range('+', _Arg1, {A,B}, #beam_ssa:b_literal{}, {C,D}) ->
+    %% RHS is a fixed literal integer. Depending on the sign of the
+    %% RHS, we can move the LHS towards either the positive or
+    %% negative infinity.
+    if
+        is_integer(C), C >= 0 ->
+            beam_bounds:bounds('+', {A,B}, {C,'+inf'});
+        is_integer(D), D =< 0 ->
+            beam_bounds:bounds('+', {A,B}, {'-inf',D})
+    end;
+mixed_arith_range('+', _Arg1, {A,B}, _Arg2, {C,D}) ->
+    %% The resulting range can only converge if LHS and RHS have the
+    %% same sign.
+    if
+        is_integer(A), A >= 0, is_integer(C), C >= 0 ->
+            beam_bounds:bounds('+', {A,B}, {C,'+inf'});
+        is_integer(B), B =< 0, is_integer(D), D =< 0 ->
+            beam_bounds:bounds('+', {A,B}, {'-inf',D});
+        true ->
+            %% At least one range crosses zero, or the ranges have
+            %% different signs.
+            any
+    end;
+mixed_arith_range(_Op, _, _, _, _) ->
+    any.
 
 mixed_arith_types(Args0) ->
     [FirstType|_] = Args = [meet(A, #t_number{}) || A <- Args0],
