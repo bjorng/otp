@@ -859,12 +859,27 @@ void BeamGlobalAssembler::emit_call_bif_shared(void) {
     runtime_call<Eterm (*)(Process *, Eterm *, ErtsCodePtr, ErtsBifFunc, Uint),
                  beam_jit_call_bif>();
 
-#ifdef ERTS_MSACC_EXTENDED_STATES
     a.mov(TMP_MEM1q, RET);
+
+#ifdef ERTS_MSACC_EXTENDED_STATES
     a.lea(ARG1, erts_msacc_cache);
     runtime_call<void (*)(ErtsMsAcc **), erts_msacc_update_cache>();
-    a.mov(RET, TMP_MEM1q);
 #endif
+
+    /* Check whether save calls is on */
+    a.mov(ARG1, c_p);
+    a.mov(ARG2, imm(ERTS_PSD_SAVED_CALLS_BUF));
+    runtime_call<void *(*)(Process *, int), erts_psd_get>();
+
+    /* Read the active code index, overriding it with
+     * ERTS_SAVE_CALLS_CODE_IX when save_calls is enabled (RET != 0). */
+    a.test(RET, RET);
+    a.mov(ARG1, imm(&the_active_code_index));
+    a.mov(ARG2, imm(ERTS_SAVE_CALLS_CODE_IX));
+    a.mov(active_code_ix.r32(), x86::dword_ptr(ARG1));
+    a.cmovnz(active_code_ix, ARG2);
+
+    a.mov(RET, TMP_MEM1q);
 
     emit_bif_nif_epilogue();
 }

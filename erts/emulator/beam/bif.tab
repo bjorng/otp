@@ -126,7 +126,7 @@ bif erts_internal:open_port/2
 bif erlang:pid_to_list/1
 bif erlang:ports/0
 bif erlang:pre_loaded/0
-bif erlang:process_flag/2
+hbif erlang:process_flag/2
 bif erts_internal:process_flag/3
 hbif erlang:process_info/1
 hbif erlang:process_info/2
