@@ -3510,7 +3510,12 @@ bif_types(Op, Ss, Vst) ->
                     Other
             end;
         {_,_} ->
-            Res0 = beam_call_types:types(erlang, Op, Args),
+            NewSs = [case S of
+                         {x,_} -> #beam_ssa:b_var{name=dummy};
+                         {y,_} -> #beam_ssa:b_var{name=dummy};
+                         _ -> #beam_ssa:b_literal{val=0}
+                     end || S <- Ss],
+            Res0 = beam_call_types:types(erlang, Op, Args, NewSs),
             {Ret0, ArgTypes, SubSafe} = Res0,
 
             %% Match the non-converging range analysis done in

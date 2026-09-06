@@ -2217,7 +2217,7 @@ update_types(#b_set{op=Op,dst=Dst,anno=Anno,args=Args}, Ts, Ds) ->
 
 type({bif,Bif}, Args, _Anno, Ts, _Ds) ->
     ArgTypes = concrete_types(Args, Ts),
-    case beam_call_types:types(erlang, Bif, ArgTypes) of
+    case beam_call_types:types(erlang, Bif, ArgTypes, Args) of
         {any, _, _} ->
             case {Bif, Args} of
                 {element, [_,#b_literal{val=Tuple}]}
@@ -2288,7 +2288,7 @@ type(call, [#b_remote{mod=#b_literal{val=Mod},
                       name=#b_literal{val=Name}}|Args], _Anno, Ts, _Ds)
   when is_atom(Mod), is_atom(Name) ->
     ArgTypes = concrete_types(Args, Ts),
-    {RetType, _, _} = beam_call_types:types(Mod, Name, ArgTypes),
+    {RetType, _, _} = beam_call_types:types(Mod, Name, ArgTypes, Args),
     RetType;
 type(call, [#b_remote{mod=Mod,name=Name} | _Args], _Anno, Ts, _Ds) ->
     %% Remote call with variable Module and/or Function, we can't say much
