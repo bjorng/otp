@@ -1107,12 +1107,23 @@ update_arith_types_1(#b_set{op={bif,_}=Op,args=BifArgs}=I,
             end
     end.
 
-update_arith_types_2(#b_set{op={bif,'-'}=Op,args=[_,#b_literal{val=1}]},
+update_arith_types_2(#b_set{op={bif,'-'}=Op,args=[_,#b_literal{}]},
                      [#t_integer{elements={Min,_Max}}=ArgType|_])
   when is_integer(Min), Min > 0 ->
     %% We have almost given up on this operation. As a final attempt,
     %% subtract a number that will set the minimum value to 0.
     Args = [ArgType,#t_integer{elements={Min,Min}}],
+    beam_call_types:arith_type(Op, Args);
+update_arith_types_2(#b_set{op={bif,'+'}=Op,args=[_,#b_literal{}]},
+                     [#t_integer{elements={Min,Max}}=ArgType,
+                      #t_integer{elements={N,N}}])
+  when is_integer(Min), Min > 0,
+       is_integer(Max), Max < 1 bsl 56,
+       is_integer(N), N > 0, N < 1 bsl 56 ->
+    %% Before giving up and setting the upper limit to infinity, try
+    %% setting it to a relative large small integer.
+    MaxOffset = (1 bsl 56) - N,
+    Args = [ArgType,#t_integer{elements={N,MaxOffset}}],
     beam_call_types:arith_type(Op, Args);
 update_arith_types_2(#b_set{}, _) ->
     %% Fall back to using more conservative update_types/3 approach
@@ -2226,7 +2237,7 @@ update_types(#b_set{op=Op,dst=Dst,anno=Anno,args=Args}, Ts, Ds) ->
 
 type({bif,Bif}, Args, _Anno, Ts, _Ds) ->
     ArgTypes = concrete_types(Args, Ts),
-    case beam_call_types:types(erlang, Bif, ArgTypes) of
+    case beam_call_types:types(erlang, Bif, ArgTypes, Args) of
         {any, _, _} ->
             case {Bif, Args} of
                 {element, [_,#b_literal{val=Tuple}]}
@@ -2297,7 +2308,7 @@ type(call, [#b_remote{mod=#b_literal{val=Mod},
                       name=#b_literal{val=Name}}|Args], _Anno, Ts, _Ds)
   when is_atom(Mod), is_atom(Name) ->
     ArgTypes = concrete_types(Args, Ts),
-    {RetType, _, _} = beam_call_types:types(Mod, Name, ArgTypes),
+    {RetType, _, _} = beam_call_types:types(Mod, Name, ArgTypes, Args),
     RetType;
 type(call, [#b_remote{mod=Mod,name=Name} | _Args], _Anno, Ts, _Ds) ->
     %% Remote call with variable Module and/or Function, we can't say much

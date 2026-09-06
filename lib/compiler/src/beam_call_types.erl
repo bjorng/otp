@@ -27,7 +27,7 @@
 
 -import(lists, [any/2,duplicate/2,foldl/3]).
 
--export([will_succeed/3, types/3, arith_type/2]).
+-export([will_succeed/3, types/3, types/4, arith_type/2]).
 
 -type type() :: beam_types:type().
 -type normal_type() :: beam_types:normal_type().
@@ -62,6 +62,8 @@
       ArgTypes :: [type()],
       Result :: 'yes' | 'no' | 'maybe'.
 
+will_succeed(erlang, '-', [Arg]) ->
+    succeeds_if_smallish(Arg);
 will_succeed(erlang, Op, [LHS, RHS]) when Op =:= '+';
                                           Op =:= '-';
                                           Op =:= '*' ->
@@ -293,6 +295,32 @@ succeeds_if_smallish(LHS, RHS) ->
 %% the function will fail at runtime.
 %%
 
+-spec types(Mod, Func, ArgTypes, Args) -> {RetType, ArgTypes, CanSubtract} when
+      Mod :: atom(),
+      Func :: atom(),
+      ArgTypes :: [normal_type()],
+      Args :: [beam_ssa:argument()],
+      RetType :: type(),
+      CanSubtract :: boolean().
+
+types(erlang, '-', [Type0], [Arg]) ->
+    {RetType,[_|Type],Safe} =
+        types(erlang, '-',
+              [#t_integer{elements={0,0}},Type0],
+              [#beam_ssa:b_literal{val=0},Arg]),
+    {RetType,Type,Safe};
+types(erlang, Op, [LHS,RHS], [A1,A2]) when Op =:= '+'; Op =:= '-' ->
+    {Type, R1, R2} = get_range(LHS, RHS, #t_number{}),
+    R = arith_range(Op, A1, A2, R1, R2),
+    RetType = case Type of
+                  float -> #t_float{elements=any};
+                  integer -> #t_integer{elements=R};
+                  number -> #t_number{elements=R}
+              end,
+    sub_unsafe(RetType, [#t_number{}, #t_number{}]);
+types(Mod, Func, ArgTypes, _Args) ->
+    types(Mod, Func, ArgTypes).
+
 -spec types(Mod, Func, ArgTypes) -> {RetType, ArgTypes, CanSubtract} when
       Mod :: atom(),
       Func :: atom(),
@@ -305,6 +333,7 @@ succeeds_if_smallish(LHS, RHS) ->
 %%
 %% Note that these are all from the erlang module; suitable functions in other
 %% modules could fail due to the module not being loaded.
+
 types(erlang, 'map_size', [_]) ->
     sub_safe(#t_integer{elements={0,?SIZE_UPPER_LIMIT}}, [#t_map{}]);
 types(erlang, 'tuple_size', [Src]) ->
@@ -521,23 +550,15 @@ types(erlang, 'rem', Args) ->
                [#t_integer{}, #t_integer{}]);
 
 %% Some mixed-type arithmetic.
-types(erlang, Op, [LHS, RHS]) when Op =:= '+'; Op =:= '-' ->
-    case get_range(LHS, RHS, #t_number{}) of
-        {Type, {A,B}, {C,_D}} when Op =:= '+',
-                                   is_integer(A), A >= 0,
-                                   is_integer(C), C >= 0 ->
-            %% The ranges have the same sign (positive). Will converge
-            %% to an upper limit of positive infinity.
-            R = beam_bounds:bounds(Op, {A,B}, {C,'+inf'}),
-            RetType = case Type of
-                          integer -> #t_integer{elements=R};
-                          number -> #t_number{elements=R}
-                      end,
-            sub_unsafe(RetType, [#t_number{}, #t_number{}]);
-        _ ->
-            mixed_arith_types([LHS, RHS])
-    end;
-
+types(erlang, '+', [_, _]=Types) ->
+    Dummy = #beam_ssa:b_var{name=dummy},
+    types(erlang, '+', Types, [Dummy,Dummy]);
+types(erlang, '-', [_]=Types) ->
+    Dummy = #beam_ssa:b_var{name=dummy},
+    types(erlang, '-', Types, [Dummy]);
+types(erlang, '-', [_, _]=Types) ->
+    Dummy = #beam_ssa:b_var{name=dummy},
+    types(erlang, '-', Types, [Dummy,Dummy]);
 types(erlang, '*', [LHS, RHS]) ->
     case get_range(LHS, RHS, #t_number{}) of
         {Type, {A,B}, {C,D}} ->
@@ -1237,6 +1258,43 @@ arith_type(_Op, _Args) ->
 %%
 %% Function-specific helpers.
 %%
+
+arith_range('-', Arg1, Arg2, R1, R2)->
+    R = beam_bounds:bounds('-', {0,0}, R2),
+    case Arg1 of
+        #beam_ssa:b_literal{} ->
+            %% Always make a literal operand the RHS operand.
+            arith_range('+', Arg2, Arg1, R, R1);
+        _ ->
+            arith_range('+', Arg1, Arg2, R1, R)
+    end;
+arith_range('+', _Arg1, Arg2, {A,B}, {C,D}) ->
+    if
+        is_integer(A), A >= 0,
+        is_integer(C), C >= 0 ->
+            %% The ranges have the same sign (positive). Will converge
+            %% to an upper limit of positive infinity.
+            beam_bounds:bounds('+', {A,B}, {C,'+inf'});
+        is_integer(B), B =< 0,
+        is_integer(D), D =< 0 ->
+            %% The ranges have the same sign (negative). Will converge
+            %% to a lower limit of negative infinity.
+            beam_bounds:bounds('+', {A,B}, {'-inf',C});
+        is_record(Arg2, beam_ssa, b_literal), is_integer(C) ->
+            %% The RHS operand is a constant integer. Depending on the
+            %% sign of the RHS operand, will converge to either
+            %% negative infinity or positive infinity.
+            if
+                C >= 0 ->
+                    beam_bounds:bounds('+', {A,B}, {C,'+inf'});
+                C < 0 ->
+                    beam_bounds:bounds('+', {A,B}, {'-inf',C})
+            end;
+        true ->
+            any
+    end;
+arith_range('+', _, _, _, _) ->
+    any.
 
 mixed_arith_types(Args0) ->
     [FirstType|_] = Args = [meet(A, #t_number{}) || A <- Args0],
