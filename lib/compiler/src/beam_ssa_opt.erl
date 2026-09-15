@@ -57,6 +57,8 @@
    %% need to be suppressed if it is.
    exported = true :: boolean(),
 
+   prev_joined_args = [] :: list(),
+
    %% The inferred types of each argument (as opposed to parameter),
    %% indexed by call site.
    %%
