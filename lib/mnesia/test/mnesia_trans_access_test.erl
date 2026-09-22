@@ -973,10 +973,10 @@ transaction(Config) when is_list(Config) ->
     F ! fun() -> exit(abnormal) end,
     ?match_receive({F, {aborted, abnormal}}),
 
-    G ! fun() -> exit(G, abnormal) end,
+    G ! fun() -> erlang:exit_signal(G, abnormal) end,
     ?match_receive({'EXIT', G, abnormal}),
 
-    H ! fun() -> exit(H, kill) end,
+    H ! fun() -> erlang:exit_signal(H, kill) end,
     ?match_receive({'EXIT', H, killed}),
 
     ?match({atomic, ali_baba},
