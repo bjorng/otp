@@ -440,10 +440,17 @@ void BeamModuleAssembler::emit_i_create_native_record(
 
     fragment_call(ga->get_create_native_record_shared());
 
-    emit_branch_if_value(ARG1, next);
-    emit_raise_exception();
+    if (Fail.get() != 0) {
+        emit_branch_if_not_value(ARG1, resolve_beam_label(Fail, dispUnknown));
+    } else {
+        Label next = a.new_label();
 
-    a.bind(next);
+        emit_branch_if_value(ARG1, next);
+
+        emit_raise_exception();
+
+        a.bind(next);
+    }
     mov_arg(Dst, ARG1);
 }
 
@@ -512,10 +519,16 @@ void BeamModuleAssembler::emit_i_update_native_record(
     emit_leave_runtime<Update::eHeapAlloc | Update::eXRegs |
                        Update::eReductions>();
 
-    emit_branch_if_value(ARG1, next);
-    emit_raise_exception();
+    if (Fail.get() != 0) {
+        emit_branch_if_not_value(ARG1, resolve_beam_label(Fail, dispUnknown));
+    } else {
+        Label next = a.new_label();
 
-    a.bind(next);
+        emit_branch_if_value(ARG1, next);
+        emit_raise_exception();
+
+        a.bind(next);
+    }
     mov_arg(Dst, ARG1);
 }
 
