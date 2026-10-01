@@ -174,7 +174,17 @@ local_basic(_Config) ->
     %% Cover v3_core:sanitize/1.
     ?assertError({badmatch, ARec}, (#a{}=[_]) = id(ARec)),
 
+    %% Test field access.
+    true = field_access(true),
+    false = field_access(false),
+
     ok.
+
+%% GH-11726. We would get an ambiguous try/catch state.
+field_access(true) ->
+    try #d{f = true}#d.f catch _ -> ok end;
+field_access(false) ->
+    #d{f = false}#d.f.
 
 name(#empty{}) -> empty;
 name(#a{}) -> a;
