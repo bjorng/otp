@@ -1182,7 +1182,8 @@ simplify(#b_set{op={bif,get_record_field},
         {Mod, #t_record{name={Mod,Name},type=Es}} ->
             case Es of
                 #{F := {present,_Type}} ->
-                    I = I0#b_set{anno=Anno,op=get_record_element,args=[Term,F0]},
+                    I1 = I0#b_set{op=get_record_element,args=[Term,F0]},
+		    I = beam_ssa:add_anno(record_name, {Mod,Name}, I1),
                     simplify(I, Ts, Ds);
                 #{} ->
                     I0

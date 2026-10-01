@@ -729,8 +729,11 @@ BEAM_FORMAT_NUMBER=0
 187: is_native_record/4
 
 ## @spec get_record_elements Lbl Rec Elements=[FieldName, Register]
-## @doc Extract the values for each field name and store into the corresponding
-##      register. Jump to label if any field name is not in the native record.
+
+## @doc Rec must be a known valid record of the correct name. Extract
+##      the values for each field name and store into the
+##      corresponding register. Jump to label if any field name is not
+##      in the native record.
 188: get_record_elements/3
 
 ## @spec put_record Lbl Id Src Dst Live Updates
@@ -751,7 +754,10 @@ BEAM_FORMAT_NUMBER=0
 190: is_record_accessible/3
 
 ## @spec get_record_field/5 Lbl Rec Id Field Dst
-## @doc Get a single field from a record. If Lbl is 0, raise an exception
-##      if extracting the value fails; otherwise, jump to label Lbl if
-##      extraction fails.
+
+## @doc Get a single field from the Rec term, supposed to be a record
+##      of name Id. Extraction fails if Rec is not a record with the
+##      correct name or if Field does not exist in that record.  If
+##      Lbl is 0, raise an exception if extracting the value fails;
+##      otherwise, jump to label Lbl if extraction fails.
 191: get_record_field/5

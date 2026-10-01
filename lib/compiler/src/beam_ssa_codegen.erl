@@ -1729,8 +1729,13 @@ cg_block([#cg_set{op=get_record_element,dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail0}, St) ->
     [Str,Key] = typed_args(Args0, Anno, St),
     Dst = beam_arg(Dst0, St),
-    Fail = ensure_label(Fail0, St),
-    {[{get_record_elements,Fail,Str,{list,[Key,Dst]}}],St};
+    case bif_fail(Fail0) of
+	{f,0}=Fail ->
+	    ModName = map_get(record_name, Anno),
+	    {[{bif,get_record_field,Fail,[Str,{literal,ModName},Key],Dst}],St};
+	Fail ->
+            {[{get_record_elements,Fail,Str,{list,[Key,Dst]}}],St}
+        end;
 cg_block([#cg_set{op={float,convert},dst=Dst0,args=Args0,anno=Anno},
           #cg_set{op=succeeded,dst=Bool}], {Bool,Fail}, St) ->
     {f,0} = bif_fail(Fail),                     %Assertion.
