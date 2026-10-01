@@ -1731,8 +1731,8 @@ cg_block([#cg_set{op=get_record_element,dst=Dst0,args=Args0,anno=Anno},
     Dst = beam_arg(Dst0, St),
     case bif_fail(Fail0) of
 	{f,0}=Fail ->
-	    ModName = map_get(record_name, Anno),
-	    {[{bif,get_record_field,Fail,[Str,{literal,ModName},Key],Dst}],St};
+	    Name = element(2, map_get(record_name, Anno)),
+	    {[{bif,get_record_field,Fail,[Str,{atom,Name},Key],Dst}],St};
 	Fail ->
             {[{get_record_elements,Fail,Str,{list,[Key,Dst]}}],St}
         end;
