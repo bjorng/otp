@@ -426,12 +426,12 @@ void BeamGlobalAssembler::emit_create_native_record_shared() {
 }
 
 void BeamModuleAssembler::emit_i_create_native_record(
+        const ArgLabel &Fail,
         const ArgConstant &Id,
         const ArgRegister &Dst,
         const ArgWord &Live,
         const ArgWord &size,
         const Span<const ArgVal> &args) {
-    Label next = a.new_label();
     Uint size_live = (args.size() << 10) | Live.get();
 
     mov_arg(ARG4, Id);
@@ -495,12 +495,12 @@ void BeamModuleAssembler::emit_i_update_local_native_record(
 }
 
 void BeamModuleAssembler::emit_i_update_native_record(
+        const ArgLabel &Fail,
         const ArgSource &Src,
         const ArgRegister &Dst,
         const ArgWord &Live,
         const ArgWord &size,
         const Span<const ArgVal> &args) {
-    Label next = a.new_label();
 
     mov_arg(ARG3, Src);
     a.mov(ARG1, c_p);
