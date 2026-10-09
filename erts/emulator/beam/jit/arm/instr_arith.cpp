@@ -444,8 +444,7 @@ void BeamGlobalAssembler::emit_mul_add_body_shared() {
     /* Save original arguments. */
     a.stp(ARG2, ARG3, TMP_MEM1q);
     a.mov(ARG1, c_p);
-    a.cmp(ARG4, imm(THE_NON_VALUE));
-    a.b_eq(mul_only);
+    emit_branch_if_not_value(ARG4, mul_only);
     a.str(ARG4, TMP_MEM4q);
 
     lea(ARG5, TMP_MEM3q);
@@ -495,7 +494,7 @@ void BeamGlobalAssembler::emit_mul_add_body_shared() {
  * the call failed).
  */
 void BeamGlobalAssembler::emit_mul_add_guard_shared() {
-    Label mul_failed = a.new_label();
+    Label done = a.new_label();
 
     a.str(ARG4, TMP_MEM1q);
 
@@ -504,16 +503,15 @@ void BeamGlobalAssembler::emit_mul_add_guard_shared() {
 
     a.mov(ARG1, c_p);
     runtime_call<Eterm (*)(Process *, Eterm, Eterm), erts_mixed_times>();
-    emit_branch_if_not_value(ARG1, mul_failed);
+    emit_branch_if_not_value(ARG1, done); /* Multiplication failed */
 
     a.ldr(ARG3, TMP_MEM1q);
-    a.cmp(ARG3, imm(THE_NON_VALUE));
-    a.b_eq(mul_failed);
+    emit_branch_if_not_value(ARG3, done); /* Nothing to add */
     a.mov(ARG2, ARG1);
     a.mov(ARG1, c_p);
     runtime_call<Eterm (*)(Process *, Eterm, Eterm), erts_mixed_plus>();
 
-    a.bind(mul_failed);
+    a.bind(done);
     emit_leave_runtime<Update::eReductions>();
     emit_leave_runtime_frame();
 

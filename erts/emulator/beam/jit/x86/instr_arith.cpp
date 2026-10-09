@@ -928,7 +928,7 @@ void BeamGlobalAssembler::emit_mul_add_guard_shared() {
     a.mov(ARG3, TMP_MEM1q);
     a.mov(ARG2, RET);
     a.mov(ARG1, c_p);
-    a.cmp(ARG3, imm(THE_NON_VALUE));
+    emit_test_the_non_value(ARG3);
     a.short_().je(done);
     runtime_call<Eterm (*)(Process *, Eterm, Eterm), erts_mixed_plus>();
 
@@ -957,7 +957,7 @@ void BeamGlobalAssembler::emit_mul_add_body_shared() {
     a.mov(TMP_MEM1q, ARG2);
     a.mov(TMP_MEM2q, ARG3);
     a.mov(ARG1, c_p);
-    a.cmp(ARG4, imm(THE_NON_VALUE));
+    emit_test_the_non_value(ARG4);
     a.short_().je(mul_only);
     a.mov(TMP_MEM4q, ARG4);
 
