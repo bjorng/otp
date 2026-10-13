@@ -38,7 +38,7 @@
          funs/1,will_succeed/1,float_confusion/1,
          cover_convert_ext/1, catch_setelement/1,gh_11368/1,gh_11413/1,
          rem_bounds/1,
-         gh_11686/1]).
+         gh_11686/1,float_widens/1]).
 
 %% Force id/1 to return 'any'.
 -export([id/1]).
@@ -91,7 +91,8 @@ groups() ->
        gh_11368,
        gh_11413,
        rem_bounds,
-       gh_11686
+       gh_11686,
+       float_widens
       ]}].
 
 init_per_suite(Config) ->
@@ -1753,6 +1754,18 @@ gh_11686_c(A) ->
 gh_11686_d(A) ->
     gh_11686_d((A bsr A) - 100).
 
+%% GH-11817. Failed to compile with an argument_widened exception.
+float_widens(_Config) ->
+    %% There will eventually be a multiplication of
+    %% 18446744073709551615 by 1.0. The result will be rounded up
+    %% to 18446744073709551616, meaning that the range will be
+    %% widended.
+    [ok] = id([ok || _ <:- [try <<ok || ok>> of
+                                _ -> 1.0
+                            catch
+                                _ -> 1
+                            end * 18446744073709551615]]),
+    ok.
 
 %%%
 %%% Common utilities.
