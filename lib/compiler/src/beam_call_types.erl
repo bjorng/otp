@@ -560,7 +560,7 @@ types(erlang, Op, [LHS, RHS]) when Op =:= '+'; Op =:= '-' ->
     RetType = case Type of
                   float -> #t_float{elements=any};
                   integer -> #t_integer{elements=R};
-                  number -> #t_number{elements=R}
+                  number -> make_number(R)
               end,
     sub_unsafe(RetType, [#t_number{}, #t_number{}]);
 types(erlang, '*', [LHS, RHS]) ->
@@ -571,7 +571,7 @@ types(erlang, '*', [LHS, RHS]) ->
                     R = {Min,'+inf'},
                     RetType = case Type of
                                   integer -> #t_integer{elements=R};
-                                  number -> #t_number{elements=R}
+                                  number -> make_number(R)
                               end,
                     sub_unsafe(RetType, [#t_number{}, #t_number{}]);
                 _ ->
@@ -589,7 +589,7 @@ types(erlang, abs, [Type]) ->
             RetType = #t_integer{elements=beam_bounds:bounds(abs, R)},
             sub_unsafe(RetType, [#t_integer{}]);
         #t_number{elements=R} ->
-            RetType = #t_number{elements=beam_bounds:bounds(abs, R)},
+            RetType = make_number(beam_bounds:bounds(abs, R)),
             sub_unsafe(RetType, [#t_number{}]);
         _ ->
             sub_unsafe(#t_number{}, [#t_number{}])
@@ -795,17 +795,17 @@ types(erlang, min, [LHS,RHS]) ->
                   {#t_integer{}, #t_integer{}} ->
                       #t_integer{elements=R};
                   {#t_integer{}, _} ->
-                      #t_number{elements=R};
+                      make_number(R);
                   {#t_number{}, _} ->
-                      #t_number{elements=R};
+                      make_number(R);
                   {#t_float{}, _} ->
-                      #t_number{elements=R};
+                      make_number(R);
                   {_, #t_integer{}} ->
-                      #t_number{elements=R};
+                      make_number(R);
                   {_, #t_number{}} ->
-                      #t_number{elements=R};
+                      make_number(R);
                   {_, #t_float{}} ->
-                      #t_number{elements=R};
+                      make_number(R);
                   {_, _} ->
                       join(LHS, RHS)
               end,
@@ -824,13 +824,13 @@ types(erlang, max, [LHS,RHS]) ->
                     {#t_integer{}, #t_integer{}} ->
                         #t_integer{elements=R};
                     {any, #t_integer{elements={Min,_}}} when is_integer(Min) ->
-                        beam_types:subtract(any, #t_number{elements={'-inf',Min}});
+                        beam_types:subtract(any, make_number({'-inf',Min}));
                     {#t_integer{elements={Min,_}}, any} when is_integer(Min) ->
-                        beam_types:subtract(any, #t_number{elements={'-inf',Min}});
+                        beam_types:subtract(any, make_number({'-inf',Min}));
                     {_, _} ->
                         case join(LHS, RHS) of
                             #t_number{} ->
-                                #t_number{elements=R};
+                                make_number(R);
                             Join ->
                                 Join
                         end
@@ -1355,7 +1355,7 @@ beam_bounds_type(Op, Type, [LHS, RHS]) ->
         {integer, R1, R2} ->
             #t_integer{elements=beam_bounds:bounds(Op, R1, R2)};
         {number, R1, R2} ->
-            #t_number{elements=beam_bounds:bounds(Op, R1, R2)}
+            make_number(beam_bounds:bounds(Op, R1, R2))
     end.
 
 get_range(LHS, RHS, Type) ->
@@ -1376,6 +1376,32 @@ get_range(#t_float{}) -> any;
 get_range(#t_integer{elements=R}) -> R;
 get_range(#t_number{elements=R}) -> R;
 get_range(_) -> none.
+
+%% Ensure that the end-points of the range of the number don't
+%% change when converting from integer to float or vice versa.
+make_number({Min,Max}) ->
+    #t_number{elements={roundtripable(Min), roundtripable(Max)}};
+make_number(any) ->
+    #t_number{elements=any}.
+
+roundtripable(N) when is_integer(N) ->
+    %% Keep `N` if there is a bijective mapping to floats; otherwise,
+    %% convert it to a float, widening the range. In other words, keep
+    %% the integer value if and only if float(N) == N and N-1, N, N+1
+    %% all map to distinct floating point values.
+    {F0,F1,F2} = {float(N-1),float(N),float(N+1)},
+    if
+        F0 =:= F1; F1 =:= F2 ->
+            %% Widen the representation to a float now, so that it
+            %% will not happen later when widening is no longer
+            %% allowed.
+            F1;
+        true ->
+            %% The mapping is bijective.
+            N
+    end;
+roundtripable(N) ->
+    N.
 
 erlang_map_get_type(Key, Map) ->
     case meet(Map, #t_map{}) of
