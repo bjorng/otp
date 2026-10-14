@@ -38,7 +38,8 @@
          funs/1,will_succeed/1,float_confusion/1,
          cover_convert_ext/1, catch_setelement/1,gh_11368/1,gh_11413/1,
          rem_bounds/1,
-         gh_11686/1,float_widens/1]).
+         gh_11686/1,float_widens/1,
+         cover_bit_operations/1]).
 
 %% Force id/1 to return 'any'.
 -export([id/1]).
@@ -92,7 +93,8 @@ groups() ->
        gh_11413,
        rem_bounds,
        gh_11686,
-       float_widens
+       float_widens,
+       cover_bit_operations
       ]}].
 
 init_per_suite(Config) ->
@@ -1863,6 +1865,35 @@ prefix_1(Cs0, [Pre|PreR]) ->
         [Pre|Cs] ->  prefix_1(Cs,PreR);
         _ -> nomatch
     end.
+
+%% The bit operation BIFs are thoroughly tested in bitops_SUITE in
+%% erts. Here we test the type analysis.
+cover_bit_operations(_Config) ->
+    _ = [begin
+             UW = integer_unsigned_width(N),
+             SW = UW + 1,
+             SW = integer_signed_width(N),
+             SetBits = integer_set_bits(N),
+             Trailing = integer_trailing_zeroes(N+1),
+             Trailing = integer_trailing_zeroes(-(N+1)),
+             true = is_integer(UW, 0, 3),
+             true = is_integer(SW, 1, 4),
+             true = is_integer(SetBits, 0, 3),
+             true = is_integer(Trailing, 0, 3)
+         end || N <- [0,1,2,3,4,5,6,7]],
+
+    ?assertError(badarg, integer_unsigned_width(-1)),
+    ?assertError(badarg, integer_unsigned_width(1.0)),
+
+    ?assertError(badarg, integer_signed_width(1.0)),
+
+    ?assertError(badarg, integer_set_bits(0.0)),
+    ?assertError(badarg, integer_set_bits(-1)),
+
+    ?assertError(badarg, integer_trailing_zeroes(0)),
+    ?assertError(badarg, integer_trailing_zeroes(1.0)),
+
+    ok.
 
 %%%
 %%% Common utilities.

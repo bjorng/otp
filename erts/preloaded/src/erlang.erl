@@ -67,6 +67,9 @@ in the description of each individual BIF.
 -export([memory/0, memory/1]).
 -export([alloc_info/1, alloc_sizes/1]).
 
+-export([integer_trailing_zeroes/1, integer_set_bits/1]).
+-export([integer_unsigned_width/1, integer_signed_width/1]).
+
 -export([gather_gc_info_result/1]).
 
 -export([dist_ctrl_input_handler/2,
@@ -1478,6 +1481,118 @@ byte_size(_Bitstring) ->
       P1 :: atom().
 call_on_load_function(_P1) ->
     erlang:nif_error(undefined).
+
+-doc(#{since => <<"OTP 30.0">>}).
+-doc """
+Counts trailing zeros in the binary representation of `N`.
+
+**64-bit integers:** For integers that fit in an unsigned 64-bit representation,
+this BIF returns the position of the least significant set bit (0-63).
+
+**Arbitrary-precision bignums:** For integers larger than 64 bits, this BIF
+operates on the full arbitrary-precision bit representation, counting trailing
+zeros across all limbs. Returns `-1` if the bignum is zero.
+
+**Errors:** Raises `badarg` for non-integer input and 0.
+
+## Examples
+
+```erlang
+1> erlang:integer_trailing_zeroes(0).
+badarg
+2> erlang:integer_trailing_zeroes(1).
+0
+3> erlang:integer_trailing_zeroes(8).
+3
+4> erlang:integer_trailing_zeroes(16).
+4
+```
+""".
+-spec integer_trailing_zeroes(non_neg_integer()) -> integer() | error.
+integer_trailing_zeroes(_A) ->
+  erlang:nif_error(undefined).
+
+-doc(#{since => <<"OTP 30.0">>}).
+-doc """
+Returns the number of one-bits (population count) in the binary
+representation of `N`.
+
+**64-bit integers:** For integers that fit in an unsigned 64-bit representation,
+this BIF counts the number of set bits, returning a value in `0..64`.
+
+**Arbitrary-precision bignums:** For integers larger than 64 bits, this BIF
+operates on the full arbitrary-precision bit representation, summing the
+population counts across all limbs. Uses SIMD acceleration (AVX-512 VPOPCNTQ
+if available) for optimal performance on large bignums.
+
+**Errors:** Raises `badarg` for non-integer input and negative integers.
+
+## Examples
+
+```erlang
+1> erlang:integer_set_bits(0).
+0
+2> erlang:integer_set_bits(1).
+1
+3> erlang:integer_set_bits(7).
+3
+4> erlang:integer_set_bits(15).
+4
+```
+""".
+-spec integer_set_bits(non_neg_integer()) -> non_neg_integer() | error.
+integer_set_bits(_A) ->
+  erlang:nif_error(undefined).
+
+
+-doc(#{since => <<"OTP 30.0">>}).
+-doc """
+Returns the number of bits required to represent the given unsigned integer
+in 2's complement. 
+clz over 64 bits is thus easily expressed as 64 - integer_unsigned_width(X).
+
+**Errors:** Raises `badarg` for negative integers and non-integers.
+
+## Examples
+
+```erlang
+1> erlang:integer_unsigned_width(0).
+0
+2> erlang:integer_unsigned_width(1).
+1
+3> erlang:integer_unsigned_width(15).
+4
+4> erlang:integer_unsigned_width(-1).
+badarg
+```
+""".
+-spec integer_unsigned_width(non_neg_integer()) -> non_neg_integer() | error.
+integer_unsigned_width(_A) ->
+  erlang:nif_error(undefined).
+
+-doc(#{since => <<"OTP 30.0">>}).
+-doc """
+Returns the number of bits required to represent the given signed integer
+in 2's complement.
+
+**Errors:** Raises `badarg` for non-integers.
+
+## Examples
+
+```erlang
+1> erlang:integer_signed_width(0).
+1
+2> erlang:integer_signed_width(1).
+2
+3> erlang:integer_signed_width(-1).
+1
+4> erlang:integer_signed_width(-2).
+2
+```
+""".
+-spec integer_signed_width(integer()) -> non_neg_integer() | error.
+integer_signed_width(_A) ->
+  erlang:nif_error(undefined).
 
 %% cancel_timer/1
 -doc( #{ equiv =>  erlang:cancel_timer(TimerRef, []) }).
