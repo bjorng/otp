@@ -576,6 +576,7 @@ per_dec_constrained(Lb, Ub, true) ->
 		  {get_bits,2,[8,unsigned,{align,true}]};
 	      true ->
 		  RangeOctLen = byte_size(binary:encode_unsigned(Range - 1)),
+                  RangeOctLen = (integer_unsigned_width(Range - 1) + 7) div 8,
 		  {get_bits,per_dec_length({1,RangeOctLen}, false, true),
 		   [8,unsigned,{align,true}]}
 	  end,
@@ -617,19 +618,30 @@ decode_unconstrained_length(AllowZero, Aligned) ->
 	       {value,{mul,{get_bits,6,[1|Zero]},16384}}}}]}.
 
 uper_num_bits(N) ->
-    uper_num_bits(N, 1, 0).
+    Res = old_uper_num_bits(N, 1, 0),
+    Res = integer_unsigned_width(N - 1),
+    Res.
 
-uper_num_bits(N, T, B) when N =< T -> B;
-uper_num_bits(N, T, B) -> uper_num_bits(N, T bsl 1, B+1).
+old_uper_num_bits(N, T, B) when N =< T -> B;
+old_uper_num_bits(N, T, B) -> old_uper_num_bits(N, T bsl 1, B+1).
 
-per_num_bits(2) -> 1;
-per_num_bits(N) when N =< 4 -> 2;
-per_num_bits(N) when N =< 8 -> 3;
-per_num_bits(N) when N =< 16 -> 4;
-per_num_bits(N) when N =< 32 -> 5;
-per_num_bits(N) when N =< 64 -> 6;
-per_num_bits(N) when N =< 128 -> 7;
-per_num_bits(N) when N =< 255 -> 8.
+per_num_bits(N) ->
+    Res = old_per_num_bits(N),
+    Res = new_per_num_bits(N),
+    Res.
+
+new_per_num_bits(N) when N > 0 ->
+    integer_unsigned_width(N - 1).
+
+old_per_num_bits(1) -> 0;
+old_per_num_bits(2) -> 1;
+old_per_num_bits(N) when N =< 4 -> 2;
+old_per_num_bits(N) when N =< 8 -> 3;
+old_per_num_bits(N) when N =< 16 -> 4;
+old_per_num_bits(N) when N =< 32 -> 5;
+old_per_num_bits(N) when N =< 64 -> 6;
+old_per_num_bits(N) when N =< 128 -> 7;
+old_per_num_bits(N) when N =< 255 -> 8.
 
 opt_map(Map, Imm) ->
     case matched_range(Imm) of
@@ -1192,6 +1204,7 @@ per_enc_constrained(Val0, Lb, Ub, true) ->
 	    {Prefix,Check,Put};
 	true ->
 	    RangeOctsLen = byte_size(binary:encode_unsigned(Range - 1)),
+            RangeOctsLen = (integer_unsigned_width(Range - 1) + 7) div 8,
 	    BitsNeeded = per_num_bits(RangeOctsLen),
 	    {Prefix,Check,per_enc_constrained_huge(BitsNeeded, Val)}
     end.

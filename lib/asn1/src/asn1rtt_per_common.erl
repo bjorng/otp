@@ -144,31 +144,23 @@ encode_relative_oid(Val) when is_list(Val) ->
 
 encode_unconstrained_number(Val) when not is_integer(Val) ->
     exit({error,{asn1,{illegal_integer,Val}}});
-encode_unconstrained_number(Val) when Val >= 0 ->
-    if
-	Val < 16#80 ->
-	    [1,Val];
-	Val < 16#100 ->
-	    [<<2,0>>,Val];
-	true ->
-	    case binary:encode_unsigned(Val) of
-		<<0:1,_/bitstring>>=Bin ->
-		    case byte_size(Bin) of
-			Sz when Sz < 128 ->
-			    [Sz,Bin];
-			Sz when Sz < 16384 ->
-			    [<<2:2,Sz:14>>,Bin]
-		    end;
-		<<1:1,_/bitstring>>=Bin ->
-		    case byte_size(Bin)+1 of
-			Sz when Sz < 128 ->
-			    [Sz,0,Bin];
-			Sz when Sz < 16384 ->
-			    [<<2:2,Sz:14,0:8>>,Bin]
-		    end
-	    end
-    end;
-encode_unconstrained_number(Val) ->
+encode_unconstrained_number(Val) when is_integer(Val) ->
+    Res = old_unconstrained(Val),
+    NewRes = case (integer_signed_width(Val) + 7) bsr 3 of
+                 NumBytes when NumBytes < 128 ->
+                     <<NumBytes:8,Val:NumBytes/unit:8>>;
+                 NumBytes when NumBytes < 16384 ->
+                     <<2:2,NumBytes:14,Val:NumBytes/unit:8>>
+             end,
+    case Res of
+        NewRes ->
+            NewRes;
+        _ ->
+            true = iolist_to_binary(Res) =:= iolist_to_binary(NewRes),
+            NewRes
+    end.
+
+old_unconstrained(Val) when Val < 0 ->
     Oct = enint(Val, []),
     Len = length(Oct),
     if
@@ -176,6 +168,30 @@ encode_unconstrained_number(Val) ->
             [Len|Oct];
         Len < 16384 ->
             [<<2:2,Len:14>>|Oct]
+    end;
+old_unconstrained(Val) ->
+    if
+        Val < 16#80 ->
+            [1,Val];
+        Val < 16#100 ->
+            [<<2,0>>,Val];
+        true ->
+            case binary:encode_unsigned(Val) of
+                <<0:1,_/bitstring>>=Bin ->
+                    case byte_size(Bin) of
+                        Sz when Sz < 128 ->
+                            [Sz,Bin];
+                        Sz when Sz < 16384 ->
+                            [<<2:2,Sz:14>>,Bin]
+                    end;
+                <<1:1,_/bitstring>>=Bin ->
+                    case byte_size(Bin)+1 of
+                        Sz when Sz < 128 ->
+                            [Sz,0,Bin];
+                        Sz when Sz < 16384 ->
+                            [<<2:2,Sz:14,0:8>>,Bin]
+                    end
+            end
     end.
 
 %% bitstring_from_positions([Position]) -> BitString
@@ -514,8 +530,17 @@ bs_drop_trailing_zeroes(Bs0, Sz0) ->
 	    Bs
     end.
 
-%% ntz(Byte) -> Number of trailing zeroes.
 ntz(Byte) ->
+    Res = old_ntz(Byte),
+    Res = new_ntz(Byte),
+    Res.
+
+%% ntz(Byte) -> Number of trailing zeroes, or 8 if Byte is zero.
+new_ntz(0) -> 8;
+new_ntz(N) -> integer_trailing_zeroes(N).
+
+%% ntz(Byte) -> Number of trailing zeroes, or 8 if Byte is zero.
+old_ntz(Byte) ->
     %% The table was calculated like this:
     %%   NTZ = fun (B, N, NTZ) when B band 1 =:= 0 -> NTZ(B bsr 1, N+1, NTZ); (_, N, _) -> N end.
     %%   io:format("~w\n", [list_to_tuple([NTZ(B+256, 0, NTZ) || B <- lists:seq(0, 255)])]).
