@@ -853,13 +853,52 @@ encode_alloc_list_1([], Dict, Acc) ->
 
 -spec encode(non_neg_integer(), integer()) -> iolist() | integer().
 
-encode(Tag, N) when is_integer(N), N < 0 ->
-    encode1(Tag, negative_to_bytes(N));
-encode(Tag, N) when is_integer(N), N < 16 ->
+encode(Tag, N) ->
+    Enc = old_encode(Tag, N),
+    case new_encode(Tag, N) of
+        Enc ->
+            Enc;
+        Other ->
+            true = iolist_to_binary(Enc) =:= iolist_to_binary(Other),
+            Enc
+    end.
+
+new_encode(Tag, N) when is_integer(N, 0, 15) ->
+    %% Bit layout:
+    %%
+    %% nnnn_0ttt
+    %%
+    %% (where nnnn is the N and ttt is Tag)
     (N bsl 4) bor Tag;
-encode(Tag, N) when is_integer(N), N < 16#800  ->
+new_encode(Tag, N) when is_integer(N, 16, 16#800-1) ->
+    %% nnn0_1ttt nnnn_nnnn
+    [((N bsr 3) band 2#1110_0000) bor Tag bor 2#0000_1000, N band 16#ff];
+new_encode(Tag, N) when is_integer(N, -16#8000, -1) ->
+    %% 0001_1ttt nnnn_nnnn nnnn_nnnn
+    Header = 2#0001_1000 bor Tag,
+    <<Header,N:2/unit:8>>;
+new_encode(Tag, N) ->
+    NumBytes = (integer_signed_width(N) + 7) div 8,
+    if
+        is_integer(NumBytes, 2, 8) ->
+            %% sss1_1ttt nnnn_nnnn nnnn_nnnn ...
+            %%
+            %% (where sss is NumBytes-2)
+            Header = ((NumBytes-2) bsl 5) bor 2#00011000 bor Tag,
+            <<Header,N:NumBytes/unit:8>>;
+        NumBytes >= 9 ->
+            %% 1111_1ttt encode(NumBytes-9) nnnn_nnnn nnnn_nnnn nnnn_nnnn ...
+            Header = 2#11111000 bor Tag,
+            [Header, encode(?tag_u, NumBytes-9), <<N:NumBytes/unit:8>>]
+    end.
+
+old_encode(Tag, N) when is_integer(N), N < 0 ->
+    encode1(Tag, negative_to_bytes(N));
+old_encode(Tag, N) when is_integer(N), N < 16 ->
+    (N bsl 4) bor Tag;
+old_encode(Tag, N) when is_integer(N), N < 16#800  ->
     [((N bsr 3) band 2#11100000) bor Tag bor 2#00001000, N band 16#ff];
-encode(Tag, N) when is_integer(N) ->
+old_encode(Tag, N) when is_integer(N) ->
     encode1(Tag, to_bytes(N)).
 
 encode1(Tag, Bytes) ->
