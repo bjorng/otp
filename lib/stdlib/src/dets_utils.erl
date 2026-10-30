@@ -650,8 +650,19 @@ set_freelists(Head, Ftab) when Head#head.fixed =/= false ->
 sz2pos(N) when N > 0 ->
     1 + log2(N+1).
 
-%% Returns the i such that 2^(i-1) < N =< 2^i.
-log2(N) when is_integer(N), N >= 0 ->
+%% Returns the i such that 2^(i-1) < N =< 2^i when N >= 2.
+%% For N =:= 0 we return 0 and for N =:= 1 we return 1.
+log2(N) ->
+    Res = old_log2(N),
+    Res = new_log2(N),
+    Res.
+
+new_log2(0) -> 0;
+new_log2(1) -> 1;
+new_log2(N) when is_integer(N), N >= 2 ->
+    integer_unsigned_width(N - 1).
+
+old_log2(N) when is_integer(N), N >= 0 ->
     if N > ?POW(8) ->
 	    if N > ?POW(10) ->
 		    if N > ?POW(11) ->
