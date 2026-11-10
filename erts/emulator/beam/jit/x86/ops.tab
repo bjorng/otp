@@ -705,6 +705,11 @@ bif_hd s d
 bif1 Fail=f _Bif=u$bif:erlang:tl/1 Src=xy Dst =>
     is_nonempty_list Fail Src | get_tl Src Dst
 
+bif1 _Fail _Bif=u$bif:erlang:is_atom/1 Src=xy Dst =>
+    bif_is_atom Src Dst
+
+bif_is_atom s d
+
 bif1 _Fail _Bif=u$bif:erlang:get/1 Src=s Dst=d => get(Src, Dst)
 
 bif2 Fail u$bif:erlang:element/2 S1=ixy S2 Dst => bif_element Fail S1 S2 Dst
