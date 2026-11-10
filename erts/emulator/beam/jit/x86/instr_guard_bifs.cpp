@@ -576,6 +576,43 @@ void BeamModuleAssembler::emit_bif_is_atom(const ArgSource &Src,
 }
 
 /* ================================================================
+ *  is_integer/1
+ * ================================================================
+ */
+
+void BeamModuleAssembler::emit_bif_is_integer(const ArgSource &Src,
+                                              const ArgRegister &Dst) {
+    Label next = a.new_label();
+
+    mov_arg(ARG1, Src);
+
+    preserve_cache(
+                   [&]() {
+                       a.mov(RETd, ARG1d);
+                       a.and_(RETb, imm(_TAG_IMMED1_MASK));
+                       a.cmp(RETb, imm(_TAG_IMMED1_SMALL));
+                       a.short_().je(next);
+                   },
+                   RET);
+
+    emit_is_boxed(next, Src, RET);
+
+    x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
+
+    preserve_cache(
+                   [&]() {
+                       a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
+
+                       a.and_(RETb, imm(_BIG_TAG_MASK));
+                       a.cmp(RETb, imm(_TAG_HEADER_POS_BIG));
+                   },
+                   RET);
+
+    a.bind(next);
+    emit_cond_to_bool(x86::Inst::kIdCmovne, Dst);
+}
+
+/* ================================================================
  *  is_map_key/2
  * ================================================================
  */
