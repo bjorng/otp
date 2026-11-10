@@ -99,9 +99,13 @@ void BeamModuleAssembler::emit_bif_is_ne_exact(const ArgRegister &LHS,
 
 void BeamModuleAssembler::emit_cond_to_bool(uint32_t instId,
                                             const ArgRegister &Dst) {
-    mov_imm(RET, am_true);
-    mov_imm(ARG1, am_false);
-    a.emit(instId, RET, ARG1);
+    preserve_cache(
+                   [&]() {
+                       mov_imm(RET, am_true);
+                       mov_imm(ARG1, am_false);
+                       a.emit(instId, RET, ARG1);
+                   },
+                   RET, ARG1);
     mov_arg(Dst, RET);
 }
 
@@ -543,6 +547,31 @@ void BeamModuleAssembler::emit_bif_hd(const ArgSource &Src,
         x86::Gp boxed_ptr = emit_ptr_val(RET, RET);
         a.mov(ARG2, getCARRef(boxed_ptr));
         mov_arg(Hd, ARG2);
+    }
+}
+
+/* ================================================================
+ *  is_atom/1
+ * ================================================================
+ */
+
+void BeamModuleAssembler::emit_bif_is_atom(const ArgSource &Src,
+                                           const ArgRegister &Dst) {
+    mov_arg(RET, Src);
+
+    if (always_one_of<BeamTypeId::Atom, BeamTypeId::AlwaysBoxed>(Src)) {
+        comment("simplified atom test since all other types are boxed");
+        emit_test_boxed(RET);
+        emit_cond_to_bool(x86::Inst::kIdCmove, Dst);
+    } else {
+        ERTS_CT_ASSERT(_TAG_IMMED2_MASK < 256);
+        preserve_cache(
+                [&]() {
+                    a.and_(RETb, imm(_TAG_IMMED2_MASK));
+                    a.cmp(RETb, imm(_TAG_IMMED2_ATOM));
+                },
+                RET);
+        emit_cond_to_bool(x86::Inst::kIdCmovne, Dst);
     }
 }
 
