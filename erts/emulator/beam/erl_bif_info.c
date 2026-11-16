@@ -512,7 +512,7 @@ erts_print_system_version(fmtfn_t to, void *arg, Process *c_p)
     }
     if (rc >= 0) {
 	if (rc == 0)
-	    rc_str = " [DEVELOPMENT]";
+            rc_str = " [ERIC_halfword-test3]"; //" [DEVELOPMENT]";
 	else {
 	    erts_snprintf(rc_buf, sizeof(rc_buf), " [RELEASE CANDIDATE %d]", rc);
 	    rc_str = rc_buf;
