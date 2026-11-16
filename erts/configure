@@ -9451,7 +9451,7 @@ esac
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if we are building a halfword emulator (32bit heap on 64bit machine)" >&5
 printf %s "checking if we are building a halfword emulator (32bit heap on 64bit machine)... " >&6; }
 if test "$enable_halfword_emulator" = "yes"; then
-        if test "$ARCH" = "amd64"; then
+        if test "$EXTERNAL_WORD_SIZE" = "64"; then
 
 printf "%s\n" "#define HALFWORD_HEAP_EMULATOR 1" >>confdefs.h
 

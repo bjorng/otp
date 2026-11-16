@@ -869,7 +869,7 @@ dnl Check if we should/can build a halfword emulator
 
 AC_MSG_CHECKING(if we are building a halfword emulator (32bit heap on 64bit machine))
 if test "$enable_halfword_emulator" = "yes"; then
-        if test "$ARCH" = "amd64"; then
+        if test "$EXTERNAL_WORD_SIZE" = "64"; then
                 AC_DEFINE(HALFWORD_HEAP_EMULATOR, [1],
                           [Define if building a halfword-heap 64bit emulator])
                 ENABLE_ALLOC_TYPE_VARS="$ENABLE_ALLOC_TYPE_VARS halfword"
