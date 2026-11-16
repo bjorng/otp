@@ -438,7 +438,7 @@ typedef int          Sint;
 #  error Found no appropriate type to use for 'Eterm', 'Uint' and 'Sint'
 #endif
 
-#  define HALFWORD_PACKED() __attribute__((packed))
+#  define HALFWORD_PACKED() __attribute__((packed,aligned(4)))
 
 # if SIZEOF_VOID_P == SIZEOF_LONG
 typedef unsigned long UWord;
