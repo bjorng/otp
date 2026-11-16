@@ -1476,9 +1476,10 @@ erts_mseg_init(ErtsMsegInit_t *init)
         ERTS_LOCK_FLAGS_PROPERTY_STATIC | ERTS_LOCK_FLAGS_CATEGORY_GENERIC);
 
 #if HALFWORD_HEAP
-    // Hijack THE supercarrier for halfword
+    // Hijack THE supercarrier for halfword 4GB "low" memory
     init->dflt_mmap.scs = 1UL << 32;
     init->dflt_mmap.sco = 0;
+    init->dflt_mmap.scrpm = 0;
 #endif
     erts_mmap_init(&erts_dflt_mmapper, &init->dflt_mmap);
 
