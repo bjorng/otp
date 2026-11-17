@@ -337,13 +337,16 @@ ERTS_ALC_FORCE_INLINE
 bool erts_is_in_literal_range(void* ptr)
 {
 #if defined(ARCH_32) || HALFWORD_HEAP
-# if HALFWORD_HEAP
-    const UWord offset = (UWord)ptr - erts_halfword_start_addr;
-# else
-    const UWord offset = (UWord)ptr;
-# endif
-    Uint ix = offset >> ERTS_MMAP_SUPERALIGNED_BITS;
+    const Uint32 offset = (Uint32)(UWord)ptr;
+    const Uint32 ix = offset >> ERTS_MMAP_SUPERALIGNED_BITS;
 
+#if HALFWORD_HEAP
+    /* Q: Why no subtraction of erts_halfword_start_addr?
+     * A: Not needed. The low 32 bits of the pointer are unique and they will
+     *    "wrap around" to address all the bits in the bitvector anyway.
+     */
+    ASSERT(IS_LOW_POINTER(ptr));
+#endif
     return erts_literal_vspace_map[ix / ERTS_VSPACE_WORD_BITS]
                   & ((UWord)1 << (ix % ERTS_VSPACE_WORD_BITS));
 

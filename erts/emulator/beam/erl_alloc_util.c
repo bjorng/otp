@@ -893,14 +893,14 @@ internal_free(void *ptr)
 #define VSPACE_MAP_BITS  (1 << (32 - ERTS_MMAP_SUPERALIGNED_BITS))
 #define VSPACE_MAP_SZ    (VSPACE_MAP_BITS / ERTS_VSPACE_WORD_BITS)
 
-static ERTS_INLINE void set_bit(UWord* map, Uint ix)
+static ERTS_INLINE void set_bit(UWord* map, Uint32 ix)
 {
     ASSERT(ix / ERTS_VSPACE_WORD_BITS < VSPACE_MAP_SZ);
     map[ix / ERTS_VSPACE_WORD_BITS]
         |= ((UWord)1 << (ix % ERTS_VSPACE_WORD_BITS));
 }
 
-static ERTS_INLINE void clr_bit(UWord* map, Uint ix)
+static ERTS_INLINE void clr_bit(UWord* map, Uint32 ix)
 {
     ASSERT(ix / ERTS_VSPACE_WORD_BITS < VSPACE_MAP_SZ);
     map[ix / ERTS_VSPACE_WORD_BITS]
@@ -909,7 +909,7 @@ static ERTS_INLINE void clr_bit(UWord* map, Uint ix)
 
 #ifdef DEBUG
 
-static ERTS_INLINE int is_bit_set(UWord* map, Uint ix)
+static ERTS_INLINE bool is_bit_set(UWord* map, Uint32 ix)
 {
     ASSERT(ix / ERTS_VSPACE_WORD_BITS < VSPACE_MAP_SZ);
     return map[ix / ERTS_VSPACE_WORD_BITS]
@@ -922,14 +922,14 @@ UWord erts_literal_vspace_map[VSPACE_MAP_SZ];
 
 static void set_literal_range(void* start, size_t size)
 {
-#if HALFWORD_HEAP
-    const UWord offset = (UWord)start - erts_halfword_start_addr;
-#else
-    const UWord offset = (UWord)start;
-#endif
-    Uint ix = offset >> ERTS_MMAP_SUPERALIGNED_BITS;
-    Uint n = size >> ERTS_MMAP_SUPERALIGNED_BITS;
+    const Uint32 offset = (Uint32)(UWord)start;
+    Uint32 ix = offset >> ERTS_MMAP_SUPERALIGNED_BITS;
+    Uint32 n = size >> ERTS_MMAP_SUPERALIGNED_BITS;
 
+#if HALFWORD_HEAP
+    ASSERT(IS_LOW_POINTER(start));
+    ASSERT(IS_LOW_POINTER((char*)start + size - 1));
+#endif
     ASSERT(!(offset & ERTS_INV_SUPERALIGNED_MASK));
     ASSERT(!((UWord)size & ERTS_INV_SUPERALIGNED_MASK));
     ASSERT(n);
@@ -942,14 +942,14 @@ static void set_literal_range(void* start, size_t size)
 
 static void clear_literal_range(void* start, size_t size)
 {
-#if HALFWORD_HEAP
-    const UWord offset = (UWord)start - erts_halfword_start_addr;
-#else
-    const UWord offset = (UWord)start;
-#endif
-    Uint ix = offset >> ERTS_MMAP_SUPERALIGNED_BITS;
-    Uint n = size >> ERTS_MMAP_SUPERALIGNED_BITS;
+    const Uint32 offset = (Uint32)(UWord)start;
+    Uint32 ix = offset >> ERTS_MMAP_SUPERALIGNED_BITS;
+    Uint32 n = size >> ERTS_MMAP_SUPERALIGNED_BITS;
 
+#if HALFWORD_HEAP
+    ASSERT(IS_LOW_POINTER(start));
+    ASSERT(IS_LOW_POINTER((char*)start + size - 1));
+#endif
     ASSERT(!(offset & ERTS_INV_SUPERALIGNED_MASK));
     ASSERT(!((UWord)size & ERTS_INV_SUPERALIGNED_MASK));
     ASSERT(n);
