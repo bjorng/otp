@@ -1797,15 +1797,28 @@ void BeamModuleAssembler::emit_i_bsl(const ArgSource &LHS,
         comment("skipped tests because operands and result are always small");
         mov_arg(RET, LHS);
         ERTS_CT_ASSERT(_TAG_IMMED1_MASK == _TAG_IMMED1_SMALL);
-        a.xor_(RET, imm(_TAG_IMMED1_MASK));
         if (RHS.isSmall()) {
-            a.shl(RET, imm(RHS.as<ArgSmall>().getSigned()));
+            Uint subtract_val = 0;
+            bool subtract_tag = false;
+            subtract_tag = Support::is_uint_n<32>(subtract_val);
+            if (subtract_tag) {
+                Uint subtract_val = _TAG_IMMED1_SMALL *
+                    ((1ull << RHS.as<ArgSmall>().getSigned()) - 1);
+                comment("optimized tag restoration");
+                a.shl(RET, imm(RHS.as<ArgSmall>().getSigned()));
+                a.sub(RET, imm(subtract_val));
+            } else {
+                a.xor_(RET, imm(_TAG_IMMED1_MASK));
+                a.shl(RET, imm(RHS.as<ArgSmall>().getSigned()));
+                a.or_(RET, imm(_TAG_IMMED1_SMALL));
+            }
         } else {
+            a.xor_(RET, imm(_TAG_IMMED1_MASK));
             mov_arg(x86::rcx, RHS);
             a.shr(x86::rcx, imm(_TAG_IMMED1_SIZE));
             a.shl(RET, x86::cl);
+            a.or_(RET, imm(_TAG_IMMED1_SMALL));
         }
-        a.or_(RET, imm(_TAG_IMMED1_SMALL));
         mov_arg(Dst, RET);
         return;
     }
