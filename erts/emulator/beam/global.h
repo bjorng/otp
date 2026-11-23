@@ -1743,7 +1743,7 @@ ERTS_GLB_INLINE Eterm* erts_alloc_stack_tmp_heap(Uint size)
         ASSERT(esdp->tmp_heap_top <= esdp->tmp_heap + sizeof(esdp->tmp_heap)/sizeof(Eterm));
         return esdp->tmp_heap_top - size;
     } else {
-         return erts_alloc(ERTS_ALC_T_TMP, size * sizeof(Eterm));
+        return (Eterm *) erts_alloc(ERTS_ALC_T_TMP, size * sizeof(Eterm));
     }
 }
 ERTS_GLB_INLINE void erts_free_stack_tmp_heap(Eterm *ptr)
