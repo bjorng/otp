@@ -889,12 +889,6 @@ EOF
                 AC_MSG_ERROR(no; halfword emulator not supported on this architecture)
         fi
 
-        if test ${enable_jit} = yes; then
-                AC_MSG_ERROR([JIT not supported with halfword emulator])
-        elif test ${enable_jit} != no; then
-                AC_MSG_WARN([JIT disabled on halfword emulator])
-                enable_jit=no
-        fi
 else
         AC_MSG_RESULT([no])
         INTERNAL_WORD_SIZE=$EXTERNAL_WORD_SIZE
