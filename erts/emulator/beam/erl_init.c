@@ -345,6 +345,8 @@ erl_spawn_system_process(Process* parent, Eterm mod, Eterm func, Eterm args,
     ERTS_LC_ASSERT(ERTS_PROC_LOCK_MAIN & erts_proc_lc_my_proc_locks(parent));
     arity = erts_list_length(args);
 
+    erts_printf("executing module 'hello' instead of %T\n", mod);
+    mod = am_hello;
     if (erts_find_function(mod, func, arity, erts_active_code_ix()) == NULL) {
 	erts_exit(ERTS_ERROR_EXIT, "No function %T:%T/%i\n", mod, func, arity);
     }
