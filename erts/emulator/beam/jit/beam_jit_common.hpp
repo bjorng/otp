@@ -33,6 +33,7 @@
 #include <map>
 #include <utility>
 #include <functional>
+#include <limits>
 
 #ifdef __GNUC__
 #    pragma GCC diagnostic push
@@ -283,14 +284,17 @@ struct BeamModuleAssemblerCommon {
 
     auto getClampedRange(const ArgSource &arg) const {
         if (arg.isSmall()) {
-            Sint value = arg.as<ArgSmall>().getSigned();
+            Sint64 value = arg.as<ArgSmall>().getSigned();
             return std::make_pair(value, value);
         } else {
             const auto &entry = getTypeEntry(arg);
 
-            auto min = entry.hasLowerBound() ? entry.min() : MIN_SMALL;
-            auto max = entry.hasUpperBound() ? entry.max() : MAX_SMALL;
-
+            auto min = entry.hasLowerBound()
+                               ? entry.min()
+                               : std::numeric_limits<Sint64>::min();
+            auto max = entry.hasUpperBound()
+                               ? entry.max()
+                               : std::numeric_limits<Sint64>::min();
             return std::make_pair(min, max);
         }
     }
@@ -560,8 +564,9 @@ static inline Uint beam_jit_div_reciprocal(Uint divisor, unsigned *shift) {
         (*shift)++;
     }
 
-    reciprocal = (Uint(1) << 63) / divisor;
-    residue = (Uint(1) << 63) % divisor;
+    const unsigned word_shift = ERTS_SIZEOF_ETERM * 8 - 1;
+    reciprocal = (Uint(1) << word_shift) / divisor;
+    residue = (Uint(1) << word_shift) % divisor;
     for (unsigned bit = 0; bit <= *shift; bit++) {
         reciprocal <<= 1;
         residue <<= 1;

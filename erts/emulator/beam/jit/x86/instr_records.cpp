@@ -165,7 +165,7 @@ void BeamModuleAssembler::emit_i_get_record_elements(
     embed_vararg_rodata(args, ARG5, 0);
 
     emit_enter_runtime<Update::eStack>();
-    runtime_call<bool (*)(Process *, Eterm *, Eterm, Uint, const Eterm *),
+    runtime_call<bool (*)(Process *, Eterm *, Eterm, Uint, const BeamInstr *),
                  erl_get_record_elements>();
     emit_leave_runtime<Update::eStack>();
 
@@ -432,7 +432,7 @@ void BeamModuleAssembler::emit_i_update_native_record(
     emit_enter_runtime<Update::eHeapAlloc | Update::eReductions>();
 
     runtime_call<
-            Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const Eterm *args),
+            Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const BeamInstr *args),
             erl_update_native_record>();
 
     emit_leave_runtime<Update::eHeapAlloc | Update::eReductions>();

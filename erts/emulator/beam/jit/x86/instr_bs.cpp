@@ -48,7 +48,7 @@ int BeamModuleAssembler::emit_bs_get_field_size(const ArgSource &Size,
 
             if (sval < 0) {
                 /* badarg */
-            } else if (max_size && sval > max_size) {
+            } else if (max_size && sval > Sint(max_size)) {
                 /* badarg */
             } else if (sval > (MAX_SMALL / unit)) {
                 /* system_limit */
@@ -234,7 +234,7 @@ void BeamModuleAssembler::emit_i_bs_match_string(const ArgRegister &Ctx,
     mov_arg(ARG1, Ptr);
     mov_imm(ARG2, 0);
     mov_imm(ARG5, size);
-    runtime_call<int (*)(const byte *, Uint, const byte *, Uint, Uint),
+    runtime_call<int (*)(const byte *, UWord, const byte *, UWord, UWord),
                  erts_cmp_bits>();
 
     emit_leave_runtime();
@@ -444,8 +444,8 @@ void BeamGlobalAssembler::emit_bs_get_tail_shared() {
                            Eterm,
                            const BinRef *,
                            const byte *,
-                           Uint,
-                           Uint),
+                           UWord,
+                           UWord),
                  erts_build_sub_bitstring>();
 
     emit_leave_runtime<Update::eHeapOnlyAlloc>();
@@ -518,7 +518,7 @@ void BeamModuleAssembler::emit_bs_get_binary(const ArgWord heap_need,
         a.mov(ARG1, c_p);
         a.mov(ARG2, TMP_MEM1q);
         a.lea(ARG3, x86::qword_ptr(ARG4, -TAG_PRIMARY_BOXED));
-        runtime_call<Eterm (*)(Process *, Uint, ErlSubBits *),
+        runtime_call<Eterm (*)(Process *, UWord, ErlSubBits *),
                      erts_bs_get_binary_2>();
 
         emit_leave_runtime<Update::eHeapOnlyAlloc>();
@@ -2072,7 +2072,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
         mov_arg(ArgXRegister(Live.get()), seg.src);
         a.mov(ARG1, c_p);
         load_x_reg_array(ARG2);
-        runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, Uint, Uint),
+        runtime_call<Eterm (*)(Process *, Eterm *, Uint, UWord, Uint, Uint),
                      erts_bs_append_checked>();
 
         if (exact_type<BeamTypeId::Bitstring>(seg.src) &&
@@ -2126,7 +2126,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
         }
         a.mov(ARG2, c_p);
         load_erl_bits_state(ARG1);
-        runtime_call<Eterm (*)(ErlBitsState *, Process *, Eterm, Uint),
+        runtime_call<Eterm (*)(ErlBitsState *, Process *, Eterm, UWord),
                      erts_bs_private_append_checked>();
         /* There is no way the call can fail on a 64-bit architecture. */
         a.mov(TMP_MEM1q, RET);
@@ -2179,7 +2179,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
                 mov_arg(ARG3, seg.src);
                 a.mov(ARG2, c_p);
                 load_erl_bits_state(ARG1);
-                runtime_call<int (*)(ErlBitsState *, Process *, Eterm, Uint),
+                runtime_call<int (*)(ErlBitsState *, Process *, Eterm, UWord),
                              erts_bs_put_binary>();
                 error_info = beam_jit_update_bsc_reason_info(seg.error_info,
                                                              BSC_REASON_BADARG,
@@ -2226,7 +2226,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
                 mov_arg(ARG3, seg.src);
                 a.mov(ARG2, c_p);
                 load_erl_bits_state(ARG1);
-                runtime_call<int (*)(ErlBitsState *, Process *, Eterm, Uint),
+                runtime_call<int (*)(ErlBitsState *, Process *, Eterm, UWord),
                              erts_bs_put_binary>();
                 error_info = beam_jit_update_bsc_reason_info(seg.error_info,
                                                              BSC_REASON_BADARG,
@@ -2573,7 +2573,7 @@ void BeamModuleAssembler::emit_i_bs_create_bin(const ArgLabel &Fail,
             mov_imm(ARG3, seg.effectiveSize / 8);
             mov_arg(ARG2, string_ptr);
             load_erl_bits_state(ARG1);
-            runtime_call<void (*)(ErlBitsState *, byte *, Uint),
+            runtime_call<void (*)(ErlBitsState *, byte *, UWord),
                          erts_bs_put_string>();
         } break;
         case am_utf8: {
@@ -3399,8 +3399,8 @@ void BeamModuleAssembler::emit_i_bs_match_test_heap(
                                    Eterm,
                                    const BinRef *,
                                    const byte *,
-                                   Uint,
-                                   Uint),
+                                   UWord,
+                                   UWord),
                          erts_build_sub_bitstring>();
 
             emit_leave_runtime<Update::eHeapOnlyAlloc>();

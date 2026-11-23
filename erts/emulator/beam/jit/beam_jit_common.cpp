@@ -561,7 +561,7 @@ void BeamModuleAssembler::patchImport(char *rw_base,
         auto where = (Eterm *)&rw_base[offset + patch.ptr_offs];
 
         ASSERT(LLONG_MAX == *where);
-        *where = reinterpret_cast<Eterm>(import) + patch.val_offs;
+        *where = reinterpret_cast<BeamInstr>(import) + patch.val_offs;
     }
 }
 
@@ -573,7 +573,7 @@ void BeamModuleAssembler::patchLambda(char *rw_base,
         auto where = (Eterm *)&rw_base[offset + patch.ptr_offs];
 
         ASSERT(LLONG_MAX == *where);
-        *where = reinterpret_cast<Eterm>(fe) + patch.val_offs;
+        *where = reinterpret_cast<BeamInstr>(fe) + patch.val_offs;
     }
 }
 
@@ -1259,7 +1259,7 @@ enum beam_jit_tmo_ret beam_jit_wait_timeout(Process *c_p,
                  * location because there are no living x registers in
                  * a receive statement.
                  */
-                c_p->def_arg_reg[0] = (Eterm)next;
+                c_p->def_arg_reg[0] = (BeamInstr)next;
             } else { /* Wrong time */
                 erts_proc_unlock(c_p, ERTS_PROC_LOCKS_MSG_RECEIVE);
                 c_p->freason = EXC_TIMEOUT_VALUE;

@@ -218,7 +218,7 @@ static JitAllocator *pick_allocator() {
 #if HALFWORD_HEAP
     /* Force all native code into the lower 4Gib of memory. Fail if
      * allocation in that range is not possible. */
-    VirtMem::AddressRange range { uintptr_t(0), uintptr_t((1ull << 32) - 1) };
+    VirtMem::AddressRange range{uintptr_t(0), uintptr_t((1ull << 32) - 1)};
     params.address_range = range;
     params.options |= JitAllocatorOptions::kStrictAddressRange;
 #endif

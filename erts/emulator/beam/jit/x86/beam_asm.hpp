@@ -979,7 +979,7 @@ protected:
              *   49 c7 c0 2a 00 00 00    mov    r8, 42
              *   41 b8 2a 00 00 00       mov    r8d, 42
              */
-            if (Bitwise::fits_unsigned<32>((Uint)value)) {
+            if (Bitwise::fits_unsigned<32>((Uint64)value)) {
                 a.mov(to.r32(), imm(value));
             } else {
                 a.mov(to, imm(value));

@@ -3348,7 +3348,7 @@ void BeamModuleAssembler::emit_i_perf_counter() {
 }
 
 void BeamModuleAssembler::emit_coverage(void *coverage, Uint index, Uint size) {
-    Uint address = Uint(coverage) + index * size;
+    UWord address = UWord(coverage) + index * size;
     comment("coverage index = %d", index);
 
     mov_imm(RET, address);

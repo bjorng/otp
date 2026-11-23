@@ -243,7 +243,7 @@ void BeamGlobalAssembler::emit_new_map_shared() {
 
     a.mov(ARG1, c_p);
     load_x_reg_array(ARG2);
-    runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, const Eterm *),
+    runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, const BeamInstr *),
                  erts_gc_new_map>();
 
     emit_leave_runtime<Update::eReductions | Update::eHeapAlloc>();
@@ -571,7 +571,7 @@ void BeamGlobalAssembler::emit_update_map_assoc_shared() {
 
     a.mov(ARG1, c_p);
     load_x_reg_array(ARG2);
-    runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, const Eterm *),
+    runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, const BeamInstr *),
                  erts_gc_update_map_assoc>();
 
     emit_leave_runtime<Update::eReductions | Update::eHeapAlloc>();
@@ -631,7 +631,7 @@ void BeamGlobalAssembler::emit_update_map_exact_guard_shared() {
 
     a.mov(ARG1, c_p);
     load_x_reg_array(ARG2);
-    runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, const Eterm *),
+    runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, const BeamInstr *),
                  erts_gc_update_map_exact>();
 
     emit_leave_runtime<Update::eReductions | Update::eHeapAlloc>();
@@ -652,7 +652,7 @@ void BeamGlobalAssembler::emit_update_map_exact_body_shared() {
 
     a.mov(ARG1, c_p);
     load_x_reg_array(ARG2);
-    runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, const Eterm *),
+    runtime_call<Eterm (*)(Process *, Eterm *, Uint, Uint, const BeamInstr *),
                  erts_gc_update_map_exact>();
 
     emit_leave_runtime<Update::eReductions | Update::eHeapAlloc>();

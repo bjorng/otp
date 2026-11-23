@@ -126,7 +126,7 @@ void BeamGlobalAssembler::emit_process_main() {
     a.bind(context_switch_local);
     comment("Context switch, unknown arity/MFA");
     {
-        Sint arity_offset = offsetof(ErtsCodeMFA, arity) - sizeof(ErtsCodeMFA);
+        SWord arity_offset = offsetof(ErtsCodeMFA, arity) - sizeof(ErtsCodeMFA);
 
         a.movzx(ARG1d, x86::byte_ptr(ARG3, arity_offset));
         a.mov(x86::byte_ptr(c_p, offsetof(Process, arity)), ARG1.r8());

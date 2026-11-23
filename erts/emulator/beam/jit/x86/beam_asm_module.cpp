@@ -296,7 +296,7 @@ void BeamGlobalAssembler::emit_i_line_breakpoint_trampoline_shared() {
 
     emit_enter_runtime();
     runtime_call<
-            const Export *(*)(Process *, ErtsCodePtr, Uint, Eterm *, UWord *),
+            const Export *(*)(Process *, ErtsCodePtr, Uint, Eterm *, Eterm *),
             erts_line_breakpoint_hit__prepare_call>();
     emit_leave_runtime();
 
@@ -314,7 +314,7 @@ void BeamGlobalAssembler::emit_i_line_breakpoint_trampoline_shared() {
     a.lea(ARG2, getYRef(0)); /* stk */
 
     emit_enter_runtime();
-    runtime_call<Uint (*)(Eterm *, UWord *),
+    runtime_call<Uint (*)(Eterm *, Eterm *),
                  erts_line_breakpoint_hit__cleanup>();
     emit_leave_runtime();
 
