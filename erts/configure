@@ -9473,13 +9473,6 @@ EOF
                 as_fn_error $? "no; halfword emulator not supported on this architecture" "$LINENO" 5
         fi
 
-        if test ${enable_jit} = yes; then
-                as_fn_error $? "JIT not supported with halfword emulator" "$LINENO" 5
-        elif test ${enable_jit} != no; then
-                { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: JIT disabled on halfword emulator" >&5
-printf "%s\n" "$as_me: WARNING: JIT disabled on halfword emulator" >&2;}
-                enable_jit=no
-        fi
 else
         { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
 printf "%s\n" "no" >&6; }
