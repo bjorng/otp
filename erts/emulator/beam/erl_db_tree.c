@@ -1639,7 +1639,7 @@ int db_select_count_continue_tree_common(Process *p,
     }
 
     if (sc.max > 0) {
-	RET_TO_BIF(erts_make_integer(sc.got,p), DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.got,p), DB_ERROR_NONE);
     }	
     key = GETKEY(tb, sc.lastobj);
     if (end_condition != NIL && 
@@ -1742,7 +1742,7 @@ int db_select_count_tree_common(Process *p, DbTable *tb,
         this =  find_node(&tb->common, *sc.common.root, mpi.least, NULL);
         if (this)
             doit_select_count(&tb->common, this, &sc.common, 0 /* dummy */);
-	RET_TO_BIF(erts_make_integer(sc.got,p),DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.got,p),DB_ERROR_NONE);
     }
 
     stack = get_any_stack((DbTable*)tb, stack_container);
@@ -1764,7 +1764,7 @@ int db_select_count_tree_common(Process *p, DbTable *tb,
     release_stack((DbTable*)tb,stack_container,stack);
     BUMP_REDS(p, 1000 - sc.max);
     if (sc.max > 0) {
-	RET_TO_BIF(erts_make_integer(sc.got,p),DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.got,p),DB_ERROR_NONE);
     }
 
     key = GETKEY(tb, sc.lastobj);
@@ -2050,12 +2050,12 @@ int db_select_delete_continue_tree_common(Process *p,
     }
 
     if (sc.max > 0) {
-	RET_TO_BIF(erts_make_integer(sc.accum, p), DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.accum, p), DB_ERROR_NONE);
     }	
     key = GETKEY(&tbl->common, (sc.lastterm)->dbterm.tpl);
     if (end_condition != NIL && 
 	cmp_partly_bound(end_condition,key) > 0) { /* done anyway */
-	RET_TO_BIF(erts_make_integer(sc.accum,p),DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.accum,p),DB_ERROR_NONE);
     }
     /* Not done yet, let's trap. */
     sz = size_object(key);
@@ -2156,7 +2156,7 @@ int db_select_delete_tree_common(Process *p, DbTable *tbl,
         if (this)
             doit_select_delete(&tbl->common, this, &sc.common, 0 /* direction doesn't
 						      matter */);
-	RET_TO_BIF(erts_make_integer(sc.accum,p),DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.accum,p),DB_ERROR_NONE);
     }
 
     if (mpi.key_boundness == MS_KEY_PARTIALLY_BOUND) {
@@ -2178,7 +2178,7 @@ int db_select_delete_tree_common(Process *p, DbTable *tbl,
     BUMP_REDS(p, 1000 - sc.max);
 
     if (sc.max > 0) {
-	RET_TO_BIF(erts_make_integer(sc.accum,p), DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.accum,p), DB_ERROR_NONE);
     }
 
     key = GETKEY(&tbl->common, (sc.lastterm)->dbterm.tpl);
@@ -2290,7 +2290,7 @@ int db_select_replace_continue_tree_common(Process *p,
     BUMP_REDS(p, MIN(2000, (1000 - sc.max) + (sc.replaced - prev_replaced)));
 
     if (sc.max > 0) {
-        RET_TO_BIF(erts_make_integer(sc.replaced,p), DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.replaced,p), DB_ERROR_NONE);
     }
     key = GETKEY(tbl, sc.lastobj);
     if (end_condition != NIL &&
@@ -2393,7 +2393,7 @@ int db_select_replace_tree_common(Process *p, DbTable *tbl,
             doit_select_replace(&tbl->common, pp, &sc.common, 0 /* dummy */);
             reset_static_stack(stack_container); /* may refer replaced term */
         }
-        RET_TO_BIF(erts_make_integer(sc.replaced,p),DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.replaced,p),DB_ERROR_NONE);
     }
 
     stack = get_any_stack(tbl,stack_container);
@@ -2418,7 +2418,7 @@ int db_select_replace_tree_common(Process *p, DbTable *tbl,
     // the more objects we've replaced, the more reductions we've consumed
     BUMP_REDS(p, MIN(2000, (1000 - sc.max) + sc.replaced));
     if (sc.max > 0) {
-        RET_TO_BIF(erts_make_integer(sc.replaced,p),DB_ERROR_NONE);
+        RET_TO_BIF(erts_make_uword(sc.replaced,p),DB_ERROR_NONE);
     }
 
     key = GETKEY(tbl, sc.lastobj);
@@ -2566,7 +2566,7 @@ static SWord db_delete_all_objects_tree(Process* p,
         Uint nr_of_items =
             erts_flxctr_read_centralized(&tbl->common.counters,
                                          ERTS_DB_TABLE_NITEMS_COUNTER_ID);
-        *nitems_holder_wb = erts_make_integer(nr_of_items, p);
+        *nitems_holder_wb = erts_make_uword(nr_of_items, p);
     }
     reds = db_free_table_continue_tree(tbl, reds);
     if (reds < 0)

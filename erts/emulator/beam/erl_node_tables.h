@@ -83,7 +83,7 @@ enum dist_entry_state {
 #define ERTS_DE_QFLGS_ALL			(ERTS_DE_QFLG_BUSY \
 						 | ERTS_DE_QFLG_EXIT)
 
-#if defined(ARCH_64)
+#if defined(ARCH_64) && !HALFWORD_HEAP
 #define ERTS_DIST_OUTPUT_BUF_DBG_PATTERN ((Uint) 0xf713f713f713f713UL)
 #else
 #define ERTS_DIST_OUTPUT_BUF_DBG_PATTERN ((Uint) 0xf713f713)

@@ -2297,7 +2297,7 @@ time_unit_conversion(Process *c_p, Eterm term, ErtsMonotonicTime val, ErtsMonoto
 	result = ERTS_MONOTONIC_TO_USEC(val) + muloff*ERTS_MONOTONIC_OFFSET_USEC;
 	ERTS_BIF_PREP_RET(ret, make_time_val(c_p, result));
 	break;
-#ifdef ARCH_64
+#if ERTS_SIZEOF_ETERM == 8
     case am_nanosecond:
     case am_nano_seconds:
     case make_small(1000*1000*1000):
@@ -2309,7 +2309,7 @@ time_unit_conversion(Process *c_p, Eterm term, ErtsMonotonicTime val, ErtsMonoto
 	goto trap_to_erlang_code;
     default: {
 	Eterm value, native_res;
-#ifndef ARCH_64
+#if ERTS_SIZEOF_ETERM == 4
 	Sint user_res;
 	if (term == am_nanosecond || term == am_nano_seconds)
 	    goto to_nano_seconds;

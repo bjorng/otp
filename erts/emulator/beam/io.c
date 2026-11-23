@@ -2408,8 +2408,9 @@ set_port_connected(int bang_op,
         if (ERTS_IS_P_TRACED_FL(prt, F_TRACE_RECEIVE))
             trace_port_receive(prt, from, am_connect, connect);
         if (ERTS_IS_P_TRACED_FL(prt, F_TRACE_SEND)) {
-            Eterm hp[3];
+            DeclareUseTmpHeapNoProc(hp, 3);
             trace_port_send(prt, from, TUPLE2(hp, prt->common.id, am_connected), 1);
+            UnDeclareTmpHeapNoProc(hp);
         }
 
     }
@@ -3325,8 +3326,9 @@ deliver_result(Port *prt, Eterm sender, Eterm pid, Eterm res)
 	  : erts_pid2proc_opt(NULL, 0, pid, 0, ERTS_P2P_FLG_INC_REFC));
 
     if (prt && ERTS_IS_P_TRACED_FL(prt, F_TRACE_SEND)) {
-        Eterm hp[3];
+        DeclareUseTmpHeapNoProc(hp, 3);
         trace_port_send(prt, pid, TUPLE2(hp, sender, res), !!rp);
+        UnDeclareTmpHeapNoProc(hp);
     }
 
     if (rp) {
@@ -4298,7 +4300,7 @@ erts_port_control(Process* c_p,
 
     if (is_bitstring(data)) {
         ERTS_DECLARE_DUMMY(Eterm br_flags);
-        Uint offset;
+        UWord offset;
 
         ERTS_PIN_BITSTRING(data, br_flags, br, basep, offset, size);
 
@@ -5715,17 +5717,25 @@ driver_deliver_term(Port *prt, Eterm to, ErlDrvTermData* data, int len)
 	    break;
 	case ERL_DRV_INT:  /* signed int argument */
 	    ERTS_DDT_CHK_ENOUGH_ARGS(1);
+#if HALFWORD_HEAP
+            erts_bld_sint64(NULL, &need, (Sint64)ptr[0]);
+#else
 	    /* check for bignum */
 	    if (!IS_SSMALL((Sint)ptr[0]))
 		need += BIG_UINT_HEAP_SIZE;  /* use small_to_big */
+#endif
 	    ptr++;
 	    depth++;
 	    break;
 	case ERL_DRV_UINT:  /* unsigned int argument */
 	    ERTS_DDT_CHK_ENOUGH_ARGS(1);
+#if HALFWORD_HEAP
+            erts_bld_uint64(NULL, &need, (Uint64)ptr[0]);
+#else
 	    /* check for bignum */
 	    if (!IS_USMALL(0, (Uint)ptr[0]))
 		need += BIG_UINT_HEAP_SIZE;  /* use small_to_big */
+#endif
 	    ptr++;
 	    depth++;
 	    break;
@@ -5904,8 +5914,9 @@ driver_deliver_term(Port *prt, Eterm to, ErlDrvTermData* data, int len)
 
         /* We allocate a temporary heap to be used to create
            the message that may be sent using tracing */
-        erts_factory_tmp_init(&factory, erts_alloc(ERTS_ALC_T_DRIVER, need*sizeof(Eterm)),
-                              need, ERTS_ALC_T_DRIVER);
+        erts_factory_tmp_init(&factory, erts_alloc(ERTS_ALC_T_SHORT_LIVED_TERM,
+                                                   need*sizeof(Eterm)),
+                              need, ERTS_ALC_T_SHORT_LIVED_TERM);
 
     } else {
         /* We force the creation of a heap fragment (rp == NULL) when send
@@ -5933,7 +5944,11 @@ driver_deliver_term(Port *prt, Eterm to, ErlDrvTermData* data, int len)
 	    ptr++;
 	    break;
 
-	case ERL_DRV_INT:  /* signed int argument */
+        case ERL_DRV_INT:  /* signed int argument */
+#if HALFWORD_HEAP
+            erts_reserve_heap(&factory, BIG_NEED_SIZE(2));
+            mess = erts_bld_sint64(&factory.hp, NULL, (Sint64)ptr[0]);
+#else
 	    erts_reserve_heap(&factory, BIG_UINT_HEAP_SIZE);
 	    if (IS_SSMALL((Sint)ptr[0]))
 		mess = make_small((Sint)ptr[0]);
@@ -5941,10 +5956,15 @@ driver_deliver_term(Port *prt, Eterm to, ErlDrvTermData* data, int len)
 		mess = small_to_big((Sint)ptr[0], factory.hp);
 		factory.hp += BIG_UINT_HEAP_SIZE;
 	    }
+#endif
 	    ptr++;
 	    break;
 
-	case ERL_DRV_UINT:  /* unsigned int argument */
+        case ERL_DRV_UINT:  /* unsigned int argument */
+#if HALFWORD_HEAP
+            erts_reserve_heap(&factory, BIG_NEED_FOR_BITS(64));
+            mess = erts_bld_uint64(&factory.hp, NULL, (Uint64)ptr[0]);
+#else
 	    erts_reserve_heap(&factory, BIG_UINT_HEAP_SIZE);
 	    if (IS_USMALL(0, (Uint)ptr[0]))
 		mess = make_small((Uint)ptr[0]);
@@ -5952,6 +5972,7 @@ driver_deliver_term(Port *prt, Eterm to, ErlDrvTermData* data, int len)
 		mess = uint_to_big((Uint)ptr[0], factory.hp);
 		factory.hp += BIG_UINT_HEAP_SIZE;
 	    }
+#endif
 	    ptr++;
 	    break;
 
@@ -6184,7 +6205,7 @@ driver_deliver_term(Port *prt, Eterm to, ErlDrvTermData* data, int len)
         trace_port_send(prt, to, mess, 0);
 
 	erts_factory_trim_and_close(&factory, &mess, 1);
-        erts_free(ERTS_ALC_T_DRIVER, factory.hp_start);
+        erts_free(ERTS_ALC_T_SHORT_LIVED_TERM, factory.hp_start);
         res = 0;
     }
     else {
@@ -7013,14 +7034,15 @@ static int do_driver_monitor_process(Port *prt,
 				     ErlDrvTermData process,
 				     ErlDrvMonitor *monitor)
 {
-    Eterm buf[ERTS_REF_THING_SIZE];
+    DeclareTmpHeapNoProc(tmp_ref_heap, ERTS_REF_THING_SIZE);
     Eterm ref;
     ErtsMonitorData *mdp;
 
     if (!prt->drv_ptr->process_exit)
 	return -1;
 
-    ref = erts_make_ref_in_buffer(buf);
+    UseTmpHeapNoProc(tmp_ref_heap);
+    ref = erts_make_ref_in_buffer(tmp_ref_heap);
     mdp = erts_monitor_create(ERTS_MON_TYPE_PORT, ref,
                               prt->common.id, process, NIL,
                               THE_NON_VALUE);
@@ -7028,12 +7050,14 @@ static int do_driver_monitor_process(Port *prt,
     if (!erts_proc_sig_send_monitor(&prt->common, prt->common.id,
                                     &mdp->u.target, process)) {
         erts_monitor_release_both(mdp);
+        UnDeclareTmpHeapNoProc(tmp_ref_heap);
         return 1;
     }
 
     erts_monitor_tree_insert(&ERTS_P_MONITORS(prt), &mdp->origin);
 
     erts_ref_to_driver_monitor(ref,monitor);
+    UnDeclareTmpHeapNoProc(tmp_ref_heap);
     return 0;
 }
 
@@ -7064,13 +7088,15 @@ int driver_monitor_process(ErlDrvPort drvport,
 
 static int do_driver_demonitor_process(Port *prt, const ErlDrvMonitor *monitor)
 {
-    Eterm heap[ERTS_REF_THING_SIZE];
+    DeclareUseTmpHeapNoProc(heap, ERTS_REF_THING_SIZE);
     Eterm ref;
     ErtsMonitor *mon;
 
     ref = erts_driver_monitor_to_ref(heap, monitor);
 
     mon = erts_monitor_tree_lookup(ERTS_P_MONITORS(prt), ref);
+    UnDeclareTmpHeapNoProc(heap);
+
     if (!mon || !erts_monitor_is_origin(mon))
         return 1;
 
@@ -7105,11 +7131,13 @@ static ErlDrvTermData do_driver_get_monitored_process(Port *prt,const ErlDrvMoni
 {
     Eterm ref;
     ErtsMonitor *mon;
-    Eterm heap[ERTS_REF_THING_SIZE];
+    DeclareUseTmpHeapNoProc(heap, ERTS_REF_THING_SIZE);
 
     ref = erts_driver_monitor_to_ref(heap, monitor);
 
     mon = erts_monitor_tree_lookup(ERTS_P_MONITORS(prt), ref);
+    UnDeclareTmpHeapNoProc(heap);
+
     if (!mon || !erts_monitor_is_origin(mon))
 	return driver_term_nil;
 

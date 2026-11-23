@@ -171,7 +171,7 @@ erts_internal_beamfile_chunk_2(BIF_ALIST_2)
 
     const byte *temp_alloc = NULL, *start;
     Eterm binary;
-    Uint size;
+    UWord size;
     Eterm res;
 
     res = am_undefined;
@@ -206,7 +206,7 @@ erts_internal_beamfile_module_md5_1(BIF_ALIST_1)
 {
     const byte *temp_alloc = NULL, *bytes;
     BeamFile beam;
-    Uint size;
+    UWord size;
     Eterm res;
 
     bytes = erts_get_aligned_binary_bytes(BIF_ARG_1, &size, &temp_alloc);
@@ -232,7 +232,7 @@ BIF_RETTYPE
 erts_internal_prepare_loading_2(BIF_ALIST_2)
 {
     const byte *temp_alloc = NULL, *code;
-    Uint size;
+    UWord size;
     Binary* magic;
     Eterm reason;
     Eterm* hp;
@@ -1227,7 +1227,7 @@ any_heap_ref_ptrs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size)
 	switch (primary_tag(val)) {
 	case TAG_PRIMARY_BOXED:
 	case TAG_PRIMARY_LIST:
-	    if (ErtsInArea(val, mod_start, mod_size)) {
+            if (ErtsInArea(EXPAND_POINTER(val), mod_start, mod_size)) {
 		return 1;
 	    }
 	    break;
@@ -1247,7 +1247,7 @@ any_heap_refs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size)
 	switch (primary_tag(val)) {
 	case TAG_PRIMARY_BOXED:
 	case TAG_PRIMARY_LIST:
-	    if (ErtsInArea(val, mod_start, mod_size)) {
+            if (ErtsInArea(EXPAND_POINTER(val), mod_start, mod_size)) {
 		return 1;
 	    }
 	    break;
@@ -1258,7 +1258,7 @@ any_heap_refs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size)
                 if (val == HEADER_SUB_BITS) {
                     ErlSubBits *sb = (ErlSubBits*) p;
 
-                    if (ErtsInArea(sb->orig, mod_start, mod_size)) {
+                    if (ErtsInArea(EXPAND_POINTER(sb->orig), mod_start, mod_size)) {
                         return 1;
                     }
                 }
@@ -1749,7 +1749,9 @@ rla_switch_area(void)
 BIF_RETTYPE
 erts_literal_area_collector_send_copy_request_3(BIF_ALIST_3)
 {
-    Eterm req_id, tmp_heap[4];
+    DeclareTmpHeap(tmp_heap, 4, BIF_P);
+    Eterm req_id;
+    BIF_RETTYPE retval;
 
     /*
      * The literal-area-collector process orchestrates this and
@@ -1760,6 +1762,8 @@ erts_literal_area_collector_send_copy_request_3(BIF_ALIST_3)
 
     if (is_not_internal_pid(BIF_ARG_1))
         BIF_ERROR(BIF_P, BADARG);
+
+    UseTmpHeap(tmp_heap, BIF_P);
 
     req_id = TUPLE3(&tmp_heap[0], BIF_ARG_2, BIF_ARG_3, BIF_ARG_1);
 
@@ -1772,6 +1776,7 @@ erts_literal_area_collector_send_copy_request_3(BIF_ALIST_3)
          * restarted later in the 'check_gc' or 'need_gc' case below...
          */
         erts_proc_sig_send_cla_request(BIF_P, BIF_ARG_1, req_id);
+        ERTS_BIF_PREP_RET(retval, am_ok);
         break;
 
     case am_check_gc:
@@ -1782,13 +1787,15 @@ erts_literal_area_collector_send_copy_request_3(BIF_ALIST_3)
          */
         erts_schedule_cla_gc(BIF_P, BIF_ARG_1, req_id,
                              BIF_ARG_3 == am_check_gc);
+        ERTS_BIF_PREP_RET(retval, am_ok);
         break;
 
     default:
-        BIF_ERROR(BIF_P, BADARG);
+        ERTS_BIF_PREP_ERROR(retval, BIF_P, BADARG);
     }
 
-    BIF_RET(am_ok);
+    UnDeclareTmpHeap(tmp_heap, BIF_P);
+    return retval;
 }
 
 BIF_RETTYPE erts_literal_area_collector_release_area_switch_0(BIF_ALIST_0)

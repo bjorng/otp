@@ -459,7 +459,7 @@ print_function_from_pc(fmtfn_t to, void *to_arg, ErtsCodePtr x)
 
 static void
 dump_sub_bitstring(fmtfn_t to, void *to_arg, Uint br_flags, BinRef *br,
-                   const byte *base, Uint offset, Uint size) {
+                   const byte *base, UWord offset, UWord size) {
     Binary *binary = br->val;
     int encode_as_binref;
 
@@ -493,7 +493,7 @@ dump_sub_bitstring(fmtfn_t to, void *to_arg, Uint br_flags, BinRef *br,
                    "Yc" PTR_FMT ":" PTR_FMT ":" PTR_FMT "\n",
                    binary, BYTE_OFFSET(offset), BYTE_SIZE(size));
     } else {
-        Eterm br_term = (Eterm)br | br_flags;
+        Eterm br_term = COMPRESS_POINTER(br) | br_flags;
 
         erts_print(to, to_arg,
                    "Ys" PTR_FMT ":" PTR_FMT ":" PTR_FMT "\n",
@@ -533,19 +533,20 @@ dump_bin_ref(fmtfn_t to, void *to_arg, BinRef *br)
 static void
 heap_dump(fmtfn_t to, void *to_arg, Eterm x)
 {
-    DeclareTmpHeapNoproc(last,1);
-    Eterm* next = last;
+    DeclareTmpHeapNoProc(last,1);
+    Eterm* next;
     Eterm* ptr;
 
     if (is_immed(x) || is_CP(x)) {
 	return;
     }
-    UseTmpHeapNoproc(1);
+    UseTmpHeapNoProc(last);
     *last = OUR_NIL;
+    next = last;
 
     while (x != OUR_NIL) {
 	if (is_CP(x)) {
-	    next = (Eterm *) x;
+            next = (Eterm *) EXPAND_POINTER(x);
 	} else if (is_list(x)) {
 	    ptr = list_val(x);
             if (erts_is_literal(x, ptr)) {
@@ -560,7 +561,7 @@ heap_dump(fmtfn_t to, void *to_arg, Eterm x)
 		    ptr[1] = make_small(0);
 		}
 		x = ptr[0];
-		ptr[0] = (Eterm) next;
+                ptr[0] = COMPRESS_POINTER(next);
 		next = ptr + 1;
 		continue;
 	    }
@@ -592,7 +593,7 @@ heap_dump(fmtfn_t to, void *to_arg, Eterm x)
 			ptr[0] = OUR_NIL;
 		    } else {
 			x = ptr[arity];
-			ptr[0] = (Eterm) next;
+                        ptr[0] = COMPRESS_POINTER(next);
 			next = ptr + arity - 1;
 			continue;
 		    }
@@ -610,7 +611,7 @@ heap_dump(fmtfn_t to, void *to_arg, Eterm x)
 		    erts_print(to, to_arg, "B%T\n", x);
 		    *ptr = OUR_NIL;
 		} else if (is_bitstring_header(hdr)) {
-                    Uint offset, size;
+                    UWord offset, size;
                     Eterm br_flags;
                     byte *base;
                     BinRef *br;
@@ -618,7 +619,7 @@ heap_dump(fmtfn_t to, void *to_arg, Eterm x)
                     ERTS_GET_BITSTRING_REF(x, br_flags, br, base, offset, size);
 
                     if (br) {
-                        if (erts_is_literal(br_flags | (Eterm)br, (Eterm*)br)) {
+                        if (erts_is_literal(br_flags | COMPRESS_POINTER(br), (Eterm*)br)) {
                             mark_literal((Eterm*)br);
                         }
 
@@ -662,7 +663,7 @@ heap_dump(fmtfn_t to, void *to_arg, Eterm x)
                         *ptr = OUR_NIL;
                         x = fmp->keys;
                         if (map_size) {
-                            fmp->keys = (Eterm) next;
+                            fmp->keys = COMPRESS_POINTER(next);
                             next = &values[map_size-1];
                         }
                         continue;
@@ -701,7 +702,7 @@ heap_dump(fmtfn_t to, void *to_arg, Eterm x)
                         }
                         erts_putc(to, to_arg, '\n');
                         x = nodes[0];
-                        nodes[0] = (Eterm) next;
+                        nodes[0] = COMPRESS_POINTER(next);
                         next = &nodes[sz-1];
                         continue;
                     }
@@ -719,7 +720,7 @@ heap_dump(fmtfn_t to, void *to_arg, Eterm x)
 	*next = OUR_NIL;
 	next--;
     }
-    UnUseTmpHeapNoproc(1);
+    UnDeclareTmpHeapNoProc(last);
 }
 
 static void
@@ -962,7 +963,7 @@ dump_module_literals(fmtfn_t to, void *to_arg, ErtsLiteralArea* lit_area)
                 erts_print(to, to_arg, "B%T\n", term);
             } else if (is_bitstring_header(w)) {
                 ERTS_DECLARE_DUMMY(Eterm br_flags);
-                Uint offset, size;
+                UWord offset, size;
                 byte *base;
                 BinRef *br;
 

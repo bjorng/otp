@@ -214,8 +214,8 @@ const Export *erts_line_breakpoint_hit__prepare_call(Process* c_p,
                                                      ErtsCodePtr pc,
                                                      Uint live,
                                                      Eterm *regs,
-                                                     UWord *stk);
-Uint erts_line_breakpoint_hit__cleanup(Eterm *regs, UWord *stk);
+                                                     Eterm *stk);
+Uint erts_line_breakpoint_hit__cleanup(Eterm *regs, Eterm *stk);
 
 const ErtsCodeInfo *erts_find_local_func(const ErtsCodeMFA *mfa);
 

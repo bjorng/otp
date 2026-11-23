@@ -80,7 +80,15 @@
 #endif
 
 #ifndef ERTS_SIZEOF_ETERM
-#define ERTS_SIZEOF_ETERM SIZEOF_VOID_P
+#  ifdef HALFWORD_HEAP_EMULATOR
+#    if SIZEOF_VOID_P == 8
+#      define ERTS_SIZEOF_ETERM 4
+#    else
+#      error "HALFWORD_HEAP_EMULATOR only allowed on 64-bit architecture"
+#    endif
+#  else
+#    define ERTS_SIZEOF_ETERM SIZEOF_VOID_P
+#  endif
 #endif
 
 #if defined(__GNUC__)

@@ -127,7 +127,9 @@ Eterm *erts_global_literal_allocate(Uint heap_size, struct erl_off_heap_header *
         expand_shared_global_literal_area(heap_size + GLOBAL_LITERAL_EXPAND_SIZE);
     }
 
-    *ohp = &global_literal_chunk->area.off_heap;
+    if (ohp) {
+        *ohp = &global_literal_chunk->area.off_heap;
+    }
 
 #ifdef DEBUG
     {

@@ -100,7 +100,9 @@ static char erts_system_version[] = ("Erlang/OTP " ERLANG_OTP_RELEASE
 				     " [source]"
 #endif
 #endif	
-#if defined(ARCH_64)
+#if HALFWORD_HEAP
+                                     " [64-bit halfword]"
+#elif defined(ARCH_64)
 				     " [64-bit]"
 #elif defined(ARCH_32)
                                      " [32-bit]"
@@ -182,10 +184,11 @@ erts_bld_bin_list(Uint **hpp, Uint *szp, ErlOffHeap* oh, Eterm tail)
     union erl_off_heap_ptr u;
     Eterm res = tail;
     Eterm tuple;
-    union erts_tmp_aligned_offheap tmp;
+    DeclareUseTmpHeapNoProc(tmp, sizeof(union erts_tmp_aligned_offheap) / sizeof(Eterm));
+
 
     for (u.hdr = oh->first; u.hdr; u.hdr = u.hdr->next) {
-        erts_align_offheap(&u, &tmp);
+        erts_align_offheap(&u, (union erts_tmp_aligned_offheap*)tmp);
 	if (u.hdr->thing_word == HEADER_BIN_REF) {
 	    Eterm val = erts_bld_uword(hpp, szp, (UWord) u.br->val);
 	    Eterm orig_size = erts_bld_uint(hpp, szp, u.br->val->orig_size);
@@ -200,6 +203,7 @@ erts_bld_bin_list(Uint **hpp, Uint *szp, ErlOffHeap* oh, Eterm tail)
 	    }
 	}
     }
+    UnDeclareTmpHeapNoProc(tmp);
     return res;
 }
 
@@ -508,7 +512,7 @@ erts_print_system_version(fmtfn_t to, void *arg, Process *c_p)
     }
     if (rc >= 0) {
 	if (rc == 0)
-	    rc_str = " [DEVELOPMENT]";
+            rc_str = " [ERIC_halfword-test3]"; //" [DEVELOPMENT]";
 	else {
 	    erts_snprintf(rc_buf, sizeof(rc_buf), " [RELEASE CANDIDATE %d]", rc);
 	    rc_str = rc_buf;
@@ -1005,7 +1009,7 @@ pi_arg2ix(Eterm arg, Eterm *extrap)
     }
 }
 
-static Eterm pi_1_keys[] = {
+static const Eterm pi_1_keys[] = {
     am_registered_name,
     am_current_function,
     am_initial_call,
@@ -1028,12 +1032,11 @@ static Eterm pi_1_keys[] = {
 #define ERTS_PI_1_NO_OF_KEYS (sizeof(pi_1_keys)/sizeof(Eterm))
 
 static Eterm pi_1_keys_list;
-static Eterm pi_1_keys_list_heap[2*ERTS_PI_1_NO_OF_KEYS];
 
 static void
 process_info_init(void)
 {
-    Eterm *hp = &pi_1_keys_list_heap[0];
+    Eterm *hp = erts_global_literal_allocate(2*ERTS_PI_1_NO_OF_KEYS, NULL);
     int i;
 
     pi_1_keys_list = NIL;
@@ -1043,15 +1046,18 @@ process_info_init(void)
 	hp += 2;
     }
 
+    erts_global_literal_register(&pi_1_keys_list);
+
 #ifdef DEBUG
     { /* Make sure the process_info argument mappings are consistent */
+        DeclareUseTmpHeapNoSched(heap, 3);
 	int ix;
 	for (ix = 0; ix < ERTS_PI_ARGS; ix++) {
-            Eterm heap[3];
             Eterm *hp = &heap[0];
 	    ASSERT(pi_arg2ix(pi_ix2arg(&hp, ix, am_ok), NULL) == ix);
             ASSERT(hp <= &heap[3]);
 	}
+        UnDeclareTmpHeapNoSched(heap);
     }
 #endif
 
@@ -3523,16 +3529,16 @@ BIF_RETTYPE system_info_1(BIF_ALIST_1)
         BIF_RET(make_small(atom_table_size()));
     }
     else if (ERTS_IS_ATOM_STR("module_limit",BIF_ARG_1)) {
-        BIF_RET(erts_make_integer(erts_module_table_limit(), BIF_P));
+        BIF_RET(erts_make_uword(erts_module_table_limit(), BIF_P));
     }
     else if (ERTS_IS_ATOM_STR("module_count",BIF_ARG_1)) {
-        BIF_RET(erts_make_integer(module_code_size(erts_active_code_ix()), BIF_P));
+        BIF_RET(erts_make_uword(module_code_size(erts_active_code_ix()), BIF_P));
     }
     else if (ERTS_IS_ATOM_STR("export_limit",BIF_ARG_1)) {
-        BIF_RET(erts_make_integer(erts_export_table_limit(), BIF_P));
+        BIF_RET(erts_make_uword(erts_export_table_limit(), BIF_P));
     }
     else if (ERTS_IS_ATOM_STR("export_count",BIF_ARG_1)) {
-        BIF_RET(erts_make_integer(export_list_size(erts_active_code_ix()), BIF_P));
+        BIF_RET(erts_make_uword(export_list_size(erts_active_code_ix()), BIF_P));
     }
     else if (ERTS_IS_ATOM_STR("tolerant_timeofday",BIF_ARG_1)) {
 	if (erts_has_time_correction()
@@ -3546,13 +3552,13 @@ BIF_RETTYPE system_info_1(BIF_ALIST_1)
     }
     else if (ERTS_IS_ATOM_STR("literal_test",BIF_ARG_1)) {
 #ifdef ERTS_HAVE_IS_IN_LITERAL_RANGE
-#ifdef ARCH_64
+#if defined(ARCH_64) && !HALFWORD_HEAP
 	DECL_AM(range);
 	BIF_RET(AM_range);
-#else /* ARCH_32 */
+#else
 	DECL_AM(range_bitmask);
 	BIF_RET(AM_range_bitmask);
-#endif /* ARCH_32 */
+#endif
 #else  /* ! ERTS_HAVE_IS_IN_LITERAL_RANGE */
 	DECL_AM(tag);
 	BIF_RET(AM_tag);
@@ -4237,7 +4243,7 @@ BIF_RETTYPE statistics_1(BIF_ALIST_1)
 	BIF_TRAP2(gather_msacc_res_trap, BIF_P, res, threads);
 #endif
     } else if (BIF_ARG_1 == am_context_switches) {
-	Eterm cs = erts_make_integer(erts_get_total_context_switches(), BIF_P);
+        Eterm cs = erts_make_uword(erts_get_total_context_switches(), BIF_P);
 	hp = HAlloc(BIF_P, 3);
 	res = TUPLE2(hp, cs, SMALL_ZERO);
 	BIF_RET(res);
@@ -4377,7 +4383,7 @@ BIF_RETTYPE erts_debug_get_internal_state_1(BIF_ALIST_1)
 		res = erts_ptab_test_next_id(&erts_port, 0, 0);
 	    if (res < 0)
 		BIF_RET(am_false);
-	    BIF_RET(erts_make_integer(res, BIF_P));
+            BIF_RET(erts_make_uword(res, BIF_P));
 	}
 	else if (ERTS_IS_ATOM_STR("DbTable_words", BIF_ARG_1)) {
 	    /* Used by ets_SUITE (stdlib) */
@@ -4448,7 +4454,7 @@ BIF_RETTYPE erts_debug_get_internal_state_1(BIF_ALIST_1)
 	    erts_proc_unlock(BIF_P, ERTS_PROC_LOCK_MAIN);
 	    n = erts_debug_nbalance();
 	    erts_proc_lock(BIF_P, ERTS_PROC_LOCK_MAIN);
-	    BIF_RET(erts_make_integer(n, BIF_P));
+            BIF_RET(erts_make_uword(n, BIF_P));
 	}
 	else if (ERTS_IS_ATOM_STR("available_internal_state", BIF_ARG_1)) {
 	    BIF_RET(am_true);
@@ -4771,11 +4777,11 @@ BIF_RETTYPE erts_debug_get_internal_state_1(BIF_ALIST_1)
 	    else if (ERTS_IS_ATOM_STR("binary_info", tp[1])) {
 		Eterm bin = tp[2];
 		if (is_bitstring(bin)) {
-                    ERTS_DECLARE_DUMMY(Uint offset);
+                    ERTS_DECLARE_DUMMY(UWord offset);
                     ERTS_DECLARE_DUMMY(byte *base);
                     ERTS_DECLARE_DUMMY(Eterm br_flags);
                     BinRef *br;
-                    Uint size;
+                    UWord size;
 
                     ERTS_GET_BITSTRING_REF(bin, br_flags, br, base, offset, size);
 
@@ -4788,17 +4794,17 @@ BIF_RETTYPE erts_debug_get_internal_state_1(BIF_ALIST_1)
 
                         heap_size = 3 + 5;
 
-                        (void) erts_bld_uint(NULL, &heap_size, refc_binary->orig_size);
-                        (void) erts_bld_uint(NULL, &heap_size, NBYTES(size));
+                        (void) erts_bld_uword(NULL, &heap_size, refc_binary->orig_size);
+                        (void) erts_bld_uword(NULL, &heap_size, NBYTES(size));
                         hp = HAlloc(BIF_P, heap_size);
 
                         /* Info about the Binary* object */
-                        SzTerm = erts_bld_uint(&hp, NULL, refc_binary->orig_size);
+                        SzTerm = erts_bld_uword(&hp, NULL, refc_binary->orig_size);
                         BinInfoTerm = TUPLE2(hp, am_binary, SzTerm);
                         hp += 3;
 
                         /* Info about the binary itself */
-                        SzTerm = erts_bld_uint(&hp, NULL, NBYTES(size));
+                        SzTerm = erts_bld_uword(&hp, NULL, NBYTES(size));
                         BIF_RET(TUPLE4(hp, AM_refc_binary, SzTerm,
                                        BinInfoTerm,
                                        make_small(refc_binary->intern.flags)));
@@ -5007,7 +5013,7 @@ test_multizero_timeout_in_timeout(void *vproc)
 static Eterm
 proc_sig_block(Process *c_p, void *arg, int *redsp, ErlHeapFragment **bpp)
 {
-    ErtsMonotonicTime time, timeout_time, ms = (ErtsMonotonicTime) (Sint) arg;
+    ErtsMonotonicTime time, timeout_time, ms = (ErtsMonotonicTime) (SWord) arg;
 
     if (redsp)
         *redsp = 1;
@@ -5127,7 +5133,7 @@ BIF_RETTYPE erts_debug_set_internal_state_2(BIF_ALIST_2)
 		    res = erts_ptab_test_next_id(&erts_port, 1, next);
 		if (res < 0)
 		    BIF_RET(am_false);
-		BIF_RET(erts_make_integer(res, BIF_P));
+                BIF_RET(erts_make_uword(res, BIF_P));
 	    }
 	}
 	else if (ERTS_IS_ATOM_STR("force_gc", BIF_ARG_1)) {
@@ -5470,7 +5476,7 @@ BIF_RETTYPE erts_debug_set_internal_state_2(BIF_ALIST_2)
                                                          tp[1],
                                                          0,
                                                          proc_sig_block,
-                                                         (void *) (Sint) wait_time);
+                                                         (void *) (SWord) wait_time);
                     if (is_non_value(res))
                         BIF_RET(am_false);
                     BIF_RET(am_true);

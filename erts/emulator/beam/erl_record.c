@@ -221,10 +221,10 @@ bool erl_is_native_record(Eterm src, Eterm mod, Eterm name) {
 }
 
 bool erl_get_record_elements(Process* p, Eterm* reg, Eterm src,
-                             Uint size, const Eterm* elems) {
+                             Uint size, const BeamInstr* elems) {
     ErtsRecordDefinition *defp;
     ErtsRecordInstance *instance;
-    const Eterm *elems_end;
+    const BeamInstr *elems_end;
     Eterm *values;
     int field_count;
     Eterm* E = p->stop;
@@ -239,8 +239,8 @@ bool erl_get_record_elements(Process* p, Eterm* reg, Eterm src,
     elems_end = elems + size;
 
     for (int i = 0; i < field_count; i++) {
-        if (elems[0] == defp->keys[i]) {
-            PUT_TERM_REG(values[i], elems[1]);
+        if ((Eterm)elems[0] == defp->keys[i]) {
+            PUT_TERM_REG(values[i], (Eterm)elems[1]);
             elems += 2;
             if (elems >= elems_end) {
                 return true;
@@ -254,7 +254,7 @@ bool erl_get_record_elements(Process* p, Eterm* reg, Eterm src,
 Eterm erl_create_local_native_record(Process* p, Eterm* reg,
                                      Eterm cons, Uint live,
                                      Uint size,
-                                     const Eterm* new_p) {
+                                     const BeamInstr* new_p) {
     Eterm def;
     ErtsRecordDefinition *defp;
     ErtsRecordInstance *instance;
@@ -263,8 +263,8 @@ Eterm erl_create_local_native_record(Process* p, Eterm* reg,
     Eterm* E;
     Uint num_words_needed;
     Eterm res;
-    Eterm sentinel = NIL;
-    const Eterm *new_end = new_p + size;
+    BeamInstr sentinel = (BeamInstr)NIL;
+    const BeamInstr *new_end = new_p + size;
     Eterm *def_values;
 
     def = CAR(list_val(cons));
@@ -307,7 +307,7 @@ Eterm erl_create_local_native_record(Process* p, Eterm* reg,
     p->freason = EXC_NORMAL;
     for (int i = 0; i < field_count; i++) {
         if (new_p[0] == defp->keys[i]) {
-            GetSource(new_p[1], *hp);
+            GetSource((Eterm)new_p[1], *hp);
             hp++;
             new_p += 2;
             if (new_p >= new_end) {
@@ -332,7 +332,7 @@ Eterm erl_create_local_native_record(Process* p, Eterm* reg,
      * `no_value` error. */
     if (new_p != &sentinel) {
         p->freason = EXC_BADFIELD;
-        p->fvalue = new_p[0];
+        p->fvalue = (Eterm)new_p[0];
         res = THE_NON_VALUE;
     }
 
@@ -357,7 +357,7 @@ static Eterm erl_create_native_record(Process* p, Eterm* reg,
                                       ErtsCodeIndex current_code_index,
                                       Eterm id,
                                       Uint live, Uint size,
-                                      const Eterm* new_p,
+                                      const BeamInstr* new_p,
                                       bool indicate_unloaded) {
     /* Module, Name */
     Eterm module, name;
@@ -569,12 +569,12 @@ Eterm erl_finish_create_record_jit(Process* p,
 /* Create an external native record value. */
 Eterm erl_create_native_record_emu(Process* p, Eterm* reg,
                                    Eterm id, Uint live,
-                                   Uint size, const Eterm* new_p) {
+                                   Uint size, const BeamInstr* new_p) {
     Eterm res;
     Eterm module, name;
     Eterm* tuple_ptr;
     Eterm* E;
-    const Eterm* cp;
+    const BeamInstr* cp;
     const Export* ep;
     Uint needed;
     ErtsCodeIndex code_ix = erts_active_code_ix();
@@ -615,7 +615,7 @@ Eterm erl_create_native_record_emu(Process* p, Eterm* reg,
     E[4] = id;
     E[3] = make_small(live);
     E[2] = make_small(size);
-    E[1] = (Eterm) cp;
+    E[1] = make_cp(cp);
     E[0] = NIL;                  /* &erl_finish_create_record_emu */
     p->stop = E;
 
@@ -637,14 +637,14 @@ Eterm erl_create_native_record_emu(Process* p, Eterm* reg,
     BIF_TRAP1(ep, p, module);
 }
 
-Eterm erl_finish_create_record_emu(Process* p, Eterm* reg) {
+const BeamInstr* erl_finish_create_record_emu(Process* p, Eterm* reg) {
     Eterm *E = p->stop;
     Eterm id;
     Uint live;
     Uint size;
-    const Eterm* new_p;
+    const BeamInstr* new_p;
     Eterm res;
-    Eterm cp;
+    const BeamInstr* cp;
     ErtsCodeIndex code_ix = erts_active_code_ix();
 
     /* We get here after having attempted to load the module
@@ -654,12 +654,12 @@ Eterm erl_finish_create_record_emu(Process* p, Eterm* reg) {
     id = E[4];
     live = unsigned_val(E[3]);
     size = unsigned_val(E[2]);
-    cp = E[1];
+    cp = cp_val(E[1]);
     E += 5;
 
     /* Figure out the beginning of the `new_p` array given
      * continuation pointer pointing to next instruction. */
-    new_p = ((Eterm *)cp) - size;
+    new_p = cp - size;
 
     /* Restore saved X registers. */
     for (Uint i = 0; i < live; i++) {
@@ -684,14 +684,14 @@ Eterm erl_finish_create_record_emu(Process* p, Eterm* reg) {
          * an error according to the stored reason in the process
          * structure. */
         p->current = NULL;
-        return (Eterm) beam_exit;
+        return (BeamInstr*) beam_exit;
     }
 }
 
 #endif
 
 Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm src,
-                               Uint live, Uint size, const Eterm* new_p) {
+                               Uint live, Uint size, const BeamInstr* new_p) {
     ErtsRecordDefinition *defp;
     ErtsRecordInstance *instance, *old_instance;
     Eterm *old_values;
@@ -700,8 +700,8 @@ Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm src,
     Eterm* E;
     Uint num_words_needed;
     Eterm res;
-    Eterm sentinel = NIL;
-    const Eterm *new_end = new_p + size;
+    BeamInstr sentinel = (BeamInstr)NIL;
+    const BeamInstr *new_end = new_p + size;
 
     ASSERT(size != 0);
 
@@ -731,10 +731,10 @@ Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm src,
 
     ASSERT(new_p < new_end);
     for (int i = 0; i < field_count; i++) {
-        if (new_p[0] != defp->keys[i]) {
+        if ((Eterm)new_p[0] != defp->keys[i]) {
             *hp++ = old_values[i];
         } else {
-            GetSource(new_p[1], *hp);
+            GetSource((Eterm)new_p[1], *hp);
             hp++;
             new_p += 2;
             if (new_p >= new_end) {
@@ -749,7 +749,7 @@ Eterm erl_update_native_record(Process* p, Eterm* reg, Eterm src,
         hp = HAlloc(p, 3 + 3);
         tmp = TUPLE2(hp, defp->module, defp->name);
         hp += 3;
-        tmp = TUPLE2(hp, tmp, new_p[0]);
+        tmp = TUPLE2(hp, tmp, (Eterm)new_p[0]);
         hp += 3;
         p->fvalue = tmp;
         p->freason = EXC_BADFIELD;
@@ -919,7 +919,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     Eterm tagged_hash;
     Eterm is_exported;
     struct erl_record_field *fields;
-#if !defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 4
     Eterm *big_buf;
 #endif
 
@@ -956,7 +956,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
 
     num_words_needed = RECORD_INST_SIZE(field_count) +
         RECORD_DEF_SIZE(field_count);
-#if !defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 4
     num_words_needed += BIG_UINT_HEAP_SIZE;
 #endif
 
@@ -968,7 +968,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     hp = HAlloc(BIF_P, num_words_needed);
     hp_end = hp + num_words_needed;
 
-#if !defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 4
     big_buf = hp;
     ASSERT(BIG_UINT_HEAP_SIZE == 2);
     *hp++ = NIL;
@@ -1042,7 +1042,7 @@ BIF_RETTYPE records_create_4(BIF_ALIST_4) {
     defp->hash = make_arityval(hash_tuple_size);
 
     hash = make_hash2(make_tuple((Eterm *)&defp->hash));
-#if defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 8
     tagged_hash = make_small(hash);
 #else
     if (IS_USMALL(0, hash)) {

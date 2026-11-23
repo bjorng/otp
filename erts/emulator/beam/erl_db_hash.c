@@ -2509,7 +2509,7 @@ static int select_count_on_loop_ended(traverse_context_t* ctx,
 {
     ASSERT(iterations_left <= MAX_SELECT_COUNT_ITERATIONS);
     BUMP_REDS(ctx->p, MAX_SELECT_COUNT_ITERATIONS - iterations_left);
-    *ret = erts_make_integer(got, ctx->p);
+    *ret = erts_make_uword(got, ctx->p);
     return DB_ERROR_NONE;
 }
 
@@ -2704,7 +2704,7 @@ static int select_delete_on_loop_ended(traverse_context_t* ctx_base,
         }
 	try_shrink(tb, nitems);
     }
-    *ret = erts_make_integer(got, ctx->base.p);
+    *ret = erts_make_uword(got, ctx->base.p);
     return DB_ERROR_NONE;
 }
 
@@ -2854,7 +2854,7 @@ static int select_replace_on_loop_ended(traverse_context_t* ctx, Sint slot_ix,
     BUMP_REDS(ctx->p,
               MIN(MAX_SELECT_REPLACE_ITERATIONS * 2,
                   (MAX_SELECT_REPLACE_ITERATIONS - iterations_left) + (int)got));
-    *ret = erts_make_integer(got, ctx->p);
+    *ret = erts_make_uword(got, ctx->p);
     return DB_ERROR_NONE;
 }
 
@@ -4021,7 +4021,7 @@ static SWord db_delete_all_objects_hash(Process* p,
 {
     if (nitems_holder_wb != NULL) {
         Uint nr_of_items = get_nitems_from_locks_or_counter(&tbl->hash);
-        *nitems_holder_wb = erts_make_integer(nr_of_items, p);
+        *nitems_holder_wb = erts_make_uword(nr_of_items, p);
     }
     if (IS_FIXED(tbl)) {
 	reds = db_mark_all_deleted_hash(tbl, reds);

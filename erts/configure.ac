@@ -244,6 +244,15 @@ AS_HELP_STRING([--enable-m32-build],
   esac
 ],enable_m32_build=no)
 
+AC_ARG_ENABLE(halfword-emulator,
+AS_HELP_STRING([--enable-halfword-emulator],
+               [enable halfword emulator (only for 64bit builds).]),
+[ case "$enableval" in
+    no) enable_halfword_emulator=no ;;
+    *)  enable_halfword_emulator=yes ;;
+  esac
+], enable_halfword_emulator=unknown)
+
 AC_ARG_WITH(dynamic-trace,
 AS_HELP_STRING([--with-dynamic-trace={dtrace|lttng|systemtap}],
 	       [specify use of dynamic trace framework, dtrace, lttng or systemtap])
@@ -855,6 +864,44 @@ case $ARCH-$OPSYS in
 esac
 	
 AC_SUBST(LIBCARBON)
+
+dnl Check if we should/can build a halfword emulator
+
+AC_MSG_CHECKING(if we are building a halfword emulator (32bit heap on 64bit machine))
+if test "$enable_halfword_emulator" = "yes"; then
+        if test "$EXTERNAL_WORD_SIZE" = "64"; then
+                AC_DEFINE(HALFWORD_HEAP_EMULATOR, [1],
+                          [Define if building a halfword-heap 64bit emulator])
+                ENABLE_ALLOC_TYPE_VARS="$ENABLE_ALLOC_TYPE_VARS halfword"
+                AC_MSG_RESULT([yes])
+
+                test -f "$ERL_TOP/erts/CONF_INFO" ||
+                    echo "" > "$ERL_TOP/erts/CONF_INFO"
+                cat >> $ERL_TOP/erts/CONF_INFO <<EOF
+
+                 The HALFWORD emulator has been enabled.
+
+EOF
+                 INTERNAL_WORD_SIZE=32
+                 CFLAGS="$CFLAGS -Wno-address-of-packed-member"
+
+        else
+                AC_MSG_ERROR(no; halfword emulator not supported on this architecture)
+        fi
+
+        if test ${enable_jit} = yes; then
+                AC_MSG_ERROR([JIT not supported with halfword emulator])
+        elif test ${enable_jit} != no; then
+                AC_MSG_WARN([JIT disabled on halfword emulator])
+                enable_jit=no
+        fi
+else
+        AC_MSG_RESULT([no])
+        INTERNAL_WORD_SIZE=$EXTERNAL_WORD_SIZE
+fi
+AC_SUBST(INTERNAL_WORD_SIZE)
+
+
 
 _search_path=/bin:/usr/bin:/usr/local/bin:$PATH
 

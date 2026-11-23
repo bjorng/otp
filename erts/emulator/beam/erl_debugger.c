@@ -801,7 +801,7 @@ erl_debugger_stack_frames_2(BIF_ALIST_2)
 
         /* On the last iteration, past the stack end, x is the current pc,
          * so we get the location of the current stack-frame. */
-        x = is_last_iter ? (Eterm) rp->i : *sp;
+        x = is_last_iter ? COMPRESS_POINTER(rp->i) : *sp;
 
         if (is_CP(x)) {
             int is_return_addr = !is_last_iter;
@@ -813,7 +813,7 @@ erl_debugger_stack_frames_2(BIF_ALIST_2)
                 maybe_skip_fp(&sp);
             }
 
-            addr = erts_make_integer((Uint) code_ptr, BIF_P);
+            addr = erts_make_uword((UWord) code_ptr, BIF_P);
 
             frame_info_map_sz = MAP2_SZ;
             hp = HAlloc(BIF_P,
@@ -912,7 +912,7 @@ erl_debugger_peek_stack_frame_slot_4(BIF_ALIST_4)
 
         /* On the last iteration, past the stack end, x is the current pc,
          * so we get the location of the current stack-frame. */
-        x = stack_top <= sp ? *sp : (Eterm) rp->i;
+        x = stack_top <= sp ? *sp : COMPRESS_POINTER(rp->i);
 
         if (is_not_CP(x)) {
             yreg_count++;

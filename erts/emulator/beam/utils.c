@@ -1197,9 +1197,9 @@ tailrecur_ne:
             case HEAP_BITS_SUBTAG:
             case SUB_BITS_SUBTAG:
                 {
-                    Uint a_offset, a_size;
+                    UWord a_offset, a_size;
                     byte* a_base;
-                    Uint b_offset, b_size;
+                    UWord b_offset, b_size;
                     byte* b_base;
 
                     if (!is_bitstring(b)) {
@@ -2316,9 +2316,9 @@ tailrecur_ne:
 		    a_tag = BITSTRING_DEF;
 		    goto mixed_types;
 		} else {
-                    Uint a_offset, a_size;
+                    UWord a_offset, a_size;
                     byte *a_base;
-                    Uint b_offset, b_size;
+                    UWord b_offset, b_size;
                     byte *b_base;
                     int cmp;
 
@@ -2349,13 +2349,11 @@ tailrecur_ne:
 
     {
 	FloatDef f1, f2;
-	Eterm big;
 	Eterm aw = a;
 	Eterm bw = b;
 #define MAX_LOSSLESS_FLOAT ((double)((1LL << 53) - 2))
 #define MIN_LOSSLESS_FLOAT ((double)(((1LL << 53) - 2)*-1))
 #define BIG_ARITY_FLOAT_MAX (1024 / D_EXP) /* arity of max float as a bignum */
-	Eterm big_buf[BIG_NEED_SIZE(BIG_ARITY_FLOAT_MAX)];
 
 	b_tag = tag_val_def(bw);
 
@@ -2424,8 +2422,11 @@ tailrecur_ne:
 		    j = erts_float_comp(f1.fd, f2.fd);
 		}
 	    } else {
-		big = double_to_big(f2.fd, big_buf, sizeof(big_buf)/sizeof(Eterm));
+                const Uint big_buf_sz = BIG_NEED_SIZE(BIG_ARITY_FLOAT_MAX);
+                DeclareUseTmpHeapNoProc(big_buf, big_buf_sz);
+                Eterm big = double_to_big(f2.fd, big_buf, big_buf_sz);
 		j = big_comp(aw, big);
+                UnDeclareTmpHeapNoProc(big_buf);
 	    }
 	    if (_NUMBER_CODE(a_tag, b_tag) == FLOAT_BIG) {
 		j = -j;
@@ -3708,13 +3709,13 @@ static int erts_ycf_trap_driver_dtor(Binary* bin)
 
 static void* erts_ycf_trap_driver_alloc(size_t size, void* ctx)
 {
-    ErtsAlcType_t type = (ErtsAlcType_t)(Uint)ctx;
+    ErtsAlcType_t type = (ErtsAlcType_t)(UWord)ctx;
     return erts_alloc(type, size);
 }
 
 static void erts_ycf_trap_driver_free(void* data, void* ctx)
 {
-    ErtsAlcType_t type = (ErtsAlcType_t)(Uint)ctx;
+    ErtsAlcType_t type = (ErtsAlcType_t)(UWord)ctx;
     erts_free(type, data);
 }
 
@@ -3744,7 +3745,7 @@ BIF_RETTYPE erts_ycf_trap_driver(Process* p,
                                  erts_ycf_destroy_trap_state_fun_t ycf_destroy_fun,
                                  erts_ycf_yielding_fun_t ycf_yielding_fun) {
     const long reds = iterations_per_red * ERTS_BIF_REDS_LEFT(p);
-    long nr_of_reductions = DBG_RANDOM_REDS(reds, (Uint)&p);
+    long nr_of_reductions = DBG_RANDOM_REDS(reds, (UWord)&p);
     const long init_reds = nr_of_reductions;
     if (is_internal_magic_ref(bif_args[0])) {
         erts_ycf_trap_driver_state_holder *state_holder;
@@ -3789,7 +3790,7 @@ BIF_RETTYPE erts_ycf_trap_driver(Process* p,
                              NULL,
                              erts_ycf_trap_driver_alloc,
                              erts_ycf_trap_driver_free,
-                             (void*)(Uint)memory_allocation_type,
+                             (void*)(UWord)memory_allocation_type,
                              ycf_stack_alloc_size,
                              NULL,
                              p,

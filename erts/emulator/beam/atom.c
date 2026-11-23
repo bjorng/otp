@@ -107,8 +107,8 @@ atom_hash(Atom* obj)
 const byte *erts_atom_get_name(const Atom *atom)
 {
     byte *name;
-    Uint size;
-    Uint offset;
+    UWord size;
+    UWord offset;
     ERTS_GET_BITSTRING(atom->u.bin, name, offset, size);
     ASSERT(offset == 0 && (size % 8) == 0);
     (void) size;
@@ -233,7 +233,7 @@ erts_atom_put_index(const byte *name, Sint len, ErtsAtomEncoding enc, int trunc)
     byte utf8_copy[MAX_ATOM_SZ_FROM_LATIN1];
     const byte *text = name;
     Uint tlen;
-    Sint no_latin1_chars;
+    SWord no_latin1_chars;
     Atom a;
     int aix;
 
@@ -300,7 +300,7 @@ erts_atom_put_index(const byte *name, Sint len, ErtsAtomEncoding enc, int trunc)
     if (enc == ERTS_ATOM_ENC_UTF8) {
 	/* Need to verify encoding and length */
 	const byte *err_pos;
-	Uint no_chars;
+        UWord no_chars;
 	switch (erts_analyze_utf8_x((byte *) text,
 				    (Uint) tlen,
 				    &err_pos,

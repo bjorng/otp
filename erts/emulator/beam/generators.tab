@@ -91,7 +91,7 @@ MakeLiteralFun(Op, Index, Arity, Dst) {
      * lambda. */
     literal = S->lambda_literals[$Index];
     if (literal == ERTS_SWORD_MAX) {
-        Eterm tmp_hp[ERL_FUN_SIZE];
+        DeclareUseTmpHeapNoSched(tmp_hp, ERL_FUN_SIZE);
         ErlFunThing *funp;
 
         funp = (ErlFunThing*)tmp_hp;
@@ -100,6 +100,7 @@ MakeLiteralFun(Op, Index, Arity, Dst) {
 
         literal = beamfile_add_literal(&S->beam, make_fun((Eterm*)funp), 0);
         S->lambda_literals[$Index] = literal;
+        UnDeclareTmpHeapNoSched(tmp_hp);
     }
 
     $BeamOpNameArity($Op, move, 2);

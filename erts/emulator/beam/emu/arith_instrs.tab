@@ -482,7 +482,6 @@ shift.execute(Fail, Dst) {
             }
         }
         {
-            Eterm tmp_big[2];
             Sint big_need_size = 1 + BIG_NEED_SIZE(big_words_needed+1);
             Eterm* hp;
             Eterm* hp_end;
@@ -497,10 +496,14 @@ shift.execute(Fail, Dst) {
                 $SYSTEM_LIMIT($Fail);
             }
             hp = HeapFragOnlyAlloc(c_p, big_need_size);
-            if (is_small(Op1)) {
-                Op1 = small_to_big(signed_val(Op1), tmp_big);
+            {
+                DeclareUseTmpHeap(tmp_big, 2, c_p);
+                if (is_small(Op1)) {
+                    Op1 = small_to_big(signed_val(Op1), tmp_big);
+                }
+                Op1 = big_lshift(Op1, shift_left_count, hp);
+                UnDeclareTmpHeap(tmp_big, c_p);
             }
-            Op1 = big_lshift(Op1, shift_left_count, hp);
             hp_end = hp + big_need_size;
             if (is_big(Op1)) {
                 hp += bignum_header_arity(*hp) + 1;

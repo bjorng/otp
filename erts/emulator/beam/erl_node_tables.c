@@ -1529,12 +1529,12 @@ static void
 insert_offheap(ErlOffHeap *oh, int type, Eterm id)
 {
     union erl_off_heap_ptr u;
-    union erts_tmp_aligned_offheap tmp;
+    DeclareUseTmpHeapNoProc(tmp, sizeof(union erts_tmp_aligned_offheap) / sizeof(Eterm));
     struct insert_offheap2_arg a;
     a.type = BIN_REF;
 
     for (u.hdr = oh->first; u.hdr; u.hdr = u.hdr->next) {
-        erts_align_offheap(&u, &tmp);
+        erts_align_offheap(&u, (union erts_tmp_aligned_offheap*)tmp);
 	switch (thing_subtag(u.hdr->thing_word)) {
 	case REF_SUBTAG:
             if (ErtsIsDistEntryBinary(u.mref->mb))
@@ -1549,11 +1549,19 @@ insert_offheap(ErlOffHeap *oh, int type, Eterm id)
 			break;
 		    }
 		if (insert_bin) {
-		    DeclareTmpHeapNoproc(id_heap,BIG_UINT_HEAP_SIZE);
+#if HALFWORD_HEAP
+                    UWord val = (UWord) u.mref->mb;
+                    DeclareUseTmpHeapNoProc(id_heap,BIG_UINT_HEAP_SIZE*2); /* extra place allocated */
+#else
+                    Eterm id_heap[BIG_UINT_HEAP_SIZE];
+#endif
 		    Uint *hp = &id_heap[0];
 		    InsertedBin *nib;
-		    UseTmpHeapNoproc(BIG_UINT_HEAP_SIZE);
+#if HALFWORD_HEAP
+                    a.id = erts_bld_uword(&hp, NULL, (UWord) val);
+#else
 		    a.id = erts_bld_uint(&hp, NULL, (Uint) u.mref->mb);
+#endif
 		    erts_match_prog_foreach_offheap((Binary *) u.mref->mb,
 						    insert_offheap2,
 						    (void *) &a);
@@ -1562,7 +1570,9 @@ insert_offheap(ErlOffHeap *oh, int type, Eterm id)
 		    nib->bin_val = (Binary *) u.mref->mb;
 		    nib->next = inserted_bins;
 		    inserted_bins = nib;
-		    UnUseTmpHeapNoproc(BIG_UINT_HEAP_SIZE);
+#if HALFWORD_HEAP
+                    UnDeclareTmpHeapNoProc(id_heap);
+#endif
 		}
 	    }
             else if (IsSendCtxBinary(u.mref->mb)) {
@@ -1579,6 +1589,7 @@ insert_offheap(ErlOffHeap *oh, int type, Eterm id)
 	    break;
 	}
     }
+    UnDeclareTmpHeapNoProc(tmp);
 }
 
 static ERTS_INLINE ErlHeapFragment *
@@ -1750,7 +1761,7 @@ static void
 insert_ets_table(DbTable *tab, void *unused)
 {
     ErlOffHeap off_heap;
-    Eterm heap[ERTS_MAGIC_REF_THING_SIZE];
+    DeclareUseTmpHeapNoProc(heap, ERTS_MAGIC_REF_THING_SIZE);
     struct insert_offheap2_arg a;
     a.type = ETS_REF;
     if (tab->common.status & DB_NAMED_TABLE)
@@ -1763,21 +1774,21 @@ insert_ets_table(DbTable *tab, void *unused)
     erts_db_foreach_offheap(tab, insert_offheap2, (void *) &a);
     if (is_not_atom(a.id))
         erts_cleanup_offheap(&off_heap);
+    UnDeclareTmpHeapNoProc(heap);
 }
 
 static void
 insert_bif_timer(Eterm receiver, Eterm msg, ErlHeapFragment *bp, void *arg)
 {
     if (bp) {
-	DeclareTmpHeapNoproc(heap,3);
+        DeclareUseTmpHeapNoProc(heap,3);
 
-	UseTmpHeapNoproc(3);
 	insert_offheap(&bp->off_heap,
 		       TIMER_REF,
 		       (is_internal_pid(receiver)
 			? receiver
 			: TUPLE2(&heap[0], AM_process, receiver)));
-	UnUseTmpHeapNoproc(3);
+        UnDeclareTmpHeapNoProc(heap);
     }
 }
 
@@ -1808,21 +1819,23 @@ insert_delayed_delete_node(void *state,
 			   ErtsMonotonicTime timeout_pos,
 			   void *vnp)
 {
-    Eterm heap[3];
+    DeclareUseTmpHeapNoProc(heap, 3);
     insert_node((ErlNode *) vnp,
 		SYSTEM_REF,
 		TUPLE2(&heap[0], AM_system, AM_delayed_delete_timer));
+    UnDeclareTmpHeapNoProc(heap);
 }
 
 static void
 insert_thr_prgr_delete_dist_entry(void *arg, ErtsThrPrgrVal thr_prgr, void *vdep)
 {
     DistEntry *dep = vdep;
-    Eterm heap[3];
+    DeclareUseTmpHeapNoProc(heap, 3);
     insert_dist_entry(dep,
 		      SYSTEM_REF,
 		      TUPLE2(&heap[0], AM_system, AM_thread_progress_delete_timer),
 		      0);
+    UnDeclareTmpHeapNoProc(heap);
 }
 
 static void
@@ -1831,11 +1844,12 @@ insert_delayed_delete_dist_entry(void *state,
 				 void *vdep)
 {
     DistEntry *dep = vdep;
-    Eterm heap[3];
+    DeclareUseTmpHeapNoProc(heap, 3);
     insert_dist_entry(dep,
 		      SYSTEM_REF,
 		      TUPLE2(&heap[0], AM_system, AM_delayed_delete_timer),
 		      0);
+    UnDeclareTmpHeapNoProc(heap);
 }
 
 static void
@@ -1981,17 +1995,19 @@ clear_dist_suspended_procs(DistEntry *dep)
 static void
 insert_persistent_term(ErlOffHeap *ohp, void *arg)
 {
-    Eterm heap[3];
+    DeclareUseTmpHeapNoProc(heap, 3);
     insert_offheap(ohp, SYSTEM_REF,
                    TUPLE2(&heap[0], AM_system, AM_persistent_term));
+    UnDeclareTmpHeapNoProc(heap);
 }
 
 static void
 insert_ets_offheap_thr_prgr(ErlOffHeap *ohp, void *arg)
 {
-    Eterm heap[3];
+    DeclareUseTmpHeapNoProc(heap, 3);
     insert_offheap(ohp, ETS_REF,
                    TUPLE2(&heap[0], AM_system, AM_ets));
+    UnDeclareTmpHeapNoProc(heap);
 }
 
 #ifdef ERL_NODE_BOOKKEEP
@@ -2022,7 +2038,7 @@ setup_reference_table(void)
     DistEntry *dep;
     HashInfo hi;
     int i, max;
-    DeclareTmpHeapNoproc(heap,3);
+    DeclareUseTmpHeapNoProc(heap,3);
 
     inserted_bins = NULL;
 
@@ -2053,7 +2069,6 @@ setup_reference_table(void)
                                 insert_thr_prgr_delete_dist_entry,
                                 NULL);
 
-    UseTmpHeapNoproc(3);
     insert_node(erts_this_node,
 		SYSTEM_REF,
 		TUPLE2(&heap[0], AM_system, am_undefined));
@@ -2062,7 +2077,7 @@ setup_reference_table(void)
                       SYSTEM_REF,
                       TUPLE2(&heap[0], AM_system, am_undefined),
                       erts_this_node->creation);
-    UnUseTmpHeapNoproc(3);
+    UnDeclareTmpHeapNoProc(heap);
 
     max = erts_ptab_max(&erts_proc);
     /* Insert all processes */

@@ -58,7 +58,7 @@ BIF_RETTYPE erts_internal_atomics_new_2(BIF_ALIST_2)
     AtomicsRef* p;
     Binary* mbin;
     UWord i, cnt, opts;
-    Uint bytes;
+    UWord bytes;
     Eterm* hp;
 
     if (!term_to_UWord(BIF_ARG_1, &cnt)) {

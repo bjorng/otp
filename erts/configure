@@ -722,6 +722,7 @@ HCFLAGS
 HCC
 CP
 MKDIR
+INTERNAL_WORD_SIZE
 LIBCARBON
 ARCH
 OPSYS
@@ -861,6 +862,7 @@ enable_sctp
 enable_jit
 enable_m64_build
 enable_m32_build
+enable_halfword_emulator
 with_dynamic_trace
 enable_vm_probes
 with_assumed_cache_line_size
@@ -1595,6 +1597,8 @@ Optional Features:
   --disable-jit           disable JIT support
   --enable-m64-build      build 64bit binaries using the -m64 flag to (g)cc
   --enable-m32-build      build 32bit binaries using the -m32 flag to (g)cc
+  --enable-halfword-emulator
+                          enable halfword emulator (only for 64bit builds).
   --enable-vm-probes      add dynamic trace probes to the Beam VM (only
                           possible if --with-dynamic-trace is enabled, and
                           then default)
@@ -7406,6 +7410,20 @@ esac
 fi
 
 
+# Check whether --enable-halfword-emulator was given.
+if test ${enable_halfword_emulator+y}
+then :
+  enableval=$enable_halfword_emulator;  case "$enableval" in
+    no) enable_halfword_emulator=no ;;
+    *)  enable_halfword_emulator=yes ;;
+  esac
+
+else case e in #(
+  e) enable_halfword_emulator=unknown ;;
+esac
+fi
+
+
 
 # Check whether --with-dynamic-trace was given.
 if test ${with_dynamic_trace+y}
@@ -9426,6 +9444,48 @@ printf "%s\n" "yes" >&6; }
 printf "%s\n" "no" >&6; }
 		;;
 esac
+
+
+
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if we are building a halfword emulator (32bit heap on 64bit machine)" >&5
+printf %s "checking if we are building a halfword emulator (32bit heap on 64bit machine)... " >&6; }
+if test "$enable_halfword_emulator" = "yes"; then
+        if test "$EXTERNAL_WORD_SIZE" = "64"; then
+
+printf "%s\n" "#define HALFWORD_HEAP_EMULATOR 1" >>confdefs.h
+
+                ENABLE_ALLOC_TYPE_VARS="$ENABLE_ALLOC_TYPE_VARS halfword"
+                { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
+
+                test -f "$ERL_TOP/erts/CONF_INFO" ||
+                    echo "" > "$ERL_TOP/erts/CONF_INFO"
+                cat >> $ERL_TOP/erts/CONF_INFO <<EOF
+
+                 The HALFWORD emulator has been enabled.
+
+EOF
+                 INTERNAL_WORD_SIZE=32
+                 CFLAGS="$CFLAGS -Wno-address-of-packed-member"
+
+        else
+                as_fn_error $? "no; halfword emulator not supported on this architecture" "$LINENO" 5
+        fi
+
+        if test ${enable_jit} = yes; then
+                as_fn_error $? "JIT not supported with halfword emulator" "$LINENO" 5
+        elif test ${enable_jit} != no; then
+                { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: JIT disabled on halfword emulator" >&5
+printf "%s\n" "$as_me: WARNING: JIT disabled on halfword emulator" >&2;}
+                enable_jit=no
+        fi
+else
+        { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+        INTERNAL_WORD_SIZE=$EXTERNAL_WORD_SIZE
+fi
+
 
 
 

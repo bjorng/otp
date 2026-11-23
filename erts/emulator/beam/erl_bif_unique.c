@@ -526,9 +526,7 @@ bld_unique_integer_term(Eterm **hpp, Uint *szp,
     }
     else {
 	Eterm tmp, *tmp_hp, res;
-	DeclareTmpHeapNoproc(local_heap, 2*ERTS_MAX_UNIQUE_INT_HEAP_SIZE);
-
-	UseTmpHeapNoproc(2*ERTS_MAX_UNIQUE_INT_HEAP_SIZE);
+        DeclareUseTmpHeapNoProc(local_heap, 2*ERTS_MAX_UNIQUE_INT_HEAP_SIZE);
 
 	tmp_hp = local_heap;
 
@@ -556,7 +554,7 @@ bld_unique_integer_term(Eterm **hpp, Uint *szp,
 	    res = make_big(hp);
 	}
 
-	UnUseTmpHeapNoproc(2*ERTS_MAX_UNIQUE_INT_HEAP_SIZE);
+        UnDeclareTmpHeapNoProc(local_heap);
 
 	return res;
     }
@@ -652,7 +650,7 @@ static struct {
     } w;
 } raw_unique_monotonic_integer erts_align_attribute(ERTS_CACHE_LINE_SIZE);
 
-#if defined(ARCH_32)
+#if ERTS_SIZEOF_ETERM == 4
 #  define ERTS_UNIQUE_MONOTONIC_OFFSET ERTS_SINT64_MIN
 #else
 #  define ERTS_UNIQUE_MONOTONIC_OFFSET MIN_SMALL
@@ -682,7 +680,7 @@ get_unique_monotonic_integer_heap_size(Uint64 raw, int positive)
 	Sint64 value = ((Sint64) raw) + ERTS_UNIQUE_MONOTONIC_OFFSET;
 	if (IS_SSMALL(value))
 	    return 0;
-#if defined(ARCH_32)
+#if ERTS_SIZEOF_ETERM == 4
 	return ERTS_SINT64_HEAP_SIZE(value);
 #else
 	return ERTS_UINT64_HEAP_SIZE((Uint64) value);
@@ -707,7 +705,7 @@ make_unique_monotonic_integer_value(Eterm *hp, Uint hsz, Uint64 raw, int positiv
 	if (hsz == 0)
 	    res = make_small(value);
 	else {
-#if defined(ARCH_32)
+#if ERTS_SIZEOF_ETERM == 4
 	    res = erts_sint64_to_big(value, &hp);
 #else 
 	    res = erts_uint64_to_big((Uint64) value, &hp);

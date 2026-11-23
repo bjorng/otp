@@ -87,13 +87,15 @@ typedef struct ErtsDispatchable_ {
 typedef unsigned ErtsCodeIndex;
 
 typedef struct ErtsCodeMFA_ {
-    Eterm module;
-    Eterm function;
+    /* These need to be full words as we don't do Eterm argument packing
+     * on halfword emulator. */
+    UWord module;
+    UWord function;
 
     /* This is technically a byte, but the interpreter needs this to be a word
      * for argument packing to work properly, and declaring it as a byte won't
      * save any space due to tail padding. */
-    Uint arity;
+    UWord arity;
 } ErtsCodeMFA;
 
 /*

@@ -86,7 +86,14 @@ extern int erts_printf_uword64(fmtfn_t, void*, char, int, int, ErlPfUWord64);
 extern int erts_printf_sword64(fmtfn_t, void*, char, int, int, ErlPfSWord64);
 extern int erts_printf_double(fmtfn_t, void *, char, int, int, double);
 
+#ifdef HALFWORD_HEAP_EMULATOR
+#  if SIZEOF_INT != 4
+#    error Unsupported integer size for HALFWORD_HEAP_EMULATOR
+#  endif
+typedef unsigned int ErlPfEterm;
+#else
 typedef ErlPfUWord ErlPfEterm;
+#endif
 
 extern int (*erts_printf_eterm_func)(fmtfn_t, void*, ErlPfEterm, long);
 

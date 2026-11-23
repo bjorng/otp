@@ -1221,7 +1221,7 @@ static int do_binary_match_compile(Eterm argument, Eterm *tag, Binary **binp)
     ASSERT(words > 0);
 
     if (words == 1) {
-        ERTS_DECLARE_DUMMY(Uint dummy);
+        ERTS_DECLARE_DUMMY(UWord dummy);
         const byte *temp_alloc = NULL, *bytes;
         MyAllocator my;
         Binary *bin;
@@ -1245,7 +1245,7 @@ static int do_binary_match_compile(Eterm argument, Eterm *tag, Binary **binp)
 	t = comp_term;
 	while (is_list(t)) {
             const byte *temp_alloc = NULL, *bytes;
-            Uint size;
+            UWord size;
 
             b = CAR(list_val(t));
             t = CDR(list_val(t));
@@ -1621,7 +1621,7 @@ static BFReturn do_binary_find(Process *p, Eterm subject, BinaryFindContext **ct
     switch (ctx->state) {
     case BFSearch: {
         const byte *temp_alloc = NULL, *bytes;
-        ERTS_DECLARE_DUMMY(Uint size);
+        ERTS_DECLARE_DUMMY(UWord size);
 
         bytes = erts_get_aligned_binary_bytes(subject, &size, &temp_alloc);
         if (bytes == NULL) {
@@ -1829,8 +1829,8 @@ static Eterm do_match_single_result(Process *p, Eterm subject, BinaryFindContext
     Eterm *hp;
     Eterm ret;
 
-    erlen = erts_make_integer((Uint)(ff->len), p);
-    ret = erts_make_integer(ff->pos, p);
+    erlen = erts_make_uword((Uint)(ff->len), p);
+    ret = erts_make_uword(ff->pos, p);
     hp = HAlloc(p, 3);
     ret = TUPLE2(hp, ret, erlen);
 
@@ -1877,8 +1877,8 @@ static Eterm do_match_global_result(Process *p, Eterm subject, BinaryFindContext
 		ctx->reds = reds;
 		return THE_NON_VALUE;
 	    }
-	    fad[i].epos = erts_make_integer(fad[i].pos, p);
-	    fad[i].elen = erts_make_integer(fad[i].len, p);
+            fad[i].epos = erts_make_uword(fad[i].pos, p);
+            fad[i].elen = erts_make_uword(fad[i].len, p);
 	}
 	fa->end_pos = 1;
 	fa->head = fa->tail;
@@ -1925,7 +1925,7 @@ static Eterm do_split_single_result(Process *p, Eterm subject, BinaryFindContext
     Sint pos, len;
     Eterm ret;
 
-    Uint subject_offset, subject_size;
+    UWord subject_offset, subject_size;
     Eterm first, rest;
     const byte *base;
     Eterm br_flags;
@@ -2008,13 +2008,13 @@ static Eterm do_split_global_result(Process *p, Eterm subject, BinaryFindContext
     Eterm br_flags;
     BinRef *br;
     size_t orig_size;
-    Uint extracted_offset;
-    Uint extracted_size;
+    UWord extracted_offset;
+    UWord extracted_size;
     Eterm extracted;
     Eterm empty_extracted = THE_NON_VALUE;
     Uint do_trim;
     Sint i;
-    Uint offset, size;
+    UWord offset, size;
     byte *base;
     register Uint reds = ctx->reds;
 
@@ -2136,9 +2136,9 @@ static BIF_RETTYPE binary_find_trap(BIF_ALIST_3)
 
 BIF_RETTYPE erts_binary_part(Process *p, Eterm binary, Eterm epos, Eterm elen)
 {
-    Uint pos;
+    UWord pos;
     Sint len;
-    Uint offset, size;
+    UWord offset, size;
     byte *base;
     Eterm br_flags;
     BinRef *br;
@@ -2146,7 +2146,7 @@ BIF_RETTYPE erts_binary_part(Process *p, Eterm binary, Eterm epos, Eterm elen)
     Eterm result;
 
     if (is_not_bitstring(binary) ||
-        !term_to_Uint(epos, &pos) ||
+        !term_to_UWord(epos, &pos) ||
         !term_to_Sint(elen, &len)) {
         BIF_ERROR(p, BADARG);
     }
@@ -2232,7 +2232,7 @@ longest_common_copy_bits(int direction,
                          byte *scratchpad,
                          Uint position,
                          Uint stride) {
-    Uint offset, size;
+    UWord offset, size;
     const byte *base;
 
     ERTS_GET_BITSTRING(binary, base, offset, size);
@@ -2295,8 +2295,8 @@ continue_longest_common(Process *p,
                       p,
                       binaries,
                       make_small(binary_index),
-                      erts_make_integer(smallest_size, p),
-                      erts_make_integer(position, p));
+                      erts_make_uword(smallest_size, p),
+                      erts_make_uword(position, p));
         }
 
         ASSERT(position < smallest_size);
@@ -2359,7 +2359,7 @@ continue_longest_common(Process *p,
 
     ASSERT(position == smallest_size);
     BUMP_REDS(p, (save_reds - reds) / COMMON_LOOP_FACTOR);
-    BIF_RET(erts_make_integer(BYTE_OFFSET(position), p));
+    BIF_RET(erts_make_uword(BYTE_OFFSET(position), p));
 }
 
 static BIF_RETTYPE
@@ -2400,7 +2400,7 @@ start_longest_common(Process *p, Eterm list, int direction)
 
     /* Weed out trivial cases as they complicate the main loop. */
     if (smallest_size == 0 || binary_count == 1) {
-        return erts_make_integer(smallest_size / 8, p);
+        return erts_make_uword(smallest_size / 8, p);
     }
 
     hp = HAlloc(p, binary_count + 1);
@@ -2470,7 +2470,7 @@ BIF_RETTYPE binary_longest_common_suffix_1(BIF_ALIST_1)
 BIF_RETTYPE binary_first_1(BIF_ALIST_1)
 {
     if (is_bitstring(BIF_ARG_1)) {
-        Uint offset, size;
+        UWord offset, size;
         const byte *base;
 
         ERTS_GET_BITSTRING(BIF_ARG_1, base, offset, size);
@@ -2494,7 +2494,7 @@ BIF_RETTYPE binary_first_1(BIF_ALIST_1)
 BIF_RETTYPE binary_last_1(BIF_ALIST_1)
 {
     if (is_bitstring(BIF_ARG_1)) {
-        Uint offset, size;
+        UWord offset, size;
         const byte *base;
 
         ERTS_GET_BITSTRING(BIF_ARG_1, base, offset, size);
@@ -2518,11 +2518,11 @@ BIF_RETTYPE binary_last_1(BIF_ALIST_1)
 BIF_RETTYPE binary_at_2(BIF_ALIST_2)
 {
     if (is_bitstring(BIF_ARG_1)) {
-        Uint index;
+        UWord index;
 
-        if (term_to_Uint(BIF_ARG_2, &index) &&
+        if (term_to_UWord(BIF_ARG_2, &index) &&
             index < (ERTS_UINT_MAX / 8)) {
-            Uint offset, size;
+            UWord offset, size;
             const byte *base;
 
             ERTS_GET_BITSTRING(BIF_ARG_1, base, offset, size);
@@ -2547,22 +2547,22 @@ BIF_RETTYPE binary_at_2(BIF_ALIST_2)
 
 typedef struct {
     byte *source_bytes;
-    Uint source_offset;
-    Uint source_size;
+    UWord source_offset;
+    UWord source_size;
 
     byte *target_bytes;
-    Uint target_size;
+    UWord target_size;
 
-    Uint copied_bits;
+    UWord copied_bits;
 } CopyBinState;
 
 /* Number of bits to copy per reduction. */
 #define BITSTRING_COPY_LOOP_FACTOR (ERTS_CACHE_LINE_SIZE * 8)
 
 static ERTS_FORCE_INLINE void
-binary_copy_loop(CopyBinState *cbs, Uint trap_offset) {
+binary_copy_loop(CopyBinState *cbs, UWord trap_offset) {
     while (cbs->copied_bits < trap_offset) {
-        Uint copy_offset, copy_stride;
+        UWord copy_offset, copy_stride;
 
         copy_offset = cbs->copied_bits % cbs->source_size;
         copy_stride = MIN(trap_offset - cbs->copied_bits,
@@ -2582,11 +2582,11 @@ binary_copy_loop(CopyBinState *cbs, Uint trap_offset) {
 
 static BIF_RETTYPE do_binary_copy(Process *p, Eterm bin, Eterm en)
 {
-    Uint duplicate_count, max_copy_bits;
+    UWord duplicate_count, max_copy_bits;
     Eterm result = THE_NON_VALUE;
     CopyBinState cbs;
 
-    if (is_not_bitstring(bin) || !term_to_Uint(en, &duplicate_count)) {
+    if (is_not_bitstring(bin) || !term_to_UWord(en, &duplicate_count)) {
         BIF_ERROR(p, BADARG);
     }
 
@@ -2603,7 +2603,7 @@ static BIF_RETTYPE do_binary_copy(Process *p, Eterm bin, Eterm en)
         BIF_RET(erts_new_bitstring_from_data(p, 0, (byte*)""));
     }
 
-    if (duplicate_count >= (ERTS_UINT_MAX / cbs.source_size)) {
+    if (duplicate_count >= (ERTS_UWORD_MAX / cbs.source_size)) {
         BIF_ERROR(p, SYSTEM_LIMIT);
     }
 
@@ -2622,7 +2622,7 @@ static BIF_RETTYPE do_binary_copy(Process *p, Eterm bin, Eterm en)
                         p,
                         bin,
                         result,
-                        erts_make_integer(cbs.copied_bits, p));
+                        erts_make_uword(cbs.copied_bits, p));
     }
 
     ASSERT(cbs.copied_bits == cbs.target_size);
@@ -2633,7 +2633,7 @@ static BIF_RETTYPE do_binary_copy(Process *p, Eterm bin, Eterm en)
 static BIF_RETTYPE binary_copy_trap(BIF_ALIST_3)
 {
     Uint initial_target_offset, trap_offset, max_copy_bits, bits_copied;
-    ERTS_DECLARE_DUMMY(Uint target_offset);
+    ERTS_DECLARE_DUMMY(UWord target_offset);
     CopyBinState cbs;
 
     ERTS_GET_BITSTRING(BIF_ARG_1,
@@ -2648,7 +2648,7 @@ static BIF_RETTYPE binary_copy_trap(BIF_ALIST_3)
                        cbs.target_size);
     ASSERT(target_offset == 0);
 
-    ERTS_ASSERT(term_to_Uint(BIF_ARG_3, &cbs.copied_bits));
+    ERTS_ASSERT(term_to_UWord(BIF_ARG_3, &cbs.copied_bits));
 
     max_copy_bits = get_reds(BIF_P, BITSTRING_COPY_LOOP_FACTOR);
     initial_target_offset = cbs.copied_bits;
@@ -2668,7 +2668,7 @@ static BIF_RETTYPE binary_copy_trap(BIF_ALIST_3)
                     BIF_P,
                     BIF_ARG_1,
                     BIF_ARG_2,
-                    erts_make_integer(cbs.copied_bits, BIF_P));
+                    erts_make_uword(cbs.copied_bits, BIF_P));
 }
 
 BIF_RETTYPE binary_copy_1(BIF_ALIST_1)
@@ -2684,10 +2684,11 @@ BIF_RETTYPE binary_copy_2(BIF_ALIST_2)
 BIF_RETTYPE binary_referenced_byte_size_1(BIF_ALIST_1)
 {
     ERTS_DECLARE_DUMMY(const byte *base);
-    ERTS_DECLARE_DUMMY(Uint offset);
+    ERTS_DECLARE_DUMMY(UWord offset);
     ERTS_DECLARE_DUMMY(Eterm br_flags);
     const BinRef *br;
-    Uint size;
+    UWord size;
+    Eterm res;
 
     if (is_not_bitstring(BIF_ARG_1)) {
         BIF_ERROR(BIF_P, BADARG);
@@ -2706,7 +2707,15 @@ BIF_RETTYPE binary_referenced_byte_size_1(BIF_ALIST_1)
         size = BYTE_SIZE(size);
     }
 
-    BIF_RET(erts_make_integer(size, BIF_P));
+    {
+        Uint hsz = 0;
+        Eterm* hp;
+
+        erts_bld_uword(NULL, &hsz, size);
+        hp = HAlloc(BIF_P, hsz);
+        res = erts_bld_uword(&hp, NULL, size);
+    }
+    BIF_RET(res);
 }
 
 #define END_BIG 0
@@ -2719,7 +2728,7 @@ BIF_RETTYPE binary_referenced_byte_size_1(BIF_ALIST_1)
 #endif
 
 static int get_need(Uint u) {
-#if defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 8
     if (u > 0xFFFFFFFFUL) {
 	if (u > 0xFFFFFFFFFFFFUL) {
 	    if (u > 0xFFFFFFFFFFFFFFUL) {
@@ -2824,7 +2833,7 @@ static BIF_RETTYPE do_encode_unsigned(Process *p, Eterm uns, Eterm endianess)
 
 static BIF_RETTYPE do_decode_unsigned(Process *p, Eterm uns, Eterm endianess)
 {
-    Uint offset, size;
+    UWord offset, size;
     Uint bitoffs;
     byte *bytes;
     Eterm res;
@@ -2907,7 +2916,7 @@ static BIF_RETTYPE do_decode_unsigned(Process *p, Eterm uns, Eterm endianess)
 		    }
 		}
 	}
-	res = erts_make_integer(u,p);
+        res = erts_make_uword(u,p);
 	BIF_RET(res);
     } else {
 	/* Assume big, as we stripped away all zeroes from the MSB part of the binary */

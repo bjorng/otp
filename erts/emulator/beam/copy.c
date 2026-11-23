@@ -1027,20 +1027,20 @@ do {								\
     }								\
     *s.sp++ = (x);						\
     *s.sp++ = (y);						\
-    *s.sp++ = (Eterm) NULL;					\
-    *s.sp++ = (Eterm) (b);		                	\
+    *s.sp++ = COMPRESSED_NULL;					\
+    *s.sp++ = (b);		                	        \
     ESTK_CONCAT(s,_offset) += SHTABLE_INCR;			\
 } while(0)
 #define SHTABLE_X(s,e) (s.start[e])
 #define SHTABLE_Y(s,e) (s.start[(e)+1])
-#define SHTABLE_FWD(s,e) ((Eterm *) (s.start[(e)+2]))
-#define SHTABLE_FWD_UPD(s,e,p) (s.start[(e)+2] = (Eterm) (p))
-#define SHTABLE_REV(s,e) ((Eterm *) (s.start[(e)+3]))
+#define SHTABLE_FWD(s,e) ((Eterm*)EXPAND_POINTER(s.start[(e)+2]))
+#define SHTABLE_FWD_UPD(s,e,p) (s.start[(e)+2] = COMPRESS_POINTER(p))
+#define SHTABLE_REV(s,e) ((Eterm*)EXPAND_POINTER(s.start[(e)+3]))
 
 #define LIST_SHARED_UNPROCESSED ((Eterm) 0)
 #define LIST_SHARED_PROCESSED	((Eterm) 1)
 
-#define HEAP_ELEM_TO_BE_FILLED	_unchecked_make_list(NULL)
+#define HEAP_ELEM_TO_BE_FILLED	_unchecked_make_list(EXPANDED_NULL)
 
 
 /*
@@ -1048,7 +1048,7 @@ do {								\
  */
 
 #define DECLARE_EQUEUE_INIT_INFO(q, info)		\
-    UWord* EQUE_DEF_QUEUE(q) = info->queue_default;	\
+    Eterm* EQUE_DEF_QUEUE(q) = info->queue_default;	\
     ErtsEQueue q = {					\
         EQUE_DEF_QUEUE(q), /* start */			\
         EQUE_DEF_QUEUE(q), /* front */			\
@@ -1182,7 +1182,7 @@ Uint copy_shared_calculate(Eterm obj, erts_shcopy_t *info)
 		if (tail != THE_NON_VALUE) {
 		    e = SHTABLE_NEXT(t);
 		    VERBOSE(DEBUG_SHCOPY, ("[pid=%T] tabling L %p\n", mypid, ptr));
-		    SHTABLE_PUSH(t, head, tail, ptr);
+                    SHTABLE_PUSH(t, head, tail, COMPRESS_POINTER(ptr));
 		    CAR(ptr) = (e << _TAG_PRIMARY_SIZE) | LIST_SHARED_UNPROCESSED;
 		    CDR(ptr) = THE_NON_VALUE;
 		}
@@ -1233,7 +1233,7 @@ Uint copy_shared_calculate(Eterm obj, erts_shcopy_t *info)
 		if (primary_tag(hdr) == BOXED_VISITED) {
 		    e = SHTABLE_NEXT(t);
 		    VERBOSE(DEBUG_SHCOPY, ("[pid=%T] tabling B %p\n", mypid, ptr));
-		    SHTABLE_PUSH(t, hdr, THE_NON_VALUE, ptr);
+                    SHTABLE_PUSH(t, hdr, THE_NON_VALUE, COMPRESS_POINTER(ptr));
 		    *ptr = (e << _TAG_PRIMARY_SIZE) | BOXED_SHARED_UNPROCESSED;
 		}
 		goto pop_next;
@@ -1356,7 +1356,7 @@ Uint copy_shared_calculate(Eterm obj, erts_shcopy_t *info)
 	pop_next:
 	    if (EQUEUE_ISEMPTY(s)) {
                 /* add sentinel to the table */
-                SHTABLE_PUSH(t, THE_NON_VALUE, THE_NON_VALUE, NULL);
+                SHTABLE_PUSH(t, THE_NON_VALUE, THE_NON_VALUE, COMPRESSED_NULL);
                 /* store persistent info */
                 BITSTORE_CLOSE(b);
                 info->queue_start = s.start;
@@ -1861,7 +1861,7 @@ Uint copy_shared_perform_x(Eterm obj, Uint size, erts_shcopy_t *info,
 all_clean:
     for (e = 0; ; e += SHTABLE_INCR) {
 	ptr = SHTABLE_REV(t, e);
-	if (ptr == NULL)
+        if (ptr == EXPANDED_NULL)
 	    break;
 	VERBOSE(DEBUG_SHCOPY, ("[copy] restoring shared: %x\n", ptr));
 	/* entry was a list */
@@ -2098,6 +2098,7 @@ void erts_move_multi_frags(Eterm** hpp, ErlOffHeap* off_heap, ErlHeapFragment* f
                 /* Tag the `orig` field as a literal. It's the last field
                  * inside the thing structure so we can handle it by pretending
                  * it's not part of the thing. */
+                ASSERT(thing_arityval(gval)*sizeof(Eterm) == offsetof(ErlSubBits,orig));
                 hp += thing_arityval(gval) - 1;
             } else if (header_is_thing(gval)) {
                 hp += thing_arityval(gval);

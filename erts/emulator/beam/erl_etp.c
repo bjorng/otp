@@ -52,6 +52,8 @@ const int etp_arch_bits = 32;
 #else
 # error "Not 64-bit, nor 32-bit arch"
 #endif
+const int etp_halfword = HALFWORD_HEAP;
+const int etp_eterm_bits = ERTS_SIZEOF_ETERM * 8;
 #ifdef BEAMASM
 const int etp_beamasm = 1;
 #else

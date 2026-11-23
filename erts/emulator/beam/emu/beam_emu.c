@@ -103,7 +103,7 @@
 #endif
 
 #define SET_I(ip) \
-   ASSERT(VALID_INSTR(* (Eterm *)(ip))); \
+   ASSERT(VALID_INSTR(* (BeamInstr*)(ip))); \
    I = (ip)
 
 /*
@@ -116,23 +116,25 @@
  * Special Beam instructions.
  */
 
+#if !HALFWORD_HEAP
 static BeamInstr beam_run_process_[1];
-ErtsCodePtr beam_run_process;
-
 static BeamInstr beam_normal_exit_[1];
-ErtsCodePtr beam_normal_exit;
-
 static BeamInstr beam_exit_[1];
-ErtsCodePtr beam_exit;
-
 static BeamInstr beam_continue_exit_[1];
-ErtsCodePtr beam_continue_exit;
-
-static BeamInstr beam_i_line_breakpoint_cleanup_[1];
-ErtsCodePtr beam_i_line_breakpoint_cleanup;
-
 static BeamInstr beam_finish_create_record_[1];
+static BeamInstr beam_i_line_breakpoint_cleanup_[1];
+static BeamInstr beam_return_to_trace_[1];
+static BeamInstr beam_return_trace_[1];
+static BeamInstr beam_exception_trace_[1];
+static BeamInstr beam_call_trace_return_[1];
+#endif
+
+ErtsCodePtr beam_run_process;
+ErtsCodePtr beam_normal_exit;
+ErtsCodePtr beam_exit;
+ErtsCodePtr beam_continue_exit;
 ErtsCodePtr beam_finish_create_record;
+ErtsCodePtr beam_i_line_breakpoint_cleanup;
 
 /* NOTE These should be the only variables containing trace instructions.
 **      Sometimes tests are for the instruction value, and sometimes
@@ -141,19 +143,15 @@ ErtsCodePtr beam_finish_create_record;
 */
 
 /* OpCode(i_return_to_trace) */
-static BeamInstr beam_return_to_trace_[1];
 ErtsCodePtr beam_return_to_trace;
 
 /* OpCode(i_return_trace) */
-static BeamInstr beam_return_trace_[1];
 ErtsCodePtr beam_return_trace;
 
 /* UGLY also OpCode(i_return_trace) */
-static BeamInstr beam_exception_trace_[1];
 ErtsCodePtr beam_exception_trace;
 
 /* OpCode(i_call_trace_return) */
-static BeamInstr beam_call_trace_return_[1];
 ErtsCodePtr beam_call_trace_return;
 
 /* The address field of every fun that has no loaded code will point to
@@ -679,35 +677,42 @@ static void install_bifs(void) {
 static void
 init_emulator_finish(void)
 {
-    beam_run_process_[0]       = BeamOpCodeAddr(op_i_apply_only);
-    beam_run_process = (ErtsCodePtr)&beam_run_process_[0];
-
-    beam_normal_exit_[0]       = BeamOpCodeAddr(op_normal_exit);
-    beam_normal_exit = (ErtsCodePtr)&beam_normal_exit_[0];
-
-    beam_exit_[0]              = BeamOpCodeAddr(op_error_action_code);
-    beam_exit = (ErtsCodePtr)&beam_exit_[0];
-
-    beam_continue_exit_[0]     = BeamOpCodeAddr(op_continue_exit);
-    beam_continue_exit = (ErtsCodePtr)&beam_continue_exit_[0];
-
-    beam_finish_create_record_[0] = BeamOpCodeAddr(op_finish_create_record);
+#if HALFWORD_HEAP
+    {
+        BeamInstr* iv = erts_alloc(ERTS_ALC_T_CODE, 10*sizeof(BeamInstr));
+        beam_run_process       = (ErtsCodePtr)&iv[0];
+        beam_normal_exit       = (ErtsCodePtr)&iv[1];
+        beam_exit              = (ErtsCodePtr)&iv[2];
+        beam_continue_exit     = (ErtsCodePtr)&iv[3];
+        beam_finish_create_record = (ErtsCodePtr)&iv[4];
+        beam_i_line_breakpoint_cleanup = (ErtsCodePtr)&iv[5];
+        beam_return_to_trace   = (ErtsCodePtr)&iv[6];
+        beam_return_trace      = (ErtsCodePtr)&iv[7];
+        beam_exception_trace   = (ErtsCodePtr)&iv[8];
+        beam_call_trace_return = (ErtsCodePtr)&iv[9];
+    }
+#else
+    beam_run_process       = (ErtsCodePtr)&beam_run_process_[0];
+    beam_normal_exit       = (ErtsCodePtr)&beam_normal_exit_[0];
+    beam_exit              = (ErtsCodePtr)&beam_exit_[0];
+    beam_continue_exit     = (ErtsCodePtr)&beam_continue_exit_[0];
     beam_finish_create_record = (ErtsCodePtr)&beam_finish_create_record_[0];
-
-    beam_i_line_breakpoint_cleanup_[0] = BeamOpCodeAddr(op_i_line_breakpoint_cleanup);
     beam_i_line_breakpoint_cleanup = (ErtsCodePtr)&beam_i_line_breakpoint_cleanup_[0];
-
-    beam_return_to_trace_[0]   = BeamOpCodeAddr(op_i_return_to_trace);
-    beam_return_to_trace = (ErtsCodePtr)&beam_return_to_trace_[0];
-
-    beam_return_trace_[0]      = BeamOpCodeAddr(op_return_trace);
-    beam_return_trace = (ErtsCodePtr)&beam_return_trace_[0];
-
-    beam_exception_trace_[0]   = BeamOpCodeAddr(op_return_trace); /* UGLY */
-    beam_exception_trace = (ErtsCodePtr)&beam_exception_trace_[0];
-
-    beam_call_trace_return_[0] = BeamOpCodeAddr(op_i_call_trace_return);
+    beam_return_to_trace   = (ErtsCodePtr)&beam_return_to_trace_[0];
+    beam_return_trace      = (ErtsCodePtr)&beam_return_trace_[0];
+    beam_exception_trace   = (ErtsCodePtr)&beam_exception_trace_[0];
     beam_call_trace_return = (ErtsCodePtr)&beam_call_trace_return_[0];
+#endif
+    *(BeamInstr*)beam_run_process       = BeamOpCodeAddr(op_i_apply_only);
+    *(BeamInstr*)beam_normal_exit       = BeamOpCodeAddr(op_normal_exit);
+    *(BeamInstr*)beam_exit              = BeamOpCodeAddr(op_error_action_code);
+    *(BeamInstr*)beam_continue_exit     = BeamOpCodeAddr(op_continue_exit);
+    *(BeamInstr*)beam_finish_create_record = BeamOpCodeAddr(op_finish_create_record);
+    *(BeamInstr*)beam_i_line_breakpoint_cleanup = BeamOpCodeAddr(op_i_line_breakpoint_cleanup);
+    *(BeamInstr*)beam_return_to_trace   = BeamOpCodeAddr(op_i_return_to_trace);
+    *(BeamInstr*)beam_return_trace      = BeamOpCodeAddr(op_return_trace);
+    *(BeamInstr*)beam_exception_trace   = BeamOpCodeAddr(op_return_trace); /* UGLY */
+    *(BeamInstr*)beam_call_trace_return = BeamOpCodeAddr(op_i_call_trace_return);
 
     install_bifs();
 }

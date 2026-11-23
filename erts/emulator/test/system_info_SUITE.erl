@@ -177,6 +177,8 @@ wordsize(Config) when is_list(Config) ->
 	    {comment, "True 32-bit emulator"};
 	{8,8} ->
 	    {comment, "True 64-bit emulator"};
+        {8,4} ->
+            {comment, "Halfword emulator"};
 	Other ->
 	    exit({unexpected_wordsizes,Other})
     end.

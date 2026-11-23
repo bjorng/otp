@@ -305,7 +305,7 @@ static BIF_RETTYPE binary_to_list_continue(BIF_ALIST_1)
 
 BIF_RETTYPE binary_to_list_1(BIF_ALIST_1)
 {
-    Uint offset, size;
+    UWord offset, size;
     byte *base;
     int reds_left;
     int one_chunk;
@@ -353,8 +353,8 @@ BIF_RETTYPE binary_to_list_1(BIF_ALIST_1)
 
 BIF_RETTYPE binary_to_list_3(BIF_ALIST_3)
 {
-    Uint start, stop, i;
-    Uint offset, size;
+    UWord start, stop, i;
+    UWord offset, size;
     byte *base;
     int reds_left;
     int one_chunk;
@@ -362,7 +362,7 @@ BIF_RETTYPE binary_to_list_3(BIF_ALIST_3)
     if (is_not_bitstring(BIF_ARG_1)) {
         BIF_ERROR(BIF_P, BADARG);
     }
-    if (!term_to_Uint(BIF_ARG_2, &start) || !term_to_Uint(BIF_ARG_3, &stop)) {
+    if (!term_to_UWord(BIF_ARG_2, &start) || !term_to_UWord(BIF_ARG_3, &stop)) {
         BIF_ERROR(BIF_P, BADARG);
     }
 
@@ -412,7 +412,7 @@ BIF_RETTYPE binary_to_list_3(BIF_ALIST_3)
 
 BIF_RETTYPE bitstring_to_list_1(BIF_ALIST_1)
 {
-    Uint offset, size;
+    UWord offset, size;
     byte* bytes;
     Eterm tail;
     Eterm* hp;
@@ -478,7 +478,7 @@ BIF_RETTYPE split_binary_2(BIF_ALIST_2)
     Uint split_at;
 
     if (is_bitstring(BIF_ARG_1) && term_to_Uint(BIF_ARG_2, &split_at)) {
-        Uint offset, size;
+        UWord offset, size;
         Eterm br_flags;
         BinRef *br;
         byte *base;

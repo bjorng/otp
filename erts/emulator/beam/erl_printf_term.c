@@ -167,7 +167,7 @@ is_printable_string(Eterm list) {
     return 0;
 }
 
-static int is_printable_ascii(byte* bytep, Uint bytesize, Uint bitoffs)
+static int is_printable_ascii(byte* bytep, UWord bytesize, Uint bitoffs)
 {
     if (!bitoffs) {
 	while (bytesize--) {
@@ -601,8 +601,8 @@ print_term(fmtfn_t fn, void* arg, Eterm obj, long *dcount) {
 	    break;
 	case BITSTRING_DEF:
 	    {
-                Uint bitoffs, bitsize, bytesize;
-                Uint size, offset;
+                Uint bitoffs, bitsize;
+                UWord size, offset, bytesize;
                 byte* bytep;
                 byte octet;
 
@@ -798,7 +798,7 @@ print_term(fmtfn_t fn, void* arg, Eterm obj, long *dcount) {
             break;
         default:
 	    PRINT_STRING(res, fn, arg, "<unknown:");
-	    PRINT_POINTER(res, fn, arg, wobj);
+            PRINT_POINTER(res, fn, arg, (UWord)wobj);
 	    PRINT_CHAR(res, fn, arg, '>');
 	    break;
 	}

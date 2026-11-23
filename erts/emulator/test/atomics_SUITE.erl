@@ -150,7 +150,7 @@ unsigned_limits(Config) when is_list(Config) ->
 new_limits(Config) when is_list(Config) ->
 
     %% This used to cause a segfault
-    case erlang:system_info(wordsize) of
+    case erlang:system_info({wordsize,external}) of
         4 ->
             {'EXIT',{system_limit,_}} = (catch atomics:new(1 bsl 29 - 1, []));
         8 ->

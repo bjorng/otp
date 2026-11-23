@@ -880,7 +880,8 @@ create_tw_timer(ErtsSchedulerData *esdp,
 		void *rcvrp, Eterm rcvr,
 		Eterm msg,
                 Uint32 *refn,
-		void (*callback)(void *), void *arg)
+                void (*callback)(void *),
+                void *arg)
 {
     ErtsTWTimer *tmr;
     void (*timeout_func)(void *);
@@ -1805,10 +1806,9 @@ setup_bif_timer(Process *c_p, int twheel, ErtsMonotonicTime timeout_pos,
 		int short_time, Eterm rcvr, Eterm msg, int wrap)
 {
     BIF_RETTYPE ret;
-    Eterm ref, tmo_msg, *hp;
+    Eterm ref, *hp;
     ErtsBifTimer *tmr;
     ErtsSchedulerData *esdp;
-    Eterm tmp_hp[4];
     ErtsCreateTimerFunc create_timer;
 
     if (is_not_internal_pid(rcvr) && is_not_atom(rcvr))
@@ -1821,14 +1821,18 @@ setup_bif_timer(Process *c_p, int twheel, ErtsMonotonicTime timeout_pos,
     ASSERT(erts_get_ref_numbers_thr_id(internal_ordinary_ref_numbers(ref))
            == (Uint32) esdp->no);
 
-    tmo_msg = wrap ? TUPLE3(tmp_hp, am_timeout, ref, msg) : msg;
+    {
+        DeclareUseTmpHeap(tmp_heap, 4, c_p);
+        Eterm tmo_msg = wrap ? TUPLE3(tmp_heap, am_timeout, ref, msg) : msg;
 
-    create_timer = twheel ? create_tw_timer : create_hl_timer;
-    tmr = (ErtsBifTimer *) create_timer(esdp, timeout_pos,
-                                        short_time, ERTS_TMR_BIF,
-                                        NULL, rcvr, tmo_msg,
-                                        internal_ordinary_ref_numbers(ref),
-                                        NULL, NULL);
+        create_timer = twheel ? create_tw_timer : create_hl_timer;
+        tmr = (ErtsBifTimer *) create_timer(esdp, timeout_pos,
+                                            short_time, ERTS_TMR_BIF,
+                                            NULL, rcvr, tmo_msg,
+                                            internal_ordinary_ref_numbers(ref),
+                                            NULL, NULL);
+        UnDeclareTmpHeap(tmp_heap, c_p);
+    }
 
     if (is_internal_pid(rcvr)) {
 	Process *proc = erts_pid2proc_opt(c_p, ERTS_PROC_LOCK_MAIN,
@@ -2132,15 +2136,19 @@ access_sched_local_btm(Process *c_p, Eterm pid,
     }
     else if (proc) {
         Eterm ref;
-        Eterm heap[ERTS_REF_THING_SIZE];
+        DeclareUseTmpHeapNoProc(tmp_heap, ERTS_REF_THING_SIZE);
+        Eterm ret;
+
         if (is_value(tref))
             ref = tref;
         else {
-            write_ref_thing(&heap[0], trefn[0], trefn[1], trefn[2]);
-            ref = make_internal_ref(&heap[0]);
+            write_ref_thing(&tmp_heap[0], trefn[0], trefn[1], trefn[2]);
+            ref = make_internal_ref(&tmp_heap[0]);
         }
-        return send_async_info(proc, proc_locks,
-                               ref, cancel, time_left);
+        ret = send_async_info(proc, proc_locks,
+                              ref, cancel, time_left);
+        UnDeclareTmpHeapNoProc(tmp_heap);
+        return ret;
     }
 
     return am_ok;

@@ -918,16 +918,16 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
 		    else
 			goto bad_settings;
                 } else if (option == am_busy_limits_port) {
-                    Uint high, low;
+                    UWord high, low;
                     if (*tp == am_disabled)
                         low = high = ERL_DRV_BUSY_MSGQ_DISABLED;
                     else if (!is_tuple_arity(*tp, 2))
                         goto bad_settings;
                     else {
                         Eterm *wtp = tuple_val(*tp);
-                        if (!term_to_Uint(wtp[1], &low))
+                        if (!term_to_UWord(wtp[1], &low))
                             goto bad_settings;
-                        if (!term_to_Uint(wtp[2], &high))
+                        if (!term_to_UWord(wtp[2], &high))
                             goto bad_settings;
                         if (high < ERL_DRV_BUSY_MSGQ_LIM_MIN)
                             goto bad_settings;
@@ -937,7 +937,7 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
                             goto bad_settings;
                         if (low > ERL_DRV_BUSY_MSGQ_LIM_MAX)
                             goto bad_settings;
-                        if (high == ~((Uint) 0) || low == ~((Uint) 0))
+                        if (high == ~((UWord) 0) || low == ~((UWord) 0))
                             goto bad_settings;
                         if (low > high)
                             low = high;
@@ -946,16 +946,16 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
                     opts.high_watermark = high;
                     opts.port_watermarks_set = !0;
                 } else if (option == am_busy_limits_msgq) {
-                    Uint high, low;
+                    UWord high, low;
                     if (*tp == am_disabled)
                         low = high = ERL_DRV_BUSY_MSGQ_DISABLED;
                     else if (!is_tuple_arity(*tp, 2))
                         goto bad_settings;
                     else {
                         Eterm *wtp = tuple_val(*tp);
-                        if (!term_to_Uint(wtp[1], &low))
+                        if (!term_to_UWord(wtp[1], &low))
                             goto bad_settings;
-                        if (!term_to_Uint(wtp[2], &high))
+                        if (!term_to_UWord(wtp[2], &high))
                             goto bad_settings;
                         if (high < ERL_DRV_BUSY_MSGQ_LIM_MIN)
                             goto bad_settings;
@@ -965,7 +965,7 @@ open_port(Process* p, Eterm name, Eterm settings, int *err_typep, int *err_nump)
                             goto bad_settings;
                         if (low > ERL_DRV_BUSY_MSGQ_LIM_MAX)
                             goto bad_settings;
-                        if (high == ~((Uint) 0) || low == ~((Uint) 0))
+                        if (high == ~((UWord) 0) || low == ~((UWord) 0))
                             goto bad_settings;
                         if (low > high)
                             low = high;
@@ -1267,7 +1267,7 @@ struct packet_callback_args
     int string_as_bin; /* return strings as binaries (http_bin): */
     const byte *aligned_ptr;
     Eterm orig;
-    Uint bin_sz;
+    UWord bin_sz;
 };
 
 #define in_area(ptr,start,nbytes) \
@@ -1565,7 +1565,7 @@ BIF_RETTYPE decode_packet_3(BIF_ALIST_3)
         Eterm* hp = HAlloc(BIF_P, 3);
         Eterm required_size = (packet_sz == 0) ?
             am_undefined :
-            erts_make_integer(packet_sz, BIF_P);
+            erts_make_uword(packet_sz, BIF_P);
         res = TUPLE2(hp, am_more, required_size);
     } else {
         /* We got a whole packet, parse it */

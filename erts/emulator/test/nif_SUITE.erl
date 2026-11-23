@@ -3971,7 +3971,8 @@ nif_internal_hash(Config) ->
     HashValueBitSize = nif_hash_result_bitsize(internal),
     Terms = unique([random_term() || _ <- lists:seq(1, 500)]),
     HashValues = [hash_nif(internal, Term, 0) || Term <- Terms],
-    test_bit_distribution_fitness(HashValues, HashValueBitSize).
+    test_bit_distribution_fitness(HashValues, HashValueBitSize),
+    ok.
 
 nif_internal_hash_salted(Config) ->
     ensure_lib_loaded(Config),
@@ -4078,7 +4079,7 @@ test_bit_distribution_fitness(Integers, BitSize) ->
 
     (FailureText =:= [] orelse ct:fail(FailureText)).
 
-nif_hash_result_bitsize(internal) -> erlang:system_info(wordsize) * 8;
+nif_hash_result_bitsize(internal) -> erlang:system_info({wordsize,external}) * 8;
 nif_hash_result_bitsize(phash2) -> 27.
 
 unique(List) ->

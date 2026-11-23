@@ -122,7 +122,6 @@ typedef struct {
     Eterm term;
     Uint entry_index;
     HashTable* hash_table;
-    Eterm heap[3];
     Eterm tuple;
     ErtsPersistentTermCpyTableCtx cpy_ctx;
 } ErtsPersistentTermPutCommonContext;
@@ -424,7 +423,7 @@ BIF_RETTYPE persistent_term_erase_1(BIF_ALIST_1)
 #ifdef DEBUG
     (void)ITERATIONS_PER_RED;
     iterations_until_trap = max_iterations =
-        GET_SMALL_RANDOM_INT(ERTS_BIF_REDS_LEFT(BIF_P) + (Uint)&ctx);
+        GET_SMALL_RANDOM_INT(ERTS_BIF_REDS_LEFT(BIF_P) + (UWord)&ctx);
 #else
     iterations_until_trap = max_iterations =
         ITERATIONS_PER_RED * ERTS_BIF_REDS_LEFT(BIF_P);
@@ -656,7 +655,7 @@ static Eterm put_common(Process* c_p, Eterm key, Eterm term, Eterm new)
 #ifdef DEBUG
     (void)ITERATIONS_PER_RED;
     iterations_until_trap = max_iterations =
-        GET_SMALL_RANDOM_INT(ERTS_BIF_REDS_LEFT(c_p) + (Uint)&ctx);
+        GET_SMALL_RANDOM_INT(ERTS_BIF_REDS_LEFT(c_p) + (UWord)&ctx);
 #else
     iterations_until_trap = max_iterations =
         ITERATIONS_PER_RED * ERTS_BIF_REDS_LEFT(c_p);
@@ -699,11 +698,6 @@ static Eterm put_common(Process* c_p, Eterm key, Eterm term, Eterm new)
 
     ctx->entry_index = lookup(ctx->hash_table, ctx->key, &old_bucket);
 
-    ctx->heap[0] = make_arityval(2);
-    ctx->heap[1] = ctx->key;
-    ctx->heap[2] = ctx->term;
-    ctx->tuple = make_tuple(ctx->heap);
-
     if (is_nil(old_bucket)) {
         if (MUST_GROW(ctx->hash_table)) {
             Uint new_size = ctx->hash_table->allocated * 2;
@@ -741,6 +735,9 @@ static Eterm put_common(Process* c_p, Eterm key, Eterm term, Eterm new)
         ErtsLiteralArea* literal_area;
         erts_shcopy_t info;
         Eterm* ptr;
+        DeclareUseTmpHeap(tmp_tuple_heap, 3, c_p);
+        Eterm tmp_tuple = TUPLE2(tmp_tuple_heap, ctx->key, ctx->term);
+
         /*
          * Preserve internal sharing in the term by using the
          * sharing-preserving functions. However, literals must
@@ -748,13 +745,13 @@ static Eterm put_common(Process* c_p, Eterm key, Eterm term, Eterm new)
          */
         INITIALIZE_SHCOPY(info);
         info.copy_literals = 1;
-        term_size = copy_shared_calculate(ctx->tuple, &info);
+        term_size = copy_shared_calculate(tmp_tuple, &info);
         ERTS_INIT_OFF_HEAP(&code_off_heap);
         lit_area_size = ERTS_LITERAL_AREA_ALLOC_SIZE(term_size);
         literal_area = erts_alloc(ERTS_ALC_T_LITERAL, lit_area_size);
         ptr = &literal_area->start[0];
         literal_area->end = ptr + term_size;
-        ctx->tuple = copy_shared_perform(ctx->tuple, term_size, &info, &ptr, &code_off_heap);
+        ctx->tuple = copy_shared_perform(tmp_tuple, term_size, &info, &ptr, &code_off_heap);
         ASSERT(tuple_val(ctx->tuple) == literal_area->start);
         literal_area->off_heap = code_off_heap.first;
         DESTROY_SHCOPY(info);
@@ -777,6 +774,7 @@ static Eterm put_common(Process* c_p, Eterm key, Eterm term, Eterm new)
         erts_schedule_thr_prgr_later_op(table_updater, ctx->hash_table,
                                         &thr_prog_op);
         suspend_updater(c_p);
+        UnDeclareTmpHeap(tmp_tuple_heap, c_p);
     }
 
     BUMP_REDS(c_p, (max_iterations - iterations_until_trap) / ITERATIONS_PER_RED);
@@ -902,7 +900,7 @@ do_get_all(Process* c_p, TrapData* trap_data, Eterm res)
 static BIF_RETTYPE
 persistent_term_info_trap(BIF_ALIST_1)
 {
-    TrapData* trap_data = (TrapData *) BIF_ARG_1;
+    TrapData* trap_data;
     Eterm res;
     Uint bump_reds;
     Binary* mbp;

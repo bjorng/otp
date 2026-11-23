@@ -308,7 +308,7 @@
 
 
 /* Calculate q, r  A = Bq+R when, assume A1 >= B */
-#if (SIZEOF_VOID_P == 8)
+#if (ERTS_SIZEOF_ETERM == 8)
 #define QUOT_LIM 0x7FFFFFFFFFFFFFFF
 #else
 #define QUOT_LIM 0x7FFFFFFF
@@ -2236,34 +2236,27 @@ static int I_lg(ErtsDigit* x, dsize_t xl)
     return sz - 1;
 }
 
-/*
-** Create bigint on heap if necessary. Like the previously existing
-** make_small_or_big(), except for a HAlloc() instead of an
-** ArithAlloc().
-** NOTE: Only use erts_make_integer(), when order of heap fragments is
-**       guaranteed to be correct.
-*/
 Eterm
-erts_make_integer(Uint x, Process *p)
+erts_make_uword(UWord x, Process *p)
 {
     Eterm* hp;
     if (IS_USMALL(0,x))
 	return make_small(x);
     else {
-	hp = HAlloc(p, BIG_UINT_HEAP_SIZE);
-	return uint_to_big(x,hp);
+        hp = HAlloc(p, BIG_UWORD_HEAP_SIZE(x));
+        return uword_to_big(x,hp);
     }
 }
 
 Eterm
-erts_make_integer_fact(Uint x, ErtsHeapFactory *hf)
+erts_make_uword_fact(UWord x, ErtsHeapFactory *hf)
 {
     Eterm* hp;
     if (IS_USMALL(0,x))
 	return make_small(x);
     else {
-	hp = erts_produce_heap(hf, BIG_UINT_HEAP_SIZE, 0);
-	return uint_to_big(x, hp);
+        hp = erts_produce_heap(hf, BIG_UWORD_HEAP_SIZE(x), 0);
+        return uword_to_big(x, hp);
     }
 }
 
@@ -2286,8 +2279,20 @@ Eterm uint_to_big(Uint x, Eterm *y)
 
 Eterm uword_to_big(UWord x, Eterm *y)
 {
+#if HALFWORD_HEAP
+    Uint upper = x >> 32;
+    Uint lower = x & 0xFFFFFFFFUL;
+    if (upper == 0) {
+        *y = make_pos_bignum_header(1);
+    } else {
+        *y = make_pos_bignum_header(2);
+        BIG_DIGIT(y, 1) = upper;
+    }
+    BIG_DIGIT(y, 0) = lower;
+#else
     *y = make_pos_bignum_header(1);
     BIG_DIGIT(y, 0) = x;
+#endif
     return make_big(y);
 }
 
@@ -2312,7 +2317,7 @@ Eterm small_to_big(Sint x, Eterm *y)
 Eterm erts_uint64_to_big(Uint64 x, Eterm **hpp)
 {
     Eterm *hp = *hpp;
-#if defined(ARCH_32)
+#if ERTS_SIZEOF_ETERM == 4
     if (x >= (((Uint64) 1) << 32)) {
 	*hp = make_pos_bignum_header(2);
 	BIG_DIGIT(hp, 0) = (Uint) (x & ((Uint) 0xffffffff));
@@ -2342,7 +2347,7 @@ Eterm erts_sint64_to_big(Sint64 x, Eterm **hpp)
 	neg = 1;
 	ux = -(Uint64)x;
     }
-#if defined(ARCH_32)
+#if ERTS_SIZEOF_ETERM == 4
     if (ux >= (((Uint64) 1) << 32)) {
 	if (neg)
 	    *hp = make_neg_bignum_header(2);
@@ -2375,7 +2380,7 @@ erts_uint64_array_to_big(Uint **hpp, int neg, int len, Uint64 *array)
 
     pot_digits = digits = 0;
     for (i = 0; i < len; i++) {
-#if defined(ARCH_32)
+#if ERTS_SIZEOF_ETERM == 4
 	Uint low_val = array[i] & ((Uint) 0xffffffff);
 	Uint high_val = (array[i] >> 32) & ((Uint) 0xffffffff);
 	BIG_DIGIT(headerp, pot_digits) = low_val;
@@ -4096,11 +4101,11 @@ static const double lg2_lookup[36-1] = {
  * one digit away just to be on the safer side (some corner cases).
  */
 static const byte digits_per_sint_lookup[36-1] = {
-#if (SIZEOF_VOID_P == 4)
+#if (ERTS_SIZEOF_ETERM == 4)
     /* Wo.Alpha formula: Table [Trunc[31 / log[2,n]]-1, {n, 2, 36}] */
     30, 18, 14, 12, 10, 10, 9, 8, 8, 7, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5,
     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4
-#elif (SIZEOF_VOID_P == 8)
+#elif (ERTS_SIZEOF_ETERM == 8)
     /* Wo.Alpha formula: Table [Trunc[63 / log[2,n]]-1, {n, 2, 36}] */
     62, 38, 30, 26, 23, 21, 20, 18, 17, 17, 16, 16, 15, 15, 14, 14, 14, 13, 13,
     13, 13, 12, 12, 12, 12, 12, 12, 11, 11, 11, 11, 11, 11, 11, 11
@@ -4113,11 +4118,11 @@ static const byte digits_per_sint_lookup[36-1] = {
  * How many digits can fit into Erlang Small (SMALL_BITS-1) counting sign bit
  */
 static const byte digits_per_small_lookup[36-1] = {
-#if (SIZEOF_VOID_P == 4)
+#if (ERTS_SIZEOF_ETERM == 4)
     /* Wo.Alpha formula: Table [Trunc[27 / log[2,n]]-1, {n, 2, 36}] */
     27, 17, 13, 11, 10, 9, 9, 8, 8, 7, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5,
     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5
-#elif (SIZEOF_VOID_P == 8)
+#elif (ERTS_SIZEOF_ETERM == 8)
     /* Wo.Alpha formula: Table [Trunc[59 / log[2,n]]-1, {n, 2, 36}] */
     59, 37, 29, 25, 22, 21, 19, 18, 17, 17, 16, 15, 15, 15, 14, 14, 14, 13, 13,
     13, 13, 13, 12, 12, 12, 12, 12, 12, 12, 11, 11, 11, 11, 11, 11
@@ -4132,14 +4137,14 @@ static const byte digits_per_small_lookup[36-1] = {
  * digits_per_sint_lookup.
  */
 static const Sint largest_power_of_base_lookup[36-1] = {
-#if (SIZEOF_VOID_P == 4)
+#if (ERTS_SIZEOF_ETERM == 4)
     /* Wo.Alpha formula: Table [Pow[n, Trunc[31 / log[2,n]]-1], {n, 2, 36}] */
     1073741824, 387420489, 268435456, 244140625, 60466176, 282475249, 134217728,
     43046721, 100000000, 19487171, 35831808, 62748517, 105413504, 11390625,
     16777216, 24137569, 34012224, 47045881, 64000000, 85766121, 5153632,
     6436343,7962624, 9765625, 11881376, 14348907, 17210368, 20511149, 24300000,
     28629151, 33554432, 39135393, 45435424, 52521875, 1679616
-#elif (SIZEOF_VOID_P == 8)
+#elif (ERTS_SIZEOF_ETERM == 8)
     /* Wo.Alpha formula: Table [Pow[n, Trunc[63 / log[2,n]]-1], {n, 2, 36}]
      * with LL added after each element manually */
     4611686018427387904LL, 1350851717672992089LL, 1152921504606846976LL,
@@ -4159,7 +4164,7 @@ static const Sint largest_power_of_base_lookup[36-1] = {
 #endif
 };
 
-static Eterm chars_to_integer(const byte *bytes, Uint size, const Uint base)
+static Eterm chars_to_integer(const byte *bytes, UWord size, const Uint base)
 {
     Sint i = 0;
     int neg = 0;
@@ -4231,7 +4236,7 @@ static Eterm chars_to_integer(const byte *bytes, Uint size, const Uint base)
 BIF_RETTYPE erts_internal_binary_to_integer_2(BIF_ALIST_2)
 {
     const byte *temp_alloc = NULL, *bytes;
-    Uint size;
+    UWord size;
     Uint base;
     Eterm res;
 

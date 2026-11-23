@@ -62,7 +62,7 @@ typedef struct erl_fun_entry {
  * stored on process heaps, and has variable size depending on the size of the
  * environment. */
 
-typedef struct erl_fun_thing {
+typedef struct HALFWORD_PACKED() erl_fun_thing {
     /* The header contains FUN_SUBTAG, arity, and the size of the environment,
      * the latter being zero for external funs and non-zero for local ones. */
     Eterm thing_word;

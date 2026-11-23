@@ -73,7 +73,7 @@ gen.get_integer2(Fail, Ms, Live, Size, Unit, Flags, Dst) {
             op->a[0] = Ms;
             op->a[1] = Fail;
             op->a[2] = Dst;
-#ifdef ARCH_64
+#if ERTS_SIZEOF_ETERM == 8
         } else if (bits == 32 && (Flags.val & BSF_LITTLE) == 0) {
             $BeamOpNameArity(op, i_bs_get_integer_32, 3);
             op->a[0] = Ms;
@@ -614,14 +614,14 @@ gen_literal_timeout(stp, fail, time, succ_instr, fail_instr) {
     op->a[1] = $fail;
 
     if ($time.type == TAG_i && (timeout = $time.val) >= 0 &&
-#if defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 8
         (timeout >> 32) == 0
 #else
         1
 #endif
         ) {
         op->a[0].val = timeout;
-#if !defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 4
     } else if ($time.type == TAG_q) {
         Eterm big = beamfile_get_literal(&S->beam, $time.val);
 
@@ -638,7 +638,7 @@ gen_literal_timeout(stp, fail, time, succ_instr, fail_instr) {
         }
 #endif
     } else {
-#if !defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 4
     error:
 #endif
         $BeamOpNameArity(op, $fail_instr, 0);

@@ -340,6 +340,8 @@ wait.src(Src) {
                  * c_p->def_arg_reg[0].  Note that it is safe to use this
                  * location because there are no living x registers in
                  * a receive statement.
+                 * Note that for the halfword emulator, the two first elements
+                 * of the array are used.
                  */
                 const BeamInstr** pi = (const BeamInstr **) c_p->def_arg_reg;
                 *pi = $NEXT_INSTRUCTION;

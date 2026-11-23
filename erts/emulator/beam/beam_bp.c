@@ -1262,7 +1262,7 @@ do_call_trace(Process* c_p, ErtsCodeInfo* info, Eterm* reg,
             }
 
             ASSERT(c_p->htop <= E && E <= c_p->hend);
-            ASSERT(is_CP((Eterm)(&info->mfa.module)));
+            ASSERT(is_CP(COMPRESS_POINTER(&info->mfa.module)));
             ASSERT(IS_TRACER_VALID(tracer));
 
             c_p->stop = E;
@@ -1618,7 +1618,7 @@ static void collect_timem_info(BpTimemTrace* bdt,
     }
 }
 
-void erts_timem_info_consolidate()
+void erts_timem_info_consolidate(void)
 {
     FinishTimemInfo *fin = &finish_timem_info;
     GenericBpData *staging = &fin->g->data[erts_staging_bp_ix()];
@@ -1818,7 +1818,7 @@ enum erts_is_line_breakpoint erts_is_line_breakpoint_code(ErtsCodePtr p) {
 }
 
 const Export *
-erts_line_breakpoint_hit__prepare_call(Process* c_p, ErtsCodePtr pc, Uint live, Eterm *regs, UWord *stk) {
+erts_line_breakpoint_hit__prepare_call(Process* c_p, ErtsCodePtr pc, Uint live, Eterm *regs, Eterm *stk) {
     FunctionInfo fi;
     const Export *ep;
 
@@ -1865,7 +1865,7 @@ erts_line_breakpoint_hit__prepare_call(Process* c_p, ErtsCodePtr pc, Uint live, 
 }
 
 Uint
-erts_line_breakpoint_hit__cleanup(Eterm *regs, UWord *stk) {
+erts_line_breakpoint_hit__cleanup(Eterm *regs, Eterm *stk) {
     int i = 0;
 
     /*

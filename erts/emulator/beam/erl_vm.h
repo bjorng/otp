@@ -57,6 +57,16 @@
  */
 #define ERTS_X_REGS_ALLOCATED (MAX_REG+3)
 
+#if !HEAP_ON_C_STACK
+/* Scheduler stores data for temporary heaps if
+   !HEAP_ON_C_STACK. Macros (*TmpHeap*) in global.h selects if we put temporary
+   heap data on the C stack or if we use the buffers in the scheduler data. */
+#  define TMP_HEAP_SIZE 512          /* Number of Eterm in the schedulers
+                                        small heap for transient heap data */
+#  define ERL_ARITH_TMP_HEAP_SIZE 4    /* as does erl_arith... */
+#  define BEAM_EMU_TMP_HEAP_SIZE  2    /* and beam_emu... */
+#endif
+
 #define H_DEFAULT_SIZE  233        /* default (heap + stack) min size */
 #define VH_DEFAULT_SIZE  32768     /* default virtual (bin) heap min size (words) */
 #define H_DEFAULT_MAX_SIZE 0       /* default max heap size is off */
@@ -174,11 +184,11 @@ Eterm* erts_set_hole_marker(Eterm* ptr, Uint sz);
  * ERTS_HOLE_MARKER must *not* be mistaken for a valid term
  * on the heap...
  */
-#  ifdef ARCH_64
+#  if ERTS_SIZEOF_ETERM == 8
 #    define ERTS_HOLE_MARKER \
     make_catch(UWORD_CONSTANT(0xdeadbeaf00000000) >> _TAG_IMMED2_SIZE)
 /* Will (at the time of writing) appear as 0xdeadbeaf0000001b */
-#  else
+#  elif ERTS_SIZEOF_ETERM == 4
 #    define ERTS_HOLE_MARKER \
     make_catch(UWORD_CONSTANT(0xdead0000) >> _TAG_IMMED2_SIZE)
 /* Will (at the time of writing) appear as 0xdead001b */

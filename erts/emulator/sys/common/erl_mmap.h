@@ -163,7 +163,7 @@ extern ErtsMemMapper erts_dflt_mmapper;
 
 # if defined(ERTS_HAVE_OS_PHYSICAL_MEMORY_RESERVATION)
 
-#  if defined(ARCH_64)
+#  if defined(ARCH_64) && !HALFWORD_HEAP
 extern ErtsMemMapper erts_literal_mmapper;
 #  endif
 

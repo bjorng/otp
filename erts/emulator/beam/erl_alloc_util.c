@@ -883,7 +883,7 @@ internal_free(void *ptr)
 
 #endif
 
-#ifdef ARCH_32
+#if defined(ARCH_32) || HALFWORD_HEAP
 
 /*
  * Bit vector for the entire 32-bit virtual address space
@@ -893,14 +893,14 @@ internal_free(void *ptr)
 #define VSPACE_MAP_BITS  (1 << (32 - ERTS_MMAP_SUPERALIGNED_BITS))
 #define VSPACE_MAP_SZ    (VSPACE_MAP_BITS / ERTS_VSPACE_WORD_BITS)
 
-static ERTS_INLINE void set_bit(UWord* map, Uint ix)
+static ERTS_INLINE void set_bit(UWord* map, Uint32 ix)
 {
     ASSERT(ix / ERTS_VSPACE_WORD_BITS < VSPACE_MAP_SZ);
     map[ix / ERTS_VSPACE_WORD_BITS]
         |= ((UWord)1 << (ix % ERTS_VSPACE_WORD_BITS));
 }
 
-static ERTS_INLINE void clr_bit(UWord* map, Uint ix)
+static ERTS_INLINE void clr_bit(UWord* map, Uint32 ix)
 {
     ASSERT(ix / ERTS_VSPACE_WORD_BITS < VSPACE_MAP_SZ);
     map[ix / ERTS_VSPACE_WORD_BITS]
@@ -909,7 +909,7 @@ static ERTS_INLINE void clr_bit(UWord* map, Uint ix)
 
 #ifdef DEBUG
 
-static ERTS_INLINE int is_bit_set(UWord* map, Uint ix)
+static ERTS_INLINE bool is_bit_set(UWord* map, Uint32 ix)
 {
     ASSERT(ix / ERTS_VSPACE_WORD_BITS < VSPACE_MAP_SZ);
     return map[ix / ERTS_VSPACE_WORD_BITS]
@@ -922,10 +922,15 @@ UWord erts_literal_vspace_map[VSPACE_MAP_SZ];
 
 static void set_literal_range(void* start, size_t size)
 {
-    Uint ix = (UWord)start >> ERTS_MMAP_SUPERALIGNED_BITS;
-    Uint n = size >> ERTS_MMAP_SUPERALIGNED_BITS;
+    const Uint32 offset = (Uint32)(UWord)start;
+    Uint32 ix = offset >> ERTS_MMAP_SUPERALIGNED_BITS;
+    Uint32 n = size >> ERTS_MMAP_SUPERALIGNED_BITS;
 
-    ASSERT(!((UWord)start & ERTS_INV_SUPERALIGNED_MASK));
+#if HALFWORD_HEAP
+    ASSERT(IS_LOW_POINTER(start));
+    ASSERT(IS_LOW_POINTER((char*)start + size - 1));
+#endif
+    ASSERT(!(offset & ERTS_INV_SUPERALIGNED_MASK));
     ASSERT(!((UWord)size & ERTS_INV_SUPERALIGNED_MASK));
     ASSERT(n);
     while (n--) {
@@ -937,10 +942,15 @@ static void set_literal_range(void* start, size_t size)
 
 static void clear_literal_range(void* start, size_t size)
 {
-    Uint ix = (UWord)start >> ERTS_MMAP_SUPERALIGNED_BITS;
-    Uint n = size >> ERTS_MMAP_SUPERALIGNED_BITS;
+    const Uint32 offset = (Uint32)(UWord)start;
+    Uint32 ix = offset >> ERTS_MMAP_SUPERALIGNED_BITS;
+    Uint32 n = size >> ERTS_MMAP_SUPERALIGNED_BITS;
 
-    ASSERT(!((UWord)start & ERTS_INV_SUPERALIGNED_MASK));
+#if HALFWORD_HEAP
+    ASSERT(IS_LOW_POINTER(start));
+    ASSERT(IS_LOW_POINTER((char*)start + size - 1));
+#endif
+    ASSERT(!(offset & ERTS_INV_SUPERALIGNED_MASK));
     ASSERT(!((UWord)size & ERTS_INV_SUPERALIGNED_MASK));
     ASSERT(n);
     while (n--) {
@@ -950,7 +960,7 @@ static void clear_literal_range(void* start, size_t size)
     }
 }
 
-#endif /* ARCH_32 */
+#endif /* ARCH_32 || HALFWORD_HEAP */
 
 /* mseg ... */
 
@@ -986,7 +996,7 @@ erts_alcu_mseg_dealloc(Allctr_t *allctr, void *seg, size_t size, Uint flags)
 }
 
 
-#if defined(ARCH_32)
+#if defined(ARCH_32) || HALFWORD_HEAP
 
 void*
 erts_alcu_literal_32_mseg_alloc(Allctr_t *allctr, size_t *size_p, Uint flags)
@@ -2391,7 +2401,7 @@ mbc_alloc_block(Allctr_t *allctr, size_t size, size_t *blk_szp)
 
     if (!blk) {
 	blk = create_carrier(allctr, get_blk_sz, CFLG_MBC);
-#if !ERTS_SUPER_ALIGNED_MSEG_ONLY
+#if !HALFWORD_HEAP && !ERTS_SUPER_ALIGNED_MSEG_ONLY
 	if (!blk) {
 	    /* Emergency! We couldn't create the carrier as we wanted.
 	       Try to place it in a sys_alloced sbc. */
@@ -4146,7 +4156,7 @@ create_carrier(Allctr_t *allctr, size_t umem_sz, UWord flags)
 
     ASSERT(!(flags & CFLG_FORCE_MSEG && flags & CFLG_FORCE_SYS_ALLOC));
 
-    if (umem_sz > (ERTS_UINT_MAX - ERTS_UINT_MAX/100)) {
+    if (umem_sz > (ERTS_UWORD_MAX - ERTS_UWORD_MAX/100)) {
 	/* Do an overly conservative _overflow_ check here so we don't
 	 * have to deal with it from here on. I guess we could be more accurate
 	 * but I don't think the need to allocate over 99% of the address space
@@ -4184,7 +4194,7 @@ create_carrier(Allctr_t *allctr, size_t umem_sz, UWord flags)
 	    (*allctr->add_mbc)(allctr, crr);
 	    blk = (*allctr->get_free_block)(allctr, blk_sz, NULL, 0);
 	    ASSERT(blk);
-	    return blk;
+            goto return_blk;
 	}
     }
 
@@ -4343,6 +4353,12 @@ create_carrier(Allctr_t *allctr, size_t umem_sz, UWord flags)
 #endif
 
     DEBUG_SAVE_ALIGNMENT(crr);
+
+return_blk:
+    ASSERT(blk);
+#if HALFWORD_HEAP
+    ASSERT(allctr->mseg_opt.low_mem == IS_LOW_POINTER(blk));
+#endif
     return blk;
 }
 
@@ -4397,8 +4413,14 @@ resize_carrier(Allctr_t *allctr, Block_t *old_blk, size_t umem_sz, UWord flags)
 		DEBUG_SAVE_ALIGNMENT(new_crr);
 		return new_blk;
 	    }
+#if HALFWORD_HEAP
+            /* Old carrier unchanged; restore stat */
+            STAT_MSEG_SBC_ALLOC(allctr, old_crr_sz, old_blk_sz);
+            return NULL;
+#else
 	    create_flags |= CFLG_FORCE_SYS_ALLOC; /* since mseg_realloc()
 						     failed */
+#endif
 	}
 
 	new_blk = create_carrier(allctr, umem_sz, create_flags);
@@ -4590,6 +4612,9 @@ static struct {
     Eterm e;
     Eterm t;
     Eterm ramv;
+#if HALFWORD_HEAP
+    Eterm low;
+#endif
     Eterm atags;
 #if HAVE_ERTS_MSEG
     Eterm asbcst;
@@ -4701,6 +4726,9 @@ init_atoms(Allctr_t *allctr)
 	AM_INIT(e);
 	AM_INIT(t);
 	AM_INIT(ramv);
+#if HALFWORD_HEAP
+        AM_INIT(low);
+#endif
 	AM_INIT(atags);
 #if HAVE_ERTS_MSEG
 	AM_INIT(asbcst);
@@ -5505,6 +5533,12 @@ info_options(Allctr_t *allctr,
         cp_str = "@";
         cp_atom = am.At_sign;
     }
+#if HALFWORD_HEAP
+    else if (allctr->cpool.carrier_pool == ERTS_ALC_COMMON_CPOOL_LOW_IX) {
+        cp_str = "@";
+        cp_atom = am.At_sign;
+    }
+#endif
     else {
         cp_str = allocator_char_str[allctr->cpool.carrier_pool];
         cp_atom = allocator_char_atom[allctr->cpool.carrier_pool];
@@ -5525,6 +5559,9 @@ info_options(Allctr_t *allctr,
 		   "option e: true\n"
 		   "option t: %s\n"
 		   "option ramv: %s\n"
+#if HALFWORD_HEAP
+                   "option low: %s\n"
+#endif
 		   "option atags: %s\n"
 		   "option sbct: %beu\n"
 #if HAVE_ERTS_MSEG
@@ -5548,6 +5585,9 @@ info_options(Allctr_t *allctr,
 		   "option cp: %s\n",
 		   topt,
 		   allctr->ramv ? "true" : "false",
+#if HALFWORD_HEAP
+                   allctr->mseg_opt.low_mem ? "true" : "false",
+#endif
 		   allctr->atags ? "true" : "false",
 		   allctr->sbc_threshold,
 #if HAVE_ERTS_MSEG
@@ -5625,6 +5665,9 @@ info_options(Allctr_t *allctr,
 	add_2tup(hpp, szp, &res,
 		 am_sbct,
 		 bld_uint(hpp, szp, allctr->sbc_threshold));
+#if HALFWORD_HEAP
+        add_2tup(hpp, szp, &res, am.low, allctr->mseg_opt.low_mem ? am_true : am_false);
+#endif
 	add_2tup(hpp, szp, &res, am.ramv, allctr->ramv ? am_true : am_false);
 	add_2tup(hpp, szp, &res, am.atags, allctr->atags ? am_true : am_false);
 	add_2tup(hpp, szp, &res, am.t, (allctr->t ? am_true : am_false));
@@ -6332,7 +6375,11 @@ do_erts_alcu_realloc(ErtsAlcType_t type,
 	Block_t *new_blk;
 	if(IS_SBC_BLK(blk)) {
 	do_carrier_resize:
-	    new_blk = resize_carrier(allctr, blk, size, CFLG_SBC);
+#if HALFWORD_HEAP
+            new_blk = resize_carrier(allctr, blk, size, CFLG_SBC | CFLG_FORCE_MSEG);
+#else
+            new_blk = resize_carrier(allctr, blk, size, CFLG_SBC);
+#endif
 	    res = new_blk ? BLK2UMEM(new_blk) : NULL;
 	}
 	else if (alcu_flgs & ERTS_ALCU_FLG_FAIL_REALLOC_MOVE)
@@ -6720,6 +6767,9 @@ erts_alcu_start(Allctr_t *allctr, AllctrInit_t *init)
 	       sizeof(ErtsMsegOpt_t));
     if (init->tspec || init->tpref)
 	allctr->mseg_opt.sched_spec = 1;
+# if HALFWORD_HEAP
+    allctr->mseg_opt.low_mem = init->low_mem;
+# endif
 #endif /* HAVE_ERTS_MSEG */
 
     allctr->name_prefix			= init->name_prefix;
@@ -6907,6 +6957,13 @@ erts_alcu_start(Allctr_t *allctr, AllctrInit_t *init)
         allctr->mseg_dealloc = &erts_alcu_mseg_dealloc;
     }
 
+# if HALFWORD_HEAP
+    if (allctr->mseg_opt.low_mem) {
+        allctr->crr_set_flgs = CFLG_FORCE_MSEG;
+        allctr->crr_clr_flgs = CFLG_FORCE_SYS_ALLOC;
+    }
+    else
+# endif
     /* If a custom carrier alloc function is specified, make sure it's used */
     if (init->mseg_alloc && !init->sys_alloc) {
         allctr->crr_set_flgs = CFLG_FORCE_MSEG;
@@ -7039,6 +7096,10 @@ erts_alcu_init(AlcUInit_t *init)
     allocator_char_str[ERTS_ALC_A_SHORT_LIVED] = "S";
     allocator_char_str[ERTS_ALC_A_STANDARD] = "D";
     allocator_char_str[ERTS_ALC_A_LONG_LIVED] = "L";
+#if HALFWORD_HEAP
+    allocator_char_str[ERTS_ALC_A_STANDARD_LOW] = "d";
+    allocator_char_str[ERTS_ALC_A_LONG_LIVED_LOW] = "l";
+#endif
     allocator_char_str[ERTS_ALC_A_EHEAP] = "H";
     allocator_char_str[ERTS_ALC_A_ETS] = "E";
     allocator_char_str[ERTS_ALC_A_FIXED_SIZE] = "F";

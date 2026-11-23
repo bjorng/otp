@@ -853,8 +853,9 @@ mk_heap_fragment_eterm(Eterm value)
 }
 
 ErtsMonitorData *
-erts_monitor_create(Uint16 type, Eterm ref, Eterm orgn, Eterm trgt, Eterm name, Eterm tag)
+erts_monitor_create(Uint16 type, Eterm ref, UWord orgn_word, Eterm trgt, Eterm name, Eterm tag)
 {
+    const Eterm orgn = (Eterm) orgn_word;
     ErtsMonitorData *mdp;
     Uint32 tag_flag;
 
@@ -991,7 +992,7 @@ erts_monitor_create(Uint16 type, Eterm ref, Eterm orgn, Eterm trgt, Eterm name, 
         ERTS_ML_SET_TYPE(&mdp->origin, type);
 
         if (type == ERTS_MON_TYPE_RESOURCE)
-            mdp->u.target.other.ptr = (void *) orgn;
+            mdp->u.target.other.ptr = (void *) orgn_word;
         else
             mdp->u.target.other.item = osz ? copy_struct(orgn, osz, &hp, &oh) : orgn;
         mdp->u.target.offset = (Uint16) offsetof(ErtsMonitorData, u.target);

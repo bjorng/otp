@@ -65,7 +65,7 @@ int erts_mem_guard(void *p, UWord size, int readable, int writable) {
     int flags = 0;
 
     /* Check that the ptr is aligned at page boundary */
-    ASSERT((Uint)p % sys_page_size == 0);
+    ASSERT((UWord)p % sys_page_size == 0);
     
     if (writable) {
         flags |= PROT_WRITE;
@@ -403,7 +403,7 @@ struct ErtsMemMapper_ {
 
 ErtsMemMapper erts_dflt_mmapper;
 
-#if defined(ARCH_64) && defined(ERTS_HAVE_OS_PHYSICAL_MEMORY_RESERVATION)
+#if defined(ARCH_64) && !HALFWORD_HEAP && defined(ERTS_HAVE_OS_PHYSICAL_MEMORY_RESERVATION)
 ErtsMemMapper erts_literal_mmapper;
 char* erts_literals_start;
 UWord erts_literals_size;
@@ -2232,6 +2232,10 @@ static void init_atoms(void)
 static void hard_dbg_mseg_init(void);
 #endif
 
+#if HALFWORD_HEAP
+UWord erts_halfword_start_addr;
+#endif
+
 void
 erts_mmap_init(ErtsMemMapper* mm, ErtsMMapInit *init)
 {
@@ -2383,6 +2387,17 @@ erts_mmap_init(ErtsMemMapper* mm, ErtsMMapInit *init)
 	     + ERTS_PAGEALIGNED_SIZE) > end - start)
 	    erts_exit(1, "erts_mmap: No space for segments in super carrier\n");
 
+#if HALFWORD_HEAP
+        if (mm == &erts_dflt_mmapper) {
+            // Set halfword "low" 4GB area to start at the very bottom of the
+            // supercarrier and skip that very first page.
+            // This will cause SEGV crash if EXPAND_POINTER(0) is accessed,
+            // instead of trashing the supercarrier free descriptors
+            // that would otherwise be located there.
+            erts_halfword_start_addr = (UWord) start;
+            start += ERTS_PAGEALIGNED_SIZE;
+        }
+#endif
 	mm->sa.bot = start;
 	mm->sa.bot += desc_size;
 	mm->sa.bot = (char *) ERTS_SUPERALIGNED_CEILING(mm->sa.bot);
@@ -2443,7 +2458,7 @@ erts_mmap_init(ErtsMemMapper* mm, ErtsMMapInit *init)
     hard_dbg_mseg_init();
 #endif
 
-#if defined(ARCH_64) && defined(ERTS_HAVE_OS_PHYSICAL_MEMORY_RESERVATION)
+#if defined(ARCH_64) && !HALFWORD_HEAP && defined(ERTS_HAVE_OS_PHYSICAL_MEMORY_RESERVATION)
    if (mm == &erts_literal_mmapper) {
        erts_literals_start = erts_literal_mmapper.sa.bot;
        erts_literals_size  = erts_literal_mmapper.sua.top - erts_literals_start;
@@ -2610,6 +2625,7 @@ Eterm erts_mmap_debug_info(Process* p)
         UWord values[4];
         Eterm *hp, *hp_end;
         Uint may_need;
+        const Uint PTR_BIG_SZ = HALFWORD_HEAP ? 3 : 2;
 
         erts_mtx_lock(&mm->mtx);
         values[0] = (UWord)mm->sa.bot;
@@ -2620,7 +2636,7 @@ Eterm erts_mmap_debug_info(Process* p)
         sua_list = build_free_seg_list(p, &mm->sua.map);
         erts_mtx_unlock(&mm->mtx);
 
-        may_need = 4*(2+3+2) + 2*(2+3);
+        may_need = 4*(2+3+PTR_BIG_SZ) + 2*(2+3);
         hp = HAlloc(p, may_need);
         hp_end = hp + may_need;
 

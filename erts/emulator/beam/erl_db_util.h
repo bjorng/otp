@@ -107,7 +107,9 @@ typedef struct {
         } catree;
     } u;
     Eterm* old_tpl;
-#ifdef DEBUG
+#if !HEAP_ON_C_STACK
+    Eterm old_tpl_dflt[1]; // not to be used
+#elif defined(DEBUG)
     Eterm old_tpl_dflt[2];
 #else
     Eterm old_tpl_dflt[8];
@@ -645,7 +647,7 @@ ERTS_GLB_INLINE void
 erts_align_offheap(union erl_off_heap_ptr* ohp,
                    union erts_tmp_aligned_offheap* tmp)
 {
-    if ((UWord)ohp->voidp % sizeof(UWord) != 0) {
+    if ((UWord)ohp->voidp % sizeof(Eterm) != 0) {
         /*
          * ETS store word unaligned BinRef and ErtsMRefThing in its compressed
          * format. Make a temporary aligned copy.
@@ -653,6 +655,9 @@ erts_align_offheap(union erl_off_heap_ptr* ohp,
          * Warning, must pass (void*)-variable to memcpy. Otherwise it will
          * cause Bus error on Sparc due to false compile time assumptions
          * about word aligned memory (type cast is not enough).
+         *
+         * HALFWORD: Note that we only demand halfword alignment
+         * as that's what we get on the regular heaps anyway.
          */
         sys_memcpy(tmp, ohp->voidp, sizeof(Eterm)); /* thing_word */
         if (tmp->proc_bin.thing_word == HEADER_BIN_REF) {

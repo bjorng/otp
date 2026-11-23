@@ -68,7 +68,7 @@ static Eterm do_chksum(ChksumFun sumfun, Process *p, Eterm ioterm, int left,
     } else if (is_bitstring(ioterm)) {
         Eterm res_term = NIL;
         const byte *temp_alloc = NULL, *bytes;
-        Uint size;
+        UWord size;
 
         /* As we've already checked that this is a bitstring, this can only
          * fail when we've got a non-binary. */
@@ -301,7 +301,7 @@ crc32_1(BIF_ALIST_1)
     if (err != 0) {
 	BIF_ERROR(BIF_P, BADARG);
     }
-    res_sum = erts_make_integer(chksum,BIF_P);
+    res_sum = erts_make_uword(chksum,BIF_P);
     if (rest != NIL) {
 	BUMP_ALL_REDS(BIF_P);
 	BIF_TRAP2(BIF_TRAP_EXPORT(BIF_crc32_2), BIF_P, res_sum, rest);
@@ -328,7 +328,7 @@ crc32_2(BIF_ALIST_2)
     if (err != 0) {
 	BIF_ERROR(BIF_P, BADARG);
     }
-    res_sum = erts_make_integer(chksum,BIF_P);
+    res_sum = erts_make_uword(chksum,BIF_P);
     if (rest != NIL) {
 	BUMP_ALL_REDS(BIF_P);
 	BIF_TRAP2(BIF_TRAP_EXPORT(BIF_crc32_2), BIF_P, res_sum, rest);
@@ -362,7 +362,7 @@ crc32_combine_3(BIF_ALIST_3)
 
     res = (Uint32) crc32_combine(chksum1,chksum2,length);
 
-    res_sum = erts_make_integer(res,BIF_P);
+    res_sum = erts_make_uword(res,BIF_P);
     BIF_RET(res_sum);
 }
 
@@ -381,7 +381,7 @@ adler32_1(BIF_ALIST_1)
     if (err != 0) {
 	BIF_ERROR(BIF_P, BADARG);
     }
-    res_sum = erts_make_integer(chksum,BIF_P);
+    res_sum = erts_make_uword(chksum,BIF_P);
     if (rest != NIL) {
 	BUMP_ALL_REDS(BIF_P);
 	BIF_TRAP2(BIF_TRAP_EXPORT(BIF_adler32_2), BIF_P, res_sum, rest);
@@ -408,7 +408,7 @@ adler32_2(BIF_ALIST_2)
     if (err != 0) {
 	BIF_ERROR(BIF_P, BADARG);
     }
-    res_sum = erts_make_integer(chksum,BIF_P);
+    res_sum = erts_make_uword(chksum,BIF_P);
     if (rest != NIL) {
 	BUMP_ALL_REDS(BIF_P);
 	BIF_TRAP2(BIF_TRAP_EXPORT(BIF_adler32_2), BIF_P, res_sum, rest);
@@ -446,7 +446,7 @@ adler32_combine_3(BIF_ALIST_3)
 	res = (Uint32) adler32_combine(chksum1,chksum2,length);
     }
 
-    res_sum = erts_make_integer(res,BIF_P);
+    res_sum = erts_make_uword(res,BIF_P);
     BIF_RET(res_sum);
 }
 
@@ -493,7 +493,7 @@ md5_1(BIF_ALIST_1)
 static BIF_RETTYPE
 md5_2(BIF_ALIST_2)
 {
-    Uint offset, size;
+    UWord offset, size;
     erts_md5_state context;
     byte *bytes;
     Eterm rest;
@@ -555,7 +555,7 @@ md5_update_2(BIF_ALIST_2)
     Eterm rest;
     Eterm bin;
     int res, err;
-    Uint size;
+    UWord size;
     Sint32 reds;
 
     bytes = erts_get_aligned_binary_bytes(BIF_ARG_1, &size, &temp_alloc);
@@ -592,7 +592,7 @@ md5_final_1(BIF_ALIST_1)
     const byte *temp_alloc = NULL, *context;
     erts_md5_state ctx_copy;
     byte* result;
-    Uint size;
+    UWord size;
     Eterm bin;
 
     context = erts_get_aligned_binary_bytes(BIF_ARG_1, &size, &temp_alloc);

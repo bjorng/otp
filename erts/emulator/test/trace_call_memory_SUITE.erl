@@ -402,10 +402,22 @@ spawn_memory_lambda(Config) when is_list(Config) ->
     receive {'DOWN', MRef, process, Pid, _} -> ok end,
     1 = erlang_trace(self(), false, [all]),
     %% 16-elements list translates into 34-words for spawn, and 4 more words for apply itself
-    {call_memory, [{Pid, 1, 37}]} = erlang_trace_info({erlang, apply, 2}, call_memory).
+    Expect = case is_halfword() of
+                 false -> 37;
+                 true -> 38  %% ErlFunThing is one (half)word larger
+             end,
+    {call_memory, [{Pid, 1, Expect}]} = erlang_trace_info({erlang, apply, 2}, call_memory).
 
 spawn_memory_internal(Array) ->
     Array.
+
+is_halfword() ->
+    case {erlang:system_info({wordsize,external}),
+          erlang:system_info({wordsize,internal})} of
+        {4,4} -> false;
+        {8,8} -> false;
+        {8,4} -> true
+    end.
 
 conflict_traces() ->
     [{doc, "Verify that call_time and call_memory don't break each other"}].

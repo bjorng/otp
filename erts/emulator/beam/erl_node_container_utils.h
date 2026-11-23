@@ -266,7 +266,7 @@ extern ErtsPTab erts_port;
                                          : internal_non_magic_ref_numbers((x)))
 
 
-#if defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 8
 
 #define external_ref_no_numbers(x)					\
   (external_ref_data((x))[0])

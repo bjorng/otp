@@ -321,13 +321,13 @@ BIF_RETTYPE size_1(BIF_ALIST_1)
 
         BIF_RET(make_small(arityval(*tupleptr)));
     } else if (is_bitstring(BIF_ARG_1)) {
-        Uint sz = BYTE_SIZE(bitstring_size(BIF_ARG_1));
+        UWord sz = BYTE_SIZE(bitstring_size(BIF_ARG_1));
 
         if (IS_USMALL(0, sz)) {
             BIF_RET(make_small(sz));
         } else {
-            Eterm* hp = HeapFragOnlyAlloc(BIF_P, BIG_UINT_HEAP_SIZE);
-            BIF_RET(uint_to_big(sz, hp));
+            Eterm* hp = HeapFragOnlyAlloc(BIF_P, BIG_UWORD_HEAP_SIZE(sz));
+            BIF_RET(uword_to_big(sz, hp));
         }
     }
 
@@ -354,7 +354,7 @@ BIF_RETTYPE is_integer_3(BIF_ALIST_3)
 BIF_RETTYPE bit_size_1(BIF_ALIST_1)
 {
     /* NOTE: The JIT has its own implementation of this BIF. */
-    Uint size;
+    UWord size;
 
     if (is_not_bitstring(BIF_ARG_1)) {
         BIF_ERROR(BIF_P, BADARG);
@@ -365,8 +365,8 @@ BIF_RETTYPE bit_size_1(BIF_ALIST_1)
     if (IS_USMALL(0, size)) {
         BIF_RET(make_small(size));
     } else {
-        Eterm* hp = HeapFragOnlyAlloc(BIF_P, BIG_UINT_HEAP_SIZE);
-        BIF_RET(uint_to_big(size, hp));
+        Eterm* hp = HeapFragOnlyAlloc(BIF_P, BIG_UWORD_HEAP_SIZE(size));
+        BIF_RET(uword_to_big(size, hp));
     }
 }
 
@@ -376,7 +376,7 @@ BIF_RETTYPE bit_size_1(BIF_ALIST_1)
 BIF_RETTYPE byte_size_1(BIF_ALIST_1)
 {
     /* NOTE: The JIT has its own implementation of this BIF. */
-    Uint size;
+    UWord size;
 
     if (is_not_bitstring(BIF_ARG_1)) {
         BIF_ERROR(BIF_P, BADARG);
@@ -387,8 +387,8 @@ BIF_RETTYPE byte_size_1(BIF_ALIST_1)
     if (IS_USMALL(0, size)) {
         BIF_RET(make_small(size));
     } else {
-        Eterm* hp = HeapFragOnlyAlloc(BIF_P, BIG_UINT_HEAP_SIZE);
-        BIF_RET(uint_to_big(size, hp));
+        Eterm* hp = HeapFragOnlyAlloc(BIF_P, BIG_UWORD_HEAP_SIZE(size));
+        BIF_RET(uword_to_big(size, hp));
     }
 }
 

@@ -2037,13 +2037,13 @@ erts_proc_sig_privqs_len(Process *c_p, Sint max_sigs, Sint max_nmsigs)
     ERTS_HDBG_PRIVQ_LEN(c_p);
 
     if (max_sigs < 0)
-        max_sigs = ERTS_SWORD_MAX; /* Check all... */
+        max_sigs = ERTS_SINT_MAX; /* Check all... */
     if (res > max_sigs)
         return -res;
 
     nmsigpp = c_p->sig_qs.nmsigs.next;
     if (max_nmsigs < 0)
-        max_nmsigs = ERTS_SWORD_MAX; /* Check all... */
+        max_nmsigs = ERTS_SINT_MAX; /* Check all... */
     res += c_p->sig_qs.mlenoffs;
     while (nmsigpp) {
         ErtsNonMsgSignal *nmsigp = (ErtsNonMsgSignal *) *nmsigpp;

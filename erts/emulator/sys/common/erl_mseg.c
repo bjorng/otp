@@ -88,12 +88,17 @@ static const int debruijn[32] = {
 
 static int atoms_initialized;
 
+typedef struct mem_kind_t MemKind;
+
 const ErtsMsegOpt_t erts_mseg_default_opt = {
     1,			/* Use cache		     */
     1,			/* Preserv data		     */
     0,			/* Absolute shrink threshold */
     0,			/* Relative shrink threshold */
     0			/* Scheduler specific        */
+#if HALFWORD_HEAP
+    ,0                  /* need low memory */
+#endif
 };
 
 
@@ -126,6 +131,37 @@ struct cache_t_ {
 
 typedef struct ErtsMsegAllctr_t_ ErtsMsegAllctr_t;
 
+struct mem_kind_t {
+
+    cache_t cache[MAX_CACHE_SIZE];
+    cache_t cache_unpowered_node;
+    cache_t cache_powered_node[CACHE_AREAS];
+    cache_t cache_free;
+
+    SWord cache_size;
+    UWord cache_hits;
+
+    struct {
+	struct {
+            UWord watermark;
+            UWord no;
+            UWord sz;
+	} current;
+	struct {
+            UWord no;
+            UWord sz;
+	} max;
+	struct {
+            UWord no;
+            UWord sz;
+	} max_ever;
+    } segments;
+
+    ErtsMsegAllctr_t *ma;
+    const char* name;
+    MemKind* next;
+};/*MemKind*/
+
 struct ErtsMsegAllctr_t_ {
     int ix;
 
@@ -135,29 +171,14 @@ struct ErtsMsegAllctr_t_ {
 
     int is_cache_check_scheduled;
 
-    cache_t cache[MAX_CACHE_SIZE];
-    cache_t cache_unpowered_node;
-    cache_t cache_powered_node[CACHE_AREAS];
-    cache_t cache_free;
+    MemKind* mk_list;
 
-    Sint cache_size;
-    Uint cache_hits;
-
-    struct {
-	struct {
-	    Uint watermark;
-	    Uint no;
-	    Uint sz;
-	} current;
-	struct {
-	    Uint no;
-	    Uint sz;
-	} max;
-	struct {
-	    Uint no;
-	    Uint sz;
-	} max_ever;
-    } segments;
+#if HALFWORD_HEAP
+    MemKind low_mem;
+    MemKind hi_mem;
+#else
+    MemKind the_mem;
+#endif
 
     Uint max_cache_size;
     size_t abs_max_cache_bad_fit;
@@ -257,13 +278,18 @@ schedule_cache_check(ErtsMsegAllctr_t *ma) {
 /* #define ERTS_PRINT_ERTS_MMAP */
 
 static ERTS_INLINE void *
-mseg_create(ErtsMsegAllctr_t *ma, Uint flags, size_t *sizep)
+mseg_create(ErtsMsegAllctr_t *ma, Uint flags, MemKind* mk, size_t *sizep)
 {
 #ifdef ERTS_PRINT_ERTS_MMAP
     UWord req_size = *sizep;
 #endif
     void *seg;
     Uint32 mmap_flags = 0;
+#if HALFWORD_HEAP
+    mmap_flags |= ((mk == &ma->low_mem)
+                   ? ERTS_MMAPFLG_SUPERCARRIER_ONLY
+                   : ERTS_MMAPFLG_OS_ONLY);
+#endif
     if (MSEG_FLG_IS_2POW(flags))
 	mmap_flags |= ERTS_MMAPFLG_SUPERALIGNED;
 
@@ -281,9 +307,14 @@ mseg_create(ErtsMsegAllctr_t *ma, Uint flags, size_t *sizep)
 }
 
 static ERTS_INLINE void
-mseg_destroy(ErtsMsegAllctr_t *ma, Uint flags, void *seg_p, UWord size) {
+mseg_destroy(ErtsMsegAllctr_t *ma, Uint flags, MemKind* mk, void *seg_p, UWord size) {
     
     Uint32 mmap_flags = 0;
+#if HALFWORD_HEAP
+    mmap_flags |= ((mk == &ma->low_mem)
+                   ? ERTS_MMAPFLG_SUPERCARRIER_ONLY
+                   : ERTS_MMAPFLG_OS_ONLY);
+#endif
     if (MSEG_FLG_IS_2POW(flags))
 	 mmap_flags |= ERTS_MMAPFLG_SUPERALIGNED;
 
@@ -298,13 +329,18 @@ mseg_destroy(ErtsMsegAllctr_t *ma, Uint flags, void *seg_p, UWord size) {
 }
 
 static ERTS_INLINE void *
-mseg_recreate(ErtsMsegAllctr_t *ma, Uint flags, void *old_seg, size_t old_size, size_t *sizep)
+mseg_recreate(ErtsMsegAllctr_t *ma, Uint flags, MemKind* mk, void *old_seg, size_t old_size, size_t *sizep)
 {
 #ifdef ERTS_PRINT_ERTS_MMAP
     size_t req_size = *sizep;
 #endif
     void *new_seg;
     Uint32 mmap_flags = 0;
+#if HALFWORD_HEAP
+    mmap_flags |= ((mk == &ma->low_mem)
+                   ? ERTS_MMAPFLG_SUPERCARRIER_ONLY
+                   : ERTS_MMAPFLG_OS_ONLY);
+#endif
     if (MSEG_FLG_IS_2POW(flags))
 	mmap_flags |= ERTS_MMAPFLG_SUPERALIGNED;
 
@@ -332,8 +368,11 @@ do {									\
 		       || erts_thr_progress_is_blocking()		\
 		       || ERTS_IS_CRASH_DUMPING);			\
 } while (0)
+#define ERTS_DBG_MK_CHK_THR_ACCESS(MK) \
+  ERTS_DBG_MA_CHK_THR_ACCESS((MK)->ma)
 #else
 #define ERTS_DBG_MA_CHK_THR_ACCESS(MA)
+#define ERTS_DBG_MK_CHK_THR_ACCESS(MK)
 #endif
 
 /* Cache interface */
@@ -346,10 +385,10 @@ static ERTS_INLINE void mseg_cache_clear_node(cache_t *c) {
     c->prev = c;
 }
 
-static ERTS_INLINE int cache_bless_segment(ErtsMsegAllctr_t *ma, void *seg, UWord size, Uint flags) {
+static ERTS_INLINE int cache_bless_segment(MemKind *mk, void *seg, UWord size, Uint flags) {
 
     cache_t *c;
-    ERTS_DBG_MA_CHK_THR_ACCESS(ma);
+    ERTS_DBG_MK_CHK_THR_ACCESS(mk);
 
     ASSERT(!MSEG_FLG_IS_2POW(flags) || (MSEG_FLG_IS_2POW(flags) && MAP_IS_ALIGNED(seg) && IS_2POW(size)));
 
@@ -358,11 +397,11 @@ static ERTS_INLINE int cache_bless_segment(ErtsMsegAllctr_t *ma, void *seg, UWor
      * Large blocks has no such cache and it is up to mseg to cache them to speed things up.
      */
 
-    if (!erts_circleq_is_empty(&(ma->cache_free))) {
+    if (!erts_circleq_is_empty(&(mk->cache_free))) {
 
 	/* We have free slots, use one to cache the segment */
 
-	c = erts_circleq_head(&(ma->cache_free));
+	c = erts_circleq_head(&(mk->cache_free));
 	erts_circleq_remove(c);
 
 	c->seg  = seg;
@@ -377,28 +416,29 @@ static ERTS_INLINE int cache_bless_segment(ErtsMsegAllctr_t *ma, void *seg, UWor
 	    ASSERT(ix < CACHE_AREAS);
 	    ASSERT((1 << (ix + MSEG_ALIGN_BITS)) == size);
 
-	    erts_circleq_push_head(&(ma->cache_powered_node[ix]), c);
+	    erts_circleq_push_head(&(mk->cache_powered_node[ix]), c);
 
 	} else
-	    erts_circleq_push_head(&(ma->cache_unpowered_node), c);
+	    erts_circleq_push_head(&(mk->cache_unpowered_node), c);
 
-	ma->cache_size++;
+	mk->cache_size++;
+	ASSERT(mk->cache_size <= mk->ma->max_cache_size);
 
 	return 1;
-    } else if (!MSEG_FLG_IS_2POW(flags) && !erts_circleq_is_empty(&(ma->cache_unpowered_node))) {
+    } else if (!MSEG_FLG_IS_2POW(flags) && !erts_circleq_is_empty(&(mk->cache_unpowered_node))) {
 	/* No free slots.
 	 * Evict oldest slot from unpowered cache so we can cache an unpowered (sbc) segment  */
 
-	c = erts_circleq_tail(&(ma->cache_unpowered_node));
+	c = erts_circleq_tail(&(mk->cache_unpowered_node));
 	erts_circleq_remove(c);
 
-	mseg_destroy(ma, ERTS_MSEG_FLG_NONE, c->seg, c->size);
+	mseg_destroy(mk->ma, ERTS_MSEG_FLG_NONE, mk, c->seg, c->size);
 	mseg_cache_clear_node(c);
 
 	c->seg  = seg;
 	c->size = size;
 
-	erts_circleq_push_head(&(ma->cache_unpowered_node), c);
+	erts_circleq_push_head(&(mk->cache_unpowered_node), c);
 
 	return 1;
     } else if (!MSEG_FLG_IS_2POW(flags)) {
@@ -412,20 +452,20 @@ static ERTS_INLINE int cache_bless_segment(ErtsMsegAllctr_t *ma, void *seg, UWor
 	int i;
 
 	for( i = 0; i < CACHE_AREAS; i++) {
-	    if (erts_circleq_is_empty(&(ma->cache_powered_node[i])))
+	    if (erts_circleq_is_empty(&(mk->cache_powered_node[i])))
 		continue;
 
-	    c = erts_circleq_tail(&(ma->cache_powered_node[i]));
+	    c = erts_circleq_tail(&(mk->cache_powered_node[i]));
 	    erts_circleq_remove(c);
 
-	    mseg_destroy(ma, ERTS_MSEG_FLG_2POW, c->seg, c->size);
+	    mseg_destroy(mk->ma, ERTS_MSEG_FLG_2POW, mk, c->seg, c->size);
 
 	    mseg_cache_clear_node(c);
 
 	    c->seg  = seg;
 	    c->size = size;
 
-	    erts_circleq_push_head(&(ma->cache_unpowered_node), c);
+	    erts_circleq_push_head(&(mk->cache_unpowered_node), c);
 
 	    return 1;
 	}
@@ -434,11 +474,11 @@ static ERTS_INLINE int cache_bless_segment(ErtsMsegAllctr_t *ma, void *seg, UWor
     return 0;
 }
 
-static ERTS_INLINE void *cache_get_segment(ErtsMsegAllctr_t *ma, size_t *size_p, Uint flags) {
+static ERTS_INLINE void *cache_get_segment(MemKind *mk, size_t *size_p, Uint flags) {
 
     size_t size = *size_p;
 
-    ERTS_DBG_MA_CHK_THR_ACCESS(ma);
+    ERTS_DBG_MK_CHK_THR_ACCESS(mk);
 
     if (MSEG_FLG_IS_2POW(flags)) {
 
@@ -454,10 +494,10 @@ static ERTS_INLINE void *cache_get_segment(ErtsMsegAllctr_t *ma, size_t *size_p,
 
 	for( i = ix; i < CACHE_AREAS; i++) {
 
-	    if (erts_circleq_is_empty(&(ma->cache_powered_node[i])))
+	    if (erts_circleq_is_empty(&(mk->cache_powered_node[i])))
 		continue;
 
-	    c = erts_circleq_head(&(ma->cache_powered_node[i]));
+	    c = erts_circleq_head(&(mk->cache_powered_node[i]));
 	    erts_circleq_remove(c);
 
 	    ASSERT(IS_2POW(c->size));
@@ -466,31 +506,31 @@ static ERTS_INLINE void *cache_get_segment(ErtsMsegAllctr_t *ma, size_t *size_p,
 	    csize = c->size;
 	    seg   = (char*) c->seg;
 
-	    ma->cache_size--;
-	    ma->cache_hits++;
+	    mk->cache_size--;
+	    mk->cache_hits++;
 
 	    /* link to free cache list */
 	    mseg_cache_clear_node(c);
-	    erts_circleq_push_head(&(ma->cache_free), c);
+	    erts_circleq_push_head(&(mk->cache_free), c);
 
-	    ASSERT(!(ma->cache_size < 0));
+	    ASSERT(!(mk->cache_size < 0));
 
 	    if (csize != size)
-		mseg_destroy(ma, ERTS_MSEG_FLG_2POW, seg + size, csize - size);
+		mseg_destroy(mk->ma, ERTS_MSEG_FLG_2POW, mk, seg + size, csize - size);
 
 	    return seg;
 	}
     } 
-    else if (!erts_circleq_is_empty(&(ma->cache_unpowered_node))) {
+    else if (!erts_circleq_is_empty(&(mk->cache_unpowered_node))) {
 	void *seg;
 	cache_t *c;
 	cache_t *best = NULL;
 	UWord bdiff = 0;
 	UWord csize;
-	UWord bad_max_abs = ma->abs_max_cache_bad_fit;
-	UWord bad_max_rel = ma->rel_max_cache_bad_fit;
+	UWord bad_max_abs = mk->ma->abs_max_cache_bad_fit;
+	UWord bad_max_rel = mk->ma->rel_max_cache_bad_fit;
 
-	erts_circleq_foreach(c, &(ma->cache_unpowered_node)) {
+	erts_circleq_foreach(c, &(mk->cache_unpowered_node)) {
 	    csize = c->size;
 	    if (csize >= size) {
 		if (((csize - size)*100 < bad_max_rel*size) && (csize - size) < bad_max_abs ) {
@@ -499,11 +539,11 @@ static ERTS_INLINE void *cache_get_segment(ErtsMsegAllctr_t *ma, size_t *size_p,
 
 		    erts_circleq_remove(c);
 
-		    ma->cache_size--;
-		    ma->cache_hits++;
+		    mk->cache_size--;
+		    mk->cache_hits++;
 
 		    mseg_cache_clear_node(c);
-		    erts_circleq_push_head(&(ma->cache_free), c);
+		    erts_circleq_push_head(&(mk->cache_free), c);
 
 		    *size_p = csize;
 
@@ -526,7 +566,7 @@ static ERTS_INLINE void *cache_get_segment(ErtsMsegAllctr_t *ma, size_t *size_p,
 	    ASSERT(best->seg);
 	    ASSERT(best->size > 0);
 
-	    ma->cache_hits++;
+	    mk->cache_hits++;
 
 	    /* Use current cache placement for remaining segment space */
 
@@ -550,25 +590,25 @@ static ERTS_INLINE void *cache_get_segment(ErtsMsegAllctr_t *ma, size_t *size_p,
  * using callbacks from aux-work in the scheduler.
  */
 
-static ERTS_INLINE Uint mseg_drop_one_cache_size(ErtsMsegAllctr_t *ma, Uint flags, cache_t *head) {
+static ERTS_INLINE Uint mseg_drop_one_memkind_cache_size(MemKind *mk, Uint flags, cache_t *head) {
     cache_t *c = NULL;
 
     c = erts_circleq_tail(head);
     erts_circleq_remove(c);
 
-    mseg_destroy(ma, flags, c->seg, c->size);
+    mseg_destroy(mk->ma, flags, mk, c->seg, c->size);
     mseg_cache_clear_node(c);
-    erts_circleq_push_head(&(ma->cache_free), c);
+    erts_circleq_push_head(&(mk->cache_free), c);
 
-    ma->segments.current.watermark--;
-    ma->cache_size--;
+    mk->segments.current.watermark--;
+    mk->cache_size--;
 
-    ASSERT(ma->cache_size >= 0);
+    ASSERT( mk->cache_size >= 0 );
 
-    return ma->cache_size;
+    return mk->cache_size;
 }
 
-static ERTS_INLINE Uint mseg_drop_cache_size(ErtsMsegAllctr_t *ma, Uint flags, cache_t *head) {
+static ERTS_INLINE Uint mseg_drop_memkind_cache_size(MemKind *mk, Uint flags, cache_t *head) {
     cache_t *c = NULL;
 
     while (!erts_circleq_is_empty(head)) {
@@ -576,52 +616,58 @@ static ERTS_INLINE Uint mseg_drop_cache_size(ErtsMsegAllctr_t *ma, Uint flags, c
 	c = erts_circleq_tail(head);
 	erts_circleq_remove(c);
 
-	mseg_destroy(ma, flags, c->seg, c->size);
+	mseg_destroy(mk->ma, flags, mk, c->seg, c->size);
 
 	mseg_cache_clear_node(c);
-	erts_circleq_push_head(&(ma->cache_free), c);
+	erts_circleq_push_head(&(mk->cache_free), c);
 
-	ma->segments.current.watermark--;
-	ma->cache_size--;
+	mk->segments.current.watermark--;
+	mk->cache_size--;
+
     }
 
-    ASSERT(ma->cache_size >= 0);
+    ASSERT( mk->cache_size >= 0 );
 
-    return ma->cache_size;
+    return mk->cache_size;
 }
 
-/* mseg_check_cache
- * - Check if we can empty some cached segments in this allocator
+/* mseg_check_memkind_cache
+ * - Check if we can empty some cached segments in this
+ *   MemKind.
  */
 
 
-static Uint mseg_check_cache(ErtsMsegAllctr_t *ma) {
+static Uint mseg_check_memkind_cache(MemKind *mk) {
     int i;
 
-    ERTS_DBG_MA_CHK_THR_ACCESS(ma);
+    ERTS_DBG_MK_CHK_THR_ACCESS(mk);
 
     for (i = 0; i < CACHE_AREAS; i++) {
-	if (!erts_circleq_is_empty(&(ma->cache_powered_node[i])))
-	    return mseg_drop_one_cache_size(ma, ERTS_MSEG_FLG_2POW, &(ma->cache_powered_node[i]));
+	if (!erts_circleq_is_empty(&(mk->cache_powered_node[i])))
+	    return mseg_drop_one_memkind_cache_size(mk, ERTS_MSEG_FLG_2POW, &(mk->cache_powered_node[i]));
     }
 
-    if (!erts_circleq_is_empty(&(ma->cache_unpowered_node)))
-	return mseg_drop_one_cache_size(ma, ERTS_MSEG_FLG_NONE, &(ma->cache_unpowered_node));
+    if (!erts_circleq_is_empty(&(mk->cache_unpowered_node)))
+	return mseg_drop_one_memkind_cache_size(mk, ERTS_MSEG_FLG_NONE, &(mk->cache_unpowered_node));
 
     return 0;
 }
 
 /* mseg_cache_check
  * - Check if we have some cache we can purge
+ *   in any of the memkinds.
  */
 
 static void mseg_cache_check(ErtsMsegAllctr_t *ma) {
+    MemKind* mk;
     Uint empty_cache = 1;
 
     ERTS_MSEG_LOCK(ma);
 
-    if (mseg_check_cache(ma))
-        empty_cache = 0;
+    for (mk = ma->mk_list; mk; mk = mk->next) {
+	if (mseg_check_memkind_cache(mk))
+	    empty_cache = 0;
+    }
 
     /* If all MemKinds caches are empty,
      * remove aux-work callback
@@ -639,7 +685,7 @@ static void mseg_cache_check(ErtsMsegAllctr_t *ma) {
 /* erts_mseg_cache_check
  * - This is a callback that is scheduled as aux-work from
  *   schedulers and is called at some interval if we have a cache
- *   on this mseg-allocator.
+ *   on this mseg-allocator and memkind.
  * - Purpose: Empty cache slowly so we don't collect mapped areas
  *   and bloat memory.
  */
@@ -649,32 +695,42 @@ void erts_mseg_cache_check(void) {
 }
 
 
-/* mseg_clear_cache
+/* *_mseg_clear_*_cache
  * Remove cached segments from the allocator completely
  */
 
-
-static void mseg_clear_cache(ErtsMsegAllctr_t *ma) {
+static void mseg_clear_memkind_cache(MemKind *mk) {
     int i;
-    ERTS_MSEG_LOCK(ma);
-    ERTS_DBG_MA_CHK_THR_ACCESS(ma);
 
     /* drop pow2 caches */
     for (i = 0; i < CACHE_AREAS; i++) {
-	if (erts_circleq_is_empty(&(ma->cache_powered_node[i])))
+	if (erts_circleq_is_empty(&(mk->cache_powered_node[i])))
 	    continue;
 
-	mseg_drop_cache_size(ma, ERTS_MSEG_FLG_2POW, &(ma->cache_powered_node[i]));
-	ASSERT(erts_circleq_is_empty(&(ma->cache_powered_node[i])));
+	mseg_drop_memkind_cache_size(mk, ERTS_MSEG_FLG_2POW, &(mk->cache_powered_node[i]));
+	ASSERT(erts_circleq_is_empty(&(mk->cache_powered_node[i])));
     }
     /* drop varied caches */
-    if (!erts_circleq_is_empty(&(ma->cache_unpowered_node)))
-	mseg_drop_cache_size(ma, ERTS_MSEG_FLG_NONE, &(ma->cache_unpowered_node));
+    if (!erts_circleq_is_empty(&(mk->cache_unpowered_node)))
+	mseg_drop_memkind_cache_size(mk, ERTS_MSEG_FLG_NONE, &(mk->cache_unpowered_node));
 
-    ASSERT(erts_circleq_is_empty(&(ma->cache_unpowered_node)));
-    ASSERT(ma->cache_size == 0);
+    ASSERT(erts_circleq_is_empty(&(mk->cache_unpowered_node)));
+    ASSERT(mk->cache_size == 0);
+}
+
+static void mseg_clear_cache(ErtsMsegAllctr_t *ma) {
+    MemKind* mk;
+
+    ERTS_MSEG_LOCK(ma);
+    ERTS_DBG_MA_CHK_THR_ACCESS(ma);
+
+
+    for (mk = ma->mk_list; mk; mk = mk->next) {
+	mseg_clear_memkind_cache(mk);
+    }
 
     INC_CC(ma, clear_cache);
+
     ERTS_MSEG_UNLOCK(ma);
 }
 
@@ -683,12 +739,25 @@ void erts_mseg_clear_cache(void) {
     mseg_clear_cache(ERTS_MSEG_ALLCTR_IX(0));
 }
 
+
+
+static ERTS_INLINE MemKind* memkind(ErtsMsegAllctr_t *ma,
+				    const ErtsMsegOpt_t *opt)
+{
+#if HALFWORD_HEAP
+    return opt->low_mem ? &ma->low_mem : &ma->hi_mem;
+#else
+    return &ma->the_mem;
+#endif
+}
+
 static void *
 mseg_alloc(ErtsMsegAllctr_t *ma, ErtsAlcType_t atype, size_t *size_p,
 	   Uint flags, const ErtsMsegOpt_t *opt)
 {
     size_t size;
     void *seg;
+    MemKind* mk = memkind(ma, opt);
 
     INC_CC(ma, alloc);
 
@@ -702,17 +771,18 @@ mseg_alloc(ErtsMsegAllctr_t *ma, ErtsAlcType_t atype, size_t *size_p,
 	}
     }
 
-    if (opt->cache && ma->cache_size > 0 && (seg = cache_get_segment(ma, &size, flags)) != NULL)
+    if (opt->cache && mk->cache_size > 0 && (seg = cache_get_segment(mk, &size, flags)) != NULL)
 	goto done;
 
-    seg = mseg_create(ma, flags, &size);
+    seg = mseg_create(ma, flags, mk, &size);
 
     if (!seg)
 	*size_p = 0;
     else {
 done:
 	*size_p = size;
-	ERTS_MSEG_ALLOC_STAT(ma,size);
+
+	ERTS_MSEG_ALLOC_STAT(mk,size);
     }
 
     return seg;
@@ -723,14 +793,16 @@ static void
 mseg_dealloc(ErtsMsegAllctr_t *ma, ErtsAlcType_t atype, void *seg, UWord size,
 	     Uint flags, const ErtsMsegOpt_t *opt)
 {
-    ERTS_MSEG_DEALLOC_STAT(ma,size);
+    MemKind* mk = memkind(ma, opt);
 
-    if (opt->cache && cache_bless_segment(ma, seg, size, flags)) {
+    ERTS_MSEG_DEALLOC_STAT(mk,size);
+
+    if (opt->cache && cache_bless_segment(mk, seg, size, flags)) {
 	schedule_cache_check(ma);
 	goto done;
     }
 
-    mseg_destroy(ma, flags, seg, size);
+    mseg_destroy(ma, flags, mk, seg, size);
 
 done:
 
@@ -741,6 +813,7 @@ static void *
 mseg_realloc(ErtsMsegAllctr_t *ma, ErtsAlcType_t atype, void *seg,
              size_t old_size, size_t *new_size_p, Uint flags, const ErtsMsegOpt_t *opt)
 {
+    MemKind* mk;
     void *new_seg;
     size_t new_size;
 
@@ -759,6 +832,7 @@ mseg_realloc(ErtsMsegAllctr_t *ma, ErtsAlcType_t atype, void *seg,
 	return NULL;
     }
 
+    mk = memkind(ma, opt);
     new_seg = seg;
 
     if (!MSEG_FLG_IS_2POW(flags))
@@ -773,7 +847,7 @@ mseg_realloc(ErtsMsegAllctr_t *ma, ErtsAlcType_t atype, void *seg,
 
     if (new_size > old_size) {
 	if (opt->preserv) {
-	    new_seg = mseg_recreate(ma, flags, (void *) seg, old_size, &new_size);
+	    new_seg = mseg_recreate(ma, flags, mk, (void *) seg, old_size, &new_size);
 	    if (!new_seg)
 		new_size = old_size;
 	}
@@ -793,7 +867,7 @@ mseg_realloc(ErtsMsegAllctr_t *ma, ErtsAlcType_t atype, void *seg,
 	    new_size = old_size;
 	}
 	else {
-	    new_seg = mseg_recreate(ma, flags, (void *) seg, old_size, &new_size);
+	    new_seg = mseg_recreate(ma, flags, mk, (void *) seg, old_size, &new_size);
 	    if (!new_seg)
 		new_size = old_size;
 	}
@@ -804,7 +878,7 @@ mseg_realloc(ErtsMsegAllctr_t *ma, ErtsAlcType_t atype, void *seg,
     ASSERT(!MSEG_FLG_IS_2POW(flags) || IS_2POW(new_size));
     *new_size_p = new_size;
 
-    ERTS_MSEG_REALLOC_STAT(ma, old_size, new_size);
+    ERTS_MSEG_REALLOC_STAT(mk, old_size, new_size);
 
     return new_seg;
 }
@@ -819,7 +893,12 @@ static struct {
     Eterm rmcbf;
     Eterm mcs;
 
+#if HALFWORD_HEAP
+    Eterm low_mem;
+    Eterm hi_mem;
+#else
     Eterm memkind;
+#endif
     Eterm name;
     Eterm status;
     Eterm cached_segments;
@@ -867,7 +946,12 @@ init_atoms(ErtsMsegAllctr_t *ma)
 #endif
 
 	AM_INIT(version);
-	AM_INIT(memkind);
+#if HALFWORD_HEAP
+        AM_INIT(low_mem);
+        AM_INIT(hi_mem);
+#else
+        AM_INIT(memkind);
+#endif
 	AM_INIT(name);
 
 	AM_INIT(options);
@@ -1072,66 +1156,66 @@ info_calls(ErtsMsegAllctr_t *ma, fmtfn_t *print_to_p, void *print_to_arg, Uint *
 }
 
 static Eterm
-info_status(ErtsMsegAllctr_t *ma, fmtfn_t *print_to_p, void *print_to_arg,
+info_status(ErtsMsegAllctr_t *ma, MemKind* mk, fmtfn_t *print_to_p, void *print_to_arg,
 	    int begin_new_max_period, int only_sz, Uint **hpp, Uint *szp)
 {
     Eterm res = THE_NON_VALUE;
     
-    if (ma->segments.max_ever.no < ma->segments.max.no)
-	ma->segments.max_ever.no = ma->segments.max.no;
-    if (ma->segments.max_ever.sz < ma->segments.max.sz)
-	ma->segments.max_ever.sz = ma->segments.max.sz;
+    if (mk->segments.max_ever.no < mk->segments.max.no)
+	mk->segments.max_ever.no = mk->segments.max.no;
+    if (mk->segments.max_ever.sz < mk->segments.max.sz)
+	mk->segments.max_ever.sz = mk->segments.max.sz;
 
     if (print_to_p) {
 	fmtfn_t to = *print_to_p;
 	void *arg = print_to_arg;
 
         if (!only_sz) {
-            erts_print(to, arg, "cached_segments: %beu\n", ma->cache_size);
-            erts_print(to, arg, "cache_hits: %beu\n", ma->cache_hits);
+            erts_print(to, arg, "cached_segments: %beu\n", mk->cache_size);
+            erts_print(to, arg, "cache_hits: %beu\n", mk->cache_hits);
             erts_print(to, arg, "segments: %beu %beu %beu\n",
-                       ma->segments.current.no, ma->segments.max.no, ma->segments.max_ever.no);
+                       mk->segments.current.no, mk->segments.max.no, mk->segments.max_ever.no);
             erts_print(to, arg, "segments_watermark: %beu\n",
-                       ma->segments.current.watermark);
+                       mk->segments.current.watermark);
         }
         erts_print(to, arg, "segments_size: %beu %beu %beu\n",
-		   ma->segments.current.sz, ma->segments.max.sz, ma->segments.max_ever.sz);
+		   mk->segments.current.sz, mk->segments.max.sz, mk->segments.max_ever.sz);
     }
 
     if (hpp || szp) {
 	res = NIL;
         add_4tup(hpp, szp, &res,
                  am.segments_size,
-                 bld_unstable_uint(hpp, szp, ma->segments.current.sz),
-                 bld_unstable_uint(hpp, szp, ma->segments.max.sz),
-                 bld_unstable_uint(hpp, szp, ma->segments.max_ever.sz));
+                 bld_unstable_uint(hpp, szp, mk->segments.current.sz),
+                 bld_unstable_uint(hpp, szp, mk->segments.max.sz),
+                 bld_unstable_uint(hpp, szp, mk->segments.max_ever.sz));
         if (!only_sz) {
             add_2tup(hpp, szp, &res,
                      am.segments_watermark,
-                     bld_unstable_uint(hpp, szp, ma->segments.current.watermark));
+                     bld_unstable_uint(hpp, szp, mk->segments.current.watermark));
             add_4tup(hpp, szp, &res,
                      am.segments,
-                     bld_unstable_uint(hpp, szp, ma->segments.current.no),
-                     bld_unstable_uint(hpp, szp, ma->segments.max.no),
-                     bld_unstable_uint(hpp, szp, ma->segments.max_ever.no));
+                     bld_unstable_uint(hpp, szp, mk->segments.current.no),
+                     bld_unstable_uint(hpp, szp, mk->segments.max.no),
+                     bld_unstable_uint(hpp, szp, mk->segments.max_ever.no));
             add_2tup(hpp, szp, &res,
                      am.cache_hits,
-                     bld_unstable_uint(hpp, szp, ma->cache_hits));
+                     bld_unstable_uint(hpp, szp, mk->cache_hits));
             add_2tup(hpp, szp, &res,
                      am.cached_segments,
-                     bld_unstable_uint(hpp, szp, ma->cache_size));
+                     bld_unstable_uint(hpp, szp, mk->cache_size));
         }
     }
 
     if (begin_new_max_period) {
-	ma->segments.max.no = ma->segments.current.no;
-	ma->segments.max.sz = ma->segments.current.sz;
+	mk->segments.max.no = mk->segments.current.no;
+	mk->segments.max.sz = mk->segments.current.sz;
     }
 
     return res;
 }
 
-static Eterm info_memkind(ErtsMsegAllctr_t *ma, fmtfn_t *print_to_p, void *print_to_arg,
+static Eterm info_memkind(ErtsMsegAllctr_t *ma, MemKind* mk, fmtfn_t *print_to_p, void *print_to_arg,
 			  int begin_max_per, int only_sz, Uint **hpp, Uint *szp)
 {
     Eterm res = THE_NON_VALUE;
@@ -1140,16 +1224,16 @@ static Eterm info_memkind(ErtsMsegAllctr_t *ma, fmtfn_t *print_to_p, void *print
 
     if (!only_sz) {
         if (print_to_p) {
-            erts_print(*print_to_p, print_to_arg, "memory kind: %s\n", "all memory");
+            erts_print(*print_to_p, print_to_arg, "memory kind: %s\n", mk->name);
         }
         if (hpp || szp) {
             atoms[0] = am.name;
             atoms[1] = am.status;
             atoms[2] = am.calls;
-            values[0] = erts_bld_string(hpp, szp, "all memory");
+            values[0] = erts_bld_string(hpp, szp, mk->name);
         }
     }
-    res = info_status(ma, print_to_p, print_to_arg, begin_max_per, only_sz, hpp, szp);
+    res = info_status(ma, mk, print_to_p, print_to_arg, begin_max_per, only_sz, hpp, szp);
     if (!only_sz) {
         values[1] = res;
         values[2] = info_calls(ma, print_to_p, print_to_arg, hpp, szp);
@@ -1160,6 +1244,7 @@ static Eterm info_memkind(ErtsMsegAllctr_t *ma, fmtfn_t *print_to_p, void *print
 
     return res;
 }
+
 
 static Eterm
 info_version(ErtsMsegAllctr_t *ma, fmtfn_t *print_to_p, void *print_to_arg, Uint **hpp, Uint *szp)
@@ -1218,7 +1303,6 @@ erts_mseg_info(int ix,
         if (hpp || szp) {
             atoms[0] = am.version;
             atoms[1] = am.options;
-            atoms[2] = am.memkind;
         }
         values[n++] = info_version(ma, print_to_p, print_to_arg, hpp, szp);
         values[n++] = info_options(ma, "option ", print_to_p, print_to_arg, hpp, szp);
@@ -1227,13 +1311,17 @@ erts_mseg_info(int ix,
     ERTS_MSEG_LOCK(ma);
     ERTS_DBG_MA_CHK_THR_ACCESS(ma);
 
-    res = info_memkind(ma, print_to_p, print_to_arg, begin_max_per, only_sz, hpp, szp);
-
-    if (!only_sz) {
-        values[n++] = res;
-        if (hpp || szp)
-            res = bld_2tup_list(hpp, szp, n, atoms, values);
-    }
+#if HALFWORD_HEAP
+    atoms[n] = am.low_mem;
+    values[n++] = info_memkind(ma, &ma->low_mem, print_to_p, print_to_arg, begin_max_per, only_sz, hpp, szp);
+    atoms[n] = am.hi_mem;
+    values[n++] = info_memkind(ma, &ma->hi_mem, print_to_p, print_to_arg, begin_max_per, only_sz, hpp, szp);
+#else
+    atoms[n] = am.memkind;
+    values[n++] = info_memkind(ma, &ma->the_mem, print_to_p, print_to_arg, begin_max_per, only_sz, hpp, szp);
+#endif
+    if (hpp || szp)
+        res = bld_2tup_list(hpp, szp, n, atoms, values);
 
     ERTS_MSEG_UNLOCK(ma);
 
@@ -1308,10 +1396,13 @@ Uint
 erts_mseg_no(const ErtsMsegOpt_t *opt)
 {
     ErtsMsegAllctr_t *ma = ERTS_MSEG_ALLCTR_OPT(opt);
-    Uint n;
+    MemKind* mk;
+    Uint n = 0;
     ERTS_MSEG_LOCK(ma);
     ERTS_DBG_MA_CHK_THR_ACCESS(ma);
-    n = ma->segments.current.no;
+    for (mk=ma->mk_list; mk; mk=mk->next) {
+	n += mk->segments.current.no;
+    }
     ERTS_MSEG_UNLOCK(ma);
     return n;
 }
@@ -1323,16 +1414,16 @@ erts_mseg_unit_size(void)
 }
 
 
-static void mem_cache_init(ErtsMsegAllctr_t *ma)
+static void mem_kind_init(ErtsMsegAllctr_t *ma, MemKind* mk, const char* name)
 {
     int i;
 
     /* Clear all cache headers */
-    mseg_cache_clear_node(&(ma->cache_free));
-    mseg_cache_clear_node(&(ma->cache_unpowered_node));
+    mseg_cache_clear_node(&(mk->cache_free));
+    mseg_cache_clear_node(&(mk->cache_unpowered_node));
 
     for (i = 0; i < CACHE_AREAS; i++) {
-	mseg_cache_clear_node(&(ma->cache_powered_node[i]));
+	mseg_cache_clear_node(&(mk->cache_powered_node[i]));
     }
 
     /* Populate cache free list */
@@ -1340,20 +1431,25 @@ static void mem_cache_init(ErtsMsegAllctr_t *ma)
     ASSERT(ma->max_cache_size <= MAX_CACHE_SIZE);
 
     for (i = 0; i < ma->max_cache_size; i++) {
-	mseg_cache_clear_node(&(ma->cache[i]));
-	erts_circleq_push_head(&(ma->cache_free), &(ma->cache[i]));
+	mseg_cache_clear_node(&(mk->cache[i]));
+	erts_circleq_push_head(&(mk->cache_free), &(mk->cache[i]));
     }
 
-    ma->cache_size = 0;
-    ma->cache_hits = 0;
+    mk->cache_size = 0;
+    mk->cache_hits = 0;
 
-    ma->segments.current.watermark = 0;
-    ma->segments.current.no = 0;
-    ma->segments.current.sz = 0;
-    ma->segments.max.no = 0;
-    ma->segments.max.sz = 0;
-    ma->segments.max_ever.no = 0;
-    ma->segments.max_ever.sz = 0;
+    mk->segments.current.watermark = 0;
+    mk->segments.current.no = 0;
+    mk->segments.current.sz = 0;
+    mk->segments.max.no = 0;
+    mk->segments.max.sz = 0;
+    mk->segments.max_ever.no = 0;
+    mk->segments.max_ever.sz = 0;
+
+    mk->ma = ma;
+    mk->name = name;
+    mk->next = ma->mk_list;
+    ma->mk_list = mk;
 }
 
 void
@@ -1379,8 +1475,15 @@ erts_mseg_init(ErtsMsegInit_t *init)
     erts_mtx_init(&init_atoms_mutex, "mseg_init_atoms", NIL,
         ERTS_LOCK_FLAGS_PROPERTY_STATIC | ERTS_LOCK_FLAGS_CATEGORY_GENERIC);
 
+#if HALFWORD_HEAP
+    // Hijack THE supercarrier for halfword 4GB "low" memory
+    init->dflt_mmap.scs = 1UL << 32;
+    init->dflt_mmap.sco = 0;
+    init->dflt_mmap.scrpm = 0;
+#endif
     erts_mmap_init(&erts_dflt_mmapper, &init->dflt_mmap);
-#if defined(ARCH_64) && defined(ERTS_HAVE_OS_PHYSICAL_MEMORY_RESERVATION)
+
+#if defined(ARCH_64) && !HALFWORD_HEAP && defined(ERTS_HAVE_OS_PHYSICAL_MEMORY_RESERVATION)
     erts_mmap_init(&erts_literal_mmapper, &init->literal_mmap);
 #endif
 
@@ -1416,7 +1519,14 @@ erts_mseg_init(ErtsMsegInit_t *init)
 	if (ma->max_cache_size > MAX_CACHE_SIZE)
 	    ma->max_cache_size = MAX_CACHE_SIZE;
 
-	mem_cache_init(ma);
+	ma->mk_list = NULL;
+
+#if HALFWORD_HEAP
+        mem_kind_init(ma, &ma->low_mem, "low memory");
+        mem_kind_init(ma, &ma->hi_mem, "high memory");
+#else
+	mem_kind_init(ma, &ma->the_mem, "all memory");
+#endif
 
 	sys_memzero((void *) &ma->calls, sizeof(ErtsMsegCalls));
     }
@@ -1425,8 +1535,13 @@ erts_mseg_init(ErtsMsegInit_t *init)
 
 static ERTS_INLINE Uint tot_cache_size(ErtsMsegAllctr_t *ma)
 {
+    MemKind* mk;
+    Uint sz = 0;
     ERTS_DBG_MA_CHK_THR_ACCESS(ma);
-    return ma->cache_size;
+    for (mk=ma->mk_list; mk; mk=mk->next) {
+	sz += mk->cache_size;
+    }
+    return sz;
 }
 
 /*

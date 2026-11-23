@@ -21,7 +21,7 @@
 // %CopyrightEnd%
 //
 
-%if ARCH_64
+%if ETERM_64
 BS_SAFE_MUL(A, B, Fail, Dst) {
     Uint a = $A;
     Uint b = $B;
@@ -431,7 +431,7 @@ i_bs_create_bin(Fail, Alloc, Live, Dst, N) {
                     $BS_FAIL_INFO($Fail, BADARG, am_size, Size);
                 }
             } else {
-#ifdef ARCH_64
+#if ERTS_SIZEOF_ETERM == 8
                 /* The size must fit in a small on 64-bit platforms. */
                 if (is_big(Size)) {
                     if (!big_sign(Size)) {
@@ -443,7 +443,7 @@ i_bs_create_bin(Fail, Alloc, Live, Dst, N) {
                     /* Not an integer. */
                     $BS_FAIL_INFO($Fail, BADARG, am_size, Size);
                 }
-#else
+#elif ERTS_SIZEOF_ETERM == 4
                 Uint size;
 
                 if (!term_to_Uint(Size, &size)) {
@@ -465,6 +465,8 @@ i_bs_create_bin(Fail, Alloc, Live, Dst, N) {
                 } else {
                     num_bits += size;
                 }
+#else
+#  error "ERTS_SIZEOF_ETERM??"
 #endif
             }
             break;
@@ -825,7 +827,7 @@ i_bs_get_integer_16.execute(Fail, Dst) {
     $Dst = _result;
 }
 
-%if ARCH_64
+%if ETERM_64
 i_bs_get_integer_32 := i_bs_get_integer_32.fetch.execute;
 
 i_bs_get_integer_32.head() {
@@ -1059,7 +1061,7 @@ bs_get_tail.execute(Dst, Live) {
 }
 
 
-%if ARCH_64
+%if ETERM_64
 
 i_bs_start_match3_gp := i_bs_start_match3_gp.fetch.execute;
 
@@ -1331,7 +1333,7 @@ i_bs_read_bits.execute() {
     byte_ptr = erl_sub_bits_get_base(sb) + BYTE_OFFSET(sb->start);
     sb->start += size;
     switch (num_bytes_to_read) {
-#ifdef ARCH_64
+#if ERTS_SIZEOF_ETERM == 8
     case 9:
     case 8:
         bitdata = bitdata << 8 | *byte_ptr++; ERTS_FALLTHROUGH();
@@ -1341,7 +1343,7 @@ i_bs_read_bits.execute() {
         bitdata = bitdata << 8 | *byte_ptr++; ERTS_FALLTHROUGH();
     case 5:
         bitdata = bitdata << 8 | *byte_ptr++; ERTS_FALLTHROUGH();
-#else
+#elif ERTS_SIZEOF_ETERM == 4
     case 5:
 #endif
     case 4:

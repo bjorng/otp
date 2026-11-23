@@ -1144,7 +1144,7 @@ i_bs_ensure_bits Ctx1 u==16 Fail | i_bs_read_bits Ctx2 u==16 |
   i_bs_extract_integer u==16 Dst=x | equal(Ctx1, Ctx2) =>
     i_bs_get_integer_16 Ctx1 Fail Dst
 
-%if ARCH_64
+%if ETERM_64
 i_bs_ensure_bits Ctx1 u==32 Fail | i_bs_read_bits Ctx2 u==32 |
   i_bs_extract_integer u==32 Dst=x | equal(Ctx1, Ctx2) =>
     i_bs_get_integer_32 Ctx1 Fail Dst
@@ -1183,7 +1183,7 @@ i_bs_get_integer xy f t t S d
 i_bs_get_integer_8 xy f d
 i_bs_get_integer_16 xy f d
 
-%if ARCH_64
+%if ETERM_64
 i_bs_get_integer_32 xy f d
 %endif
 
@@ -1245,7 +1245,7 @@ bs_start_match4 a==am_no_fail Live=u Src=xy Ctx=d =>
 bs_start_match4 Fail=f Live=u Src=xy Ctx=d =>
     bs_start_match3 Fail Src Live Ctx
 
-%if ARCH_64
+%if ETERM_64
 
 # This instruction nops on 64-bit platforms
 bs_start_match4 a==am_resume _Live Ctx Dst | equal(Ctx, Dst) => _
@@ -1271,7 +1271,7 @@ i_bs_start_match3 xy t j d
 # Match context position instructions. 64-bit assumes that all positions can
 # fit into an unsigned small.
 
-%if ARCH_64
+%if ETERM_64
     bs_get_position Src Dst _Live => i_bs_get_position Src Dst
     i_bs_get_position xy xy
     bs_set_position xy xy

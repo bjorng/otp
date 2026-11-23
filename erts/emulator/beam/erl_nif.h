@@ -104,8 +104,13 @@ typedef ErlNapiSInt64 ErlNifSInt64;
 typedef ErlNapiUInt ErlNifUInt; // Undocumented, do not use
 typedef ErlNapiSInt ErlNifSInt; // Undocumented, do not use
 
-#define ERL_NIF_VM_VARIANT "beam.vanilla"
+#ifdef HALFWORD_HEAP_EMULATOR
+#  define ERL_NIF_VM_VARIANT "beam.halfword"
+typedef unsigned int ERL_NIF_TERM;
+#else
+#  define ERL_NIF_VM_VARIANT "beam.vanilla"
 typedef ErlNapiUInt ERL_NIF_TERM;
+#endif
 
 typedef ERL_NIF_TERM ERL_NIF_UINT;
 

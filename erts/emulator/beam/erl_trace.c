@@ -976,7 +976,7 @@ seq_trace_output_generic(Eterm token, Eterm msg, Uint type,
     ErtsTracer seq_tracer;
     int seq_tracer_flags = 0;
 #define LOCAL_HEAP_SIZE (64)
-    DeclareTmpHeapNoproc(local_heap,LOCAL_HEAP_SIZE);
+    DeclareTmpHeapNoProc(local_heap,LOCAL_HEAP_SIZE);
 
     seq_tracer = erts_get_system_seq_tracer();
 
@@ -1004,7 +1004,7 @@ seq_trace_output_generic(Eterm token, Eterm msg, Uint type,
 	return;			/* To avoid warning */
     }
 
-    UseTmpHeapNoproc(LOCAL_HEAP_SIZE);
+    UseTmpHeapNoProc(local_heap);
 
     hp = local_heap;
     label = SEQ_TRACE_T_LABEL(token);
@@ -1024,7 +1024,7 @@ seq_trace_output_generic(Eterm token, Eterm msg, Uint type,
                            label, NULL, TRACE_FUN_DEFAULT, am_seq_trace, mess,
                            THE_NON_VALUE, am_true);
 
-    UnUseTmpHeapNoproc(LOCAL_HEAP_SIZE);
+    UnDeclareTmpHeapNoProc(local_heap);
 #undef LOCAL_HEAP_SIZE
 }
 
@@ -1271,7 +1271,6 @@ erts_call_trace(Process* p, ErtsCodeInfo *info, Binary *match_spec,
     if (!ref) {
         /* Meta trace */
         if (pam_result == am_false) {
-            UnUseTmpHeap(ERL_SUB_BITS_SIZE,p);
             ERTS_TRACER_CLEAR(&pre_ms_tracer);
             return return_flags;
         }
@@ -1288,12 +1287,10 @@ erts_call_trace(Process* p, ErtsCodeInfo *info, Binary *match_spec,
         /* Non-meta trace */
         if (tracee_flags & F_TRACE_SILENT) {
             erts_match_set_release_result_trace(p, pam_result);
-            UnUseTmpHeap(ERL_SUB_BITS_SIZE,p);
             ERTS_TRACER_CLEAR(&pre_ms_tracer);
             return 0;
         }
         if (pam_result == am_false) {
-            UnUseTmpHeap(ERL_SUB_BITS_SIZE,p);
             ERTS_TRACER_CLEAR(&pre_ms_tracer);
             return return_flags;
         }
@@ -2124,7 +2121,7 @@ trace_port_session_receive(Port *t_p, ErtsTracerRef *ref,
         /* We can use a stack heap here, as the nif is called in the
            context of a port */
         enum { LOCAL_HEAP_SIZE = 3 + 3 + 3 + MAX(heap_bits_size(ERL_ONHEAP_BITS_LIMIT), ERL_REFC_BITS_SIZE) };
-        Eterm local_heap[LOCAL_HEAP_SIZE];
+        DeclareUseTmpHeapNoProc(local_heap, LOCAL_HEAP_SIZE);
 
         Eterm *hp, data, *orig_hp = NULL;
         Binary *bptr = NULL;
@@ -2144,7 +2141,7 @@ trace_port_session_receive(Port *t_p, ErtsTracerRef *ref,
                 Sint sz = va_arg(args, Sint);
                 Eterm cmd;
                 arg = trace_port_tmp_binary(bin, sz, &bptr, &hp);
-#if defined(ARCH_32)
+#if ERTS_SIZEOF_ETERM == 4
                 if (!IS_USMALL(0, command)) {
                     *hp = make_pos_bignum_header(1);
                     BIG_DIGIT(hp, 0) = (Uint)command;
@@ -2215,6 +2212,8 @@ trace_port_session_receive(Port *t_p, ErtsTracerRef *ref,
 
         if (orig_hp)
             erts_free(ERTS_ALC_T_TMP, orig_hp);
+
+        UnDeclareTmpHeapNoProc(local_heap);
     }
 }
 
@@ -2266,7 +2265,7 @@ void trace_port_send_binary(Port *t_p, Eterm to, Eterm what, char *bin, Sint sz)
 
             Eterm msg;
             Binary* bptr = NULL;
-            Eterm local_heap[3 + 3 + MAX(heap_bits_size(ERL_ONHEAP_BITS_LIMIT), ERL_REFC_BITS_SIZE)];
+            DeclareUseTmpHeapNoProc(local_heap, 3 + 3 + MAX(heap_bits_size(ERL_ONHEAP_BITS_LIMIT), ERL_REFC_BITS_SIZE));
             Eterm *hp;
 
             hp = local_heap;
@@ -2283,6 +2282,7 @@ void trace_port_send_binary(Port *t_p, Eterm to, Eterm what, char *bin, Sint sz)
             if (bptr)
                 erts_bin_release(bptr);
 
+            UnDeclareTmpHeapNoProc(local_heap);
         }
     }
     ERTS_ASSERT_TRACER_REFS(&t_p->common);
@@ -3098,7 +3098,6 @@ erts_term_to_tracer(Eterm prefix, Eterm t)
     }
     else if (!is_nil(t)) {
         Eterm module = am_erl_tracer, state = THE_NON_VALUE;
-        Eterm hp[2];
         if (is_tuple(t)) {
             Eterm *tp = tuple_val(t);
             if (prefix != THE_NON_VALUE) {
@@ -3119,7 +3118,11 @@ erts_term_to_tracer(Eterm prefix, Eterm t)
             state = t;
         if (state == THE_NON_VALUE)
             return THE_NON_VALUE;
-        erts_tracer_update(&tracer, CONS(hp, module, state));
+        {
+            DeclareUseTmpHeapNoProc(hp, 2);
+            erts_tracer_update(&tracer, CONS(hp, module, state));
+            UnDeclareTmpHeapNoProc(hp);
+        }
     }
     if (!lookup_tracer_nif(tracer)) {
         ASSERT(ERTS_TRACER_MODULE(tracer) != am_erl_tracer);
@@ -3187,7 +3190,9 @@ send_to_tracer_nif_raw(Process *c_p, Process *tracee,
 {
     if (tnif || (tnif = lookup_tracer_nif(tracer)) != NULL) {
 #define MAP_SIZE 4
-        Eterm argv[5], local_heap[3+MAP_SIZE /* values */ + (MAP_SIZE+1 /* keys */)];
+        DeclareUseTmpHeapNoSched(tmp_heap, 5 + (3+MAP_SIZE) + (MAP_SIZE+1));
+        Eterm *argv = tmp_heap;
+        Eterm *local_heap = tmp_heap + 5;
         flatmap_t *map = (flatmap_t*)(local_heap+(MAP_SIZE+1));
         Eterm *map_values = flatmap_get_values(map);
         Eterm *map_keys = local_heap + 1;
@@ -3245,6 +3250,7 @@ send_to_tracer_nif_raw(Process *c_p, Process *tracee,
                                tnif->tracers[topt].cb,
                                tnif->tracers[topt].arity,
                                argv);
+        UnDeclareTmpHeapNoSched(tmp_heap);
     }
     return 1;
 }
@@ -3427,7 +3433,7 @@ void erts_tracer_replace(ErtsPTabElementCommon *t_p,
 
 static void free_tracer(void *p)
 {
-    ErtsTracer tracer = (ErtsTracer)p;
+    ErtsTracer tracer = (ErtsTracer)(UWord)p;
 
     if (is_immed(ERTS_TRACER_STATE(tracer))) {
         erts_free(ERTS_ALC_T_HEAP_FRAG, ptr_val(tracer));
@@ -3506,7 +3512,7 @@ erts_tracer_update_impl(ErtsTracer *tracer, ErtsTracer new_tracer)
            without having to worry if it is free'd.
         */
         erts_schedule_thr_prgr_later_cleanup_op(
-            free_tracer, (void*)(*tracer), lop, size);
+            free_tracer, (void*)(UWord)(*tracer), lop, size);
     }
 
     if (is_list(new_tracer)) {

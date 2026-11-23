@@ -1821,7 +1821,6 @@ resume_from_trap:
         ASSERT(!(p->flags & F_DISABLE_GC));
     }
     PSTACK_DESTROY(s);
-    UnUseTmpHeap(2,p);
     BUMP_REDS(p, (initial_reds - reds) / MAP_MERGE_LOOP_FACTOR);
     return res;
 
@@ -1848,7 +1847,6 @@ trap:  /* Yield */
     BUMP_ALL_REDS(p);
     ERTS_BIF_PREP_TRAP1(trap_ret, &hashmap_merge_trap_export,
                         p, ctx->trap_bin);
-    UnUseTmpHeap(2,p);
     return trap_ret;
 }
 
@@ -2665,7 +2663,7 @@ Eterm erts_hashmap_insert_up(Eterm *hp, Eterm key, Eterm value,
     Eterm *nhp = NULL;
     Uint32 ix, cix, bp, hval;
     Uint slot, n;
-    Eterm fake;
+    DeclareUseTmpHeapNoProc(fake, 1);
 
     res = CONS(hp, key, value); hp += 2;
 
@@ -2704,8 +2702,8 @@ Eterm erts_hashmap_insert_up(Eterm *hp, Eterm key, Eterm value,
             }
 	    case TAG_PRIMARY_HEADER:
 		/* subnodes, fake it */
-		fake = node;
-		node  = make_boxed(&fake);
+                fake[0] = node;
+                node  = make_boxed(fake);
                 ERTS_FALLTHROUGH();
 	    case TAG_PRIMARY_BOXED:
 		ptr = boxed_val(node);
@@ -2789,7 +2787,7 @@ Eterm erts_hashmap_insert_up(Eterm *hp, Eterm key, Eterm value,
 
     } while(!ESTACK_ISEMPTY(*sp));
 
-    UnUseTmpHeapNoproc(1);
+    UnDeclareTmpHeapNoProc(fake);
     return res;
 }
 
@@ -2801,7 +2799,7 @@ Eterm erts_hashmap_insert_up(Eterm *hp, Eterm key, Eterm value,
  */
 #ifdef INCLUDE_YCF_TRANSFORMED_ONLY_FUNCTIONS
 static Eterm hashmap_keys(Process* p, Eterm node) {
-    Eterm stack_default_wstack[16];
+    UWord stack_default_wstack[16];
     ErtsWStack stack;
     hashmap_head_t* root;
     Eterm *hp;
@@ -2844,7 +2842,7 @@ static Eterm hashmap_keys(Process* p, Eterm node) {
  */
 #ifdef INCLUDE_YCF_TRANSFORMED_ONLY_FUNCTIONS
 static Eterm hashmap_values(Process* p, Eterm node) {
-    Eterm stack_default_wstack[16];
+    UWord stack_default_wstack[16];
     ErtsWStack stack;
     hashmap_head_t* root;
     Eterm *hp;
@@ -3023,7 +3021,6 @@ unroll:
 	erts_validate_and_sort_flatmap(mp);
 
 	DESTROY_WSTACK(wstack);
-        UnUseTmpHeapNoproc(2);
 	return make_flatmap(mp);
     }
 
@@ -3181,7 +3178,6 @@ unroll:
     HRelease(p, hp_end, hp);
 not_found:
     DESTROY_ESTACK(stack);
-    UnUseTmpHeapNoproc(2);
     return res;
 }
 
@@ -4109,7 +4105,7 @@ BIF_RETTYPE erts_internal_map_next_3(BIF_ALIST_3) {
                 path = make_big(hp);
             } else {
                 /* The Uint could be too large for a small */
-                path = erts_make_integer(curr_path, BIF_P);
+                path = erts_make_uword(curr_path, BIF_P);
             }
 
             if (type == iterator) {

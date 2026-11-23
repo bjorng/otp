@@ -290,7 +290,7 @@ outputv_errors(Config) when is_list(Config) ->
 
     %% Test iolists that do not fit in the address space.
     %% Unfortunately, it would be too slow to test in a 64-bit emulator.
-    case erlang:system_info(wordsize) of
+    case erlang:system_info({wordsize,external}) of
         4 -> outputv_huge_iolists();
         _ -> ok
     end.
@@ -1967,7 +1967,8 @@ mseg_alloc_ccc() ->
     mseg_alloc_ccc(mseg_inst_info(0)).
 
 mseg_alloc_ccc(MsegAllocInfo) ->
-    {value,{memkind, MKL}} = lists:keysearch(memkind,1,MsegAllocInfo),
+    MemKind = memkind(),
+    {value,{MemKind, MKL}} = lists:keysearch(MemKind,1,MsegAllocInfo),
     {value,{calls, CL}} = lists:keysearch(calls, 1, MKL),
     {value,{mseg_check_cache, GigaCCC, CCC}}
     = lists:keysearch(mseg_check_cache, 1, CL),
@@ -1977,12 +1978,8 @@ mseg_alloc_cached_segments() ->
     mseg_alloc_cached_segments(mseg_inst_info(0)).
 
 mseg_alloc_cached_segments(MsegAllocInfo) ->
-    MemName = "all memory",
-    [{memkind,DrvMem}]
-    = lists:filter(fun(E) -> case E of
-                                 {memkind, [{name, MemName} | _]} -> true;
-                                 _ -> false
-                             end end, MsegAllocInfo),
+    MemKind = memkind(),
+    {value,{MemKind, DrvMem}} = lists:keysearch(MemKind,1,MsegAllocInfo),
     {value,{status, SL}}
     = lists:keysearch(status, 1, DrvMem),
     {value,{cached_segments, CS}}
@@ -1995,6 +1992,19 @@ mseg_inst_info(I) ->
                       2,
                       erlang:system_info({allocator,mseg_alloc})),
     Value.
+
+memkind() ->
+    case is_halfword_vm() of
+        true -> hi_mem;
+        false -> memkind
+    end.
+
+is_halfword_vm() ->
+    case {erlang:system_info({wordsize, internal}),
+          erlang:system_info({wordsize, external})} of
+        {4, 8} -> true;
+        {WS, WS} -> false
+    end.
 
 driver_alloc_sbct() ->
     {_, _, _, As} = erlang:system_info(allocator),

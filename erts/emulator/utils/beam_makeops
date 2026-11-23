@@ -45,6 +45,7 @@ my $verbose = 0;
 my $hotness = 1;
 my $num_file_opcodes = 0;
 my $wordsize = 32;
+my $termsize = 32;
 my $jit = 'no';
 my %defs;                        # Defines (from command line).
 my $pending_errors = 0;          # Number of pending errors.
@@ -363,6 +364,7 @@ while (@ARGV && $ARGV[0] =~ /^-(.*)/) {
     ($target = \&compiler_output), next if /^compiler/;
     ($outdir = shift), next if /^outdir/;
     ($wordsize = shift), next if /^wordsize/;
+    ($termsize = shift), next if /^termsize/;
     ($verbose = 1), next if /^v/;
     ($jit = shift), next if /^jit/;
     ($defs{$1} = $2), next if /^D(\w+)=(\w+)/;
@@ -376,6 +378,14 @@ if ($wordsize == 32) {
 } elsif ($wordsize == 64) {
     $defs{'ARCH_32'} = 0;
     $defs{'ARCH_64'} = 1;
+}
+
+if ($termsize == 32) {
+    $defs{'ETERM_32'} = 1;
+    $defs{'ETERM_64'} = 0;
+} elsif ($termsize == 64) {
+    $defs{'ETERM_32'} = 0;
+    $defs{'ETERM_64'} = 1;
 }
 
 #
@@ -2228,7 +2238,7 @@ sub do_pack_one {
                 if ($ap == 0) {
                     my $packed_data;
                     $packed_data = arg_offset($size + $offset);
-                    $pack_prefix .= "Eterm $packed_var = $packed_data;\n";
+                    $pack_prefix .= "BeamInstr $packed_var = $packed_data;\n";
                     $down = "P$down";
                     $up .= "p";
                     $this_size = 1;

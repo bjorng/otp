@@ -101,20 +101,20 @@ BIF_RETTYPE
 erts_debug_unaligned_bitstring_2(BIF_ALIST_2)
 {
     Eterm bitstring;
-    Uint offset;
+    UWord offset;
 
     byte *source_bytes;
-    Uint source_offset;
-    Uint source_size;
+    UWord source_offset;
+    UWord source_size;
 
     byte *target_bytes;
-    Eterm target_size;
+    UWord target_size;
 
     Eterm *hp;
     Eterm refc_binary;
     ErlSubBits *sb;
 
-    Uint inner_offset, inner_size;
+    UWord inner_offset, inner_size;
     Eterm br_flags;
     BinRef *br;
     const byte *base;
@@ -158,7 +158,7 @@ erts_debug_unaligned_bitstring_2(BIF_ALIST_2)
 
     erl_sub_bits_init(sb,
                       br_flags,
-                      ((Eterm)br) | br_flags,
+                      COMPRESS_POINTER(br) | br_flags,
                       base,
                       offset,
                       source_size);
@@ -527,7 +527,7 @@ erts_debug_interpreter_size_0(BIF_ALIST_0)
             high = a;
         }
     }
-    return erts_make_integer(high - low, BIF_P);
+    return erts_make_uword(high - low, BIF_P);
 #else
     return make_small(0);
 #endif
@@ -1105,7 +1105,7 @@ static void print_bif_name(fmtfn_t to, void* to_arg, BifFunction bif)
 	}
     }
     if (i == BIF_SIZE) {
-	erts_print(to, to_arg, "bif(%d)", (Uint) bif);
+        erts_print(to, to_arg, "bif(%p)", bif);
     } else {
 	Eterm module = bif_table[i].module;
 	Eterm name = bif_table[i].name;
@@ -1303,7 +1303,7 @@ dirty_test(Process *c_p, Eterm type, Eterm arg1, Eterm arg2, ErtsCodePtr I)
 	    ERTS_BIF_PREP_RET(ret, am_ok);
 	else {
 	    Eterm argv[3];
-	    Eterm eint = erts_make_integer((Uint) (n - 2), c_p);
+            Eterm eint = erts_make_uword((Uint) (n - 2), c_p);
 	    if (n % 4 != 0)
 		next_type = type;
 	    else {

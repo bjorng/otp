@@ -51,6 +51,7 @@ typedef struct {
     ErtsAlcStrat_t alloc_strat;
     bool force;
     bool ramv;
+    bool low_mem;   /* HALFWORD only */
     bool mmbc0;     /* create main mbc for instance 0 */
     int ix;
     int ts;
@@ -113,6 +114,7 @@ typedef struct {
     .alloc_strat = ERTS_ALC_S_INVALID,	/* allocator strategy */           \
     .force = false,		        /* force enabled */                \
     .ramv = false,       	        /* (bool) realloc always moves */  \
+    .low_mem = false,			/* (bool) HALFWORD only         */ \
     .mmbc0 = true,                      /* (bool) main mbc in instance 0 */\
     .ix = 0,			        /* instance index */               \
     .ts = 1,			        /* (bool) thread safe */           \
@@ -155,6 +157,7 @@ typedef struct {
     .alloc_strat = ERTS_ALC_S_INVALID,	/* allocator strategy */           \
     .force = false,			/* force enabled */                \
     .ramv = false,		        /* (bool) realloc always moves */  \
+    .low_mem = false,			/* (bool) HALFWORD only         */ \
     .mmbc0 = true,                      /* (bool) main mbc in instance 0 */\
     .ix = 0,			        /* instance index */               \
     .ts = 1,			        /* (bool) thread safe */           \
@@ -213,13 +216,13 @@ void    erts_alcu_foreign_size(Allctr_t *, ErtsAlcType_t, AllctrSize_t *);
 void    erts_alcu_check_delayed_dealloc(Allctr_t *, int, int *, ErtsThrPrgrVal *, int *);
 erts_aint32_t erts_alcu_fix_alloc_shrink(Allctr_t *, erts_aint32_t);
 
-#ifdef ARCH_32
+#if defined(ARCH_32) || HALFWORD_HEAP
 extern UWord erts_literal_vspace_map[];
 # define ERTS_VSPACE_WORD_BITS (sizeof(UWord)*8)
 #endif
 
 #if HAVE_ERTS_MSEG
-# if defined(ARCH_32)
+# if defined(ARCH_32) || HALFWORD_HEAP
 void* erts_alcu_literal_32_mseg_alloc(Allctr_t*, size_t *size_p, Uint flags);
 void* erts_alcu_literal_32_mseg_realloc(Allctr_t*, void *seg, size_t old_size, size_t *new_size_p);
 void  erts_alcu_literal_32_mseg_dealloc(Allctr_t*, void *seg, size_t size, Uint flags);
@@ -471,10 +474,13 @@ struct AOFF_RBTree_t_ {
 
 #define ERTS_ALC_TEST_CPOOL_IX ERTS_ALC_A_INVALID
 /*
- * System is not an alloc_util allocator, so we use its slot for
- * the common cpool...
+ * System and temporary are not alloc_util allocators, so we use their slots for
+ * the common cpools...
  */
 #define ERTS_ALC_COMMON_CPOOL_IX ERTS_ALC_A_SYSTEM
+#if HALFWORD_HEAP
+#  define ERTS_ALC_COMMON_CPOOL_LOW_IX ERTS_ALC_A_TEMPORARY
+#endif
 #define ERTS_ALC_NO_CPOOLS (ERTS_ALC_A_MAX+1)
 
 void aoff_add_pooled_mbc(Allctr_t*, Carrier_t*);

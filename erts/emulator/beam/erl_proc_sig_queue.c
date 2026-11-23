@@ -1930,14 +1930,14 @@ get_altact_msg_data(ErtsMessage *sig, void **attachedp,
             Uint low, high;
             low = unsigned_val(tp[++ix]);
             high = unsigned_val(tp[++ix]);
-#ifdef ARCH_64
+#if ERTS_SIZEOF_ETERM == 8
             ASSERT((((Uint) 1) << 32) > low);
             ASSERT((((Uint) 1) << 32) > high);
             attached = (void *) ((((Uint) high) << 32) | ((Uint) low));
-#else /* ARCH_32 */
+#else
             ASSERT((((Uint) 1) << 16) > low);
             ASSERT((((Uint) 1) << 16) > high);
-            attached = (void *) ((((Uint) high) << 16) | ((Uint) low));
+            attached = (void *) EXPAND_POINTER((((Uint) high) << 16) | ((Uint) low));
 #endif
             ASSERT(attached != NULL);
             break;
@@ -2255,12 +2255,13 @@ erts_proc_sig_send_altact_msg(Process *c_p, Eterm from, Eterm to, Eterm msg, Ete
         itpl[++ix] = token_copy;
     if (type == ERTS_SIG_Q_TYPE_HEAP_FRAG) {
         Uint low, high;
-#ifdef ARCH_64
-        low = ((UWord) hfrag) & ((UWord) 0xffffffff);
-        high = (((UWord) hfrag) >> 32) & ((UWord) 0xffffffff);
-#else /* ARCH_32 */
-        low = ((UWord) hfrag) & ((UWord) 0xffff);
-        high = (((UWord) hfrag) >> 16) & ((UWord) 0xffff);
+        Uint hfrag_uint = COMPRESS_POINTER(hfrag);
+#if ERTS_SIZEOF_ETERM == 8
+        low = hfrag_uint & ((Uint) 0xffffffff);
+        high = (hfrag_uint >> 32) & ((Uint) 0xffffffff);
+#else
+        low = hfrag_uint & ((Uint) 0xffff);
+        high = (hfrag_uint >> 16) & ((Uint) 0xffff);
 #endif
         itpl[++ix] = make_small(low);
         itpl[++ix] = make_small(high);
@@ -2769,7 +2770,11 @@ reply_dist_unlink_ack(Process *c_p, ErtsSigDistUnlinkOp *sdulnk)
          */
         if (dep != erts_this_dist_entry && sdulnk->nodename == dep->sysname) {
             ErtsDSigSendContext ctx;
-            int code = erts_dsig_prepare(&ctx, dep, NULL, 0,
+            int code;
+
+            alloc_ctl_heap(&ctx);
+
+            code = erts_dsig_prepare(&ctx, dep, NULL, 0,
                                          ERTS_DSP_NO_LOCK, 1, 1, 0);
             switch (code) {
             case ERTS_DSIG_PREP_CONNECTED:
@@ -2785,6 +2790,7 @@ reply_dist_unlink_ack(Process *c_p, ErtsSigDistUnlinkOp *sdulnk)
             default:
                 break;
             }
+            free_ctl_heap(&ctx);
         }
     }
 
@@ -2798,7 +2804,8 @@ erts_proc_sig_send_dist_monitor_down(DistEntry *dep, Eterm ref,
                                      ErlHeapFragment *hfrag,
                                      Eterm reason)
 {
-    Eterm monitored, heap[3];
+    DeclareUseTmpHeapNoSched(heap, 3);
+    Eterm monitored;
 
     if (is_atom(from))
         monitored = TUPLE2(&heap[0], from, dep->sysname);
@@ -2808,6 +2815,7 @@ erts_proc_sig_send_dist_monitor_down(DistEntry *dep, Eterm ref,
     send_gen_exit_signal(NULL, dep->sysname, monitored, am_process,
                          to, ERTS_SIG_Q_OP_MONITOR_DOWN,
                          reason, dist_ext, hfrag, ref, NIL, 0, 0, 0, 0);
+    UnDeclareTmpHeapNoSched(heap);
 }
 
 void
@@ -2839,8 +2847,9 @@ erts_proc_sig_send_monitor_down(ErtsPTabElementCommon *sender, Eterm from,
         }
     }
     else {
+        DeclareUseTmpHeapNoProc(heap, 3);
         ErtsMonitorData *mdp = erts_monitor_to_data(mon);
-        Eterm from_tag, monitored, from_type, heap[3];
+        Eterm from_tag, monitored, from_type;
 
         if (ERTS_ML_GET_TYPE(mon) == ERTS_MON_TYPE_SUSPEND) {
             /*
@@ -2888,6 +2897,7 @@ erts_proc_sig_send_monitor_down(ErtsPTabElementCommon *sender, Eterm from,
                              to, ERTS_SIG_Q_OP_MONITOR_DOWN,
                              reason, NULL, NULL, mdp->ref, NIL,
                              0, 0, 0, 0);
+        UnDeclareTmpHeapNoProc(heap);
     }
 
     erts_monitor_release(mon);
@@ -5815,7 +5825,11 @@ handle_dist_spawn_reply(Process *c_p, ErtsSigRecvTracing *tracing,
 
         if (dep != erts_this_dist_entry && dist->nodename == dep->sysname) {
             ErtsDSigSendContext ctx;
-            int code = erts_dsig_prepare(&ctx, dep, NULL, 0,
+            int code;
+
+            alloc_ctl_heap(&ctx);
+
+            code = erts_dsig_prepare(&ctx, dep, NULL, 0,
                                          ERTS_DSP_NO_LOCK, 1, 1, 0);
             switch (code) {
             case ERTS_DSIG_PREP_CONNECTED:
@@ -5832,6 +5846,7 @@ handle_dist_spawn_reply(Process *c_p, ErtsSigRecvTracing *tracing,
             default:
                 break;
             }
+            free_ctl_heap(&ctx);
         }
         /* delete monitor structure... */
         adjust_monitor = 0;
@@ -8013,7 +8028,7 @@ area_literal_size(Eterm* start, Eterm* end, char* lit_start, Uint lit_size)
         switch (primary_tag(val)) {
         case TAG_PRIMARY_BOXED:
         case TAG_PRIMARY_LIST:
-            if (ErtsInArea(val, lit_start, lit_size)) {
+            if (ErtsInArea(EXPAND_POINTER(val), lit_start, lit_size)) {
                 sz += size_object(val);
             }
             break;
@@ -8022,7 +8037,7 @@ area_literal_size(Eterm* start, Eterm* end, char* lit_start, Uint lit_size)
                 Eterm *new_p;
                 if (val == HEADER_SUB_BITS) {
                     ErlSubBits *sb = (ErlSubBits*) p;
-                    if (ErtsInArea(sb->orig, lit_start, lit_size)) {
+                    if (ErtsInArea(EXPAND_POINTER(sb->orig), lit_start, lit_size)) {
                         sz += size_object(sb->orig);
                     }
                 }
@@ -8048,7 +8063,7 @@ area_literal_copy(Eterm **hpp, ErlOffHeap *ohp,
         switch (primary_tag(val)) {
         case TAG_PRIMARY_BOXED:
         case TAG_PRIMARY_LIST:
-            if (ErtsInArea(val, lit_start, lit_size)) {
+            if (ErtsInArea(EXPAND_POINTER(val), lit_start, lit_size)) {
                 sz = size_object(val);
                 val = copy_struct(val, sz, hpp, ohp);
                 *p = val; 
@@ -8201,7 +8216,7 @@ handle_cla(Process *c_p,
             cnt++;
             nmsgs = 0;
         }
-        if (ERTS_SIG_IS_INTERNAL_MSG(msg)) {
+        if (ERTS_SIG_IS_INTERNAL_MSG(msg) && is_not_immed(msg->m[0])) {
             ErlHeapFragment *first_hfrag, *hf, **last_hfrag;
             int in_refs = 0, in_heap_frags = 0;
             Uint scanned = 0, lit_sz = 0;
@@ -8219,7 +8234,7 @@ handle_cla(Process *c_p,
 	     * be able to appear in the first message reference, i.e.,
 	     * the message itself...
 	     */
-	    if (ErtsInArea(msg->m[0], literals, lit_bsize)) {
+            if (ErtsInArea(EXPAND_POINTER(msg->m[0]), literals, lit_bsize)) {
 		in_refs++;
 		lit_sz += size_object(msg->m[0]);
 	    }
@@ -8228,7 +8243,7 @@ handle_cla(Process *c_p,
 	    {
 		int i;
 		for (i = 1; i < ERL_MESSAGE_REF_ARRAY_SZ; i++) {
-		    ASSERT(!ErtsInArea(msg->m[i], literals, lit_bsize));
+                    ASSERT(!ErtsInArea(EXPAND_POINTER(msg->m[i]), literals, lit_bsize));
 		}
 	    }
 #endif
@@ -8262,7 +8277,7 @@ handle_cla(Process *c_p,
                 Eterm *hp = new_hfrag->mem;
 
                 if (in_refs) {
-		    if (ErtsInArea(msg->m[0], literals, lit_bsize)) {
+                    if (ErtsInArea(EXPAND_POINTER(msg->m[0]), literals, lit_bsize)) {
 			Uint sz = size_object(msg->m[0]);
 			msg->m[0] = copy_struct(msg->m[0], sz, &hp, ohp);
                     }

@@ -243,7 +243,7 @@ Sint erts_re_set_loop_limit(Sint limit)
 
 static int term_to_int(Eterm term, int *sp)
 {
-#if defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 8
 
     if (is_small(term)) {
 	Uint x = signed_val(term);
@@ -294,7 +294,7 @@ static int term_to_int(Eterm term, int *sp)
 
 static Eterm make_signed_integer(int x, Process *p)
 {
-#if defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 8
     return make_small(x);
 #else
     Eterm* hp;
@@ -633,7 +633,7 @@ build_compile_result(Process *p, pcre2_code *result, byte unicode, bool with_ok)
 #define EXPORTED_ENCODE_VERSION 1
 
 static uint32_t
-calc_checksum(const byte* encoded, Uint encoded_sz)
+calc_checksum(const byte* encoded, UWord encoded_sz)
 {
     return crc32(0, encoded, encoded_sz);
 }
@@ -708,7 +708,7 @@ re_import_1(BIF_ALIST_1)
     int32_t decode_ret;
     uint32_t chksum;
     const byte* hdr;
-    Uint hdr_sz;
+    UWord hdr_sz;
     const byte *hdr_tmp_alloc = NULL;
     const byte *encoded_tmp_alloc = NULL;
     byte enc_ver;
@@ -735,7 +735,7 @@ re_import_1(BIF_ALIST_1)
     enc_ver = get_int8(hdr + EXPORTED_HDR_ENCODE_VER_OFFS);
     if (enc_ver == EXPORTED_ENCODE_VERSION) {
         const byte *encoded;
-        Uint encoded_sz;
+        UWord encoded_sz;
 
         /*
          * Allow header to contain more unknow data that we ignore.
@@ -859,7 +859,7 @@ static bool get_iolist_as_bytes(Process* p,
     ASSERT(tmp_buf_p || resbin_p);
 
     if (is_bitstring(iolist)) {
-        Uint bit_offs, bit_sz;
+        UWord bit_offs, bit_sz;
 
         ERTS_GET_BITSTRING(iolist, *bytes_p, bit_offs, bit_sz);
         if (!BIT_OFFSET(bit_offs) && !TAIL_BITS(bit_sz)) {
@@ -1670,7 +1670,7 @@ re_run(Process *p, Eterm arg1, Eterm arg2, Eterm arg3, bool first)
     if (is_bitstring(arg1)) {
         ERTS_DECLARE_DUMMY(Eterm br_flags);
         ERTS_DECLARE_DUMMY(BinRef *br);
-        Uint offset, size;
+        UWord offset, size;
         byte *base;
 
         ERTS_PIN_BITSTRING(arg1, br_flags, br, base, offset, size);

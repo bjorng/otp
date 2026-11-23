@@ -1345,7 +1345,7 @@ int enif_inspect_binary(ErlNifEnv* env, Eterm bin_term, ErlNifBinary* bin)
     if (is_bitstring(bin_term)) {
         ERTS_DECLARE_DUMMY(Eterm br_flags);
         ERTS_DECLARE_DUMMY(BinRef *br);
-        Uint offset, size;
+        UWord offset, size;
         byte *base;
 
         ERTS_PIN_BITSTRING(bin_term, br_flags, br, base, offset, size);
@@ -1759,7 +1759,7 @@ Eterm enif_make_binary(ErlNifEnv* env, ErlNifBinary* bin)
 Eterm enif_make_sub_binary(ErlNifEnv* env, ERL_NIF_TERM bin_term,
                            size_t pos, size_t size)
 {
-    Uint source_offset, source_size;
+    UWord source_offset, source_size;
     byte *base;
     Eterm br_flags;
     BinRef *br;
@@ -2259,14 +2259,14 @@ ERL_NIF_TERM enif_make_string_len(ErlNifEnv *env, const char *string,
         return erts_bld_string_n(&hp, NULL, string, len);
     } else if (encoding == ERL_NIF_UTF8) {
         const byte *err_pos;
-        Uint num_chars;
-        Uint num_built; /* characters */
-        Uint num_eaten; /* bytes */
-        if (erts_analyze_utf8((byte *)string, (Uint)len, &err_pos, &num_chars, NULL) != ERTS_UTF8_OK) {
+        UWord num_chars;
+        UWord num_built; /* characters */
+        UWord num_eaten; /* bytes */
+        if (erts_analyze_utf8((byte *)string, (UWord)len, &err_pos, &num_chars, NULL) != ERTS_UTF8_OK) {
             return enif_make_badarg(env);
         }
         hp = alloc_heap(env, num_chars * 2);
-        return erts_make_list_from_utf8_buf(&hp, num_chars, (byte *)string, (Uint)len, &num_built, &num_eaten, NIL);
+        return erts_make_list_from_utf8_buf(&hp, num_chars, (byte *)string, (UWord)len, &num_built, &num_eaten, NIL);
     }
     return enif_make_badarg(env);
 }
@@ -2890,11 +2890,7 @@ static void rollback_opened_resource_types(void)
     }
 }
 
-#ifdef ARCH_64
-#  define ERTS_RESOURCE_DYING_FLAG (((Uint) 1) << 63)
-#else
-#  define ERTS_RESOURCE_DYING_FLAG (((Uint) 1) << 31)
-#endif
+#define ERTS_RESOURCE_DYING_FLAG (((UWord) 1) << (sizeof(UWord)*8 - 1))
 #define ERTS_RESOURCE_REFC_MASK (~ERTS_RESOURCE_DYING_FLAG)
 
 static ERTS_INLINE void
@@ -3955,7 +3951,7 @@ int enif_monitor_process(ErlNifEnv* env, void* obj, const ErlNifPid* target_pid,
                          ErlNifMonitor* monitor)
 {
     ErtsResource* rsrc = DATA_TO_RESOURCE(obj);
-    Eterm tmp[ERTS_REF_THING_SIZE];
+    DeclareTmpHeapNoProc(tmp_ref_heap, ERTS_REF_THING_SIZE);
     Eterm ref;
     ErtsResourceMonitors *rm;
     ErtsMonitorData *mdp;
@@ -3975,10 +3971,11 @@ int enif_monitor_process(ErlNifEnv* env, void* obj, const ErlNifPid* target_pid,
     if (target_pid->pid == am_undefined)
         return 1;
 
-    ref = erts_make_ref_in_buffer(tmp);
+    UseTmpHeapNoProc(tmp_ref_heap);
+    ref = erts_make_ref_in_buffer(tmp_ref_heap);
 
     mdp = erts_monitor_create(ERTS_MON_TYPE_RESOURCE, ref,
-                              (Eterm) rsrc, target_pid->pid,
+                              (UWord) rsrc, target_pid->pid,
                               NIL, THE_NON_VALUE);
     erts_mtx_lock(&rm->lock);
     ASSERT(!rmon_is_dying(rm));
@@ -4000,13 +3997,14 @@ int enif_monitor_process(ErlNifEnv* env, void* obj, const ErlNifPid* target_pid,
         ASSERT(erts_refc_read(&bin->binary.intern.refc, 1) != 0);
         erts_mtx_unlock(&rm->lock);
         erts_monitor_release_both(mdp);
-
+        UnDeclareTmpHeapNoProc(tmp_ref_heap);
         return 1;
     }
 
     if (monitor)
         erts_ref_to_driver_monitor(ref,monitor);
 
+    UnDeclareTmpHeapNoProc(tmp_ref_heap);
     return 0;
 }
 
@@ -4024,7 +4022,7 @@ int enif_demonitor_process(ErlNifEnv* env, void* obj, const ErlNifMonitor* monit
 #endif
     ErtsResourceMonitors *rm;
     ErtsMonitor *mon;
-    Eterm ref_heap[ERTS_REF_THING_SIZE];
+    DeclareUseTmpHeapNoProc(ref_heap, ERTS_REF_THING_SIZE);
     Eterm ref;
 
     ASSERT(bin->magic_binary.destructor == NIF_RESOURCE_DTOR);
@@ -4039,6 +4037,8 @@ int enif_demonitor_process(ErlNifEnv* env, void* obj, const ErlNifMonitor* monit
     if (mon)
         erts_monitor_tree_delete(&rm->root, mon);
     erts_mtx_unlock(&rm->lock);
+
+    UnDeclareTmpHeapNoProc(ref_heap);
 
     if (!mon)
         return 1;
@@ -4126,7 +4126,7 @@ static int examine_iovec_term(Eterm list, UWord max_length, iovec_slice_t *resul
         ERTS_DECLARE_DUMMY(byte *base);
         Eterm binary;
         Eterm *cell;
-        Uint offset, size;
+        UWord offset, size;
         BinRef *br;
 
         cell = list_val(lookahead);
@@ -4175,8 +4175,8 @@ static int examine_iovec_term(Eterm list, UWord max_length, iovec_slice_t *resul
 static void marshal_iovec_binary(Eterm binary, ErlNifBinary *copy_buffer,
                                  UWord *copy_offset, ErlNifBinary *result) {
     ERTS_DECLARE_DUMMY(Eterm br_flags);
-    ERTS_DECLARE_DUMMY(Uint size);
-    Uint offset;
+    ERTS_DECLARE_DUMMY(UWord size);
+    UWord offset;
     byte *base;
     BinRef *br;
 
@@ -4909,7 +4909,7 @@ Eterm erts_load_nif(Process *c_p, ErtsCodePtr I, Eterm filename, Eterm args)
 #endif
 
             ERTS_CT_ASSERT(sizeof(stub->code) <=
-                    BEAM_NATIVE_MIN_FUNC_SZ * sizeof(Eterm));
+                    BEAM_NATIVE_MIN_FUNC_SZ * sizeof(UWord));
 
             stub->code_info_ptr = ci;
             stub->info = *ci;

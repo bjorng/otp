@@ -292,13 +292,13 @@ erts_sys_is_area_readable(char *start, char *stop) {
 int erts_sys_prepare_crash_dump(int secs)
 {
     Port *heart_port;
-    Eterm heap[3];
-    Eterm *hp = heap;
     Eterm list = NIL;
 
     heart_port = erts_get_heart_port();
 
     if (heart_port) {
+        DeclareUseTmpHeapNoProc(heap, 3);
+        Eterm *hp = heap;
 
 	list = CONS(hp, make_small(8), list); hp += 2;
 
@@ -306,6 +306,7 @@ int erts_sys_prepare_crash_dump(int secs)
 	erts_port_output(NULL, ERTS_PORT_SIG_FLG_FORCE_IMM_CALL, heart_port,
 			 heart_port->common.id, list, NULL);
 
+        UnDeclareTmpHeapNoProc(heap);
 	return 1;
     }
 

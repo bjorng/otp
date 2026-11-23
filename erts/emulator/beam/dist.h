@@ -291,7 +291,7 @@ typedef struct TTBEncodeContext_ {
     Binary *result_bin;
     byte *cptr;
     Sint vlen;
-    Uint size;
+    size_t size;
     byte *payload_ixp;
     byte *hopeful_ixp;
     SysIOVec* iov;
@@ -374,7 +374,11 @@ typedef struct erts_dsig_send_context {
     Eterm ctl;
     Eterm msg;
     Eterm from;
+#if HALFWORD_HEAP
+    Eterm *ctl_heap;
+#else
     Eterm ctl_heap[8]; /* 7-tuple (SPAWN_REQUEST_TT) */
+#endif
     Eterm return_term;
 
     DistEntry *dep;
@@ -400,6 +404,14 @@ typedef struct erts_dsig_send_context {
     }u;
 
 } ErtsDSigSendContext;
+
+#if HALFWORD_HEAP
+#  define alloc_ctl_heap(CTX) (CTX)->ctl_heap = erts_alloc(ERTS_ALC_T_TMP, sizeof(Eterm)*8)
+#  define free_ctl_heap(CTX) erts_free(ERTS_ALC_T_TMP, (CTX)->ctl_heap)
+#else
+#  define alloc_ctl_heap(CTX) (void)0
+#  define free_ctl_heap(CTX) (void)0
+#endif
 
 typedef struct dist_sequences DistSeqNode;
 
@@ -464,7 +476,7 @@ extern int erts_dsig_prepare(ErtsDSigSendContext *,
 void erts_dist_print_procs_suspended_on_de(fmtfn_t to, void *to_arg);
 int erts_auto_connect(DistEntry* dep, Process *proc, ErtsProcLocks proc_locks);
 
-Uint erts_ttb_iov_size(int use_termv, Sint vlen, Uint fragments);
+size_t erts_ttb_iov_size(int use_termv, Sint vlen, Uint fragments);
 void erts_ttb_iov_init(TTBEncodeContext *ctx, int use_termv, char *ptr,
                        Sint vlen, Uint fragments, Uint fragments_size);
 

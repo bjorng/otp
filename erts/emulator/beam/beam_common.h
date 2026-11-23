@@ -260,13 +260,13 @@ ErtsCodePtr call_fun(Process* p, int arity, Eterm* reg, Eterm args);
 ErtsCodePtr apply_fun(Process* p, Eterm fun, Eterm args, Eterm* reg);
 int is_function2(Eterm Term, Uint arity);
 Eterm erts_gc_new_map(Process* p, Eterm* reg, Uint live,
-                      Uint n, const Eterm* data);
+                      Uint n, const BeamInstr* data);
 Eterm erts_gc_new_small_map_lit(Process* p, Eterm* reg, Eterm keys_literal,
-                                Uint live, const Eterm* data);
+                                Uint live, const BeamInstr* data);
 Eterm erts_gc_update_map_assoc(Process* p, Eterm* reg, Uint live,
-                               Uint n, const Eterm* data);
+                               Uint n, const BeamInstr* data);
 Eterm erts_gc_update_map_exact(Process* p, Eterm* reg, Uint live,
-                               Uint n, const Eterm* data);
+                               Uint n, const BeamInstr* data);
 Eterm get_map_element(Eterm map, Eterm key);
 Eterm get_map_element_hash(Eterm map, Eterm key, erts_ihash_t hx);
 int raw_raise(Eterm stacktrace, Eterm exc_class, Eterm value, Process *c_p);

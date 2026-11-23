@@ -208,20 +208,20 @@ typedef struct {
  * (if not gnuc we don't know if __i386__ is defined on x86;
  *  therefore, assume intel x86...)
  */
-#  define ERTS_BIN_ALIGNMENT_MASK ((Uint) 3)
+#  define ERTS_BIN_ALIGNMENT_MASK ((UWord) 3)
 #else
-#  define ERTS_BIN_ALIGNMENT_MASK ((Uint) 7)
+#  define ERTS_BIN_ALIGNMENT_MASK ((UWord) 7)
 #endif
 
 #define ERTS_CHK_BIN_ALIGNMENT(B) \
   do { ASSERT(!(B) || (((UWord) &((Binary *)(B))->orig_bytes[0]) & ERTS_BIN_ALIGNMENT_MASK) == ((UWord) 0)); } while(0)
 
-ERTS_GLB_INLINE Binary *erts_bin_drv_alloc_fnf(Uint size);
-ERTS_GLB_INLINE Binary *erts_bin_drv_alloc(Uint size);
-ERTS_GLB_INLINE Binary *erts_bin_nrml_alloc_fnf(Uint size);
-ERTS_GLB_INLINE Binary *erts_bin_nrml_alloc(Uint size);
-ERTS_GLB_INLINE Binary *erts_bin_realloc_fnf(Binary *bp, Uint size);
-ERTS_GLB_INLINE Binary *erts_bin_realloc(Binary *bp, Uint size);
+ERTS_GLB_INLINE Binary *erts_bin_drv_alloc_fnf(UWord size);
+ERTS_GLB_INLINE Binary *erts_bin_drv_alloc(UWord size);
+ERTS_GLB_INLINE Binary *erts_bin_nrml_alloc_fnf(UWord size);
+ERTS_GLB_INLINE Binary *erts_bin_nrml_alloc(UWord size);
+ERTS_GLB_INLINE Binary *erts_bin_realloc_fnf(Binary *bp, UWord size);
+ERTS_GLB_INLINE Binary *erts_bin_realloc(Binary *bp, UWord size);
 ERTS_GLB_INLINE void erts_magic_binary_free(Binary *bp);
 ERTS_GLB_INLINE void erts_bin_free(Binary *bp);
 ERTS_GLB_INLINE void erts_bin_release(Binary *bp);
@@ -260,10 +260,10 @@ ERTS_GLB_INLINE erts_atomic_t *erts_binary_to_magic_indirection(Binary *bp);
 #endif
 
 ERTS_GLB_INLINE Binary *
-erts_bin_drv_alloc_fnf(Uint size)
+erts_bin_drv_alloc_fnf(UWord size)
 {
     Binary *res;
-    Uint bsize;
+    UWord bsize;
 
     if (!IS_BINARY_SIZE_OK(size))
         return NULL;
@@ -282,7 +282,7 @@ erts_bin_drv_alloc_fnf(Uint size)
 }
 
 ERTS_GLB_INLINE Binary *
-erts_bin_drv_alloc(Uint size)
+erts_bin_drv_alloc(UWord size)
 {
     Binary *res = erts_bin_drv_alloc_fnf(size);
 
@@ -294,10 +294,10 @@ erts_bin_drv_alloc(Uint size)
 }
 
 ERTS_GLB_INLINE Binary *
-erts_bin_nrml_alloc_fnf(Uint size)
+erts_bin_nrml_alloc_fnf(UWord size)
 {
     Binary *res;
-    Uint bsize;
+    UWord bsize;
 
     if (!IS_BINARY_SIZE_OK(size))
         return NULL;
@@ -316,7 +316,7 @@ erts_bin_nrml_alloc_fnf(Uint size)
 }
 
 ERTS_GLB_INLINE Binary *
-erts_bin_nrml_alloc(Uint size)
+erts_bin_nrml_alloc(UWord size)
 {
     Binary *res = erts_bin_nrml_alloc_fnf(size);
 
@@ -328,11 +328,11 @@ erts_bin_nrml_alloc(Uint size)
 }
 
 ERTS_GLB_INLINE Binary *
-erts_bin_realloc_fnf(Binary *bp, Uint size)
+erts_bin_realloc_fnf(Binary *bp, UWord size)
 {
     ErtsAlcType_t type;
     Binary *nbp;
-    Uint bsize;
+    UWord bsize;
     
     ASSERT((bp->intern.flags & BIN_FLAG_MAGIC) == 0);
     if (!IS_BINARY_SIZE_OK(size))
@@ -358,7 +358,7 @@ erts_bin_realloc_fnf(Binary *bp, Uint size)
 }
 
 ERTS_GLB_INLINE Binary *
-erts_bin_realloc(Binary *bp, Uint size)
+erts_bin_realloc(Binary *bp, UWord size)
 {
     Binary *nbp = erts_bin_realloc_fnf(bp, size);
 

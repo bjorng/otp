@@ -1079,7 +1079,7 @@ Eterm beam_jit_int128_to_big(Process *p, Uint sign, Uint low, Uint high) {
 }
 
 void beam_jit_bs_put_binary_all(ErlBitsState *EBS, Process *c_p, Eterm arg) {
-    Uint offset, size;
+    UWord offset, size;
     byte *base;
 
     ERTS_GET_BITSTRING(arg, base, offset, size);

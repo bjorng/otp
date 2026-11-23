@@ -181,7 +181,7 @@ BIF_RETTYPE erl_ddll_try_load_3(BIF_ALIST_3)
     Eterm name_term = BIF_ARG_2;
     Eterm options = BIF_ARG_3;
     char *path = NULL;
-    Sint path_len;
+    SWord path_len;
     char *name = NULL;
     DE_Handle *dh;
     erts_driver_t *drv;

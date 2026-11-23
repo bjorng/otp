@@ -1,7 +1,7 @@
 /*
  * %CopyrightBegin%
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifierö: Apache-2.0
  *
  * Copyright Ericsson AB 1999-2025. All Rights Reserved.
  *
@@ -40,7 +40,7 @@
 
 #define ERL_BITS_PER_REDUCTION (8*1024)
 
-#define BYTE_OFFSET(offset_in_bits) ((Uint)(offset_in_bits) >> 3)
+#define BYTE_OFFSET(offset_in_bits) ((UWord)(offset_in_bits) >> 3)
 #define BIT_OFFSET(offset_in_bits) ((offset_in_bits) & 7)
 
 /* As the above, but slightly renamed to avoid confusing sizes and offsets. */
@@ -53,11 +53,11 @@
     ((bitstring_val(Bin)[0]) == HEADER_SUB_BITS ?                             \
      (((ErlSubBits*)bitstring_val(Bin))->end -                                \
       ((ErlSubBits*)bitstring_val(Bin))->start) :                             \
-     (((ErlHeapBits*)bitstring_val(Bin))->size))
+     (UWord)(((ErlHeapBits*)bitstring_val(Bin))->size))
 
 /* This structure represents either the term form of an off-heap bitstring, or
  * a bitstring match context. */
-typedef struct erl_sub_bits {
+typedef struct HALFWORD_PACKED() erl_sub_bits {
     /* Subtag SUB_BITS_SUBTAG. */
     Eterm thing_word;
 
@@ -73,8 +73,8 @@ typedef struct erl_sub_bits {
     UWord base_flags;
 
     /* Start and end offset in bits. */
-    Uint start;
-    Uint end;
+    UWord start;
+    UWord end;
 
     /* Tagged pointer to BinRef or ErlHeapBits, the latter is valid iff this is
      * a match context. */
@@ -96,7 +96,7 @@ typedef struct erl_sub_bits {
 
 ERTS_GLB_INLINE void
 erl_sub_bits_init(ErlSubBits *sb, UWord flags, Eterm orig, const void *base,
-                  Uint offset, Uint size);
+                  UWord offset, UWord size);
 
 ERTS_GLB_INLINE void
 erl_sub_bits_update_moved(ErlSubBits *sb, Eterm orig);
@@ -132,7 +132,7 @@ erl_sub_bits_update_moved(ErlSubBits *sb, Eterm orig);
 /** @brief A handle to an off-heap binary. While terms internally, these can
  * only be referred to by sub-bitstrings, and should never be exposed to the
  * user. */
-typedef struct bin_ref {
+typedef struct HALFWORD_PACKED() bin_ref {
     Eterm thing_word;           /* Subtag BIN_REF_SUBTAG. */
     Binary *val;                /* Pointer to Binary structure. */
     struct erl_off_heap_header *next;
@@ -187,7 +187,7 @@ struct erl_bits_state {
     /*
      * Offset in bits into the current binary.
      */
-    Uint erts_bin_offset;
+    UWord erts_bin_offset;
 };
 
 typedef struct erl_bits_state ErlBitsState;
@@ -219,14 +219,14 @@ typedef struct erl_bits_state ErlBitsState;
 /* ************************************************************************* */
 /* Helpers for the bitstring syntax */
 
-Eterm erts_bs_start_match_2(Process *p, Eterm Bin, Uint Max);
+Eterm erts_bs_start_match_2(Process *p, Eterm Bin, UWord Max);
 ErlSubBits *erts_bs_start_match_3(Process *p, Eterm Bin);
 Eterm erts_bs_get_integer_2(Process *p, Uint num_bits, unsigned flags, ErlSubBits* sb);
 Eterm erts_bs_get_float_2(Process *p, Uint num_bits, unsigned flags, ErlSubBits* sb);
 
 /* These will create heap binaries when appropriate, so they require free space
  * up to BUILD_SUB_BITSTRING_HEAP_NEED. */
-Eterm erts_bs_get_binary_2(Process *p, Uint num_bits, ErlSubBits* sb);
+Eterm erts_bs_get_binary_2(Process *p, UWord num_bits, ErlSubBits* sb);
 Eterm erts_bs_get_binary_all_2(Process *p, ErlSubBits* sb);
 
 /* Binary construction, new instruction set. */
@@ -236,28 +236,28 @@ int erts_bs_put_integer_le(ErlBitsState *EBS, Eterm Integer, Uint num_bits);
 int erts_bs_put_utf8(ErlBitsState *EBS, Eterm Integer);
 #endif
 int erts_bs_put_utf16(ErlBitsState *EBS, Eterm Integer, Uint flags);
-int erts_bs_put_binary(ErlBitsState *EBS, Process *c_p, Eterm Bin, Uint num_bits);
+int erts_bs_put_binary(ErlBitsState *EBS, Process *c_p, Eterm Bin, UWord num_bits);
 int erts_bs_put_binary_all(ErlBitsState* EBS, Process *c_p, Eterm Bin, Uint unit);
 Eterm erts_bs_put_float(ErlBitsState *EBS, Process *c_p, Eterm Float,
                         Uint num_bits, int flags);
-void erts_bs_put_string(ErlBitsState *EBS, byte* iptr, Uint num_bytes);
+void erts_bs_put_string(ErlBitsState *EBS, byte* iptr, UWord num_bytes);
 
 Uint32 erts_bs_get_unaligned_uint32(ErlSubBits* sb);
 Eterm erts_bs_get_utf8(ErlSubBits* sb);
 Eterm erts_bs_get_utf16(ErlSubBits* sb, Uint flags);
-Eterm erts_bs_append_checked(Process* p, Eterm* reg, Uint live, Uint size,
+Eterm erts_bs_append_checked(Process* p, Eterm* reg, Uint live, UWord size,
                              Uint extra_words, Uint unit);
 Eterm erts_bs_private_append_checked(ErlBitsState* EBS, Process* p,
-                                     Eterm bin, Uint size);
+                                     Eterm bin, UWord size);
 Eterm erts_bs_init_writable(Process* p, Eterm sz);
 
 /* ************************************************************************* */
 /* Copy and comparison routines. */
 
 ERTS_GLB_INLINE void
-copy_binary_to_buffer(byte *dst_base, Uint dst_offset,
-                      const byte *src_base, Uint src_offset,
-                      Uint size);
+copy_binary_to_buffer(byte *dst_base, UWord dst_offset,
+                      const byte *src_base, UWord src_offset,
+                      UWord size);
 
 void erts_copy_bits_fwd(const byte* src, size_t soffs,
                         byte* dst, size_t doffs, size_t n);
@@ -265,15 +265,15 @@ void erts_copy_bits_rev(const byte* src, size_t soffs,
                         byte* dst, size_t doffs, size_t n);
 
 ERTS_GLB_INLINE int erts_cmp_bits(const byte* a_ptr,
-                                  Uint a_offs,
+                                  UWord a_offs,
                                   const byte* b_ptr,
-                                  Uint b_offs,
-                                  Uint size);
+                                  UWord b_offs,
+                                  UWord size);
 int erts_cmp_bits__(const byte* a_ptr,
                     Uint a_offs,
                     const byte* b_ptr,
                     Uint b_offs,
-                    Uint size);
+                    UWord size);
 
 /* ************************************************************************* */
 /* Bitstring creation/management */
@@ -284,7 +284,7 @@ void erts_pin_writable_binary(ErlSubBits *sb, BinRef *br);
 
 /* Calculate the heap space for a binary extracted by
  * erts_build_sub_bitstring(). */
-ERTS_GLB_INLINE Uint erts_extracted_bitstring_size(Uint size);
+ERTS_GLB_INLINE Uint erts_extracted_bitstring_size(UWord size);
 
 /* Conservative estimate of the number of words required for
  * erts_build_sub_bitstring() when the number of bits is unknown. */
@@ -304,30 +304,30 @@ Eterm erts_build_sub_bitstring(Eterm **hp,
                                Eterm br_flags,
                                const BinRef *br,
                                const byte *base,
-                               Uint offset,
-                               Uint size);
+                               UWord offset,
+                               UWord size);
 
 /* As erts_build_sub_bitstring, but handles allocation and base_bin
  * extraction. */
-Eterm erts_make_sub_bitstring(Process *p, Eterm bitstring, Uint offset, Uint size);
-Eterm erts_make_sub_binary(Process *p, Eterm bitstring, Uint offset, Uint size);
+Eterm erts_make_sub_bitstring(Process *p, Eterm bitstring, UWord offset, UWord size);
+Eterm erts_make_sub_binary(Process *p, Eterm bitstring, UWord offset, UWord size);
 
-Eterm erts_new_bitstring(Process *p, Uint size, byte **datap);
-Eterm erts_new_bitstring_refc(Process *p, Uint size, Binary **binp, byte **datap);
-Eterm erts_new_bitstring_from_data(Process *p, Uint size, const byte *data);
+Eterm erts_new_bitstring(Process *p, UWord size, byte **datap);
+Eterm erts_new_bitstring_refc(Process *p, UWord size, Binary **binp, byte **datap);
+Eterm erts_new_bitstring_from_data(Process *p, UWord size, const byte *data);
 
 /* As erts_new_bitstring[_xyz] bit with sizes in bytes rather than bits */
-Eterm erts_new_binary(Process *p, Uint size, byte **datap);
-Eterm erts_new_binary_refc(Process *p, Uint size, Binary **binp, byte **datap);
-Eterm erts_new_binary_from_data(Process *p, Uint size, const byte *data);
+Eterm erts_new_binary(Process *p, UWord size, byte **datap);
+Eterm erts_new_binary_refc(Process *p, UWord size, Binary **binp, byte **datap);
+Eterm erts_new_binary_from_data(Process *p, UWord size, const byte *data);
 
 Eterm erts_hfact_new_bitstring(ErtsHeapFactory *hfact,
                                Uint extra,
-                               Uint size,
+                               UWord size,
                                byte **datap);
 Eterm erts_hfact_new_binary_from_data(ErtsHeapFactory *hfact,
                                       Uint extra,
-                                      Uint size,
+                                      UWord size,
                                       const byte *data);
 
 /** @brief Builds a combined ErlSubBits+BinRef for a full binary, without
@@ -340,8 +340,8 @@ Eterm erts_wrap_refc_bitstring(struct erl_off_heap_header **oh,
                                Eterm **hpp,
                                Binary *bin,
                                byte *data,
-                               Uint offset,
-                               Uint size);
+                               UWord offset,
+                               UWord size);
 
 #define ERTS_BR_OVERHEAD(oh, br)                                              \
     do {                                                                      \
@@ -441,13 +441,13 @@ Eterm erts_wrap_refc_bitstring(struct erl_off_heap_header **oh,
 
 ERTS_GLB_INLINE const byte*
 erts_get_aligned_binary_bytes_extra(Eterm bin,
-                                    Uint *size_ptr,
+                                    UWord *size_ptr,
                                     const byte **base_ptr,
                                     ErtsAlcType_t allocator,
-                                    Uint extra);
+                                    UWord extra);
 ERTS_GLB_INLINE const byte*
 erts_get_aligned_binary_bytes(Eterm bin,
-                              Uint *size_ptr,
+                              UWord *size_ptr,
                               const byte** base_ptr);
 ERTS_GLB_INLINE void
 erts_free_aligned_binary_bytes_extra(const byte* buf, ErtsAlcType_t);
@@ -488,7 +488,7 @@ erts_free_aligned_binary_bytes(const byte* buf);
 
 ERTS_GLB_INLINE void
 erl_sub_bits_init(ErlSubBits *sb, UWord flags, Eterm orig, const void *base,
-                  Uint offset, Uint size)
+                  UWord offset, UWord size)
 {
     /* The data pointers that we produce are all aligned, but unaligned ones
      * can sneak in through resource binaries or the likes, in which case we
@@ -496,7 +496,7 @@ erl_sub_bits_init(ErlSubBits *sb, UWord flags, Eterm orig, const void *base,
      *
      * To handle this corner case, we'll adjust the incoming pointer and shift
      * the start of the bitstring to fit. */
-    Uint adjustment = (UWord)base & ERL_SUB_BITS_FLAG_MASK;
+    UWord adjustment = (UWord)base & ERL_SUB_BITS_FLAG_MASK;
 
     ASSERT(is_boxed(orig));
     ASSERT(!(flags & ~ERL_SUB_BITS_FLAG_MASK));
@@ -538,9 +538,9 @@ erl_sub_bits_update_moved(ErlSubBits *sb, Eterm orig)
 }
 
 ERTS_GLB_INLINE void
-copy_binary_to_buffer(byte *dst_base, Uint dst_offset,
-                      const byte *src_base, Uint src_offset,
-                      Uint size)
+copy_binary_to_buffer(byte *dst_base, UWord dst_offset,
+                      const byte *src_base, UWord src_offset,
+                      UWord size)
 {
     if (size > 0) {
         dst_base += BYTE_OFFSET(dst_offset);
@@ -558,10 +558,10 @@ copy_binary_to_buffer(byte *dst_base, Uint dst_offset,
 
 ERTS_GLB_INLINE int
 erts_cmp_bits(const byte* a_ptr,
-              Uint a_offs,
+              UWord a_offs,
               const byte* b_ptr,
-              Uint b_offs,
-              Uint size)
+              UWord b_offs,
+              UWord size)
 {
     if (size > 0) {
         a_ptr += BYTE_OFFSET(a_offs);
@@ -582,7 +582,7 @@ erts_cmp_bits(const byte* a_ptr,
 }
 
 ERTS_GLB_INLINE Uint
-erts_extracted_bitstring_size(Uint size)
+erts_extracted_bitstring_size(UWord size)
 {
     if (size <= ERL_ONHEAP_BITS_LIMIT) {
         return heap_bits_size(size);
@@ -593,7 +593,7 @@ erts_extracted_bitstring_size(Uint size)
 }
 
 ERTS_GLB_INLINE const byte*
-erts_get_aligned_binary_bytes(Eterm bin, Uint *size_ptr, const byte **base_ptr)
+erts_get_aligned_binary_bytes(Eterm bin, UWord *size_ptr, const byte **base_ptr)
 {
     return erts_get_aligned_binary_bytes_extra(bin,
                                                size_ptr,
@@ -604,13 +604,13 @@ erts_get_aligned_binary_bytes(Eterm bin, Uint *size_ptr, const byte **base_ptr)
 
 ERTS_GLB_INLINE const byte*
 erts_get_aligned_binary_bytes_extra(Eterm bin,
-                                    Uint *size_ptr,
+                                    UWord *size_ptr,
                                     const byte **base_ptr,
                                     ErtsAlcType_t allocator,
-                                    Uint extra)
+                                    UWord extra)
 {
     if (is_bitstring(bin)) {
-        Uint offset, size;
+        UWord offset, size;
         const byte *base;
 
         ERTS_GET_BITSTRING(bin, base, offset, size);

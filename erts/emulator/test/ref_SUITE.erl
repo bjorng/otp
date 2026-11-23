@@ -151,17 +151,25 @@ external_size(Config) when is_list(Config) ->
     ok.
 
 check_external_size(Ref) when is_reference(Ref) ->
-    case erlang:system_info(wordsize) of
-        4 ->
+    case {erlang:system_info({wordsize,external}),
+          erlang:system_info({wordsize,internal})} of
+        {4,4} ->
             case erts_debug:size(Ref) of
                 Sz when 6 =< Sz, Sz =< 8 ->
                     Sz;
                 Sz ->
                     error({internal_ref_size_out_of_range, Sz})
             end;
-        8 ->
+        {8,8} ->
             case erts_debug:size(Ref) of
                 Sz when 5 =< Sz, Sz =< 6 ->
+                    Sz;
+                Sz ->
+                    error({internal_ref_size_out_of_range, Sz})
+            end;
+        {8,4} ->
+            case erts_debug:size(Ref) of
+                Sz when 8 =< Sz, Sz =< 10 ->
                     Sz;
                 Sz ->
                     error({internal_ref_size_out_of_range, Sz})

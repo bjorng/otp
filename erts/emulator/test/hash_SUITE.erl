@@ -715,17 +715,31 @@ wait_for_mseg_cache(N) ->
     end.
 
 get_cached_segments() ->
+    MemKind = memkind(),
     case erlang:system_info({allocator,mseg_alloc}) of
         false ->
             0;
         MsegInfo ->
             lists:foldl(
               fun({instance,_,Info}, Acc) ->
-                      Kind = proplists:get_value(memkind, Info),
+                      Kind = proplists:get_value(MemKind, Info),
                       Status = proplists:get_value(status, Kind),
                       {cached_segments,Cached} = lists:keyfind(cached_segments, 1, Status),
                       Acc + Cached
               end, 0, MsegInfo)
+    end.
+
+memkind() ->
+    case is_halfword_vm() of
+        true -> hi_mem;
+        false -> memkind
+    end.
+
+is_halfword_vm() ->
+    case {erlang:system_info({wordsize, internal}),
+          erlang:system_info({wordsize, external})} of
+        {4, 8} -> true;
+        {WS, WS} -> false
     end.
 
 run_when_enough_resources(Fun) ->

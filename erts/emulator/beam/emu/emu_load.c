@@ -533,7 +533,7 @@ int beam_load_finish_emit(LoaderState *stp) {
                     /* Correct label in most significant word? */
                     ASSERT(w == i);
 #endif
-                    codev[pos] = ((Uint)rel << BEAM_WIDE_SHIFT) |
+                    codev[pos] = ((BeamInstr)rel << BEAM_WIDE_SHIFT) |
                         (codev[pos] & BEAM_WIDE_MASK);
                     break;
 #endif
@@ -880,7 +880,7 @@ int beam_load_emit_op(LoaderState *stp, BeamOp *tmp_op) {
     /* The size of the loaded func_info instruction is needed by both the nif
      * functionality and line instructions. */
     enum {
-        FUNC_INFO_SZ = sizeof(ErtsCodeInfo) / sizeof(Eterm)
+        FUNC_INFO_SZ = sizeof(ErtsCodeInfo) / sizeof(BeamInstr)
     };
 
     const char *sign;
@@ -1317,7 +1317,7 @@ int beam_load_emit_op(LoaderState *stp, BeamOp *tmp_op) {
 
         ci = src_index;
         while (ci < dst_limit) {
-            Uint w[2];
+            BeamInstr w[2];
             BeamInstr packed = 0;
             int wi;
 
@@ -1328,7 +1328,7 @@ int beam_load_emit_op(LoaderState *stp, BeamOp *tmp_op) {
                 w[1] = 0;
             }
             for (wi = 0; wi < 2; wi++) {
-                Uint lbl = w[wi];
+                BeamInstr lbl = w[wi];
                 LabelPatch* lp = stp->labels[lbl].patches;
                 int num_patches = stp->labels[lbl].num_patches;
 

@@ -115,9 +115,12 @@ test_size(Config) when is_list(Config) ->
     %% Fun environment size = 0 (the smallest fun possible)
     SimplestFun = fun() -> ok end,
 
-    %% Funs without environment occupy 2 words, and are stored off-heap as long
-    %% as their defining module is loaded.
-    FunSz0 = 2,
+    %% Funs without environment occupy 1 Eterm + 1 pointer, and are stored off-heap
+    %% as long as their defining module is loaded.
+    FunSz0 = case is_halfword_vm() of
+                 true -> 3;
+                 false -> 2
+             end,
     FunSz0 = do_test_size(SimplestFun),
 
     %% Fun environment size = 1
@@ -130,37 +133,60 @@ test_size(Config) when is_list(Config) ->
 
     FunSz1 = do_test_size(fun() -> ConsCell1 end) - do_test_size(ConsCell1),
 
-    %% External funs, which always lack environment, occupy 2 words and are
+    %% External funs, which always lack environment, occupy 2(3) words and are
     %% always stored off-heap.
-    2 = do_test_size(fun lists:sort/1),
+    FunSz0 = do_test_size(fun lists:sort/1),
 
-    Arch = 8 * erlang:system_info({wordsize, external}),
+    Arch = case {erlang:system_info({wordsize, external}),
+                 erlang:system_info({wordsize, internal})} of
+               {4,4} -> 32;
+               {8,8} -> 64;
+               {8,4} -> hw
+           end,
     case {Arch, do_test_size(mk_ext_pid({a@b, 1}, 17, 42))} of
 	{32, 5} -> ok;
-	{64, 4} -> ok
+        {64, 4} -> ok;
+        {hw, 7} -> ok
     end,
     case {Arch, do_test_size(mk_ext_port({a@b, 1}, 1742))} of
 	{32, 5} -> ok;
-	{64, 4} -> ok
+        {64, 4} -> ok;
+        {hw, 7} -> ok
     end,
     case {Arch, do_test_size(make_ref())} of
 	{32, 4} -> ok;
-	{64, 3} -> ok
+        {64, 3} -> ok;
+        {hw, 4} -> ok
     end,
     case {Arch, do_test_size(mk_ext_ref({a@b, 1}, [42,43,44]))} of
 	{32, 6} -> ok;
-	{64, 5} -> ok
+        {64, 5} -> ok;
+        {hw, 8} -> ok
     end,
-    3 = do_test_size(atomics:new(1,[])), % Magic ref
+    case {Arch, do_test_size(atomics:new(1,[]))} of % Magic ref
+        {32, 3} -> ok;
+        {64, 3} -> ok;
+        {hw, 6} -> ok
+    end,
 
     3 = do_test_size(<<1,2,3>>),       % ErlHeapBin
     case {Arch, do_test_size(<<0:(8*64)>>)} of   % ERL_ONHEAP_BIN_LIMIT
 	{32, 18} -> ok;
-	{64, 10} -> ok
+        {64, 10} -> ok;
+        {hw, 18} -> ok
+
     end,
-    8 = do_test_size(<<0:(8*65)>>),    % ErlSubBits + BinRef
+    case {Arch, do_test_size(<<0:(8*65)>>)} of    % ErlSubBits + BinRef
+        {32, 8} -> ok;
+        {64, 8} -> ok;
+        {hw, 13} -> ok
+    end,
     3 = do_test_size(<<5:7>>),         % ErlHeapBits
-    8 = do_test_size(<<0:(8*80+1)>>),  % ErlSubBits + BinRef
+    case {Arch, do_test_size(<<0:(8*80+1)>>)} of  % ErlSubBits + BinRef
+        {32, 8} -> ok;
+        {64, 8} -> ok;
+        {hw, 13} -> ok
+    end,
 
     %% Test shared data structures.
     do_test_size([ConsCell1|ConsCell1],
@@ -176,6 +202,13 @@ test_size(Config) when is_list(Config) ->
     M = id(#{ "atom" => first, i => 0}),
     do_test_size([M,M#{ "atom" := other },M#{i := 42}],54,32),
     ok.
+
+is_halfword_vm() ->
+    case {erlang:system_info({wordsize, internal}),
+          erlang:system_info({wordsize, external})} of
+        {4, 8} -> true;
+        {WS, WS} -> false
+    end.
 
 do_test_size(Term) ->
     Sz = erts_debug:flat_size(Term),

@@ -147,8 +147,8 @@ void erts_flxctr_dec(ErtsFlxCtr* c,
  *         possibly incorrect estimate of the counter value if c is
  *         decentralized
  */
-Sint erts_flxctr_read_approx(ErtsFlxCtr* c,
-                             Uint counter_nr);
+SWord erts_flxctr_read_approx(ErtsFlxCtr* c,
+                              Uint counter_nr);
 
 /**
  * @brief This function can only be used together with an ErtsFlxCtr
@@ -157,8 +157,8 @@ Sint erts_flxctr_read_approx(ErtsFlxCtr* c,
  * the increment.
  */
 ERTS_GLB_INLINE
-Sint erts_flxctr_inc_read_centralized(ErtsFlxCtr* c,
-                                      Uint counter_nr);
+SWord erts_flxctr_inc_read_centralized(ErtsFlxCtr* c,
+                                       Uint counter_nr);
 
 /**
  * @brief This function can only be used together with a ErtsFlxCtr
@@ -167,8 +167,8 @@ Sint erts_flxctr_inc_read_centralized(ErtsFlxCtr* c,
  * the operation.
  */
 ERTS_GLB_INLINE
-Sint erts_flxctr_dec_read_centralized(ErtsFlxCtr* c,
-                                      Uint counter_nr);
+SWord erts_flxctr_dec_read_centralized(ErtsFlxCtr* c,
+                                       Uint counter_nr);
 
 /**
  * @brief This function can only be used together with an ErtsFlxCtr
@@ -176,7 +176,7 @@ Sint erts_flxctr_dec_read_centralized(ErtsFlxCtr* c,
  * current value of the specified counter.
  */
 ERTS_GLB_INLINE
-Sint erts_flxctr_read_centralized(ErtsFlxCtr* c,
+SWord erts_flxctr_read_centralized(ErtsFlxCtr* c,
                                   Uint counter_nr);
 
 
@@ -189,7 +189,7 @@ typedef enum {
 typedef struct {
     ErtsFlxctrSnapshotResultType type;
     Eterm trap_resume_state;
-    Sint result[ERTS_FLXCTR_ATOMICS_PER_CACHE_LINE];
+    SWord result[ERTS_FLXCTR_ATOMICS_PER_CACHE_LINE];
 } ErtsFlxCtrSnapshotResult;
 
 /**
@@ -257,8 +257,8 @@ bool erts_flxctr_is_snapshot_result(Eterm term);
  * returned by erts_flxctr_snapshot). The caller needs to trap between
  * the return of erts_flxctr_snapshot and the call to this function.
  */
-Sint erts_flxctr_get_snapshot_result_after_trap(Eterm trap_resume_state,
-                                                Uint counter_nr);
+SWord erts_flxctr_get_snapshot_result_after_trap(Eterm trap_resume_state,
+                                                 Uint counter_nr);
 
 /**
  * @brief Resets the specified counter to 0. This function is unsafe
@@ -307,7 +307,7 @@ size_t erts_flxctr_nr_of_allocated_bytes(ErtsFlxCtr* c);
  * @return number of bytes allocated for decentralized counter arrays
  * if in debug mode and otherwise -1
  */
-Sint erts_flxctr_debug_memory_usage(void);
+SWord erts_flxctr_debug_memory_usage(void);
 
 /* End: Public Interface */
 
@@ -396,8 +396,8 @@ void erts_flxctr_dec(ErtsFlxCtr* c,
 }
 
 ERTS_GLB_INLINE
-Sint erts_flxctr_inc_read_centralized(ErtsFlxCtr* c,
-                                      Uint counter_nr)
+SWord erts_flxctr_inc_read_centralized(ErtsFlxCtr* c,
+                                       Uint counter_nr)
 {
     ASSERT(counter_nr < c->nr_of_counters);
     ASSERT(!c->is_decentralized);
@@ -405,8 +405,8 @@ Sint erts_flxctr_inc_read_centralized(ErtsFlxCtr* c,
 }
 
 ERTS_GLB_INLINE
-Sint erts_flxctr_dec_read_centralized(ErtsFlxCtr* c,
-                                      Uint counter_nr)
+SWord erts_flxctr_dec_read_centralized(ErtsFlxCtr* c,
+                                       Uint counter_nr)
 {
     ASSERT(counter_nr < c->nr_of_counters);
     ASSERT(!c->is_decentralized);
@@ -414,8 +414,8 @@ Sint erts_flxctr_dec_read_centralized(ErtsFlxCtr* c,
 }
 
 ERTS_GLB_INLINE
-Sint erts_flxctr_read_centralized(ErtsFlxCtr* c,
-                                  Uint counter_nr)
+SWord erts_flxctr_read_centralized(ErtsFlxCtr* c,
+                                   Uint counter_nr)
 {
     ASSERT(counter_nr < c->nr_of_counters);
     ASSERT(!c->is_decentralized);   

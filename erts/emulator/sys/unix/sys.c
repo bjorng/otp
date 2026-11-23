@@ -518,17 +518,11 @@ erts_sys_is_area_readable(char *start, char *stop) {
 static ERTS_INLINE int
 prepare_crash_dump(int secs)
 {
-#define NUFBUF (3)
     int i;
     char env[21]; /* enough to hold any 64-bit integer */
     size_t envsz;
-    DeclareTmpHeapNoproc(heap,NUFBUF);
     Port *heart_port;
-    Eterm *hp = heap;
-    Eterm list = NIL;
     int has_heart = 0;
-
-    UseTmpHeapNoproc(NUFBUF);
 
     if (ERTS_PREPARED_CRASH_DUMP)
 	return 0; /* We have already been called */
@@ -555,11 +549,14 @@ prepare_crash_dump(int secs)
     erts_emergency_close_ports();
 
     if (heart_port) {
+        DeclareUseTmpHeapNoProc(heap,2);
+        Eterm list = CONS(heap, make_small(8), NIL);
+
 	has_heart = 1;
-	list = CONS(hp, make_small(8), list); hp += 2;
 	/* send to heart port, CMD = 8, i.e. prepare crash dump =o */
 	erts_port_output(NULL, ERTS_PORT_SIG_FLG_FORCE_IMM_CALL, heart_port,
 			 heart_port->common.id, list, NULL);
+        UnDeclareTmpHeapNoProc(heap);
     }
 
     /* Make sure we have a fd for our crashdump file. */
@@ -576,8 +573,6 @@ prepare_crash_dump(int secs)
 	erts_silence_warn_unused_result(nice(nice_val));
     }
 
-    UnUseTmpHeapNoproc(NUFBUF);
-#undef NUFBUF
     return has_heart;
 }
 

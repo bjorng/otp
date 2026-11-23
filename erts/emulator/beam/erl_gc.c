@@ -176,7 +176,7 @@ static void disallow_heap_frag_ref_in_heap(Process *p, Eterm *heap, Eterm *htop)
 static void disallow_heap_frag_ref_in_old_heap(Process* p);
 #endif
 
-#if defined(ARCH_64)
+#if defined(ARCH_64) && !HALFWORD_HEAP
 # define MAX_HEAP_SIZES 154
 #else
 # define MAX_HEAP_SIZES 59
@@ -229,10 +229,25 @@ gc_cost(Uint gc_moved_live_words, Uint resize_moved_words)
     return (int) reds;
 }
 
+#if !HALFWORD_HEAP
 ERTS_SCHED_PREF_QUICK_ALLOC_IMPL(gcireq,
                                  ErtsGCInfoReq,
                                  5,
                                  ERTS_ALC_T_GC_INFO_REQ)
+#else
+static ERTS_INLINE ErtsGCInfoReq *
+gcireq_alloc(void)
+{
+    return erts_alloc(ERTS_ALC_T_GC_INFO_REQ,
+                      sizeof(ErtsGCInfoReq));
+}
+
+static ERTS_INLINE void
+gcireq_free(ErtsGCInfoReq *ptr)
+{
+    erts_free(ERTS_ALC_T_GC_INFO_REQ, ptr);
+}
+#endif
 
 /*
  * Initialize GC global data.
@@ -246,8 +261,10 @@ erts_init_gc(void)
     ERTS_CT_ASSERT(offsetof(BinRef,thing_word) == offsetof(struct erl_off_heap_header,thing_word));
     ERTS_CT_ASSERT(offsetof(BinRef,thing_word) == offsetof(ErlFunThing,thing_word));
     ERTS_CT_ASSERT(offsetof(BinRef,thing_word) == offsetof(ExternalThing,header));
+    ERTS_CT_ASSERT(offsetof(BinRef,thing_word) == offsetof(ErtsMRefThing,header));
     ERTS_CT_ASSERT(offsetof(BinRef,next) == offsetof(struct erl_off_heap_header,next));
     ERTS_CT_ASSERT(offsetof(BinRef,next) == offsetof(ExternalThing,next));
+    ERTS_CT_ASSERT(offsetof(BinRef,next) == offsetof(ErtsMRefThing,next));
 
     erts_test_long_gc_sleep = 0;
 
@@ -299,7 +316,9 @@ erts_init_gc(void)
         ERTS_LOCK_FLAGS_PROPERTY_STATIC | ERTS_LOCK_FLAGS_CATEGORY_GENERIC);
     init_gc_info(&dirty_gc.info);
 
+#if !HALFWORD_HEAP
     init_gcireq_alloc();
+#endif
 }
 
 /*
@@ -535,8 +554,8 @@ delay_garbage_collection(Process *p, int need, int fcalls)
     ssz = orig_hend - orig_stop;
     hsz = ssz + need + ERTS_DELAY_GC_EXTRA_FREE + S_RESERVED;
 
-    /* Allocate one extra word at the end to save the high water mark. */
-    hfrag = new_message_buffer(hsz + 1);
+    /* Allocate one extra (full) word at the end to save the high water mark. */
+    hfrag = new_message_buffer(hsz + sizeof(void*)/sizeof(Eterm));
 
     copy_erlang_stack(p, &hfrag->mem[0], hsz);
 
@@ -546,9 +565,9 @@ delay_garbage_collection(Process *p, int need, int fcalls)
     /* Save the original high water mark at the end of the current
      * heap to make it possible to do a minor GC later. */
     if (p->abandoned_heap) {
-        *hend = (Eterm) (p->hend[0]);
+        sys_memcpy(hend, p->hend, sizeof(Eterm*));
     } else {
-        *hend = (Eterm) p->high_water;
+        sys_memcpy(hend, &p->high_water, sizeof(Eterm*));
     }
 
     p->hend = hend;
@@ -665,6 +684,7 @@ get_orig_heap(Process *p, Eterm **p_htop, Eterm **p_high_water) {
 
     /* See delay_garbage_collection(). */
 
+    ASSERT(p->abandoned_heap);
     ASSERT(aheap != NULL);
 
     if (p->flags & F_ABANDONED_HEAP_USE) {
@@ -678,7 +698,7 @@ get_orig_heap(Process *p, Eterm **p_htop, Eterm **p_high_water) {
     if (p_high_water) {
         Eterm *high_water;
 
-        high_water = (Eterm *)(p->hend[0]);
+        sys_memcpy(&high_water, p->hend, sizeof(Eterm*));
 
         ASSERT(aheap <= high_water);
         ASSERT(high_water <= htop);
@@ -1418,7 +1438,7 @@ minor_collection(Process* p, ErlHeapFragment *live_hf_end,
 
     if (p->abandoned_heap) {
         /* See delay_garbage_collection(). */
-        high_water = (Eterm *)(p->hend[0]);
+        sys_memcpy(&high_water, p->hend, sizeof(Eterm*));
     } else {
         high_water = p->high_water;
     }
@@ -1429,7 +1449,7 @@ minor_collection(Process* p, ErlHeapFragment *live_hf_end,
         ASSERT(high_water - p->abandoned_heap <= size_before);
 
         /* The high water pointer must be aligned to a word boundary. */
-        ASSERT(((UWord) high_water) % sizeof(UWord) == 0);
+        ASSERT(((UWord) high_water) % sizeof(Eterm) == 0);
     }
 #endif
 
@@ -3391,7 +3411,7 @@ offset_stack(Eterm *stack, Uint sz,
 
             switch (primary_tag(val)) {
             case TAG_PRIMARY_HEADER:
-                if (ErtsInArea(val, stack_area, stack_area_sz)) {
+                if (ErtsInArea(EXPAND_POINTER(val), stack_area, stack_area_sz)) {
                     stack[i] = offset_ptr(val, stack_offset);
                 }
 

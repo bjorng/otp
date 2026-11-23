@@ -39,7 +39,7 @@ typedef struct {
     ErtsFlxCtrDecentralizedCtrArray* next_array;
     ErtsAlcType_t alloc_type;
     int nr_of_counters;
-    Sint result[ERTS_FLXCTR_ATOMICS_PER_CACHE_LINE];
+    SWord result[ERTS_FLXCTR_ATOMICS_PER_CACHE_LINE];
 } DecentralizedReadSnapshotInfo;
 
 typedef enum {
@@ -97,7 +97,7 @@ thr_prg_wake_up_and_count(void* bin_p)
     }
     /* Announce that the snapshot is done */
     {
-        Sint expected = ERTS_FLXCTR_SNAPSHOT_ONGOING;
+        erts_aint_t expected = ERTS_FLXCTR_SNAPSHOT_ONGOING;
         if (expected != erts_atomic_cmpxchg_mb(&next->snapshot_status,
                                                ERTS_FLXCTR_SNAPSHOT_NOT_ONGOING,
                                                expected)) {
@@ -191,12 +191,12 @@ create_decentralized_ctr_array(ErtsAlcType_t alloc_type, Uint nr_of_counters) {
 #endif
     bytes = &bytes[offsetof(ErtsFlxCtrDecentralizedCtrArray, array)];
     bytes_to_next_cacheline_border =
-        ERTS_CACHE_LINE_SIZE - (((Uint)bytes) % ERTS_CACHE_LINE_SIZE);
+        ERTS_CACHE_LINE_SIZE - (((UWord)bytes) % ERTS_CACHE_LINE_SIZE);
     array = (ErtsFlxCtrDecentralizedCtrArray*)
         (&bytes[bytes_to_next_cacheline_border -
                 (int)offsetof(ErtsFlxCtrDecentralizedCtrArray, array)]);
-    ASSERT(((Uint)array->array) % ERTS_CACHE_LINE_SIZE == 0);
-    ASSERT(((Uint)array - (Uint)block_start) <= ERTS_CACHE_LINE_SIZE);
+    ASSERT(((UWord)array->array) % ERTS_CACHE_LINE_SIZE == 0);
+    ASSERT(((UWord)array - (UWord)block_start) <= ERTS_CACHE_LINE_SIZE);
     /* Initialize fields */
     erts_atomic_init_nob(&array->snapshot_status, ERTS_FLXCTR_SNAPSHOT_ONGOING);
     for (sched = 0; sched < ERTS_FLXCTR_DECENTRALIZED_NO_SLOTS; sched++) {
@@ -229,8 +229,8 @@ void erts_flxctr_init(ErtsFlxCtr* c,
             create_decentralized_ctr_array(alloc_type, nr_of_counters);
         erts_atomic_set_nob(&array->snapshot_status,
                             ERTS_FLXCTR_SNAPSHOT_NOT_ONGOING);
-        erts_atomic_init_nob(&c->u.counters_ptr, (Sint)array);
-        ASSERT(((Uint)array->array) % ERTS_CACHE_LINE_SIZE == 0);
+        erts_atomic_init_nob(&c->u.counters_ptr, (erts_aint_t)array);
+        ASSERT(((UWord)array->array) % ERTS_CACHE_LINE_SIZE == 0);
     } else {
         int i;
         for (i = 0; i < nr_of_counters; i++) {
@@ -247,7 +247,7 @@ void erts_flxctr_destroy(ErtsFlxCtr* c, ErtsAlcType_t alloc_type)
                 ERTS_FLXCTR_GET_CTR_ARRAY_PTR(c);
             /* Try to delegate the resposibilty of freeing to
                thr_prg_wake_up_and_count */
-            Sint expected = ERTS_FLXCTR_SNAPSHOT_ONGOING;
+            erts_aint_t expected = ERTS_FLXCTR_SNAPSHOT_ONGOING;
             if (expected !=
                 erts_atomic_cmpxchg_mb(&array->snapshot_status,
                                        ERTS_FLXCTR_SNAPSHOT_ONGOING_TP_THREAD_DO_FREE,
@@ -285,9 +285,9 @@ erts_flxctr_snapshot(ErtsFlxCtr* c,
             ErtsFlxCtrDecentralizedCtrArray* new_array =
                 create_decentralized_ctr_array(alloc_type, c->nr_of_counters);
             int success =
-                ((Sint)array) == erts_atomic_cmpxchg_mb(&c->u.counters_ptr,
-                                                        (Sint)new_array,
-                                                        (Sint)array);
+                ((erts_aint_t)array) == erts_atomic_cmpxchg_mb(&c->u.counters_ptr,
+                                                               (erts_aint_t)new_array,
+                                                               (erts_aint_t)array);
             if (!success) {
                 /* Let the caller try again later */
                 ErtsFlxCtrSnapshotResult res =
@@ -335,8 +335,8 @@ erts_flxctr_snapshot(ErtsFlxCtr* c,
 }
 
 
-Sint erts_flxctr_get_snapshot_result_after_trap(Eterm result_holder,
-                                            Uint counter_nr)
+SWord erts_flxctr_get_snapshot_result_after_trap(Eterm result_holder,
+                                                 Uint counter_nr)
 {
     Binary* bin = erts_magic_ref2bin(result_holder);
     DecentralizedReadSnapshotInfo* data = ERTS_MAGIC_BIN_DATA(bin);;
@@ -352,12 +352,12 @@ bool erts_flxctr_is_snapshot_result(Eterm term)
         return false;
 }
 
-Sint erts_flxctr_read_approx(ErtsFlxCtr* c,
-                             Uint counter_nr)
+SWord erts_flxctr_read_approx(ErtsFlxCtr* c,
+                              Uint counter_nr)
 {
     if (c->is_decentralized) {
         ErtsFlxCtrDecentralizedCtrArray* counter = ERTS_FLXCTR_GET_CTR_ARRAY_PTR(c);
-        Sint sum = 0;
+        SWord sum = 0;
         int sched;
         for (sched = 0; sched < ERTS_FLXCTR_DECENTRALIZED_NO_SLOTS; sched++) {
             sum = sum + erts_atomic_read_nob(&counter->array[sched].counters[counter_nr]);
@@ -407,7 +407,7 @@ void erts_flxctr_set_slot(int group)
     esdp->flxctr_slot_no = group;
 }
 
-Sint erts_flxctr_debug_memory_usage(void)
+SWord erts_flxctr_debug_memory_usage(void)
 {
 #ifdef FLXCTR_MEM_DEBUG
     return erts_atomic_read_mb(&debug_mem_usage);

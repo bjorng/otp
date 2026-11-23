@@ -146,6 +146,12 @@ do {									\
 } while (0)
 
 
+#if HALFWORD_HEAP
+#  define TermWords(t) (((t) / (sizeof(UWord)/sizeof(Eterm))) + !!((t) % (sizeof(UWord)/sizeof(Eterm))))
+#else
+#  define TermWords(t) t
+#endif
+
 #define add_dmc_err(EINFO, STR, VAR, TERM, SEV) \
        vadd_dmc_err(EINFO, SEV, VAR, STR, TERM)
 
@@ -472,11 +478,7 @@ cleanup_match_pseudo_process(ErtsMatchPseudoProcess *mpsp, bool keep_heap)
 	else {
 	    int i;
 	    for (i = 0; i < ERTS_DEFAULT_MS_HEAP_SIZE; i++) {
-#if defined(ARCH_64)
 		mpsp->default_heap[i] = (Eterm) 0xdeadbeefdeadbeef;
-#else
-		mpsp->default_heap[i] = (Eterm) 0xdeadbeef;
-#endif
 	    }
 	}
 #endif
@@ -1104,7 +1106,7 @@ static Eterm seq_trace_fake(Process *p, Eterm arg1);
 BIF_RETTYPE db_get_trace_control_word(Process *p)
 {
     Uint32 tcw = (Uint32) erts_atomic32_read_acqb(&trace_control_word);
-    BIF_RET(erts_make_integer((Uint) tcw, p));
+    BIF_RET(erts_make_uword((Uint) tcw, p));
 }
 
 BIF_RETTYPE db_get_trace_control_word_0(BIF_ALIST_0)
@@ -1123,7 +1125,7 @@ BIF_RETTYPE db_set_trace_control_word(Process *p, Eterm new)
 
     old_tcw = (Uint32) erts_atomic32_xchg_relb(&trace_control_word,
 						   (erts_aint32_t) val);
-    BIF_RET(erts_make_integer((Uint) old_tcw, p));
+    BIF_RET(erts_make_uword((Uint) old_tcw, p));
 }
 
 BIF_RETTYPE db_set_trace_control_word_1(BIF_ALIST_1)
@@ -2418,6 +2420,9 @@ restart:
 	    ++ep;
 	    break;
 	case matchEqBin:
+#if HALFWORD_HEAP
+        case matchEqRef:
+#endif
 	    t = (Eterm) *pc++;
 	    if (!EQ(t,*ep))
 		FAIL();
@@ -2431,6 +2436,7 @@ restart:
 	    pc += sizeof(double) / sizeof(*pc);
 	    ++ep;
 	    break;
+#if !HALFWORD_HEAP
 	case matchEqRef: {
 	    Eterm* epc = (Eterm*)pc;
 	    if (!is_ref(*ep))
@@ -2439,10 +2445,11 @@ restart:
 		FAIL();
 	    }
 	    i = thing_arityval(*epc);
-	    pc += i+1;
+            pc += TermWords(i+1);
 	    ++ep;
 	    break;
 	}
+#endif
 	case matchEqBig:
 	    if (!is_big(*ep))
 		FAIL();
@@ -2452,7 +2459,7 @@ restart:
 		if (*tp != *epc)
 		    FAIL();
 		i = BIG_ARITY(epc);
-		pc += i+1;
+                pc += TermWords(i+1);
 		while(i--) {
 		    if (*++tp != *++epc) {
 			FAIL();
@@ -3226,7 +3233,6 @@ void db_free_dmc_err_info(DMCErrInfo *ei){
 */
 Eterm db_add_counter(Eterm** hpp, Eterm counter, Eterm incr)
 {
-    DeclareTmpHeapNoproc(big_tmp,2);
     Eterm res;
     Sint ires;
     Eterm arg1;
@@ -3244,7 +3250,7 @@ Eterm db_add_counter(Eterm** hpp, Eterm counter, Eterm incr)
 	}
     }
     else {
-	UseTmpHeapNoproc(2);
+        DeclareUseTmpHeapNoProc(big_tmp,2);
 	switch(NUMBER_CODE(counter, incr)) {
 	case SMALL_BIG:
 	    arg1 = small_to_big(signed_val(counter), big_tmp);
@@ -3259,14 +3265,14 @@ Eterm db_add_counter(Eterm** hpp, Eterm counter, Eterm incr)
 	    arg2 = counter;
 	    break;
 	default:
-	    UnUseTmpHeapNoproc(2);
+            UnDeclareTmpHeapNoProc(big_tmp);
 	    return THE_NON_VALUE;
 	}
 	res = big_plus(arg1, arg2, *hpp);
 	if (is_big(res)) {
 	    *hpp += BIG_NEED_SIZE(big_size(res));
 	}
-	UnUseTmpHeapNoproc(2);
+        UnDeclareTmpHeapNoProc(big_tmp);
 	return res;
     }
 }
@@ -3374,7 +3380,7 @@ both_size_set:
          */
         ASSERT(!handle->tb->common.compress);
         ASSERT(!handle->old_tpl);
-        if (nbytes > sizeof(handle->old_tpl_dflt)) {
+        if (!HEAP_ON_C_STACK || nbytes > sizeof(handle->old_tpl_dflt)) {
             handle->old_tpl = erts_alloc(ERTS_ALC_T_TMP, nbytes);
         } else {
             handle->old_tpl = handle->old_tpl_dflt;
@@ -3863,10 +3869,10 @@ done:
 void db_cleanup_offheap_comp(DbTerm* obj)
 {
     union erl_off_heap_ptr u;
-    union erts_tmp_aligned_offheap tmp;
+    DeclareUseTmpHeapNoProc(tmp, sizeof(union erts_tmp_aligned_offheap) / sizeof(Eterm));
 
     for (u.hdr = obj->first_oh; u.hdr; u.hdr = u.hdr->next) {
-        erts_align_offheap(&u, &tmp);
+        erts_align_offheap(&u, (union erts_tmp_aligned_offheap*)tmp);
         switch (thing_subtag(u.hdr->thing_word)) {
         case BIN_REF_SUBTAG:
             erts_bin_release(u.br->val);
@@ -3881,6 +3887,7 @@ void db_cleanup_offheap_comp(DbTerm* obj)
             break;
         }
     }
+    UnDeclareTmpHeapNoProc(tmp);
 
 #ifdef DEBUG_CLONE
     if (obj->debug_clone != NULL) {
@@ -4169,12 +4176,30 @@ static DMCRet dmc_one_term(DMCContext *context,
             break;
 	case (_TAG_HEADER_REF >> _TAG_PRIMARY_SIZE):
 	{
-	    Eterm* ref_val = internal_ref_val(c);
-	    DMC_PUSH(*text, matchEqRef);
+#if HALFWORD_HEAP
+            DMC_PUSH2(*text, matchEqRef, dmc_private_copy(context, c));
+            /*{
+                union {
+                    UWord u;
+                    Uint t[2];
+                } fiddle;
+                ASSERT(thing_arityval(ref_val[0]) == 3);
+                fiddle.t[0] = ref_val[0];
+                fiddle.t[1] = ref_val[1];
+                DMC_PUSH(*text, fiddle.u);
+                fiddle.t[0] = ref_val[2];
+                fiddle.t[1] = ref_val[3];
+                DMC_PUSH(*text, fiddle.u);
+            }*/
+#else
+            Eterm* ref_val = internal_ref_val(c);
+            DMC_PUSH(*text, matchEqRef);
+
 	    n = thing_arityval(ref_val[0]);
 	    for (i = 0; i <= n; ++i) {
 		DMC_PUSH(*text, ref_val[i]);
 	    }
+#endif
 	    break;
 	}
 	case (_TAG_HEADER_POS_BIG >> _TAG_PRIMARY_SIZE):
@@ -4183,15 +4208,50 @@ static DMCRet dmc_one_term(DMCContext *context,
 	    Eterm* bval = big_val(c);
 	    n = thing_arityval(bval[0]);
 	    DMC_PUSH(*text, matchEqBig);
+#if HALFWORD_HEAP
+            {
+                union {
+                    UWord u;
+                    Uint t[2];
+                } fiddle;
+                ASSERT(n >= 1);
+                fiddle.t[0] = bval[0];
+                fiddle.t[1] = bval[1];
+                DMC_PUSH(*text, fiddle.u);
+                for (i = 2; i <= n; ++i) {
+                    fiddle.t[0] = bval[i];
+                    if (++i <= n) {
+                        fiddle.t[1] = bval[i];
+                    } else {
+                        fiddle.t[1] = (Uint) 0;
+                    }
+                    DMC_PUSH(*text, fiddle.u);
+                }
+            }
+#else
 	    for (i = 0; i <= n; ++i) {
 		DMC_PUSH(*text, (Uint) bval[i]);
 	    }
+#endif
 	    break;
 	}
 	case (_TAG_HEADER_FLOAT >> _TAG_PRIMARY_SIZE):
-	    DMC_PUSH2(*text, matchEqFloat, (Uint) float_val(c)[1]);
-#ifdef ARCH_32
+            DMC_PUSH(*text, matchEqFloat);
+#if HALFWORD_HEAP
+            {
+                union {
+                    UWord u;
+                    Uint t[2];
+                } fiddle;
+                fiddle.t[0] = float_val(c)[1];
+                fiddle.t[1] = float_val(c)[2];
+                DMC_PUSH(*text, fiddle.u);
+            }
+#else
+            DMC_PUSH(*text, (Uint) float_val(c)[1]);
+# ifdef ARCH_32
 	    DMC_PUSH(*text, (Uint) float_val(c)[2]);
+# endif
 #endif
 	    break;
 	default: /* BINARY, FUN, VECTOR, or EXTERNAL */
@@ -4476,8 +4536,9 @@ dmc_map(DMCContext *context, DMCHeap *heap, DMC_STACK_TYPE(UWord) *text,
             /* If all keys were constant we just want to emit the key tuple.
                Since do_emit_constant expects tuples to be wrapped in 1 arity
                tuples we need give do_emit_constant {keys} */
-            Eterm wrapTuple[2] = {make_arityval(1), m->keys};
-            do_emit_constant(context, text, make_tuple(wrapTuple));
+            DeclareUseTmpHeapNoProc(wrapTuple,2);
+            do_emit_constant(context, text, TUPLE1(wrapTuple, m->keys));
+            UnDeclareTmpHeapNoProc(wrapTuple);
         }
 
         DMC_PUSH2(*text, matchMkFlatMap, nelems);
@@ -6343,8 +6404,13 @@ void db_match_dis(Binary *bp)
 	    ++t;
 	    erts_printf("EqBin\t%p (%T)\n", t, p);
 	    break;
-	case matchEqRef:
-	    ++t;
+        case matchEqRef:
+            ++t;
+#if HALFWORD_HEAP
+            p = (Eterm) *t;
+            ++t;
+            erts_printf("EqRef\t%p (%T)\n", t, p);
+#else
 	    {
 		Uint32 *num;
 		int ri;
@@ -6352,18 +6418,18 @@ void db_match_dis(Binary *bp)
 		if (is_ordinary_ref_thing(t)) {
 		    ErtsORefThing *rt = (ErtsORefThing *) t;
 		    num = rt->num;
-		    t += ERTS_REF_THING_SIZE;
+                    t += TermWords(ERTS_REF_THING_SIZE);
 		}
 		else if (is_pid_ref_thing(t)) {
 		    ErtsPRefThing *prt = (ErtsPRefThing *) t;
 		    num = prt->num;
-		    t += ERTS_PID_REF_THING_SIZE;
+                    t += TermWords(ERTS_PID_REF_THING_SIZE);
 		}
 		else {
 		    ErtsMRefThing *mrt = (ErtsMRefThing *) t;
 		    ASSERT(is_magic_ref_thing(t));
 		    num = mrt->mb->refn;
-		    t += ERTS_MAGIC_REF_THING_SIZE;
+                    t += TermWords(ERTS_MAGIC_REF_THING_SIZE);
 		}
 
 		erts_printf("EqRef\t(%d) {", (int) ERTS_REF_NUMBERS);
@@ -6373,21 +6439,18 @@ void db_match_dis(Binary *bp)
 			first = false;
 		    else
 			erts_printf(", ");
-#if defined(ARCH_64)
-		    erts_printf("0x%016bex", num[ri]);
-#else
 		    erts_printf("0x%08bex", num[ri]);
-#endif
 		}
 	    }
 	    erts_printf("}\n");
+#endif
 	    break;
 	case matchEqBig:
 	    ++t;
 	    n = thing_arityval(*t);
 	    {
 		Eterm *et = (Eterm *) t;
-		t += n+1;
+                t += TermWords(n+1);
 		erts_printf("EqBig\t(%d) {", (int) n);
 		first = true;
 		++n;
@@ -6396,7 +6459,7 @@ void db_match_dis(Binary *bp)
 			first = false;
 		    else
 			erts_printf(", ");
-#if defined(ARCH_64)
+#if ERTS_SIZEOF_ETERM == 8
 		    erts_printf("0x%016bex", *et);
 #else
 		    erts_printf("0x%08bex", *et);

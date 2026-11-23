@@ -1862,7 +1862,7 @@ do {						\
 
 Eterm
 erts_gc_new_map(Process* p, Eterm* reg, Uint live,
-                Uint n, const Eterm* ptr)
+                Uint n, const BeamInstr* ptr)
 {
     Uint i;
     Uint need = n + 1 /* hdr */ + 1 /*size*/ + 1 /* ptr */ + 1 /* arity */;
@@ -1923,7 +1923,7 @@ erts_gc_new_map(Process* p, Eterm* reg, Uint live,
 
 Eterm
 erts_gc_new_small_map_lit(Process* p, Eterm* reg, Eterm keys_literal,
-                          Uint live, const Eterm* ptr)
+                          Uint live, const BeamInstr* ptr)
 {
     Eterm* keys = tuple_val(keys_literal);
     Uint n = arityval(*keys);
@@ -1958,7 +1958,7 @@ erts_gc_new_small_map_lit(Process* p, Eterm* reg, Eterm keys_literal,
 
 Eterm
 erts_gc_update_map_assoc(Process* p, Eterm* reg, Uint live,
-                         Uint n, const Eterm* new_p)
+                         Uint n, const BeamInstr* new_p)
 {
     Uint num_old;
     Uint num_updates;
@@ -2201,7 +2201,7 @@ erts_gc_update_map_assoc(Process* p, Eterm* reg, Uint live,
 
 Eterm
 erts_gc_update_map_exact(Process* p, Eterm* reg, Uint live,
-                         Uint n, const Eterm* new_p)
+                         Uint n, const BeamInstr* new_p)
 {
     Uint i;
     Uint num_old;

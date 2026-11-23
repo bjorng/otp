@@ -351,7 +351,7 @@ bad_list_to_binary(Config) when is_list(Config) ->
 
     %% Test iolists that do not fit in the address space.
     %% Unfortunately, it would be too slow to test in a 64-bit emulator.
-    case erlang:system_info(wordsize) of
+    case erlang:system_info({wordsize,external}) of
 	4 -> huge_iolists();
 	_ -> ok
     end.
@@ -2043,7 +2043,7 @@ error_after_yield(Config) when is_list(Config) ->
     error_after_yield(badarg, erlang, binary_to_term, 1, fun () -> [error_after_yield_bad_ext_term()] end, B2TTrap),
     error_after_yield(badarg, erlang, binary_to_term, 2, fun () -> [error_after_yield_bad_ext_term(), [safe]] end, B2TTrap),
 
-    case erlang:system_info(wordsize) of
+    case erlang:system_info({wordsize,external}) of
 	4 ->
 	    SysLimitSz = 1 bsl 32,
 	    error_after_yield(system_limit, erlang, list_to_binary, 1, fun () -> [[huge_iolist(SysLimitSz), $x]] end, L2BTrap),

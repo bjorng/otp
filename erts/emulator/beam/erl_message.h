@@ -70,7 +70,7 @@ typedef struct erl_mesg ErtsMessage;
  * off-heap term type is added.
  */
 
-struct erl_off_heap_header {
+struct HALFWORD_PACKED() erl_off_heap_header {
     Eterm thing_word;
 
     /* As an optimization, the first word of user data is stored before the

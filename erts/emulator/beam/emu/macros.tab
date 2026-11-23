@@ -235,7 +235,7 @@ DISPATCH_RETURN() {
 
 SAVE_CONTINUATION_POINTER(IP) {
     ASSERT(VALID_INSTR(*($IP)));
-    *E = (BeamInstr) ($IP);
+    *E = COMPRESS_POINTER($IP);
 }
 
 // Return to the function whose continuation pointer is stored
