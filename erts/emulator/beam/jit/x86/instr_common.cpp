@@ -791,6 +791,18 @@ void BeamModuleAssembler::emit_node(const ArgRegister &Dst) {
 
 void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
                                         const ArgSource &Tl) {
+#if defined(HALFWORD_HEAP)
+#if 0
+    mov_arg(RET, Tl);
+    mov_arg(ARG1, Hd);
+    a.shl(RET, 32);
+    a.or_(RET, ARG1);
+    a.mov(x86::qword_ptr(HTOP), RET);
+#else
+    mov_arg(x86::dword_ptr(HTOP, 0), Hd);
+    mov_arg(x86::dword_ptr(HTOP, 1 * sizeof(Eterm)), Tl);
+#endif
+#else 
     switch (ArgVal::memory_relation(Hd, Tl)) {
     case ArgVal::Relation::consecutive: {
         x86::Mem src_ptr = getArgRef(Hd, 16);
@@ -827,6 +839,7 @@ void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
                 a.lea(ARG2, x86::qword_ptr(HTOP, TAG_PRIMARY_LIST));
             },
             ARG2);
+#endif
 }
 
 void BeamModuleAssembler::emit_append_cons(const ArgWord &Index,
