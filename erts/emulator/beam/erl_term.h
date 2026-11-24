@@ -38,7 +38,9 @@ void erts_term_init(void);
 #  endif
 #  define CHECK_POINTER_MASK 0xFFFFFFFF00000000UL
 #  define COMPRESS_POINTER(X) COMPRESS_POINTER_impl((UWord)(X))
+#  define COMPRESS_CODE_POINTER(X) COMPRESS_CODE_POINTER_impl((UWord)(X))
 ERTS_GLB_INLINE Eterm COMPRESS_POINTER_impl(UWord);
+ERTS_GLB_INLINE Eterm COMPRESS_CODE_POINTER_impl(UWord);
 ERTS_GLB_INLINE UWord EXPAND_POINTER(Eterm);
 ERTS_GLB_INLINE bool IS_LOW_POINTER(void* ptr);
 extern UWord erts_halfword_start_addr;
@@ -49,6 +51,18 @@ extern UWord erts_halfword_start_addr;
 ERTS_GLB_INLINE Eterm COMPRESS_POINTER_impl(UWord word)
 {
     const UWord ret = word - erts_halfword_start_addr;
+    ERTS_ASSERT(!(ret & CHECK_POINTER_MASK));
+    return (Eterm)ret;
+}
+ERTS_GLB_INLINE Eterm COMPRESS_CODE_POINTER_impl(UWord word)
+{
+#ifdef BEAMASM
+    /* The code pointers for the JIT are already compressed. */
+    const UWord ret = word;
+#else
+    const UWord ret = word - erts_halfword_start_addr;
+#endif
+
     ERTS_ASSERT(!(ret & CHECK_POINTER_MASK));
     return (Eterm)ret;
 }
@@ -1422,7 +1436,7 @@ _ET_DECLARE_CHECKED(struct erl_node_*,external_ref_node,Eterm)
 #define ENULL		0
 
 #define _is_legal_cp(x)	 (((UWord)(x) & _CPMASK) == 0)
-#define _unchecked_make_cp(x)	((Eterm) COMPRESS_POINTER(x))
+#define _unchecked_make_cp(x)	((Eterm) COMPRESS_CODE_POINTER(x))
 _ET_DECLARE_CHECKED(Eterm,make_cp,ErtsCodePtr)
 #define make_cp(x)	_ET_APPLY(make_cp,(x))
 

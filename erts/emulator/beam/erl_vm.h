@@ -36,6 +36,11 @@
 #undef ERLANG_FRAME_POINTERS
 #endif
 
+#ifdef HALFWORD_HEAP
+#undef NATIVE_ERLANG_STACK
+#undef ERLANG_FRAME_POINTERS
+#endif
+
 #if defined(DEBUG) && !defined(CHECK_FOR_HOLES) && !defined(__WIN32__)
 # define CHECK_FOR_HOLES
 #endif

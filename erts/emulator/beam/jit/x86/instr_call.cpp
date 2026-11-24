@@ -53,7 +53,7 @@ void BeamModuleAssembler::emit_return_do(bool set_I) {
     emit_leave_frame();
 
 #if !defined(NATIVE_ERLANG_STACK)
-    a.mov(ARG3, getCPRef());
+    load_cp(ARG3);
     a.mov(getCPRef(), imm(NIL));
 #endif
 

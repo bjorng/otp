@@ -102,7 +102,7 @@ using namespace asmjit;
 /* Helpers */
 
 void BeamModuleAssembler::emit_error(int reason) {
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(reason));
+    a.mov(PROC_FIELD_REF(freason), imm(reason));
     emit_raise_exception();
 }
 
@@ -637,11 +637,19 @@ void BeamModuleAssembler::emit_init_yregs(const ArgWord &Size,
             if (slots <= 4) {
                 /* Slightly more compact than `rep stosq`. */
                 for (unsigned j = 0; j < slots; j++) {
+#if defined(HALFWORD_HEAP)
+                    a.stosd();
+#else
                     a.stosq();
+#endif
                 }
             } else {
                 mov_imm(x86::rcx, slots);
+#if defined(HALFWORD_HEAP)
+                a.rep().stosd();
+#else
                 a.rep().stosq();
+#endif
             }
 
             /* Update y_ptr to account for the incrementing done by `stosq`. */
@@ -921,7 +929,11 @@ void BeamModuleAssembler::emit_self(const ArgRegister &Dst) {
 
     preserve_cache(
             [&]() {
+#if defined(HALFWORD_HEAP)
+                a.mov(reg.r32(), x86::dword_ptr(c_p, offsetof(Process, common.id)));
+#else
                 a.mov(reg, x86::qword_ptr(c_p, offsetof(Process, common.id)));
+#endif
             },
             reg);
 
@@ -2982,12 +2994,12 @@ void BeamModuleAssembler::emit_is_int_ge(ArgLabel const &Fail,
 }
 
 void BeamModuleAssembler::emit_badmatch(const ArgSource &Src) {
-    mov_arg(x86::qword_ptr(c_p, offsetof(Process, fvalue)), Src);
+    mov_arg(PROC_FIELD_REF(fvalue), Src);
     emit_error(BADMATCH);
 }
 
 void BeamModuleAssembler::emit_case_end(const ArgSource &Src) {
-    mov_arg(x86::qword_ptr(c_p, offsetof(Process, fvalue)), Src);
+    mov_arg(PROC_FIELD_REF(fvalue), Src);
     emit_error(EXC_CASE_CLAUSE);
 }
 
@@ -3000,7 +3012,7 @@ void BeamModuleAssembler::emit_if_end() {
 }
 
 void BeamModuleAssembler::emit_badrecord(const ArgSource &Src) {
-    mov_arg(x86::qword_ptr(c_p, offsetof(Process, fvalue)), Src);
+    mov_arg(PROC_FIELD_REF(fvalue), Src);
     emit_error(EXC_BADRECORD);
 }
 
@@ -3135,7 +3147,7 @@ void BeamModuleAssembler::emit_try_case(const ArgYRegister &CatchTag) {
 #ifdef DEBUG
     Label fvalue_ok = a.new_label(), assertion_failed = a.new_label();
     comment("Start of assertion code");
-    a.cmp(x86::qword_ptr(c_p, offsetof(Process, fvalue)), NIL);
+    a.cmp(PROC_FIELD_REF(fvalue), NIL);
     a.short_().je(fvalue_ok);
 
     a.bind(assertion_failed);
@@ -3143,20 +3155,20 @@ void BeamModuleAssembler::emit_try_case(const ArgYRegister &CatchTag) {
     a.ud2();
 
     a.bind(fvalue_ok);
-    a.cmp(x86::qword_ptr(c_p, offsetof(Process, ftrace)), NIL);
+    a.cmp(PROC_FIELD_REF(ftrace), NIL);
     a.short_().jne(assertion_failed);
 #endif
 }
 
 void BeamModuleAssembler::emit_try_case_end(const ArgSource &Src) {
-    mov_arg(x86::qword_ptr(c_p, offsetof(Process, fvalue)), Src);
+    mov_arg(PROC_FIELD_REF(fvalue), Src);
     emit_error(EXC_TRY_CLAUSE);
 }
 
 void BeamGlobalAssembler::emit_raise_shared() {
     /* This is an error, attach a stacktrace to the reason. */
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, fvalue)), ARG3);
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, ftrace)), ARG2);
+    a.mov(PROC_FIELD_REF(fvalue), ARG3);
+    a.mov(PROC_FIELD_REF(ftrace), ARG2);
 
     emit_enter_runtime();
 

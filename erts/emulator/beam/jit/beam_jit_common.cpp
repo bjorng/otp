@@ -558,7 +558,7 @@ void BeamModuleAssembler::patchImport(char *rw_base,
                                       const Export *import) {
     for (const auto &patch : imports[index].patches) {
         auto offset = code.label_offset_from_base(patch.where);
-        auto where = (Eterm *)&rw_base[offset + patch.ptr_offs];
+        auto where = (BeamInstr *)&rw_base[offset + patch.ptr_offs];
 
         ASSERT(LLONG_MAX == *where);
         *where = reinterpret_cast<BeamInstr>(import) + patch.val_offs;
@@ -570,7 +570,7 @@ void BeamModuleAssembler::patchLambda(char *rw_base,
                                       const ErlFunEntry *fe) {
     for (const auto &patch : lambdas[index].patches) {
         auto offset = code.label_offset_from_base(patch.where);
-        auto where = (Eterm *)&rw_base[offset + patch.ptr_offs];
+        auto where = (BeamInstr *)&rw_base[offset + patch.ptr_offs];
 
         ASSERT(LLONG_MAX == *where);
         *where = reinterpret_cast<BeamInstr>(fe) + patch.val_offs;
@@ -592,7 +592,7 @@ void BeamModuleAssembler::patchLiteral(char *rw_base,
 
     for (const auto &[patch, resolve] : literal.deferred) {
         auto offset = code.label_offset_from_base(patch.where);
-        auto where = (Eterm *)&rw_base[offset + patch.ptr_offs];
+        auto where = (BeamInstr *)&rw_base[offset + patch.ptr_offs];
 
         ASSERT(LLONG_MAX == *where);
         *where = resolve(value);
@@ -605,7 +605,7 @@ void BeamModuleAssembler::patchStrings(char *rw_base,
         auto offset = code.label_offset_from_base(patch.where);
         auto where = (const byte **)&rw_base[offset + patch.ptr_offs];
 
-        ASSERT(LLONG_MAX == (Eterm)*where);
+        ASSERT(LLONG_MAX == (BeamInstr)*where);
         *where = string_table + patch.val_offs;
     }
 }

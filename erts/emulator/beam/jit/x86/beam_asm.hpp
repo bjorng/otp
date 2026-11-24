@@ -231,8 +231,31 @@ protected:
 #    endif
 
     constexpr x86::Mem getCPRef() const {
+# ifdef HALFWORD_HEAP
+        return x86::dword_ptr(E);
+# else
         return x86::qword_ptr(E);
+#endif
     }
+
+#  ifdef HALFWORD_HEAP
+    void store_cp(const x86::Gp src) {
+        a.mov(x86::dword_ptr(E), src.r32());
+    }
+
+    void load_cp(const x86::Gp &dst) {
+        a.mov(dst.r32(), x86::dword_ptr(E));
+    }
+
+#  else
+    void store_cp(const x86::Gp src) {
+        a.mov(x86::qword_ptr(E), src);
+    }
+
+    void load_cp(const x86::Gp &dst) {
+        a.mov(dst, x86::qword_ptr(E));
+    }
+#  endif
 #endif
 
     constexpr x86::Mem getSchedulerRegRef(int offset,
@@ -259,6 +282,10 @@ protected:
         int base = offsetof(ErtsSchedulerRegisters, x_reg_array.d);
         int offset = index * sizeof(Eterm);
 
+#if defined(HALFWORD_HEAP)
+        size /= 2;
+#endif
+
         ASSERT(index >= 0 && index < ERTS_X_REGS_ALLOCATED);
         return getSchedulerRegRef(base + offset, size);
     }
@@ -266,8 +293,10 @@ protected:
     constexpr x86::Mem getYRef(int index, size_t size = sizeof(UWord)) const {
         ASSERT(index >= 0 && index <= 1023);
 
-#ifdef NATIVE_ERLANG_STACK
+#if defined(NATIVE_ERLANG_STACK)
         return x86::Mem(E, index * sizeof(Eterm), size);
+#elif defined(HALFWORD_HEAP)
+        return x86::Mem(E, (index + CP_SIZE) * sizeof(Eterm), size / 2);
 #else
         return x86::Mem(E, (index + CP_SIZE) * sizeof(Eterm), size);
 #endif
@@ -282,6 +311,13 @@ protected:
                                  size_t size = sizeof(UWord)) const {
         return x86::Mem(Src, -TAG_PRIMARY_LIST + sizeof(Eterm), size);
     }
+
+    template <typename T, typename F>
+    constexpr x86::Mem field_mem(const x86::Gp& base, size_t offset, F T::* /*member*/) {
+        return x86::Mem(base, static_cast<int32_t>(offset), static_cast<uint32_t>(sizeof(F)));
+    }
+
+#define PROC_FIELD_REF(field) field_mem(c_p, offsetof(Process, field), &Process::field)
 
     void align_erlang_cp() {
         /* Align so that the current address forms a valid CP. */
@@ -342,7 +378,7 @@ protected:
 
         /* Save the return CP on the stack. */
         a.lea(spill, x86::qword_ptr(next));
-        a.mov(getCPRef(), spill);
+        store_cp(spill);
 
         a.jmp(Target);
 
@@ -1154,6 +1190,10 @@ class BeamModuleAssembler : public BeamAssembler,
     /* Store CPU register into memory and update the cache. */
     void store_cache(x86::Gp src, x86::Mem mem_dst) {
         reg_cache.consolidate(a.offset());
+#if defined(HALFWORD_HEAP)
+        ERTS_ASSERT(mem_dst.size() == 4);
+        src = src.r32();
+#endif
         a.mov(mem_dst, src);
         reg_cache.put(mem_dst, src);
         reg_cache.update(a.offset());
@@ -1174,6 +1214,10 @@ class BeamModuleAssembler : public BeamAssembler,
             }
         } else {
             /* Not cached. Load and update cache. */
+#if defined(HALFWORD_HEAP)
+            ERTS_ASSERT(mem.size() == 4);
+            dst = dst.r32();
+#endif
             a.mov(dst, mem);
             reg_cache.invalidate(dst);
             reg_cache.put(mem, dst);
@@ -1239,6 +1283,11 @@ class BeamModuleAssembler : public BeamAssembler,
 
     void cmp_preserve_cache(x86::Mem mem, x86::Gp reg) {
         preserve_cache([&]() {
+#if defined(HALFWORD_HEAP)
+            if (mem.size() == 4) {
+                reg = reg.r32();
+            }
+#endif
             a.cmp(mem, reg);
         });
     }
@@ -1836,7 +1885,11 @@ protected:
                 from_reg = spill;
                 mov_arg(from_reg, from);
             }
+#if defined(HALFWORD_HEAP)
+            mov_arg(to, from_reg.r32());
+#else
             mov_arg(to, from_reg);
+#endif
         }
     }
 

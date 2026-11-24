@@ -504,6 +504,7 @@ erts_gc_after_bif_call_lhf(Process* p, ErlHeapFragment *live_hf_end,
 Eterm
 erts_gc_after_bif_call(Process* p, Eterm result, Eterm* regs, Uint arity)
 {
+    erts_printf("%s, line %ld\n", __FILE__, __LINE__);
     return erts_gc_after_bif_call_lhf(p, ERTS_INVALID_HFRAG_PTR,
                                       result, regs, arity);
 }
@@ -995,6 +996,7 @@ int
 erts_garbage_collect_nobump(Process* p, Uint need, Eterm* objv, int nobj, int fcalls)
 {
     int reds, reds_left;
+    erts_printf("%s, line %ld\n", __FILE__, __LINE__);
     if (p->sig_qs.flags & (FS_ON_HEAP_MSGQ|FS_OFF_HEAP_MSGQ_CHNG)) {
         erts_proc_lock(p, ERTS_PROC_LOCK_MSGQ);
         erts_proc_sig_fetch(p);
@@ -1012,6 +1014,7 @@ void
 erts_garbage_collect(Process* p, Uint need, Eterm* objv, int nobj)
 {
     int reds;
+    erts_printf("%s, line %ld\n", __FILE__, __LINE__);
     if (p->sig_qs.flags & (FS_ON_HEAP_MSGQ|FS_OFF_HEAP_MSGQ_CHNG)) {
         erts_proc_lock(p, ERTS_PROC_LOCK_MSGQ);
         erts_proc_sig_fetch(p);
