@@ -283,7 +283,9 @@ protected:
         int offset = index * sizeof(Eterm);
 
 #if defined(HALFWORD_HEAP)
-        size /= 2;
+        if (size > sizeof(Eterm)) {
+            size /= 2;
+        }
 #endif
 
         ASSERT(index >= 0 && index < ERTS_X_REGS_ALLOCATED);
@@ -293,10 +295,14 @@ protected:
     constexpr x86::Mem getYRef(int index, size_t size = sizeof(UWord)) const {
         ASSERT(index >= 0 && index <= 1023);
 
+#if defined(HALFWORD_HEAP)
+        if (size > sizeof(Eterm)) {
+            size /= 2;
+        }
+#endif
+
 #if defined(NATIVE_ERLANG_STACK)
         return x86::Mem(E, index * sizeof(Eterm), size);
-#elif defined(HALFWORD_HEAP)
-        return x86::Mem(E, (index + CP_SIZE) * sizeof(Eterm), size / 2);
 #else
         return x86::Mem(E, (index + CP_SIZE) * sizeof(Eterm), size);
 #endif

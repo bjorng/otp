@@ -305,7 +305,22 @@ void BeamModuleAssembler::emit_get_pair(const x86::Gp src,
                                         const ArgRegister &First,
                                         const ArgRegister &Second) {
     x86::Gp clean_ptr = emit_ptr_val(src, src);
-    x86::Mem src_ptr = x86::Mem(clean_ptr, offset);
+    x86::Mem src_ptr = x86::Mem(clean_ptr, offset, sizeof(Eterm));
+
+#if defined(HALFWORD_HEAP)
+    x86::Gp hw_start = TMP1;
+
+    if (src == TMP1) {
+        hw_start = TMP2;
+    }
+    a.mov(hw_start, imm(&erts_halfword_start_addr));
+    a.mov(hw_start, x86::qword_ptr(hw_start));
+    a.add(clean_ptr, hw_start);
+    a.mov(ARG2d, src_ptr);
+    a.mov(ARG3d, src_ptr.clone_adjusted(sizeof(Eterm)));
+    mov_arg(First, ARG2);
+    mov_arg(Second, ARG3);
+#else
     x86::Mem xmm_src_ptr = x86::Mem(clean_ptr, offset, 16);
 
     switch (ArgVal::memory_relation(First, Second)) {
@@ -348,6 +363,7 @@ void BeamModuleAssembler::emit_get_pair(const x86::Gp src,
         mov_arg(Second, ARG3);
         break;
     }
+#endif
 }
 
 void BeamModuleAssembler::emit_get_list(const x86::Gp src,
@@ -1160,6 +1176,7 @@ void BeamModuleAssembler::emit_is_nonempty_list(const ArgLabel &Fail,
                                                 const ArgRegister &Src) {
     x86::Mem list_ptr = getArgRef(Src, 1);
 
+    comment("blurf");
     preserve_cache([&]() {
         a.test(list_ptr, imm(_TAG_PRIMARY_MASK - TAG_PRIMARY_LIST));
         a.jne(resolve_beam_label(Fail));
