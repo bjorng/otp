@@ -439,13 +439,7 @@ erts_gc_after_bif_call_lhf(Process* p, ErlHeapFragment *live_hf_end,
 {
     int cost;
 
-    erts_printf("\n");
     erts_printf("%s, line %ld\n", __FILE__, __LINE__);
-    erts_printf("arity: %d\n", arity);
-    for (Uint i = 0; i < arity; i++) {
-        erts_printf("x[%d]: %T\n", i, regs[i]);
-    }
-    erts_printf("result: %T\n", result);
     
     if (!p->mbuf) {
         /* Must have GC:d in BIF call... invalidate live_hf_end */
@@ -453,7 +447,6 @@ erts_gc_after_bif_call_lhf(Process* p, ErlHeapFragment *live_hf_end,
         p->live_hf_end = ERTS_INVALID_HFRAG_PTR;
     }
 
-    erts_printf("%s, line %ld\n", __FILE__, __LINE__);
     if (p->flags & (F_HIBERNATE_SCHED | F_DISABLE_GC)) {
 
         if ((p->flags & F_DISABLE_GC)
@@ -496,7 +489,6 @@ erts_gc_after_bif_call_lhf(Process* p, ErlHeapFragment *live_hf_end,
 	Eterm val[1];
 
 	val[0] = result;
-        erts_printf("%s, line %ld\n", __FILE__, __LINE__);
 	cost = garbage_collect(p, live_hf_end, 0, val, 1, p->fcalls, 0);
         if (ERTS_PROC_IS_EXITING(p)) {
             result = THE_NON_VALUE;
@@ -504,10 +496,7 @@ erts_gc_after_bif_call_lhf(Process* p, ErlHeapFragment *live_hf_end,
         else {
             result = val[0];
         }
-        erts_printf("%s, line %ld\n", __FILE__, __LINE__);
     }
-
-    erts_printf("%s, line %ld\n", __FILE__, __LINE__);
 
     BUMP_REDS(p, cost);
 
