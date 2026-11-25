@@ -126,7 +126,11 @@ void BeamGlobalAssembler::emit_process_main() {
     a.bind(do_schedule_local);
     {
         /* Figure out reds_used. def_arg_reg[5] = REDS_IN */
+#if HALFWORD_HEAP
+        a.mov(ARG3d, x86::dword_ptr(c_p, offsetof(Process, def_arg_reg[5])));
+#else
         a.mov(ARG3, x86::qword_ptr(c_p, offsetof(Process, def_arg_reg[5])));
+#endif
         a.sub(ARG3d, FCALLS);
 
         a.jmp(schedule_next);
@@ -198,7 +202,11 @@ void BeamGlobalAssembler::emit_process_main() {
         a.bind(not_exiting);
 
         /* Figure out reds_used. def_arg_reg[5] = REDS_IN */
+#if HALFWORD_HEAP
+        a.mov(ARG3d, x86::dword_ptr(c_p, offsetof(Process, def_arg_reg[5])));
+#else
         a.mov(ARG3, x86::qword_ptr(c_p, offsetof(Process, def_arg_reg[5])));
+#endif
         a.sub(ARG3d, FCALLS);
 
         /* Spill reds_used to FCALLS as we no longer need that value */
@@ -287,9 +295,14 @@ void BeamGlobalAssembler::emit_process_main() {
 
         /* Setup reduction counting */
         a.mov(FCALLS, x86::dword_ptr(c_p, offsetof(Process, fcalls)));
+#if HALFWORD_HEAP
+        a.mov(x86::dword_ptr(c_p, offsetof(Process, def_arg_reg[5])),
+              FCALLS);
+#else
         a.mov(x86::qword_ptr(c_p, offsetof(Process, def_arg_reg[5])),
               FCALLS.r64());
-
+#endif
+        
 #ifdef DEBUG
         a.mov(x86::qword_ptr(c_p, offsetof(Process, debug_reds_in)),
               FCALLS.r64());
