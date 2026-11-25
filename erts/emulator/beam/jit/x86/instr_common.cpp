@@ -384,7 +384,7 @@ void BeamModuleAssembler::emit_get_hd(const ArgRegister &Src,
 
     x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
 
-    mov_preserve_cache(ARG2, getCARRef(boxed_ptr));
+    emit_load_CAR(ARG2, boxed_ptr);
 
     mov_arg(Hd, ARG2);
 }
@@ -395,11 +395,7 @@ void BeamModuleAssembler::emit_get_tl(const ArgRegister &Src,
 
     x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
 
-#if HALFWORD_HEAP
     emit_load_CDR(ARG2, boxed_ptr);
-#else
-    mov_preserve_cache(ARG2, getCDRRef(boxed_ptr));
-#endif
 
     mov_arg(Tl, ARG2);
 }
@@ -422,7 +418,7 @@ void BeamModuleAssembler::emit_is_nonempty_list_get_hd(const ArgLabel &Fail,
 
     x86::Gp ptr = emit_ptr_val(RET, RET);
 
-    mov_preserve_cache(ARG2, getCARRef(ptr));
+    emit_load_CAR(ARG2, ptr);
 
     mov_arg(Hd, ARG2);
 }
@@ -435,7 +431,7 @@ void BeamModuleAssembler::emit_is_nonempty_list_get_tl(const ArgLabel &Fail,
 
     x86::Gp ptr = emit_ptr_val(RET, RET);
 
-    mov_preserve_cache(ARG2, getCDRRef(ptr));
+    emit_load_CDR(ARG2, ptr);
 
     mov_arg(Tl, ARG2);
 }

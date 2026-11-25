@@ -296,13 +296,12 @@ void BeamGlobalAssembler::emit_process_main() {
         /* Setup reduction counting */
         a.mov(FCALLS, x86::dword_ptr(c_p, offsetof(Process, fcalls)));
 #if HALFWORD_HEAP
-        a.mov(x86::dword_ptr(c_p, offsetof(Process, def_arg_reg[5])),
-              FCALLS);
+        a.mov(x86::dword_ptr(c_p, offsetof(Process, def_arg_reg[5])), FCALLS);
 #else
         a.mov(x86::qword_ptr(c_p, offsetof(Process, def_arg_reg[5])),
               FCALLS.r64());
 #endif
-        
+
 #ifdef DEBUG
         a.mov(x86::qword_ptr(c_p, offsetof(Process, debug_reds_in)),
               FCALLS.r64());

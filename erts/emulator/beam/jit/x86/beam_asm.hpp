@@ -312,14 +312,6 @@ protected:
         return x86::Mem(Src, -TAG_PRIMARY_LIST + sizeof(Eterm), size);
     }
 
-    void emit_load_CDR(x86::Gp Dst, x86::Gp Src) {
-        const size_t size = sizeof(UWord);
-        x86::Mem mem(Src, -TAG_PRIMARY_LIST + sizeof(Eterm), size);
-        a.lea(Dst, mem);
-        a.add(Dst, HALFWORD_START_ADDR);
-        a.mov(Dst.r32(), x86::dword_ptr(Dst));
-    }
-
     template<typename T, typename F>
     constexpr x86::Mem field_mem(const x86::Gp &base,
                                  size_t offset,
@@ -1319,6 +1311,30 @@ class BeamModuleAssembler : public BeamAssembler,
     /* Maps code pointers to thunks that jump to them, letting us treat global
      * fragments as if they were local. */
     std::unordered_map<void (*)(), Label> _dispatchTable;
+
+    void emit_load_pair_component(x86::Gp Dst, x86::Gp Src, size_t offset) {
+        const size_t size = sizeof(UWord);
+        x86::Mem mem(Src, offset - TAG_PRIMARY_LIST, size);
+#if HALFWORD_HEAP
+        preserve_cache(
+                [&]() {
+                    a.lea(Dst, mem);
+                    a.add(Dst, HALFWORD_START_ADDR);
+                    a.mov(Dst.r32(), x86::dword_ptr(Dst));
+                },
+                Dst);
+#else
+        a.mov_preserve_cache(Dst, mem);
+#endif
+    }
+
+    void emit_load_CAR(x86::Gp Dst, x86::Gp Src) {
+        emit_load_pair_component(Dst, Src, 0);
+    }
+
+    void emit_load_CDR(x86::Gp Dst, x86::Gp Src) {
+        emit_load_pair_component(Dst, Src, sizeof(Eterm));
+    }
 
 public:
     BeamModuleAssembler(BeamGlobalAssembler *ga,
