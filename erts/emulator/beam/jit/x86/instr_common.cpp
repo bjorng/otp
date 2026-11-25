@@ -1905,7 +1905,8 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
                                            const ArgSource &X,
                                            const ArgSource &Y) {
-    if (Y.isLiteral()) {
+    // FIXME: Renable this optimization later.
+    if (false && Y.isLiteral()) {
         Eterm literal = beamfile_get_literal(beam, Y.as<ArgLiteral>().get());
         bool imm_list = beam_jit_is_list_of_immediates(literal);
 
