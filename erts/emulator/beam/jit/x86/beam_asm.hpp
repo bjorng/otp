@@ -1246,6 +1246,10 @@ class BeamModuleAssembler : public BeamAssembler,
     void preserve_cache(L generate, Any... clobber) {
         bool valid = reg_cache.validAt(a.offset());
 
+        if (!valid) {
+            reg_cache.invalidate();
+        }
+        
         generate();
 
         if (valid) {

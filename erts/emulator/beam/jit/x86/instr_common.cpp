@@ -308,11 +308,19 @@ void BeamModuleAssembler::emit_get_pair(const x86::Gp src,
     x86::Mem src_ptr = x86::Mem(clean_ptr, offset, sizeof(Eterm));
 
 #if HALFWORD_HEAP
-    a.add(clean_ptr, HALFWORD_START_ADDR);
-    a.mov(ARG2d, src_ptr);
-    a.mov(ARG3d, src_ptr.clone_adjusted(sizeof(Eterm)));
+    preserve_cache(
+            [&]() {
+                a.add(src, HALFWORD_START_ADDR);
+                a.mov(ARG2d, src_ptr);
+                a.mov(ARG3d, src_ptr.clone_adjusted(sizeof(Eterm)));
+            },
+            src,
+            ARG1,
+            ARG2,
+            ARG3);
     mov_arg(First, ARG2);
     mov_arg(Second, ARG3);
+    a.nop();
 #else
     x86::Mem xmm_src_ptr = x86::Mem(clean_ptr, offset, 16);
 
@@ -784,7 +792,7 @@ void BeamModuleAssembler::emit_node(const ArgRegister &Dst) {
 
 void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
                                         const ArgSource &Tl) {
-#if defined(HALFWORD_HEAP)
+#if HALFWORD_HEAP
 #    if 0
     mov_arg(RET, Tl);
     mov_arg(ARG1, Hd);
@@ -827,12 +835,15 @@ void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
         mov_arg(x86::qword_ptr(HTOP, 1 * sizeof(Eterm)), Tl);
         break;
     }
+#endif
     preserve_cache(
             [&]() {
                 a.lea(ARG2, x86::qword_ptr(HTOP, TAG_PRIMARY_LIST));
+#if HALFWORD_HEAP
+                a.sub(ARG2, HALFWORD_START_ADDR);
+#endif
             },
             ARG2);
-#endif
 }
 
 void BeamModuleAssembler::emit_append_cons(const ArgWord &Index,
