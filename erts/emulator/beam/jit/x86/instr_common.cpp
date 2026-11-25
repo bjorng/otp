@@ -305,22 +305,21 @@ void BeamModuleAssembler::emit_get_pair(const x86::Gp src,
                                         const ArgRegister &First,
                                         const ArgRegister &Second) {
     x86::Gp clean_ptr = emit_ptr_val(src, src);
-    x86::Mem src_ptr = x86::Mem(clean_ptr, offset, sizeof(Eterm));
 
 #if HALFWORD_HEAP
+    x86::Mem src_ptr = x86::Mem(clean_ptr, offset, sizeof(Eterm[2]));
     preserve_cache(
             [&]() {
                 a.add(src, HALFWORD_START_ADDR);
-                a.mov(ARG2d, src_ptr);
-                a.mov(ARG3d, src_ptr.clone_adjusted(sizeof(Eterm)));
+                a.mov(ARG2, src_ptr);
+                mov_arg(First, ARG2);
+                a.shr(ARG2, 32);
             },
             src,
-            ARG1,
-            ARG2,
-            ARG3);
-    mov_arg(First, ARG2);
-    mov_arg(Second, ARG3);
+            ARG2);
+    mov_arg(Second, ARG2);
 #else
+    x86::Mem src_ptr = x86::Mem(clean_ptr, offset, sizeof(Eterm));
     x86::Mem xmm_src_ptr = x86::Mem(clean_ptr, offset, 16);
 
     switch (ArgVal::memory_relation(First, Second)) {
@@ -792,16 +791,28 @@ void BeamModuleAssembler::emit_node(const ArgRegister &Dst) {
 void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
                                         const ArgSource &Tl) {
 #if HALFWORD_HEAP
-#    if 0
-    mov_arg(RET, Tl);
-    mov_arg(ARG1, Hd);
-    a.shl(RET, 32);
-    a.or_(RET, ARG1);
-    a.mov(x86::qword_ptr(HTOP), RET);
-#    else
-    mov_arg(x86::dword_ptr(HTOP, 0), Hd);
-    mov_arg(x86::dword_ptr(HTOP, 1 * sizeof(Eterm)), Tl);
-#    endif
+    switch (ArgVal::memory_relation(Hd, Tl)) {
+    case ArgVal::Relation::consecutive: {
+        x86::Mem src_ptr = getArgRef(Hd, sizeof(Eterm[2]));
+        a.mov(RET, src_ptr);
+        a.mov(x86::qword_ptr(HTOP), RET);
+        break;
+    }
+    case ArgVal::Relation::reverse_consecutive: {
+        x86::Mem src_ptr = getArgRef(Tl, sizeof(Eterm[2]));
+        a.mov(RET, src_ptr);
+        a.rol(RET, 32);
+        a.mov(x86::qword_ptr(HTOP), RET);
+        break;
+    }
+    case ArgVal::Relation::none:
+        mov_arg(RET, Tl);
+        mov_arg(ARG1, Hd);
+        a.shl(RET, 32);
+        a.or_(RET, ARG1);
+        a.mov(x86::qword_ptr(HTOP), RET);
+        break;
+    }
 #else
     switch (ArgVal::memory_relation(Hd, Tl)) {
     case ArgVal::Relation::consecutive: {
