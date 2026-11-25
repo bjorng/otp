@@ -105,6 +105,15 @@ void BeamGlobalAssembler::emit_process_main() {
     a.and_(x86::rsp, imm(-16));
 #endif
 
+#if HALFWORD_HEAP
+    erts_printf("hw: %llu\n", erts_halfword_start_addr);
+    a.mov(RET, imm(&erts_halfword_start_addr));
+    a.mov(RET, x86::qword_ptr(RET));
+    a.mov(getSchedulerRegRef(offsetof(ErtsSchedulerRegisters,
+                                      aux_regs.d.halfword_start_addr)),
+          RET);
+#endif
+
     a.mov(start_time_i, imm(0));
     a.mov(start_time, imm(0));
 

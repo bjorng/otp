@@ -663,7 +663,7 @@ int beam_load_emit_op(LoaderState *stp, BeamOp *tmp_op) {
 
     /* Generate assembly code for the specific instruction. */
     // FIXME: Debugging only.
-    //erts_printf("op: %s\n", opc[stp->specific_op].name);
+    // erts_printf("op: %s\n", opc[stp->specific_op].name);
     if (beamasm_emit(stp->ba, stp->specific_op, tmp_op) == 0) {
         BeamLoadError1(stp, "failed to emit asm for %d", stp->specific_op);
     }

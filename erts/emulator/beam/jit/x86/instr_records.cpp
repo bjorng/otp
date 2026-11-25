@@ -431,9 +431,13 @@ void BeamModuleAssembler::emit_i_update_native_record(
 
     emit_enter_runtime<Update::eHeapAlloc | Update::eReductions>();
 
-    runtime_call<
-            Eterm (*)(Process *, Eterm *, Eterm, Uint, Uint, const BeamInstr *args),
-            erl_update_native_record>();
+    runtime_call<Eterm (*)(Process *,
+                           Eterm *,
+                           Eterm,
+                           Uint,
+                           Uint,
+                           const BeamInstr *args),
+                 erl_update_native_record>();
 
     emit_leave_runtime<Update::eHeapAlloc | Update::eReductions>();
 

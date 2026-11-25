@@ -307,15 +307,8 @@ void BeamModuleAssembler::emit_get_pair(const x86::Gp src,
     x86::Gp clean_ptr = emit_ptr_val(src, src);
     x86::Mem src_ptr = x86::Mem(clean_ptr, offset, sizeof(Eterm));
 
-#if defined(HALFWORD_HEAP)
-    x86::Gp hw_start = TMP1;
-
-    if (src == TMP1) {
-        hw_start = TMP2;
-    }
-    a.mov(hw_start, imm(&erts_halfword_start_addr));
-    a.mov(hw_start, x86::qword_ptr(hw_start));
-    a.add(clean_ptr, hw_start);
+#if HALFWORD_HEAP
+    a.add(clean_ptr, HALFWORD_START_ADDR);
     a.mov(ARG2d, src_ptr);
     a.mov(ARG3d, src_ptr.clone_adjusted(sizeof(Eterm)));
     mov_arg(First, ARG2);
@@ -792,17 +785,17 @@ void BeamModuleAssembler::emit_node(const ArgRegister &Dst) {
 void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
                                         const ArgSource &Tl) {
 #if defined(HALFWORD_HEAP)
-#if 0
+#    if 0
     mov_arg(RET, Tl);
     mov_arg(ARG1, Hd);
     a.shl(RET, 32);
     a.or_(RET, ARG1);
     a.mov(x86::qword_ptr(HTOP), RET);
-#else
+#    else
     mov_arg(x86::dword_ptr(HTOP, 0), Hd);
     mov_arg(x86::dword_ptr(HTOP, 1 * sizeof(Eterm)), Tl);
-#endif
-#else 
+#    endif
+#else
     switch (ArgVal::memory_relation(Hd, Tl)) {
     case ArgVal::Relation::consecutive: {
         x86::Mem src_ptr = getArgRef(Hd, 16);
@@ -959,7 +952,8 @@ void BeamModuleAssembler::emit_self(const ArgRegister &Dst) {
     preserve_cache(
             [&]() {
 #if defined(HALFWORD_HEAP)
-                a.mov(reg.r32(), x86::dword_ptr(c_p, offsetof(Process, common.id)));
+                a.mov(reg.r32(),
+                      x86::dword_ptr(c_p, offsetof(Process, common.id)));
 #else
                 a.mov(reg, x86::qword_ptr(c_p, offsetof(Process, common.id)));
 #endif

@@ -647,6 +647,10 @@ typedef struct ErtsSchedulerRegisters_ {
             /* Temporary memory used by beamasm for allocations within
              * instructions */
             UWord TMP_MEM[5];
+
+#if HALFWORD_HEAP
+            UWord halfword_start_addr;
+#endif
 #endif
 
             /* erl_bits.c state */

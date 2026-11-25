@@ -215,6 +215,12 @@ protected:
 
     enum Distance { dShort, dLong };
 
+#if HALFWORD_HEAP
+    const x86::Mem HALFWORD_START_ADDR = getSchedulerRegRef(
+            offsetof(ErtsSchedulerRegisters, aux_regs.d.halfword_start_addr),
+            sizeof(UWord));
+#endif
+
     constexpr x86::Mem getRuntimeStackRef() const {
         int base = offsetof(ErtsSchedulerRegisters, aux_regs.d.runtime_stack);
 
@@ -231,14 +237,14 @@ protected:
 #    endif
 
     constexpr x86::Mem getCPRef() const {
-# ifdef HALFWORD_HEAP
+#    ifdef HALFWORD_HEAP
         return x86::dword_ptr(E);
-# else
+#    else
         return x86::qword_ptr(E);
-#endif
+#    endif
     }
 
-#  ifdef HALFWORD_HEAP
+#    ifdef HALFWORD_HEAP
     void store_cp(const x86::Gp src) {
         a.mov(x86::dword_ptr(E), src.r32());
     }
@@ -247,7 +253,7 @@ protected:
         a.mov(dst.r32(), x86::dword_ptr(E));
     }
 
-#  else
+#    else
     void store_cp(const x86::Gp src) {
         a.mov(x86::qword_ptr(E), src);
     }
@@ -255,7 +261,7 @@ protected:
     void load_cp(const x86::Gp &dst) {
         a.mov(dst, x86::qword_ptr(E));
     }
-#  endif
+#    endif
 #endif
 
     constexpr x86::Mem getSchedulerRegRef(int offset,
@@ -318,12 +324,17 @@ protected:
         return x86::Mem(Src, -TAG_PRIMARY_LIST + sizeof(Eterm), size);
     }
 
-    template <typename T, typename F>
-    constexpr x86::Mem field_mem(const x86::Gp& base, size_t offset, F T::* /*member*/) {
-        return x86::Mem(base, static_cast<int32_t>(offset), static_cast<uint32_t>(sizeof(F)));
+    template<typename T, typename F>
+    constexpr x86::Mem field_mem(const x86::Gp &base,
+                                 size_t offset,
+                                 F T::* /*member*/) {
+        return x86::Mem(base,
+                        static_cast<int32_t>(offset),
+                        static_cast<uint32_t>(sizeof(F)));
     }
 
-#define PROC_FIELD_REF(field) field_mem(c_p, offsetof(Process, field), &Process::field)
+#define PROC_FIELD_REF(field)                                                  \
+    field_mem(c_p, offsetof(Process, field), &Process::field)
 
     void align_erlang_cp() {
         /* Align so that the current address forms a valid CP. */
