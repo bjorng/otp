@@ -584,7 +584,7 @@ void BeamModuleAssembler::patchLiteral(char *rw_base,
 
     for (const auto &patch : literal.patches) {
         auto offset = code.label_offset_from_base(patch.where);
-        auto where = (Eterm *)&rw_base[offset + patch.ptr_offs];
+        auto where = (BeamInstr *)&rw_base[offset + patch.ptr_offs];
 
         ASSERT(LLONG_MAX == *where);
         *where = value + patch.val_offs;
