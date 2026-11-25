@@ -696,14 +696,18 @@ void BeamModuleAssembler::emit_move_two_words(const ArgSource &Src1,
                                               const ArgRegister &Dst1,
                                               const ArgSource &Src2,
                                               const ArgRegister &Dst2) {
-    x86::Mem src_ptr = getArgRef(Src1, 16);
+    x86::Mem src_ptr = getArgRef(Src1, sizeof(Eterm[2]));
 
     ASSERT(ArgVal::memory_relation(Src1, Src2) ==
            ArgVal::Relation::consecutive);
 
     switch (ArgVal::memory_relation(Dst1, Dst2)) {
     case ArgVal::Relation::consecutive: {
-        x86::Mem dst_ptr = getArgRef(Dst1, 16);
+        x86::Mem dst_ptr = getArgRef(Dst1, sizeof(Eterm[2]));
+#if HALFWORD_HEAP
+        a.mov(RET, src_ptr);
+        a.mov(dst_ptr, RET);
+#else
         preserve_cache(
                 [&]() {
                     vmovups(x86::xmm0, src_ptr);
@@ -711,11 +715,17 @@ void BeamModuleAssembler::emit_move_two_words(const ArgSource &Src1,
                 },
                 getArgRef(Dst1),
                 getArgRef(Dst2));
+#endif
         break;
     }
     case ArgVal::Relation::reverse_consecutive: {
-        x86::Mem dst_ptr = getArgRef(Dst2, 16);
+        x86::Mem dst_ptr = getArgRef(Dst2, sizeof(Eterm[2]));
         comment("(moving and swapping)");
+#if HALFWORD_HEAP
+        a.mov(RET, src_ptr);
+        a.rol(RET, 32);
+        a.mov(dst_ptr, RET);
+#else
         if (hasCpuFeature(CpuFeatures::X86::kAVX)) {
             preserve_cache(
                     [&]() {
@@ -730,6 +740,7 @@ void BeamModuleAssembler::emit_move_two_words(const ArgSource &Src1,
             mov_arg(Dst1, ARG1);
             mov_arg(Dst2, ARG2);
         }
+#endif
         break;
     }
     case ArgVal::Relation::none:

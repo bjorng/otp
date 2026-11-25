@@ -284,28 +284,16 @@ protected:
         return getSchedulerRegRef(base + offset, size);
     }
 
-    constexpr x86::Mem getXRef(int index, size_t size = sizeof(UWord)) const {
+    constexpr x86::Mem getXRef(int index, size_t size = sizeof(Eterm)) const {
         int base = offsetof(ErtsSchedulerRegisters, x_reg_array.d);
         int offset = index * sizeof(Eterm);
-
-#if defined(HALFWORD_HEAP)
-        if (size > sizeof(Eterm)) {
-            size /= 2;
-        }
-#endif
 
         ASSERT(index >= 0 && index < ERTS_X_REGS_ALLOCATED);
         return getSchedulerRegRef(base + offset, size);
     }
 
-    constexpr x86::Mem getYRef(int index, size_t size = sizeof(UWord)) const {
+    constexpr x86::Mem getYRef(int index, size_t size = sizeof(Eterm)) const {
         ASSERT(index >= 0 && index <= 1023);
-
-#if defined(HALFWORD_HEAP)
-        if (size > sizeof(Eterm)) {
-            size /= 2;
-        }
-#endif
 
 #if defined(NATIVE_ERLANG_STACK)
         return x86::Mem(E, index * sizeof(Eterm), size);
@@ -626,13 +614,14 @@ protected:
     }
 
     constexpr x86::Mem getArgRef(const ArgRegister &arg,
-                                 size_t size = sizeof(UWord)) const {
+                                 size_t size = sizeof(Eterm)) const {
         if (arg.isXRegister()) {
             return getXRef(arg.as<ArgXRegister>().get(), size);
         } else if (arg.isYRegister()) {
             return getYRef(arg.as<ArgYRegister>().get(), size);
         }
 
+        ERTS_ASSERT(0);
         return getFRef(arg.as<ArgFRegister>().get(), size);
     }
 
