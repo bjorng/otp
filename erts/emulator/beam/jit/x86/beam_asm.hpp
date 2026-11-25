@@ -237,14 +237,14 @@ protected:
 #    endif
 
     constexpr x86::Mem getCPRef() const {
-#    ifdef HALFWORD_HEAP
+#    if HALFWORD_HEAP
         return x86::dword_ptr(E);
 #    else
         return x86::qword_ptr(E);
 #    endif
     }
 
-#    ifdef HALFWORD_HEAP
+#    if HALFWORD_HEAP
     void store_cp(const x86::Gp src) {
         a.mov(x86::dword_ptr(E), src.r32());
     }
@@ -1196,7 +1196,7 @@ class BeamModuleAssembler : public BeamAssembler,
     /* Store CPU register into memory and update the cache. */
     void store_cache(x86::Gp src, x86::Mem mem_dst) {
         reg_cache.consolidate(a.offset());
-#if defined(HALFWORD_HEAP)
+#if HALFWORD_HEAP
         ERTS_ASSERT(mem_dst.size() == 4);
         src = src.r32();
 #endif
@@ -1220,7 +1220,7 @@ class BeamModuleAssembler : public BeamAssembler,
             }
         } else {
             /* Not cached. Load and update cache. */
-#if defined(HALFWORD_HEAP)
+#if HALFWORD_HEAP
             ERTS_ASSERT(mem.size() == 4);
             dst = dst.r32();
 #endif
@@ -1293,7 +1293,7 @@ class BeamModuleAssembler : public BeamAssembler,
 
     void cmp_preserve_cache(x86::Mem mem, x86::Gp reg) {
         preserve_cache([&]() {
-#if defined(HALFWORD_HEAP)
+#if HALFWORD_HEAP
             if (mem.size() == 4) {
                 reg = reg.r32();
             }
@@ -1324,7 +1324,7 @@ class BeamModuleAssembler : public BeamAssembler,
                 },
                 Dst);
 #else
-        a.mov_preserve_cache(Dst, mem);
+        mov_preserve_cache(Dst, mem);
 #endif
     }
 
@@ -1919,7 +1919,7 @@ protected:
                 from_reg = spill;
                 mov_arg(from_reg, from);
             }
-#if defined(HALFWORD_HEAP)
+#if HALFWORD_HEAP
             mov_arg(to, from_reg.r32());
 #else
             mov_arg(to, from_reg);

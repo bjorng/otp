@@ -652,7 +652,7 @@ void BeamModuleAssembler::emit_init_yregs(const ArgWord &Size,
             if (slots <= 4) {
                 /* Slightly more compact than `rep stosq`. */
                 for (unsigned j = 0; j < slots; j++) {
-#if defined(HALFWORD_HEAP)
+#if HALFWORD_HEAP
                     a.stosd();
 #else
                     a.stosq();
@@ -660,7 +660,7 @@ void BeamModuleAssembler::emit_init_yregs(const ArgWord &Size,
                 }
             } else {
                 mov_imm(x86::rcx, slots);
-#if defined(HALFWORD_HEAP)
+#if HALFWORD_HEAP
                 a.rep().stosd();
 #else
                 a.rep().stosq();
@@ -983,7 +983,7 @@ void BeamModuleAssembler::emit_self(const ArgRegister &Dst) {
 
     preserve_cache(
             [&]() {
-#if defined(HALFWORD_HEAP)
+#if HALFWORD_HEAP
                 a.mov(reg.r32(),
                       x86::dword_ptr(c_p, offsetof(Process, common.id)));
 #else

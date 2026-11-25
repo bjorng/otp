@@ -83,6 +83,7 @@ ERTS_GLB_INLINE bool IS_LOW_POINTER(void* ptr)
 #  define HEAP_ON_C_STACK 1
 #  define CHECK_POINTER_MASK 0x0UL
 #  define COMPRESS_POINTER(APointer) ((Eterm)(APointer))
+#  define COMPRESS_CODE_POINTER(APointer) ((UWord)(APointer))
 #  define EXPAND_POINTER(AnEterm) (AnEterm)
 #  define COMPRESSED_NULL ((Eterm)NULL)
 #  define EXPANDED_NULL NULL
