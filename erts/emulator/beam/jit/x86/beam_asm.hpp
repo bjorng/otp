@@ -613,7 +613,9 @@ protected:
             return getYRef(arg.as<ArgYRegister>().get(), size);
         }
 
+#if HALFWORD_HEAP
         ERTS_ASSERT(0);
+#endif
         return getFRef(arg.as<ArgFRegister>().get(), size);
     }
 
