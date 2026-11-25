@@ -324,6 +324,14 @@ protected:
         return x86::Mem(Src, -TAG_PRIMARY_LIST + sizeof(Eterm), size);
     }
 
+    void emit_load_CDR(x86::Gp Dst, x86::Gp Src) {
+        const size_t size = sizeof(UWord);
+        x86::Mem mem(Src, -TAG_PRIMARY_LIST + sizeof(Eterm), size);
+        a.lea(Dst, mem);
+        a.add(Dst, HALFWORD_START_ADDR);
+        a.mov(Dst.r32(), x86::dword_ptr(Dst));
+    }
+
     template<typename T, typename F>
     constexpr x86::Mem field_mem(const x86::Gp &base,
                                  size_t offset,
@@ -1249,7 +1257,7 @@ class BeamModuleAssembler : public BeamAssembler,
         if (!valid) {
             reg_cache.invalidate();
         }
-        
+
         generate();
 
         if (valid) {

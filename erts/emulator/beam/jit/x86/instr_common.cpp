@@ -395,7 +395,11 @@ void BeamModuleAssembler::emit_get_tl(const ArgRegister &Src,
 
     x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
 
+#if HALFWORD_HEAP
+    emit_load_CDR(ARG2, boxed_ptr);
+#else
     mov_preserve_cache(ARG2, getCDRRef(boxed_ptr));
+#endif
 
     mov_arg(Tl, ARG2);
 }
