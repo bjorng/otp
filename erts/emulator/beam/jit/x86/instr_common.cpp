@@ -320,7 +320,6 @@ void BeamModuleAssembler::emit_get_pair(const x86::Gp src,
             ARG3);
     mov_arg(First, ARG2);
     mov_arg(Second, ARG3);
-    a.nop();
 #else
     x86::Mem xmm_src_ptr = x86::Mem(clean_ptr, offset, 16);
 
@@ -1194,7 +1193,6 @@ void BeamModuleAssembler::emit_is_nonempty_list(const ArgLabel &Fail,
                                                 const ArgRegister &Src) {
     x86::Mem list_ptr = getArgRef(Src, 1);
 
-    comment("blurf");
     preserve_cache([&]() {
         a.test(list_ptr, imm(_TAG_PRIMARY_MASK - TAG_PRIMARY_LIST));
         a.jne(resolve_beam_label(Fail));
