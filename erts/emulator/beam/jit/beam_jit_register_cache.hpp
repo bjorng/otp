@@ -112,6 +112,11 @@ public:
     void invalidate(Reg reg) {
         ASSERT(reg.is_valid());
 
+#if HALFWORD_HEAP
+        /* Normalize register to the full 64-bit size. */
+        reg = reg.r64();
+#endif
+
         auto i = 0;
         while (i < entries) {
             auto &entry = cache[i];
@@ -172,6 +177,11 @@ public:
 
     void put(Mem mem, Reg reg) {
         ASSERT(mem.has_base());
+
+#if HALFWORD_HEAP
+        /* Normalize register to the full 64-bit size. */
+        reg = reg.r64();
+#endif
 
         /* Only allow caching of X and Y registers. */
         auto base = mem.base_reg();
