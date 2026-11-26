@@ -1303,6 +1303,7 @@ void BeamModuleAssembler::emit_is_bitstring(const ArgLabel &Fail,
         x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
         preserve_cache(
                 [&]() {
+                    emit_expand_pointer(boxed_ptr);
                     a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
 
                     a.and_(RETb, imm(_BITSTRING_TAG_MASK));
@@ -1326,9 +1327,9 @@ void BeamModuleAssembler::emit_is_binary(const ArgLabel &Fail,
     preserve_cache(
             [&]() {
                 ERTS_CT_ASSERT(offsetof(ErlHeapBits, size) == sizeof(Eterm));
+                emit_expand_pointer(boxed_ptr);
                 a.mov(RET,
                       emit_boxed_val(boxed_ptr, offsetof(ErlHeapBits, size)));
-
                 a.mov(ARG2d, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
                 a.cmp(ARG2d, imm(HEADER_SUB_BITS));
                 a.short_().jne(not_sub_bits);
@@ -1550,6 +1551,7 @@ void BeamModuleAssembler::emit_is_map(const ArgLabel &Fail,
         preserve_cache(
                 [&]() {
                     x86::Gp boxed_ptr = emit_ptr_val(RET, ARG1);
+                    emit_expand_pointer(boxed_ptr);
                     a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
                     a.and_(RETb, imm(_TAG_HEADER_MASK));
                     a.cmp(RETb, imm(_TAG_HEADER_MAP));
@@ -1634,6 +1636,7 @@ void BeamModuleAssembler::emit_is_pid(const ArgLabel &Fail,
         x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
         preserve_cache(
                 [&]() {
+                    emit_expand_pointer(boxed_ptr);
                     a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
                     a.and_(RETb, imm(_TAG_HEADER_MASK));
                     a.cmp(RETb, imm(_TAG_HEADER_EXTERNAL_PID));
@@ -1668,6 +1671,7 @@ void BeamModuleAssembler::emit_is_port(const ArgLabel &Fail,
         comment("skipped header test since we know it's a port when boxed");
     } else {
         x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
+        emit_expand_pointer(boxed_ptr);
         a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
         a.and_(RETb, imm(_TAG_HEADER_MASK));
         a.cmp(RETb, imm(_TAG_HEADER_EXTERNAL_PORT));
@@ -1691,6 +1695,7 @@ void BeamModuleAssembler::emit_is_reference(const ArgLabel &Fail,
         preserve_cache(
                 [&]() {
                     x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
+                    emit_expand_pointer(boxed_ptr);
                     a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
                     a.and_(RETb, imm(_TAG_HEADER_MASK));
                     a.cmp(RETb, imm(_TAG_HEADER_REF));
