@@ -923,11 +923,20 @@ void BeamModuleAssembler::emit_put_tuple2(const ArgRegister &Dst,
                 x86::Mem src_ptr = getArgRef(args[i], sizeof(Eterm[2]));
 
                 comment("(moving two elements at once)");
-                dst_ptr.set_size(16);
+                dst_ptr.set_size(sizeof(Eterm[2]));
+#if HALFWORD_HEAP
+                preserve_cache(
+                        [&]() {
+                            a.mov(RET, src_ptr);
+                            a.mov(dst_ptr, RET);
+                        },
+                        RET);
+#else
                 preserve_cache([&]() {
                     vmovups(x86::xmm0, src_ptr);
                     vmovups(dst_ptr, x86::xmm0);
                 });
+#endif
                 i++;
                 break;
             }
