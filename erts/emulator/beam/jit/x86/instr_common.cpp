@@ -1852,7 +1852,8 @@ void BeamModuleAssembler::emit_i_test_arity(const ArgLabel &Fail,
 #if HALFWORD_HEAP
     preserve_cache(
             [&]() {
-                a.cmp(emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)),
+                emit_expand_pointer(ARG2);
+                a.cmp(emit_boxed_val(ARG2, 0, sizeof(Uint32)),
                       imm(Arity.get()));
                 a.jne(resolve_beam_label(Fail));
             },
