@@ -322,16 +322,19 @@ protected:
         load_pair_component(Dst, Src, sizeof(Eterm));
     }
 
-    void emit_cmp_pair_component(x86::Gp Src, const asmjit::Operand& key, x86::Gp spill, size_t offset) {
+    void emit_cmp_pair_component(x86::Gp Src,
+                                 const asmjit::Operand &key,
+                                 x86::Gp spill,
+                                 size_t offset) {
         const size_t size = sizeof(Eterm);
 #if HALFWORD_HEAP
         x86::Mem mem(spill, Src, 0, offset - TAG_PRIMARY_LIST, size);
         a.mov(spill, HALFWORD_START_ADDR);
 #else
         x86::Mem mem(Src, offset - TAG_PRIMARY_LIST, size);
-#ifdef DEBUG
+#    ifdef DEBUG
         a.mov(spill, ERTS_HOLE_MARKER);
-#endif
+#    endif
 #endif
         if (key.is_reg()) {
             a.cmp(mem, key.as<x86::Gp>());
@@ -342,14 +345,14 @@ protected:
         }
     }
 
-    void emit_cmp_CAR(x86::Gp Src, const asmjit::Operand& key, x86::Gp spill) {
+    void emit_cmp_CAR(x86::Gp Src, const asmjit::Operand &key, x86::Gp spill) {
         emit_cmp_pair_component(Src, key, spill, 0);
     }
 
-    void emit_cmp_CDR(x86::Gp Src, const asmjit::Operand& key, x86::Gp spill) {
+    void emit_cmp_CDR(x86::Gp Src, const asmjit::Operand &key, x86::Gp spill) {
         emit_cmp_pair_component(Src, key, spill, sizeof(Eterm));
     }
-    
+
     template<typename T, typename F>
     constexpr x86::Mem field_mem(const x86::Gp &base,
                                  size_t offset,
@@ -1352,7 +1355,9 @@ class BeamModuleAssembler : public BeamAssembler,
      * fragments as if they were local. */
     std::unordered_map<void (*)(), Label> _dispatchTable;
 
-    void load_pair_component_preserve_cache(x86::Gp Dst, x86::Gp Src, size_t offset) {
+    void load_pair_component_preserve_cache(x86::Gp Dst,
+                                            x86::Gp Src,
+                                            size_t offset) {
         preserve_cache(
                 [&]() {
                     load_pair_component(Dst, Src, offset);
