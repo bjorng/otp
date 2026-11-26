@@ -542,7 +542,7 @@ void BeamModuleAssembler::emit_bif_hd(const ArgSource &Src,
     a.bind(good_cons);
     {
         x86::Gp boxed_ptr = emit_ptr_val(RET, RET);
-        a.mov(ARG2, getCARRef(boxed_ptr));
+        emit_load_CAR(ARG2, boxed_ptr);
         mov_arg(Hd, ARG2);
     }
 }
