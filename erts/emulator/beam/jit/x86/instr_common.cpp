@@ -998,10 +998,6 @@ void BeamModuleAssembler::emit_put_tuple2(const ArgRegister &Dst,
             HTOP,
             tmp_reg);
 
-#if HALFWORD_HEAP
-    //tmp_reg = tmp_reg.r32();
-#endif
-
     mov_arg(Dst, tmp_reg);
 }
 
@@ -1919,13 +1915,19 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
 
     a.and_(ARG1, imm(~TAG_PTR_MASK__));
     a.and_(ARG2, imm(~TAG_PTR_MASK__));
-    a.mov(ARG3, x86::qword_ptr(ARG1, 0));
+
+    ERTS_CT_ASSERT(Bitwise::fits_unsigned<32>(make_arityval(MAX_ARITYVAL)));
+    a.mov(ARG3d, x86::dword_ptr(ARG1, 0));
     a.shr(ARG3, imm(_HEADER_ARITY_OFFS));
     a.dec(ARG3);
     mov_imm(ARG4, 0);
 
     a.bind(loop);
     {
+#if HALFWORD_HEAP
+        a.mov(RET, x86::qword_ptr(ARG1, ARG4));
+        a.cmp(RET, x86::qword_ptr(ARG2, ARG4));
+#else
         if (hasCpuFeature(CpuFeatures::X86::kAVX)) {
             a.vmovdqu(x86::xmm0, x86::xmmword_ptr(ARG1, ARG4));
             a.vpxor(x86::xmm0, x86::xmm0, x86::xmmword_ptr(ARG2, ARG4));
@@ -1937,6 +1939,7 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
             a.mov(RET, x86::qword_ptr(ARG1, ARG4, 0, sizeof(Eterm)));
             a.cmp(RET, x86::qword_ptr(ARG2, ARG4, 0, sizeof(Eterm)));
         }
+#endif
         a.short_().jne(done);
 
         a.add(ARG4, imm(2 * sizeof(Eterm)));
@@ -1947,8 +1950,13 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
     a.cmp(ARG3.r8(), imm(-2));
     a.short_().je(done);
 
+#if HALFWORD_HEAP
+    a.mov(RETd, x86::dword_ptr(ARG1, ARG4, 0));
+    a.cmp(RETd, x86::dword_ptr(ARG2, ARG4, 0));
+#else
     a.mov(RET, x86::qword_ptr(ARG1, ARG4, 0));
     a.cmp(RET, x86::qword_ptr(ARG2, ARG4, 0));
+#endif
 
     a.bind(done);
     a.ret();
@@ -1997,6 +2005,8 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
             comment("optimized equality test with %T", literal);
             mov_arg(ARG2, Y);
             mov_arg(ARG1, X);
+            emit_expand_pointer(ARG2);
+            emit_expand_pointer(ARG1);
             safe_fragment_call(ga->get_is_eq_exact_shallow_boxed_shared());
             a.jne(resolve_beam_label(Fail));
 
