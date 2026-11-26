@@ -1041,8 +1041,8 @@ protected:
 
     x86::Mem emit_boxed_val(x86::Gp Src,
                             x86::Gp spill,
-                            int32_t bytes = 0,
-                            size_t size = sizeof(UWord)) {
+                            int32_t bytes,
+                            size_t size) {
         ASSERT(bytes % sizeof(Eterm) == 0);
 #if HALFWORD_HEAP
         a.mov(spill, HALFWORD_START_ADDR);

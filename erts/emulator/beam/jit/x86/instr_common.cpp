@@ -1386,10 +1386,20 @@ void BeamModuleAssembler::emit_is_float(const ArgLabel &Fail,
         comment("skipped header test since we know it's a float when boxed");
     } else {
         x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
+#if HALFWORD_HEAP
+        preserve_cache(
+                [&]() {
+                    a.cmp(emit_boxed_val(boxed_ptr, TMP1, 0, sizeof(Eterm)),
+                          imm(HEADER_FLONUM));
+                    a.jne(resolve_beam_label(Fail));
+                },
+                TMP1);
+#else
         preserve_cache([&]() {
             a.cmp(emit_boxed_val(boxed_ptr), imm(HEADER_FLONUM));
             a.jne(resolve_beam_label(Fail));
         });
+#endif
     }
 }
 
@@ -1499,7 +1509,8 @@ void BeamModuleAssembler::emit_is_integer(const ArgLabel &Fail,
 
         preserve_cache(
                 [&]() {
-                    a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
+                    a.mov(RETd,
+                          emit_boxed_val(boxed_ptr, RET, 0, sizeof(Uint32)));
 
                     a.and_(RETb, imm(_BIG_TAG_MASK));
                     a.cmp(RETb, imm(_TAG_HEADER_POS_BIG));
@@ -1580,7 +1591,7 @@ void BeamModuleAssembler::emit_is_number(const ArgLabel &Fail,
         comment("skipped header test since we know it's a number when boxed");
     } else {
         x86::Gp boxed_ptr = emit_ptr_val(ARG1, ARG1);
-        a.mov(ARG1, emit_boxed_val(boxed_ptr));
+        a.mov(ARG1d, emit_boxed_val(boxed_ptr, RET, 0, sizeof(Uint32)));
 
         a.mov(RETd, ARG1d);
         a.and_(RETb, imm(_BIG_TAG_MASK));
@@ -1702,8 +1713,22 @@ void BeamModuleAssembler::emit_i_is_tagged_tuple(const ArgLabel &Fail,
 
     emit_is_boxed(resolve_beam_label(Fail), Src, ARG2);
 
-    x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
     ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
+#if HALFWORD_HEAP
+    preserve_cache(
+            [&]() {
+                (void)emit_ptr_val(ARG2, ARG2);
+                emit_expand_pointer(ARG2);
+                a.mov(RET, emit_boxed_val(ARG2, 0, sizeof(Eterm[2])));
+                a.movabs(TMP1, (Uint64(Tag.get()) << 32) | Arity.get());
+                a.cmp(RET, TMP1);
+                a.jne(resolve_beam_label(Fail));
+            },
+            RET,
+            TMP1,
+            ARG2);
+#else
+    x86::Gp boxed_ptr = emit_ptr_val(ARG2, ARG2);
     preserve_cache([&]() {
         a.cmp(emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)), imm(Arity.get()));
         a.jne(resolve_beam_label(Fail));
@@ -1711,6 +1736,7 @@ void BeamModuleAssembler::emit_i_is_tagged_tuple(const ArgLabel &Fail,
         a.cmp(emit_boxed_val(boxed_ptr, sizeof(Eterm)), imm(Tag.get()));
         a.jne(resolve_beam_label(Fail));
     });
+#endif
 }
 
 /* Note: This instruction leaves the pointer to the tuple in ARG2. */
