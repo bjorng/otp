@@ -550,7 +550,7 @@ void BeamModuleAssembler::emit_get_two_tuple_elements(const ArgSource &Src,
 #endif
 
 #if HALFWORD_HEAP
-    a.mov(ARG1, emit_boxed_val(ARG2, ARG1, Element.get(), sizeof(Eterm[2])));
+    a.mov(ARG1, emit_boxed_val(ARG2, Element.get(), sizeof(Eterm[2])));
     mov_arg(Dst1, ARG1);
     a.shr(ARG1, 32);
     mov_arg(Dst2, ARG1);
@@ -908,18 +908,19 @@ void BeamModuleAssembler::emit_put_tuple2(const ArgRegister &Dst,
     ASSERT(arityval(Arity.get()) == size);
 
     comment("Move arity word");
-    mov_arg(x86::qword_ptr(HTOP, 0), Arity);
+    mov_arg(x86::ptr(HTOP, 0, sizeof(Eterm)), Arity);
 
     comment("Move tuple data");
     for (unsigned i = 0; i < size; i++) {
-        x86::Mem dst_ptr = x86::qword_ptr(HTOP, (i + 1) * sizeof(Eterm));
+        x86::Mem dst_ptr =
+                x86::ptr(HTOP, (i + 1) * sizeof(Eterm), sizeof(Eterm));
 
         if (i + 1 == size) {
             mov_arg(dst_ptr, args[i]);
         } else {
             switch (ArgVal::memory_relation(args[i], args[i + 1])) {
             case ArgVal::Relation::consecutive: {
-                x86::Mem src_ptr = getArgRef(args[i], 16);
+                x86::Mem src_ptr = getArgRef(args[i], sizeof(Eterm[2]));
 
                 comment("(moving two elements at once)");
                 dst_ptr.set_size(16);
@@ -934,14 +935,24 @@ void BeamModuleAssembler::emit_put_tuple2(const ArgRegister &Dst,
                 if (!hasCpuFeature(CpuFeatures::X86::kAVX)) {
                     mov_arg(dst_ptr, args[i]);
                 } else {
-                    x86::Mem src_ptr = getArgRef(args[i + 1], 16);
+                    x86::Mem src_ptr = getArgRef(args[i + 1], sizeof(Eterm[2]));
 
                     comment("(moving and swapping two elements at once)");
-                    dst_ptr.set_size(16);
+                    dst_ptr.set_size(sizeof(Eterm[2]));
+#if HALFWORD_HEAP
+                    preserve_cache(
+                            [&]() {
+                                a.mov(RET, src_ptr);
+                                a.rol(RET, 32);
+                                a.mov(dst_ptr, RET);
+                            },
+                            RET);
+#else
                     preserve_cache([&]() {
                         a.vpermilpd(x86::xmm0, src_ptr, 1); /* Load and swap */
                         a.vmovups(dst_ptr, x86::xmm0);
                     });
+#endif
                     i++;
                 }
                 break;
@@ -977,13 +988,19 @@ void BeamModuleAssembler::emit_put_tuple2(const ArgRegister &Dst,
 
     comment("Create boxed ptr");
     x86::Gp tmp_reg = alloc_temp_reg();
+
     preserve_cache(
             [&]() {
                 a.lea(tmp_reg, x86::qword_ptr(HTOP, TAG_PRIMARY_BOXED));
+                emit_compress_pointer(tmp_reg);
                 a.add(HTOP, imm((size + 1) * sizeof(Eterm)));
             },
             HTOP,
             tmp_reg);
+
+#if HALFWORD_HEAP
+    //tmp_reg = tmp_reg.r32();
+#endif
 
     mov_arg(Dst, tmp_reg);
 }
@@ -1767,10 +1784,13 @@ void BeamModuleAssembler::emit_i_is_tuple_of_arity(const ArgLabel &Fail,
     ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
 
 #if HALFWORD_HEAP
-    preserve_cache([&]() {
-        a.cmp(emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)), imm(Arity.get()));
-        a.jne(resolve_beam_label(Fail));
-    }, RET);
+    preserve_cache(
+            [&]() {
+                a.cmp(emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)),
+                      imm(Arity.get()));
+                a.jne(resolve_beam_label(Fail));
+            },
+            RET);
 #else
     preserve_cache([&]() {
         a.cmp(emit_boxed_val(ARG2, 0, sizeof(Uint32)), imm(Arity.get()));
@@ -1825,10 +1845,13 @@ void BeamModuleAssembler::emit_i_test_arity(const ArgLabel &Fail,
     (void)emit_ptr_val(ARG2, ARG2);
     ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
 #if HALFWORD_HEAP
-    preserve_cache([&]() {
-        a.cmp(emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)), imm(Arity.get()));
-        a.jne(resolve_beam_label(Fail));
-    }, RET);
+    preserve_cache(
+            [&]() {
+                a.cmp(emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)),
+                      imm(Arity.get()));
+                a.jne(resolve_beam_label(Fail));
+            },
+            RET);
 #else
     preserve_cache([&]() {
         a.cmp(emit_boxed_val(ARG2, 0, sizeof(Uint32)), imm(Arity.get()));
