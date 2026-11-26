@@ -471,6 +471,7 @@ void BeamModuleAssembler::emit_i_get_hash(const ArgConstant &Src,
 void BeamModuleAssembler::emit_load_tuple_ptr(const ArgSource &Term) {
     mov_arg(ARG2, Term);
     (void)emit_ptr_val(ARG2, ARG2);
+    emit_expand_pointer(ARG2);
 }
 
 #ifdef DEBUG
@@ -501,6 +502,10 @@ void BeamModuleAssembler::emit_i_get_tuple_element(const ArgSource &Src,
                                                    const ArgWord &Element,
                                                    const ArgRegister &Dst) {
     x86::Gp tmp_reg = alloc_temp_reg();
+
+#if HALFWORD_HEAP
+    tmp_reg = tmp_reg.r32();
+#endif
 
 #ifdef DEBUG
     emit_tuple_assertion(Src, ARG2);
@@ -544,6 +549,12 @@ void BeamModuleAssembler::emit_get_two_tuple_elements(const ArgSource &Src,
     emit_tuple_assertion(Src, ARG2);
 #endif
 
+#if HALFWORD_HEAP
+    a.mov(ARG1, emit_boxed_val(ARG2, ARG1, Element.get(), sizeof(Eterm[2])));
+    mov_arg(Dst1, ARG1);
+    a.shr(ARG1, 32);
+    mov_arg(Dst2, ARG1);
+#else
     x86::Mem element_ptr =
             emit_boxed_val(ARG2, Element.get(), 2 * sizeof(Eterm));
 
@@ -584,6 +595,7 @@ void BeamModuleAssembler::emit_get_two_tuple_elements(const ArgSource &Src,
         mov_arg(Dst2, ARG3);
         break;
     }
+#endif
 }
 
 void BeamModuleAssembler::emit_init_yregs(const ArgWord &Size,
@@ -860,9 +872,7 @@ void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
     preserve_cache(
             [&]() {
                 a.lea(ARG2, x86::qword_ptr(HTOP, TAG_PRIMARY_LIST));
-#if HALFWORD_HEAP
-                a.sub(ARG2, HALFWORD_START_ADDR);
-#endif
+                emit_compress_pointer(ARG2);
             },
             ARG2);
 }
@@ -1725,10 +1735,19 @@ void BeamModuleAssembler::emit_i_is_tuple(const ArgLabel &Fail,
 
         (void)emit_ptr_val(ARG2, ARG2);
         ERTS_CT_ASSERT(_TAG_HEADER_ARITYVAL == 0);
+#if HALFWORD_HEAP
+        preserve_cache(
+                [&]() {
+                    a.test(emit_boxed_val(ARG2, TMP1, 0, sizeof(byte)),
+                           imm(_TAG_HEADER_MASK));
+                },
+                TMP1);
+#else
         preserve_cache([&]() {
             a.test(emit_boxed_val(ARG2, 0, sizeof(byte)),
                    imm(_TAG_HEADER_MASK));
         });
+#endif
     }
 
     preserve_cache([&]() {
@@ -1747,10 +1766,17 @@ void BeamModuleAssembler::emit_i_is_tuple_of_arity(const ArgLabel &Fail,
     (void)emit_ptr_val(ARG2, ARG2);
     ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
 
+#if HALFWORD_HEAP
+    preserve_cache([&]() {
+        a.cmp(emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)), imm(Arity.get()));
+        a.jne(resolve_beam_label(Fail));
+    }, RET);
+#else
     preserve_cache([&]() {
         a.cmp(emit_boxed_val(ARG2, 0, sizeof(Uint32)), imm(Arity.get()));
         a.jne(resolve_beam_label(Fail));
     });
+#endif
 }
 
 /* Note: This instruction leaves the pointer to the tuple in ARG2. */
@@ -1780,7 +1806,7 @@ void BeamModuleAssembler::emit_i_is_tuple_of_arity_ff(const ArgLabel &NotTuple,
         ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
         preserve_cache(
                 [&]() {
-                    a.mov(RETd, emit_boxed_val(ARG2, 0, sizeof(Uint32)));
+                    a.mov(RETd, emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)));
                     a.test(RETb, imm(_TAG_HEADER_MASK));
                     a.jne(resolve_beam_label(NotTuple));
                     a.cmp(RETd, imm(Arity.get()));
@@ -1798,10 +1824,17 @@ void BeamModuleAssembler::emit_i_test_arity(const ArgLabel &Fail,
 
     (void)emit_ptr_val(ARG2, ARG2);
     ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
+#if HALFWORD_HEAP
+    preserve_cache([&]() {
+        a.cmp(emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)), imm(Arity.get()));
+        a.jne(resolve_beam_label(Fail));
+    }, RET);
+#else
     preserve_cache([&]() {
         a.cmp(emit_boxed_val(ARG2, 0, sizeof(Uint32)), imm(Arity.get()));
         a.jne(resolve_beam_label(Fail));
     });
+#endif
 }
 
 /*

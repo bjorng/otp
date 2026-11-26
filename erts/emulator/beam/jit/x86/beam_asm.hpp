@@ -1039,6 +1039,34 @@ protected:
         return x86::Mem(Src, bytes - TAG_PRIMARY_BOXED, size);
     }
 
+    x86::Mem emit_boxed_val(x86::Gp Src,
+                            x86::Gp spill,
+                            int32_t bytes = 0,
+                            size_t size = sizeof(UWord)) {
+        ASSERT(bytes % sizeof(Eterm) == 0);
+#if HALFWORD_HEAP
+        a.mov(spill, HALFWORD_START_ADDR);
+        return x86::Mem(spill, Src, 0, bytes - TAG_PRIMARY_BOXED, size);
+#else
+#    ifdef DEBUG
+        a.mov(spill, ERTS_HOLE_MARKER);
+#    endif
+        return emit_boxed_val(Src, bytes, size);
+#endif
+    }
+
+    void emit_compress_pointer(const x86::Gp Reg) {
+#if HALFWORD_HEAP
+        a.sub(Reg, HALFWORD_START_ADDR);
+#endif
+    }
+
+    void emit_expand_pointer(const x86::Gp Reg) {
+#if HALFWORD_HEAP
+        a.add(Reg, HALFWORD_START_ADDR);
+#endif
+    }
+
     void emit_test_the_non_value(x86::Gp Reg) {
         if (THE_NON_VALUE == 0) {
             a.test(Reg.r32(), Reg.r32());
