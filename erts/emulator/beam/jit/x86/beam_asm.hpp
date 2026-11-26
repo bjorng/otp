@@ -303,13 +303,13 @@ protected:
     }
 
     void load_pair_component(x86::Gp Dst, x86::Gp Src, size_t offset) {
-        const size_t size = sizeof(UWord);
-        x86::Mem mem(Src, offset - TAG_PRIMARY_LIST, size);
+        const size_t size = sizeof(Eterm);
 #if HALFWORD_HEAP
-        a.lea(Dst, mem);
-        a.add(Dst, HALFWORD_START_ADDR);
-        a.mov(Dst.r32(), x86::dword_ptr(Dst));
+        x86::Mem mem(Dst, Src, 0, offset - TAG_PRIMARY_LIST, size);
+        a.mov(Dst, HALFWORD_START_ADDR);
+        a.mov(Dst.r32(), mem);
 #else
+        x86::Mem mem(Src, offset - TAG_PRIMARY_LIST, size);
         a.mov(Dst, mem);
 #endif
     }
@@ -323,12 +323,10 @@ protected:
     }
 
     void emit_cmp_pair_component(x86::Gp Src, const asmjit::Operand& key, x86::Gp spill, size_t offset) {
-        const size_t size = sizeof(UWord);
+        const size_t size = sizeof(Eterm);
 #if HALFWORD_HEAP
         x86::Mem mem(spill, Src, 0, offset - TAG_PRIMARY_LIST, size);
-        ERTS_ASSERT(0);
         a.mov(spill, HALFWORD_START_ADDR);
-        a.mov(spill, mem);
 #else
         x86::Mem mem(Src, offset - TAG_PRIMARY_LIST, size);
 #ifdef DEBUG
