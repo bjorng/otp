@@ -289,12 +289,15 @@ struct BeamModuleAssemblerCommon {
         } else {
             const auto &entry = getTypeEntry(arg);
 
-            auto min = entry.hasLowerBound()
-                               ? entry.min()
-                               : std::numeric_limits<Sint64>::min();
-            auto max = entry.hasUpperBound()
-                               ? entry.max()
-                               : std::numeric_limits<Sint64>::min();
+            auto min = entry.hasLowerBound() ? entry.min() : MIN_SMALL;
+            auto max = entry.hasUpperBound() ? entry.max() : MAX_SMALL;
+            // FIXME.
+            // auto min = entry.hasLowerBound()
+            //                    ? entry.min()
+            //                    : std::numeric_limits<Sint64>::min();
+            // auto max = entry.hasUpperBound()
+            //                    ? entry.max()
+            //                    : std::numeric_limits<Sint64>::min();
             return std::make_pair(min, max);
         }
     }
