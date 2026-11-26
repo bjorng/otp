@@ -298,8 +298,8 @@ void BeamGlobalAssembler::emit_apply_fun_shared() {
             a.short_().jne(malformed_list);
 
             emit_ptr_val(ARG1, ARG1);
-            a.mov(RET, getCARRef(ARG1));
-            a.mov(ARG1, getCDRRef(ARG1));
+            emit_load_CAR(RET, ARG1);
+            emit_load_CDR(ARG1, ARG1);
             a.mov(x_register, RET);
 
             a.inc(ARG3);

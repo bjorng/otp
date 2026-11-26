@@ -302,16 +302,56 @@ protected:
 #endif
     }
 
-    constexpr x86::Mem getCARRef(x86::Gp Src,
-                                 size_t size = sizeof(UWord)) const {
-        return x86::Mem(Src, -TAG_PRIMARY_LIST, size);
+    void load_pair_component(x86::Gp Dst, x86::Gp Src, size_t offset) {
+        const size_t size = sizeof(UWord);
+        x86::Mem mem(Src, offset - TAG_PRIMARY_LIST, size);
+#if HALFWORD_HEAP
+        a.lea(Dst, mem);
+        a.add(Dst, HALFWORD_START_ADDR);
+        a.mov(Dst.r32(), x86::dword_ptr(Dst));
+#else
+        a.mov(Dst, mem);
+#endif
     }
 
-    constexpr x86::Mem getCDRRef(x86::Gp Src,
-                                 size_t size = sizeof(UWord)) const {
-        return x86::Mem(Src, -TAG_PRIMARY_LIST + sizeof(Eterm), size);
+    void emit_load_CAR(x86::Gp Dst, x86::Gp Src) {
+        load_pair_component(Dst, Src, 0);
     }
 
+    void emit_load_CDR(x86::Gp Dst, x86::Gp Src) {
+        load_pair_component(Dst, Src, sizeof(Eterm));
+    }
+
+    void emit_cmp_pair_component(x86::Gp Src, const asmjit::Operand& key, x86::Gp spill, size_t offset) {
+        const size_t size = sizeof(UWord);
+#if HALFWORD_HEAP
+        x86::Mem mem(spill, Src, 0, offset - TAG_PRIMARY_LIST, size);
+        ERTS_ASSERT(0);
+        a.mov(spill, HALFWORD_START_ADDR);
+        a.mov(spill, mem);
+#else
+        x86::Mem mem(Src, offset - TAG_PRIMARY_LIST, size);
+#ifdef DEBUG
+        a.mov(spill, ERTS_HOLE_MARKER);
+#endif
+#endif
+        if (key.is_reg()) {
+            a.cmp(mem, key.as<x86::Gp>());
+        } else if (key.is_imm()) {
+            a.cmp(mem, key.as<Imm>());
+        } else {
+            ERTS_ASSERT(0);
+        }
+    }
+
+    void emit_cmp_CAR(x86::Gp Src, const asmjit::Operand& key, x86::Gp spill) {
+        emit_cmp_pair_component(Src, key, spill, 0);
+    }
+
+    void emit_cmp_CDR(x86::Gp Src, const asmjit::Operand& key, x86::Gp spill) {
+        emit_cmp_pair_component(Src, key, spill, sizeof(Eterm));
+    }
+    
     template<typename T, typename F>
     constexpr x86::Mem field_mem(const x86::Gp &base,
                                  size_t offset,
@@ -1314,28 +1354,20 @@ class BeamModuleAssembler : public BeamAssembler,
      * fragments as if they were local. */
     std::unordered_map<void (*)(), Label> _dispatchTable;
 
-    void emit_load_pair_component(x86::Gp Dst, x86::Gp Src, size_t offset) {
-        const size_t size = sizeof(UWord);
-        x86::Mem mem(Src, offset - TAG_PRIMARY_LIST, size);
-#if HALFWORD_HEAP
+    void load_pair_component_preserve_cache(x86::Gp Dst, x86::Gp Src, size_t offset) {
         preserve_cache(
                 [&]() {
-                    a.lea(Dst, mem);
-                    a.add(Dst, HALFWORD_START_ADDR);
-                    a.mov(Dst.r32(), x86::dword_ptr(Dst));
+                    load_pair_component(Dst, Src, offset);
                 },
                 Dst);
-#else
-        mov_preserve_cache(Dst, mem);
-#endif
     }
 
     void emit_load_CAR(x86::Gp Dst, x86::Gp Src) {
-        emit_load_pair_component(Dst, Src, 0);
+        load_pair_component_preserve_cache(Dst, Src, 0);
     }
 
     void emit_load_CDR(x86::Gp Dst, x86::Gp Src) {
-        emit_load_pair_component(Dst, Src, sizeof(Eterm));
+        load_pair_component_preserve_cache(Dst, Src, sizeof(Eterm));
     }
 
 public:

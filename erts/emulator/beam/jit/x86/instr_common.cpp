@@ -1818,12 +1818,12 @@ void BeamGlobalAssembler::emit_is_eq_exact_list_shared() {
     a.bind(loop);
     (void)emit_ptr_val(ARG1, ARG1);
     (void)emit_ptr_val(ARG2, ARG2);
-    a.mov(RET, getCARRef(ARG1));
-    a.mov(ARG1, getCDRRef(ARG1));
-    a.cmp(getCARRef(ARG2), RET);
+    emit_load_CAR(RET, ARG1);
+    emit_load_CDR(ARG1, ARG1);
+    emit_cmp_CAR(ARG2, RET, TMP1);
     a.short_().jne(done);
 
-    a.mov(ARG2, getCDRRef(ARG2));
+    emit_load_CDR(ARG2, ARG2);
 
     a.bind(mid);
     a.cmp(ARG1, ARG2);
@@ -1905,8 +1905,7 @@ void BeamGlobalAssembler::emit_is_eq_exact_shallow_boxed_shared() {
 void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
                                            const ArgSource &X,
                                            const ArgSource &Y) {
-    // FIXME: Renable this optimization later.
-    if (false && Y.isLiteral()) {
+    if (Y.isLiteral()) {
         Eterm literal = beamfile_get_literal(beam, Y.as<ArgLiteral>().get());
         bool imm_list = beam_jit_is_list_of_immediates(literal);
 
@@ -1920,13 +1919,13 @@ void BeamModuleAssembler::emit_is_eq_exact(const ArgLabel &Fail,
             }
             (void)emit_ptr_val(RET, RET);
             if (Bitwise::fits_signed<32>(head)) {
-                a.cmp(getCARRef(RET), imm(head));
+                emit_cmp_CAR(RET, imm(head), TMP1);
             } else {
                 mov_imm(ARG1, head);
-                a.cmp(getCARRef(RET), ARG1);
+                emit_cmp_CAR(RET, ARG1, TMP1);
             }
             a.jne(resolve_beam_label(Fail));
-            a.cmp(getCDRRef(RET), imm(NIL));
+            emit_cmp_CDR(RET, imm(NIL), ARG2);
             a.jne(resolve_beam_label(Fail));
 
             return;
@@ -2075,13 +2074,13 @@ void BeamModuleAssembler::emit_is_ne_exact(const ArgLabel &Fail,
             }
             (void)emit_ptr_val(RET, RET);
             if (Bitwise::fits_signed<32>(head)) {
-                a.cmp(getCARRef(RET), imm(head));
+                emit_cmp_CAR(RET, imm(head), TMP1);
             } else {
                 mov_imm(ARG1, head);
-                a.cmp(getCARRef(RET), ARG1);
+                emit_cmp_CAR(RET, ARG1, TMP1);
             }
             a.short_().jne(next);
-            a.cmp(getCDRRef(RET), imm(NIL));
+            emit_cmp_CDR(RET, imm(NIL), TMP1);
             a.je(resolve_beam_label(Fail));
 
             a.bind(next);
