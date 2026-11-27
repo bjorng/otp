@@ -302,6 +302,26 @@ protected:
 #endif
     }
 
+    /* Load the raw (uncached) X register into Dst of the proper
+     * size. */
+    void load_raw_xreg(const x86::Gp Dst, int index) {
+#if HALFWORD_HEAP
+        a.mov(Dst.r32(), getXRef(index));
+#else
+        a.mov(Dst, getXRef(index));
+#endif
+    }
+
+    /* Store Src of the proper size into the raw (unached) X
+     * register. */
+    void store_raw_xreg(const x86::Gp Src, int index) {
+#if HALFWORD_HEAP
+        a.mov(getXRef(index), Src.r32());
+#else
+        a.mov(getXRef(index), Src);
+#endif
+    }
+
     void load_pair_component(x86::Gp Dst, x86::Gp Src, size_t offset) {
         const size_t size = sizeof(Eterm);
 #if HALFWORD_HEAP

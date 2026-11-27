@@ -3349,9 +3349,9 @@ void BeamModuleAssembler::emit_try_end_deallocate(const ArgWord &Deallocate) {
 void BeamModuleAssembler::emit_try_case(const ArgYRegister &CatchTag) {
     /* The try_tag in the Y slot in the stack frame has already been
      * cleared. */
-    a.dec(x86::qword_ptr(c_p, offsetof(Process, catches)));
-    a.mov(RET, getXRef(3));
-    a.mov(getXRef(0), RET);
+    a.dec(PROC_FIELD_REF(catches));
+    load_raw_xreg(RET, 3);
+    store_raw_xreg(RET, 0);
 
 #ifdef DEBUG
     Label fvalue_ok = a.new_label(), assertion_failed = a.new_label();
@@ -3412,11 +3412,7 @@ void BeamModuleAssembler::emit_build_stacktrace() {
 
     emit_leave_runtime<Update::eHeapAlloc>();
 
-#if HALFWORD_HEAP
-    a.mov(getXRef(0), RETd);
-#else
-    a.mov(getXRef(0), RET);
-#endif
+    mov_arg(ArgXRegister(0), RET);
 }
 
 void BeamModuleAssembler::emit_raw_raise() {
