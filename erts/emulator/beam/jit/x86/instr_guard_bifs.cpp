@@ -273,18 +273,14 @@ void BeamModuleAssembler::emit_bif_byte_size(const ArgWord &Bif,
  */
 
 void BeamGlobalAssembler::emit_handle_element_error() {
-#if HALFWORD_HEAP
-    a.ud2(); // FIXME
-#else
     static ErtsCodeMFA mfa = {am_erlang, am_element, 2};
 
-    a.mov(getXRef(0), ARG1);
-    a.mov(getXRef(1), ARG2);
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(BADARG));
+    store_raw_xreg(ARG1, 0);
+    store_raw_xreg(ARG2, 1);
+    a.mov(PROC_FIELD_REF(freason), imm(BADARG));
     a.mov(ARG4, imm(&mfa));
 
     a.jmp(labels[raise_exception]);
-#endif
 }
 
 /* ARG1 = Position (1-based)
@@ -521,8 +517,8 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
 void BeamGlobalAssembler::emit_handle_hd_error() {
     static ErtsCodeMFA mfa = {am_erlang, am_hd, 1};
 
-    a.mov(getXRef(0), RET);
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(BADARG));
+    store_raw_xreg(RET, 0);
+    a.mov(PROC_FIELD_REF(freason), imm(BADARG));
     a.mov(ARG4, imm(&mfa));
     a.jmp(labels[raise_exception]);
 }
@@ -595,20 +591,28 @@ void BeamModuleAssembler::emit_bif_is_map_key(const ArgWord &Bif,
 
 void BeamGlobalAssembler::emit_handle_map_get_badmap() {
     static ErtsCodeMFA mfa = {am_erlang, am_map_get, 2};
-    a.mov(getXRef(0), ARG2);
-    a.mov(getXRef(1), ARG1);
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(BADMAP));
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, fvalue)), ARG1);
+    store_raw_xreg(ARG2, 0);
+    store_raw_xreg(ARG1, 1);
+    a.mov(PROC_FIELD_REF(freason), imm(BADMAP));
+#if HALFWORD_HEAP
+    a.mov(PROC_FIELD_REF(fvalue), ARG1d);
+#else
+    a.mov(PROC_FIELD_REF(fvalue), ARG1);
+#endif
     a.mov(ARG4, imm(&mfa));
     a.jmp(labels[raise_exception]);
 }
 
 void BeamGlobalAssembler::emit_handle_map_get_badkey() {
     static ErtsCodeMFA mfa = {am_erlang, am_map_get, 2};
-    a.mov(getXRef(0), ARG2);
-    a.mov(getXRef(1), ARG1);
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(BADKEY));
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, fvalue)), ARG2);
+    store_raw_xreg(ARG2, 0);
+    store_raw_xreg(ARG1, 1);
+    a.mov(PROC_FIELD_REF(freason), imm(BADKEY));
+#if HALFWORD_HEAP
+    a.mov(PROC_FIELD_REF(fvalue), ARG2d);
+#else
+    a.mov(PROC_FIELD_REF(fvalue), ARG2);
+#endif
     a.mov(ARG4, imm(&mfa));
     a.jmp(labels[raise_exception]);
 }
@@ -709,9 +713,13 @@ void BeamModuleAssembler::emit_bif_map_get(const ArgLabel &Fail,
 void BeamGlobalAssembler::emit_handle_map_size_error() {
     static ErtsCodeMFA mfa = {am_erlang, am_map_size, 1};
 
-    a.mov(getXRef(0), RET);
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, fvalue)), RET);
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(BADMAP));
+    store_raw_xreg(RET, 0);
+    a.mov(PROC_FIELD_REF(freason), imm(BADMAP));
+#if HALFWORD_HEAP
+    a.mov(PROC_FIELD_REF(fvalue), RETd);
+#else
+    a.mov(PROC_FIELD_REF(fvalue), RET);
+#endif
     a.mov(ARG4, imm(&mfa));
     a.jmp(labels[raise_exception]);
 }
@@ -857,8 +865,8 @@ void BeamModuleAssembler::emit_bif_min(const ArgSource &LHS,
 
 void BeamGlobalAssembler::emit_handle_node_error() {
     static ErtsCodeMFA mfa = {am_erlang, am_node, 1};
-    a.mov(getXRef(0), ARG1);
-    a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(BADARG));
+    store_raw_xreg(ARG1, 0);
+    a.mov(PROC_FIELD_REF(freason), imm(BADARG));
     a.mov(ARG4, imm(&mfa));
 
     a.jmp(labels[raise_exception]);
