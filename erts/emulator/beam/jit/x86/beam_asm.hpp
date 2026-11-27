@@ -353,6 +353,21 @@ protected:
         emit_cmp_pair_component(Src, key, spill, sizeof(Eterm));
     }
 
+    void emit_load_eterm(const x86::Gp &Dst, const x86::Mem &mem) {
+        ERTS_ASSERT(mem.size() == sizeof(Eterm));
+#if HALFWORD_HEAP
+        x86::Mem m = mem;
+
+        a.mov(Dst, HALFWORD_START_ADDR);
+        ERTS_ASSERT(!mem.has_index());
+        m.set_index(Dst);
+        m.set_shift(0);
+        a.mov(Dst.r32(), m);
+#else
+        a.mov(Dst, mem);
+#endif
+    }
+
     template<typename T, typename F>
     constexpr x86::Mem field_mem(const x86::Gp &base,
                                  size_t offset,

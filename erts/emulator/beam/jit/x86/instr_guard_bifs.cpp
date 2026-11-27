@@ -456,7 +456,7 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
 
             emit_is_boxed(error, Tuple, ARG2, dist);
 
-            a.mov(RETd, emit_boxed_val(boxed_ptr, 0, sizeof(Uint32)));
+            a.mov(RETd, emit_boxed_val(boxed_ptr, RET, 0, sizeof(Uint32)));
             a.cmp(RETd, imm(make_arityval_unchecked(position)));
 
             if (Fail.get() == 0) {
@@ -485,7 +485,10 @@ void BeamModuleAssembler::emit_bif_element(const ArgLabel &Fail,
             }
         }
 
-        a.mov(RET, emit_boxed_val(boxed_ptr, position * sizeof(Eterm)));
+        emit_load_eterm(RET,
+                        emit_boxed_val(boxed_ptr,
+                                       position * sizeof(Eterm),
+                                       sizeof(Eterm)));
     } else {
         /* The code is too large to inline. Call a shared fragment.
          *
