@@ -1841,11 +1841,14 @@ void BeamModuleAssembler::emit_i_is_tuple_of_arity(const ArgLabel &Fail,
     (void)emit_ptr_val(ARG2, ARG2);
     ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
 
-    preserve_cache([&]() {
-        emit_expand_pointer(ARG2);
-        a.cmp(emit_boxed_val(ARG2, 0, sizeof(Uint32)), imm(Arity.get()));
-        a.jne(resolve_beam_label(Fail));
-    }, ARG2);
+    preserve_cache(
+            [&]() {
+                emit_expand_pointer(ARG2);
+                a.cmp(emit_boxed_val(ARG2, 0, sizeof(Uint32)),
+                      imm(Arity.get()));
+                a.jne(resolve_beam_label(Fail));
+            },
+            ARG2);
 }
 
 /* Note: This instruction leaves the pointer to the tuple in ARG2. */
@@ -1882,7 +1885,8 @@ void BeamModuleAssembler::emit_i_is_tuple_of_arity_ff(const ArgLabel &NotTuple,
                     a.cmp(RETd, imm(Arity.get()));
                     a.jne(resolve_beam_label(BadArity));
                 },
-                RET, ARG2);
+                RET,
+                ARG2);
     }
 }
 
@@ -3231,13 +3235,21 @@ void BeamGlobalAssembler::emit_catch_end_shared() {
     emit_enter_frame();
 
     /* Load thrown value / reason into ARG2 for add_stacktrace */
+#if HALFWORD_HEAP
+    a.mov(ARG2d, getXRef(1));
+#else
     a.mov(ARG2, getXRef(1));
+#endif
 
     a.cmp(getXRef(3), imm(am_throw));
     a.short_().jne(not_throw);
 
     /* Thrown value, return it in x0 */
+#if HALFWORD_HEAP
+    a.mov(getXRef(0), ARG2d);
+#else
     a.mov(getXRef(0), ARG2);
+#endif
 
     emit_leave_frame();
     a.ret();
@@ -3266,7 +3278,7 @@ void BeamGlobalAssembler::emit_catch_end_shared() {
     {
         const int32_t bytes_needed = (3 + S_RESERVED) * sizeof(Eterm);
 
-        a.lea(ARG3, x86::qword_ptr(HTOP, bytes_needed));
+        a.lea(ARG3, x86::ptr(HTOP, bytes_needed, sizeof(Eterm)));
         a.cmp(ARG3, E);
         a.short_().jbe(after_gc);
 
@@ -3274,18 +3286,27 @@ void BeamGlobalAssembler::emit_catch_end_shared() {
         a.mov(getXRef(0), ARG2);
         mov_imm(ARG4, 1);
         aligned_call(labels[garbage_collect]);
+#if HALFWORD_HEAP
+        a.mov(ARG2d, getXRef(0));
+#else
         a.mov(ARG2, getXRef(0));
+#endif
 
         a.bind(after_gc);
 
-        a.mov(x86::qword_ptr(HTOP), imm(make_arityval(2)));
-        a.mov(x86::qword_ptr(HTOP, sizeof(Eterm) * 1), imm(am_EXIT));
-        a.mov(x86::qword_ptr(HTOP, sizeof(Eterm) * 2), ARG2);
+        a.mov(x86::ptr(HTOP, 0, sizeof(Eterm)), imm(make_arityval(2)));
+        a.mov(x86::ptr(HTOP, sizeof(Eterm) * 1, sizeof(Eterm)), imm(am_EXIT));
+        a.mov(x86::ptr(HTOP, sizeof(Eterm) * 2, sizeof(Eterm)), ARG2);
 
-        a.lea(RET, x86::qword_ptr(HTOP, TAG_PRIMARY_BOXED));
+        a.lea(RET, x86::ptr(HTOP, TAG_PRIMARY_BOXED, sizeof(Eterm)));
+        emit_compress_pointer(RET);
         a.add(HTOP, imm(3 * sizeof(Eterm)));
 
+#if HALFWORD_HEAP
+        a.mov(getXRef(0), RETd);
+#else
         a.mov(getXRef(0), RET);
+#endif
     }
 
     emit_leave_frame();
