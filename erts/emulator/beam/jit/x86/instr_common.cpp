@@ -765,7 +765,12 @@ void BeamModuleAssembler::emit_swap(const ArgRegister &R1,
 
     switch (ArgVal::memory_relation(R1, R2)) {
     case ArgVal::Relation::consecutive: {
-        x86::Mem ptr = getArgRef(R1, 16);
+        x86::Mem ptr = getArgRef(R1, sizeof(Eterm[2]));
+#if HALFWORD_HEAP
+        a.mov(RET, ptr);
+        a.rol(RET, 32);
+        a.mov(ptr, RET);
+#else
         comment("(swapping using AVX)");
         preserve_cache(
                 [&]() {
@@ -774,10 +779,16 @@ void BeamModuleAssembler::emit_swap(const ArgRegister &R1,
                 },
                 getArgRef(R1),
                 getArgRef(R2));
+#endif
         break;
     }
     case ArgVal::Relation::reverse_consecutive: {
-        x86::Mem ptr = getArgRef(R2, 16);
+        x86::Mem ptr = getArgRef(R2, sizeof(Eterm[2]));
+#if HALFWORD_HEAP
+        a.mov(RET, ptr);
+        a.rol(RET, 32);
+        a.mov(ptr, RET);
+#else
         comment("(swapping using AVX)");
         preserve_cache(
                 [&]() {
@@ -786,6 +797,7 @@ void BeamModuleAssembler::emit_swap(const ArgRegister &R1,
                 },
                 getArgRef(R1),
                 getArgRef(R2));
+#endif
         break;
     }
     case ArgVal::Relation::none:
@@ -812,8 +824,7 @@ void BeamModuleAssembler::emit_node(const ArgRegister &Dst) {
 }
 
 /* Put a cons cell, and put the tagged pointer to the cons cell in
- * ARG2. (Halfword heap note: ARG2 contains the full 64-bit
- * pointer.) */
+ * ARG2. */
 void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
                                         const ArgSource &Tl) {
 #if HALFWORD_HEAP
@@ -875,11 +886,12 @@ void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
     preserve_cache(
             [&]() {
                 a.lea(ARG2, x86::qword_ptr(HTOP, TAG_PRIMARY_LIST));
+                emit_compress_pointer(ARG2);
             },
             ARG2);
 }
 
-/* Given a (64-bit) tagged pointer to a list in ARG2, create another
+/* Given a tagged pointer to a list in ARG2, create another
  * cons cell. */
 void BeamModuleAssembler::emit_append_cons(const ArgWord &Index,
                                            const ArgSource &Hd) {
@@ -891,11 +903,12 @@ void BeamModuleAssembler::emit_append_cons(const ArgWord &Index,
                       ARG2);
                 a.lea(ARG2,
                       x86::ptr(HTOP, offset + TAG_PRIMARY_LIST, sizeof(Eterm)));
+                emit_compress_pointer(ARG2);
             },
             ARG2);
 }
 
-/* Given a (64-bit) tagged pointer to a cons cell in ARG2, finish the
+/* Given a tagged pointer to a cons cell in ARG2, finish the
  * creation of a list, updating HTOP and storing the list pointer into
  * a BEAM register. */
 void BeamModuleAssembler::emit_store_cons(const ArgWord &Len,
@@ -905,7 +918,6 @@ void BeamModuleAssembler::emit_store_cons(const ArgWord &Len,
                 a.add(HTOP, imm(Len.get() * sizeof(Eterm[2])));
             },
             HTOP);
-    emit_compress_pointer(ARG2);
     mov_arg(Dst, ARG2);
 }
 
