@@ -513,7 +513,7 @@ void BeamModuleAssembler::emit_i_get_tuple_element(const ArgSource &Src,
 
     preserve_cache(
             [&]() {
-                a.mov(tmp_reg, emit_boxed_val(ARG2, Element.get()));
+                a.mov(tmp_reg, emit_boxed_val(ARG2, Element.get(), sizeof(Eterm)));
             },
             tmp_reg);
     mov_arg(Dst, tmp_reg);
@@ -634,7 +634,11 @@ void BeamModuleAssembler::emit_init_yregs(const ArgWord &Size,
          */
 
         if (slots == 1) {
+#if HALFWORD_HEAP
+            a.mov(getYRef(first_y), x86::eax);
+#else
             a.mov(getYRef(first_y), x86::rax);
+#endif
         } else {
             /*
              * There are at least two consecutive y registers to be initialized.
@@ -899,8 +903,13 @@ void BeamModuleAssembler::emit_append_cons(const ArgWord &Index,
     mov_arg(x86::ptr(HTOP, offset, sizeof(Eterm)), Hd);
     preserve_cache(
             [&]() {
+#if HALFWORD_HEAP
+                a.mov(x86::ptr(HTOP, offset + sizeof(Eterm), sizeof(Eterm)),
+                      ARG2d);
+#else
                 a.mov(x86::ptr(HTOP, offset + sizeof(Eterm), sizeof(Eterm)),
                       ARG2);
+#endif
                 a.lea(ARG2,
                       x86::ptr(HTOP, offset + TAG_PRIMARY_LIST, sizeof(Eterm)));
                 emit_compress_pointer(ARG2);
@@ -1108,9 +1117,13 @@ void BeamModuleAssembler::emit_update_any_record(
                         next_index - copy_index,
                         ARG1);
 
+#if HALFWORD_HEAP
+        a.ud2();                // FIXME
+#else
         mov_arg(x86::qword_ptr(HTOP, next_index * sizeof(Eterm)),
                 next_value,
                 ARG1);
+#endif
         copy_index = next_index + 1;
     }
 
