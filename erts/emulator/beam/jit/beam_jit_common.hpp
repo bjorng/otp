@@ -139,7 +139,9 @@ protected:
         assembler.embed((char *)data, size);
     }
 
-    void handleError(Error err, const char *message, BaseEmitter *origin);
+    void handle_error(Error err,
+                      const char *message,
+                      BaseEmitter *origin) override;
 
     void setLogger(const std::string &log);
     void setLogger(FILE *log);

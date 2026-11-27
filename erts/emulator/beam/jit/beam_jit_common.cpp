@@ -148,9 +148,9 @@ byte *BeamAssemblerCommon::getCode(char *labelName) {
     return (byte *)getCode(code.label_by_name(labelName, strlen(labelName)));
 }
 
-void BeamAssemblerCommon::handleError(Error err,
-                                      const char *message,
-                                      BaseEmitter *origin) {
+void BeamAssemblerCommon::handle_error(Error err,
+                                       const char *message,
+                                       BaseEmitter *origin) {
     comment(message);
 
     if (logger.file() != NULL) {
