@@ -1333,6 +1333,11 @@ class BeamModuleAssembler : public BeamAssembler,
     }
 
     void mov_preserve_cache(x86::Mem dst, x86::Gp src) {
+#if HALFWORD_HEAP
+        if (dst.size() == 4) {
+            src = src.r32();
+        }
+#endif
         preserve_cache(
                 [&]() {
                     a.mov(dst, src);
@@ -1349,6 +1354,11 @@ class BeamModuleAssembler : public BeamAssembler,
     }
 
     void mov_preserve_cache(x86::Gp dst, x86::Mem src) {
+#if HALFWORD_HEAP
+        if (src.size() == 4) {
+            dst = dst.r32();
+        }
+#endif
         preserve_cache(
                 [&]() {
                     a.mov(dst, src);

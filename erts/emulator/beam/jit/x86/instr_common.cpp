@@ -811,6 +811,9 @@ void BeamModuleAssembler::emit_node(const ArgRegister &Dst) {
     mov_arg(Dst, reg);
 }
 
+/* Put a cons cell, and put the tagged pointer to the cons cell in
+ * ARG2. (Halfword heap note: ARG2 contains the full 64-bit
+ * pointer.) */
 void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
                                         const ArgSource &Tl) {
 #if HALFWORD_HEAP
@@ -872,23 +875,29 @@ void BeamModuleAssembler::emit_put_cons(const ArgSource &Hd,
     preserve_cache(
             [&]() {
                 a.lea(ARG2, x86::qword_ptr(HTOP, TAG_PRIMARY_LIST));
-                emit_compress_pointer(ARG2);
             },
             ARG2);
 }
 
+/* Given a (64-bit) tagged pointer to a list in ARG2, create another
+ * cons cell. */
 void BeamModuleAssembler::emit_append_cons(const ArgWord &Index,
                                            const ArgSource &Hd) {
     size_t offset = Index.get() * sizeof(Eterm[2]);
-    mov_arg(x86::qword_ptr(HTOP, offset), Hd);
+    mov_arg(x86::ptr(HTOP, offset, sizeof(Eterm)), Hd);
     preserve_cache(
             [&]() {
-                a.mov(x86::qword_ptr(HTOP, offset + sizeof(Eterm)), ARG2);
-                a.lea(ARG2, x86::qword_ptr(HTOP, offset + TAG_PRIMARY_LIST));
+                a.mov(x86::ptr(HTOP, offset + sizeof(Eterm), sizeof(Eterm)),
+                      ARG2);
+                a.lea(ARG2,
+                      x86::ptr(HTOP, offset + TAG_PRIMARY_LIST, sizeof(Eterm)));
             },
             ARG2);
 }
 
+/* Given a (64-bit) tagged pointer to a cons cell in ARG2, finish the
+ * creation of a list, updating HTOP and storing the list pointer into
+ * a BEAM register. */
 void BeamModuleAssembler::emit_store_cons(const ArgWord &Len,
                                           const ArgRegister &Dst) {
     preserve_cache(
@@ -896,6 +905,7 @@ void BeamModuleAssembler::emit_store_cons(const ArgWord &Len,
                 a.add(HTOP, imm(Len.get() * sizeof(Eterm[2])));
             },
             HTOP);
+    emit_compress_pointer(ARG2);
     mov_arg(Dst, ARG2);
 }
 
