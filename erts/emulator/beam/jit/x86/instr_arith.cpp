@@ -1332,8 +1332,8 @@ void BeamGlobalAssembler::emit_bitwise_fallback_body(const ErtsCodeMFA *mfa) {
         /* Place the original arguments in x-registers. */
         a.mov(ARG1, TMP_MEM1q);
         a.mov(ARG2, TMP_MEM2q);
-        a.mov(getXRef(0), ARG1);
-        a.mov(getXRef(1), ARG2);
+        store_raw_xreg(ARG1, 0);
+        store_raw_xreg(ARG2, 1);
 
         a.mov(ARG4, imm(mfa));
         a.jmp(labels[raise_exception]);
@@ -1596,7 +1596,7 @@ void BeamGlobalAssembler::emit_i_bnot_body_shared() {
     {
         /* Place the original arguments in x-registers. */
         a.mov(ARG1, TMP_MEM1q);
-        a.mov(getXRef(0), ARG1);
+        store_raw_xreg(ARG1, 0);
 
         a.mov(ARG4, imm(&bif_mfa));
         a.jmp(labels[raise_exception]);

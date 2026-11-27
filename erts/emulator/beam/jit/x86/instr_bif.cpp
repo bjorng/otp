@@ -106,8 +106,12 @@ void BeamGlobalAssembler::emit_i_bif_body_shared() {
          * clobbered on exceptions. */
         a.mov(ARG2, TMP_MEM1q);
         for (int i = 0; i < 3; i++) {
-            a.mov(ARG1, x86::qword_ptr(ARG2, i * sizeof(Eterm)));
-            a.mov(getXRef(i), ARG1);
+#if HALFWORD_HEAP
+            a.mov(ARG1d, x86::ptr(ARG2, i * sizeof(Eterm), sizeof(Eterm)));
+#else
+            a.mov(ARG1, x86::ptr(ARG2, i * sizeof(Eterm), sizeof(Eterm)));
+#endif
+            store_raw_xreg(ARG1, i);
         }
 
         /* Find the correct MFA from the BIF's function address. */

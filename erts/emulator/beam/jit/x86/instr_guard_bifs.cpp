@@ -1012,10 +1012,10 @@ void BeamGlobalAssembler::emit_bitops_body(const ErtsCodeMFA *bif_mfa) {
     {
         /* Place the original argument in x0. */
         a.mov(ARG1, TMP_MEM1q);
-        a.mov(getXRef(0), ARG1);
+        store_raw_xreg(ARG1, 0);
 
         /* Need to set up freason here. */
-        a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(BADARG));
+        a.mov(PROC_FIELD_REF(freason), imm(BADARG));
 
         a.mov(ARG4, imm(bif_mfa));
         a.jmp(labels[raise_exception]);
