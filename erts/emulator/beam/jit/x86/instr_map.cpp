@@ -174,8 +174,14 @@ void BeamGlobalAssembler::emit_hashmap_get_element() {
         {
             /* We've arrived at a leaf, set ZF according to whether its key
              * matches ours and speculatively place the element in RET. */
-            emit_cmp_CAR(node, key, RET);
-            emit_load_CDR(RET, node);
+#if HALFWORD_HEAP
+            // emit_cmp_CAR(node, key, RET);
+            // emit_load_CDR(RET, node);
+            a.ud2(); // FIXME.
+#else
+            a.cmp(getCARRef(node), key);
+            a.mov(RET, getCDRRef(node));
+#endif
 
             /* See comment at the jump. */
             a.bind(done);
@@ -196,8 +202,12 @@ void BeamGlobalAssembler::emit_hashmap_get_element() {
                       x86::qword_ptr(node, ARG6, 3, 8 - TAG_PRIMARY_BOXED));
 
                 emit_ptr_val(ARG3, ARG3);
-                emit_cmp_CAR(ARG3, key, RET);
-                emit_load_CDR(RET, ARG3);
+#if HALFWORD_HEAP
+                a.ud2(); // FIXME.
+#else
+                a.cmp(key, getCARRef(ARG3));
+                a.mov(RET, getCDRRef(ARG3));
+#endif
                 a.short_().jz(done);
 
                 a.dec(ARG6d);

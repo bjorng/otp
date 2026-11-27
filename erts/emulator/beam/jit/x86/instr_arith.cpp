@@ -148,8 +148,8 @@ void BeamGlobalAssembler::emit_plus_body_shared() {
         /* Place the original arguments in x-registers. */
         a.mov(ARG1, TMP_MEM1q);
         a.mov(ARG2, TMP_MEM2q);
-        a.mov(getXRef(0), ARG1);
-        a.mov(getXRef(1), ARG2);
+        store_raw_xreg(ARG1, 0);
+        store_raw_xreg(ARG2, 1);
 
         a.mov(ARG4, imm(&bif_mfa));
         a.jmp(labels[raise_exception]);
@@ -285,8 +285,8 @@ void BeamGlobalAssembler::emit_minus_body_shared() {
         /* Place the original arguments in x-registers. */
         a.mov(ARG1, TMP_MEM1q);
         a.mov(ARG2, TMP_MEM2q);
-        a.mov(getXRef(0), ARG1);
-        a.mov(getXRef(1), ARG2);
+        store_raw_xreg(ARG1, 0);
+        store_raw_xreg(ARG2, 1);
 
         a.mov(ARG4, imm(&bif_mfa));
         a.jmp(labels[raise_exception]);
@@ -416,7 +416,7 @@ void BeamGlobalAssembler::emit_unary_minus_body_shared() {
     {
         /* Place the original argument in x0. */
         a.mov(ARG1, TMP_MEM1q);
-        a.mov(getXRef(0), ARG1);
+        store_raw_xreg(ARG1, 0);
 
         a.mov(ARG4, imm(&bif_mfa));
         a.jmp(labels[raise_exception]);
@@ -658,8 +658,8 @@ void BeamGlobalAssembler::emit_int_div_rem_body_shared() {
         a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)),
               imm(EXC_BADARITH));
 
-        a.mov(getXRef(0), ARG1);
-        a.mov(getXRef(1), ARG4);
+        store_raw_xreg(ARG1, 0);
+        store_raw_xreg(ARG4, 1);
 
         a.mov(ARG4, ARG5);
         a.jmp(labels[raise_exception]);
@@ -670,8 +670,8 @@ void BeamGlobalAssembler::emit_int_div_rem_body_shared() {
         /* Place the original arguments in x-registers. */
         a.mov(ARG1, TMP_MEM1q);
         a.mov(ARG2, TMP_MEM2q);
-        a.mov(getXRef(0), ARG1);
-        a.mov(getXRef(1), ARG2);
+        store_raw_xreg(ARG1, 0);
+        store_raw_xreg(ARG2, 1);
 
         /* Read saved MFA. */
         a.mov(ARG4, TMP_MEM3q);
@@ -1043,8 +1043,8 @@ void BeamGlobalAssembler::emit_mul_add_body_shared() {
         mov_imm(ARG4, &mul_mfa);
 
         a.bind(do_error);
-        a.mov(getXRef(0), ARG1);
-        a.mov(getXRef(1), ARG2);
+        store_raw_xreg(ARG1, 0);
+        store_raw_xreg(ARG2, 1);
         a.jmp(labels[raise_exception]);
     }
 }

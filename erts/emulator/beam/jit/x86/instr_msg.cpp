@@ -229,7 +229,7 @@ void BeamGlobalAssembler::emit_i_loop_rec_shared() {
     a.bind(done);
     {
         a.mov(ARG1, x86::qword_ptr(ARG1, offsetof(ErtsMessage, m[0])));
-        a.mov(getXRef(0), ARG1);
+        store_raw_xreg(ARG1, 0);
 
         emit_leave_frame();
         a.ret();

@@ -336,8 +336,12 @@ void BeamGlobalAssembler::emit_i_length_body_shared() {
 
         /* Move the original argument to x0. It's stored in the third word of
          * the trap state. */
+#if HALFWORD_HEAP
+        a.mov(ARG1d, trap_state.clone_adjusted(2 * sizeof(Eterm)));
+#else
         a.mov(ARG1, trap_state.clone_adjusted(2 * sizeof(Eterm)));
-        a.mov(getXRef(0), ARG1);
+#endif
+        store_raw_xreg(ARG1, 0);
 
         a.mov(ARG4, imm(&bif_mfa));
         a.jmp(labels[raise_exception]);
@@ -742,11 +746,11 @@ void BeamModuleAssembler::emit_nif_start() {
 }
 
 void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
-    Label check_trap = a.new_label(), trap = a.new_label(),
-          error = a.new_label();
 #if HALFWORD_HEAP
     a.ud2(); // FIXME.
 #else
+    Label check_trap = a.new_label(), trap = a.new_label(),
+          error = a.new_label();
 #    ifdef ERTS_MSACC_EXTENDED_STATES
     {
         Label skip_msacc = a.new_label();

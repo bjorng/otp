@@ -180,6 +180,9 @@ static void return_trace(Process *c_p,
 }
 
 void BeamModuleAssembler::emit_return_trace() {
+#if HALFWORD_HEAP
+    a.ud2(); // FIXME
+#else
     a.mov(ARG2, getYRef(0));
     a.mov(ARG3, getXRef(0));
     a.mov(ARG4, getYRef(1)); /* tracer */
@@ -198,9 +201,13 @@ void BeamModuleAssembler::emit_return_trace() {
     /* Return and set c_p->i to avoid calls to BeamIsReturnTrace(c_p->i)
        to assume there is still a trace frame on the stack. */
     emit_return_do(true);
+#endif
 }
 
 void BeamModuleAssembler::emit_i_call_trace_return() {
+#if HALFWORD_HEAP
+    a.ud2();
+#else
     /* Pass prev_info if present (is a CP), otherwise null. */
     a.mov(ARG2, getYRef(0));
     mov_imm(ARG4, 0);
@@ -224,9 +231,13 @@ void BeamModuleAssembler::emit_i_call_trace_return() {
     /* Return and set c_p->i to avoid calls to BeamIsReturnCallAccTrace(c_p->i)
        to assume there is still a trace frame on the stack. */
     emit_return_do(true);
+#endif
 }
 
 void BeamModuleAssembler::emit_i_return_to_trace() {
+#if HALFWORD_HEAP
+    a.ud2();                    // FIXME
+#else
     UWord frame_size = BEAM_RETURN_TO_TRACE_FRAME_SZ;
 
 #if !defined(NATIVE_ERLANG_STACK)
@@ -249,6 +260,7 @@ void BeamModuleAssembler::emit_i_return_to_trace() {
     /* Return and set c_p->i to avoid calls to BeamIsReturnToTrace(c_p->i)
        to assume there is still a trace frame on the stack. */
     emit_return_do(true);
+#endif
 }
 
 void BeamModuleAssembler::emit_i_hibernate() {

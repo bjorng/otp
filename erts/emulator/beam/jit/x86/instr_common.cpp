@@ -1931,7 +1931,11 @@ void BeamGlobalAssembler::emit_is_eq_exact_list_shared() {
     (void)emit_ptr_val(ARG2, ARG2);
     emit_load_CAR(RET, ARG1);
     emit_load_CDR(ARG1, ARG1);
-    emit_cmp_CAR(ARG2, RET, TMP1);
+#if HALFWORD_HEAP
+    a.ud2(); // FIXME.
+#else
+    a.cmp(getCARRef(ARG2), RET);
+#endif
     a.short_().jne(done);
 
     emit_load_CDR(ARG2, ARG2);
@@ -3376,8 +3380,13 @@ void BeamModuleAssembler::emit_try_case_end(const ArgSource &Src) {
 
 void BeamGlobalAssembler::emit_raise_shared() {
     /* This is an error, attach a stacktrace to the reason. */
+#if HALFWORD_HEAP
+    a.mov(PROC_FIELD_REF(fvalue), ARG3d);
+    a.mov(PROC_FIELD_REF(ftrace), ARG2d);
+#else
     a.mov(PROC_FIELD_REF(fvalue), ARG3);
     a.mov(PROC_FIELD_REF(ftrace), ARG2);
+#endif
 
     emit_enter_runtime();
 
