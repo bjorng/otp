@@ -368,6 +368,20 @@ protected:
 #endif
     }
 
+    void emit_load_value(const x86::Gp &Dst, const x86::Mem &mem) {
+        switch (mem.size()) {
+        case 4:
+            a.mov(Dst.r32(), mem);
+            break;
+        case 8:
+            a.mov(Dst.r64(), mem);
+            break;
+        default:
+            ERTS_ASSERT(0);
+            break;
+        }
+    }
+
     template<typename T, typename F>
     constexpr x86::Mem field_mem(const x86::Gp &base,
                                  size_t offset,

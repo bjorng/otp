@@ -548,7 +548,7 @@ void BeamGlobalAssembler::emit_call_light_bif_shared() {
             a.ja(gc_after_bif_call);
 
             /* Test if heap fragment size is larger than remaining heap size. */
-            a.mov(ARG2, x86::qword_ptr(c_p, offsetof(Process, mbuf_sz)));
+            emit_load_value(ARG2, PROC_FIELD_REF(mbuf_sz));
             a.lea(ARG1, x86::qword_ptr(HTOP, ARG2, 0, 3));
             a.cmp(E, ARG1);
             a.jl(gc_after_bif_call);
