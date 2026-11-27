@@ -1841,20 +1841,11 @@ void BeamModuleAssembler::emit_i_is_tuple_of_arity(const ArgLabel &Fail,
     (void)emit_ptr_val(ARG2, ARG2);
     ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
 
-#if HALFWORD_HEAP
-    preserve_cache(
-            [&]() {
-                a.cmp(emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)),
-                      imm(Arity.get()));
-                a.jne(resolve_beam_label(Fail));
-            },
-            RET);
-#else
     preserve_cache([&]() {
+        emit_expand_pointer(ARG2);
         a.cmp(emit_boxed_val(ARG2, 0, sizeof(Uint32)), imm(Arity.get()));
         a.jne(resolve_beam_label(Fail));
-    });
-#endif
+    }, ARG2);
 }
 
 /* Note: This instruction leaves the pointer to the tuple in ARG2. */
@@ -1884,13 +1875,14 @@ void BeamModuleAssembler::emit_i_is_tuple_of_arity_ff(const ArgLabel &NotTuple,
         ERTS_CT_ASSERT(Bitwise::fits_signed<32>(make_arityval(MAX_ARITYVAL)));
         preserve_cache(
                 [&]() {
-                    a.mov(RETd, emit_boxed_val(ARG2, RET, 0, sizeof(Uint32)));
+                    emit_expand_pointer(ARG2);
+                    a.mov(RETd, emit_boxed_val(ARG2, 0, sizeof(Uint32)));
                     a.test(RETb, imm(_TAG_HEADER_MASK));
                     a.jne(resolve_beam_label(NotTuple));
                     a.cmp(RETd, imm(Arity.get()));
                     a.jne(resolve_beam_label(BadArity));
                 },
-                RET);
+                RET, ARG2);
     }
 }
 
@@ -3202,7 +3194,7 @@ void BeamModuleAssembler::emit_badrecord(const ArgSource &Src) {
 
 void BeamModuleAssembler::emit_catch(const ArgYRegister &CatchTag,
                                      const ArgLabel &Handler) {
-    a.inc(x86::qword_ptr(c_p, offsetof(Process, catches)));
+    a.inc(PROC_FIELD_REF(catches));
 
     Label patch_addr = a.new_label();
 
@@ -3312,7 +3304,7 @@ void BeamModuleAssembler::emit_catch_end(const ArgYRegister &CatchTag) {
 }
 
 void BeamModuleAssembler::emit_try_end(const ArgYRegister &CatchTag) {
-    a.dec(x86::qword_ptr(c_p, offsetof(Process, catches)));
+    a.dec(PROC_FIELD_REF(catches));
     mov_arg(CatchTag, NIL);
 }
 
