@@ -71,6 +71,9 @@ void BeamGlobalAssembler::emit_unloaded_fun() {
  * ARG4 = fun thing
  * ARG5 = current PC */
 void BeamGlobalAssembler::emit_handle_call_fun_error() {
+#if HALFWORD_HEAP
+    a.ud2(); // FIXME
+#else
     Label bad_arity = a.new_label(), bad_fun = a.new_label();
 
     emit_enter_frame();
@@ -149,6 +152,7 @@ void BeamGlobalAssembler::emit_handle_call_fun_error() {
         mov_imm(ARG4, nullptr);
         a.jmp(labels[raise_exception]);
     }
+#endif
 }
 
 /* Handles save_calls for local funs, which is a side-effect of our calling
@@ -275,8 +279,8 @@ void BeamGlobalAssembler::emit_apply_fun_shared() {
      * the argument list in ARG5 for the error path. We'll bump the arity as
      * we go through the argument list. */
     mov_imm(ARG3, 0);
-    a.mov(ARG4, getXRef(0));
-    a.mov(ARG5, getXRef(1));
+    emit_load_value(ARG4, getXRef(0));
+    emit_load_value(ARG5, getXRef(1));
 
     {
         Label unpack_next = a.new_label(), malformed_list = a.new_label(),
@@ -284,9 +288,19 @@ void BeamGlobalAssembler::emit_apply_fun_shared() {
 
         auto x_register = getXRef(0);
 
+        comment("blurf");
         ASSERT(x_register.shift() == 0);
         x_register.set_index(ARG3);
-        x_register.set_shift(3);
+        switch (sizeof(Eterm)) {
+        case 4:
+            x_register.set_shift(2);
+            break;
+        case 8:
+            x_register.set_shift(3);
+            break;
+        default:
+            ERTS_ASSERT(0);
+        }
 
         a.mov(ARG1, ARG5);
         a.bind(unpack_next);
@@ -300,7 +314,11 @@ void BeamGlobalAssembler::emit_apply_fun_shared() {
             emit_ptr_val(ARG1, ARG1);
             emit_load_CAR(RET, ARG1);
             emit_load_CDR(ARG1, ARG1);
+#if HALFWORD_HEAP
+            a.mov(x_register, RETd);
+#else
             a.mov(x_register, RET);
+#endif
 
             a.inc(ARG3);
 
@@ -320,8 +338,13 @@ void BeamGlobalAssembler::emit_apply_fun_shared() {
         {
             static const ErtsCodeMFA apply_mfa = {am_erlang, am_apply, 2};
 
+#if HALFWORD_HEAP
+            a.mov(getXRef(0), ARG4d);
+            a.mov(getXRef(1), ARG5d);
+#else
             a.mov(getXRef(0), ARG4);
             a.mov(getXRef(1), ARG5);
+#endif
 
             a.mov(x86::qword_ptr(c_p, offsetof(Process, freason)), RET);
             mov_imm(ARG4, &apply_mfa);

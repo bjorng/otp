@@ -570,8 +570,11 @@ void BeamGlobalAssembler::emit_call_light_bif_shared() {
             emit_test_the_non_value(RET);
             a.short_().je(trap);
 
+#if HALFWORD_HEAP
+            a.mov(getXRef(0), RETd);
+#else
             a.mov(getXRef(0), RET);
-
+#endif
             emit_leave_frame();
             a.ret();
 
@@ -582,7 +585,12 @@ void BeamGlobalAssembler::emit_call_light_bif_shared() {
                 a.short_().jne(error);
 
 #if !defined(NATIVE_ERLANG_STACK)
+#    if HALFWORD_HEAP
+                a.pop(ARG3);
+                a.mov(getCPRef(), ARG3d);
+#    else
                 a.pop(getCPRef());
+#    endif
 #endif
 
                 /* Trap out, our return address is on the Erlang stack.
@@ -608,13 +616,21 @@ void BeamGlobalAssembler::emit_call_light_bif_shared() {
                 /* Overwrite the return address with the entry address to
                  * ensure that only the entry address ends up in the stack
                  * trace. */
+#if HALFWORD_HEAP
+                if (erts_frame_layout == ERTS_FRAME_LAYOUT_RA) {
+                    a.mov(x86::dword_ptr(E), ARG2d);
+                } else {
+                    ASSERT(erts_frame_layout == ERTS_FRAME_LAYOUT_FP_RA);
+                    a.mov(x86::dword_ptr(E, 8), ARG2d);
+                }
+#else
                 if (erts_frame_layout == ERTS_FRAME_LAYOUT_RA) {
                     a.mov(x86::qword_ptr(E), ARG2);
                 } else {
                     ASSERT(erts_frame_layout == ERTS_FRAME_LAYOUT_FP_RA);
                     a.mov(x86::qword_ptr(E, 8), ARG2);
                 }
-
+#endif
                 a.jmp(labels[raise_exception_shared]);
             }
         }
@@ -657,7 +673,12 @@ void BeamGlobalAssembler::emit_call_light_bif_shared() {
 
 #if !defined(NATIVE_ERLANG_STACK)
         /* The return address must be on the Erlang stack. */
+#    if HALFWORD_HEAP
+        a.pop(ARG3);
+        a.mov(getCPRef(), ARG3d);
+#    else
         a.pop(getCPRef());
+#    endif
 #endif
 
         x86::Mem destination = emit_setup_dispatchable_call(ARG4);
@@ -719,8 +740,10 @@ void BeamModuleAssembler::emit_nif_start() {
 void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
     Label check_trap = a.new_label(), trap = a.new_label(),
           error = a.new_label();
-
-#ifdef ERTS_MSACC_EXTENDED_STATES
+#if HALFWORD_HEAP
+    a.ud2(); // FIXME.
+#else
+#    ifdef ERTS_MSACC_EXTENDED_STATES
     {
         Label skip_msacc = a.new_label();
 
@@ -735,7 +758,7 @@ void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
         a.mov(RET, TMP_MEM1q);
         a.bind(skip_msacc);
     }
-#endif
+#    endif
 
     /* Another process may have loaded new code and somehow notified us through
      * this call, so we must update the active code index. */
@@ -750,7 +773,7 @@ void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
 
     emit_leave_frame();
 
-#ifdef NATIVE_ERLANG_STACK
+#    ifdef NATIVE_ERLANG_STACK
     if (erts_alcu_enable_code_atags) {
         /* See emit_i_test_yield. */
         a.mov(RET, x86::qword_ptr(E));
@@ -758,7 +781,7 @@ void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
     }
 
     a.ret();
-#else
+#    else
     a.mov(RET, getCPRef());
     a.mov(getCPRef(), imm(NIL));
 
@@ -767,7 +790,7 @@ void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
     }
 
     a.jmp(RET);
-#endif
+#    endif
 
     a.bind(check_trap);
     a.cmp(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(TRAP));
@@ -813,6 +836,7 @@ void BeamGlobalAssembler::emit_bif_nif_epilogue(void) {
         a.mov(ARG4, x86::qword_ptr(c_p, offsetof(Process, current)));
         a.jmp(labels[raise_exception_shared]);
     }
+#endif
 }
 
 /* Used by call_bif, dispatch_bif, and export_trampoline.
@@ -984,10 +1008,13 @@ void BeamGlobalAssembler::emit_call_nif_early() {
  *
  * ARG3 = current I, just past the end of an ErtsCodeInfo. */
 void BeamGlobalAssembler::emit_call_nif_shared(void) {
+#if HALFWORD_HEAP
+    a.ud2(); // FIXME
+#else
     /* The corresponding leave can be found in the epilogue. */
     emit_enter_runtime<Update::eReductions | Update::eStack | Update::eHeap>();
 
-#ifdef ERTS_MSACC_EXTENDED_STATES
+#    ifdef ERTS_MSACC_EXTENDED_STATES
     {
         Label skip_msacc = a.new_label();
 
@@ -1002,7 +1029,7 @@ void BeamGlobalAssembler::emit_call_nif_shared(void) {
         a.mov(ARG3, TMP_MEM1q);
         a.bind(skip_msacc);
     }
-#endif
+#    endif
 
     a.mov(ARG1, c_p);
     a.mov(ARG2, ARG3);
@@ -1018,6 +1045,7 @@ void BeamGlobalAssembler::emit_call_nif_shared(void) {
                  beam_jit_call_nif>();
 
     emit_bif_nif_epilogue();
+#endif
 }
 
 void BeamGlobalAssembler::emit_dispatch_nif(void) {

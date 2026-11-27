@@ -273,6 +273,9 @@ void BeamModuleAssembler::emit_bif_byte_size(const ArgWord &Bif,
  */
 
 void BeamGlobalAssembler::emit_handle_element_error() {
+#if HALFWORD_HEAP
+    a.ud2(); // FIXME
+#else
     static ErtsCodeMFA mfa = {am_erlang, am_element, 2};
 
     a.mov(getXRef(0), ARG1);
@@ -281,6 +284,7 @@ void BeamGlobalAssembler::emit_handle_element_error() {
     a.mov(ARG4, imm(&mfa));
 
     a.jmp(labels[raise_exception]);
+#endif
 }
 
 /* ARG1 = Position (1-based)

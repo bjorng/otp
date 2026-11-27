@@ -241,7 +241,12 @@ void BeamGlobalAssembler::emit_export_trampoline() {
 #ifndef NATIVE_ERLANG_STACK
         a.bind(error);
         {
+#    if HALFWORD_HEAP
+            a.mov(TMP1.r32(), getCPRef());
+            a.push(TMP1);
+#    else
             a.push(getCPRef());
+#    endif
             a.mov(getCPRef(), imm(NIL));
             a.jmp(labels[raise_exception]);
         }

@@ -3265,7 +3265,11 @@ void BeamGlobalAssembler::emit_catch_end_shared() {
 
         a.mov(ARG1, c_p);
         /* ARG2 set above. */
+#if HALFWORD_HEAP
+        a.mov(ARG3d, getXRef(2));
+#else
         a.mov(ARG3, getXRef(2));
+#endif
         runtime_call<Eterm (*)(Process *, Eterm, Eterm), add_stacktrace>();
 
         emit_leave_runtime<Update::eHeapAlloc>();
@@ -3283,7 +3287,11 @@ void BeamGlobalAssembler::emit_catch_end_shared() {
         a.short_().jbe(after_gc);
 
         /* Preserve stacktrace / reason */
+#if HALFWORD_HEAP
+        a.mov(getXRef(0), ARG2d);
+#else
         a.mov(getXRef(0), ARG2);
+#endif
         mov_imm(ARG4, 1);
         aligned_call(labels[garbage_collect]);
 #if HALFWORD_HEAP
@@ -3296,7 +3304,11 @@ void BeamGlobalAssembler::emit_catch_end_shared() {
 
         a.mov(x86::ptr(HTOP, 0, sizeof(Eterm)), imm(make_arityval(2)));
         a.mov(x86::ptr(HTOP, sizeof(Eterm) * 1, sizeof(Eterm)), imm(am_EXIT));
+#if HALFWORD_HEAP
+        a.mov(x86::ptr(HTOP, sizeof(Eterm) * 2, sizeof(Eterm)), ARG2d);
+#else
         a.mov(x86::ptr(HTOP, sizeof(Eterm) * 2, sizeof(Eterm)), ARG2);
+#endif
 
         a.lea(RET, x86::ptr(HTOP, TAG_PRIMARY_BOXED, sizeof(Eterm)));
         emit_compress_pointer(RET);
@@ -3400,7 +3412,11 @@ void BeamModuleAssembler::emit_build_stacktrace() {
 
     emit_leave_runtime<Update::eHeapAlloc>();
 
+#if HALFWORD_HEAP
+    a.mov(getXRef(0), RETd);
+#else
     a.mov(getXRef(0), RET);
+#endif
 }
 
 void BeamModuleAssembler::emit_raw_raise() {

@@ -261,6 +261,9 @@ void BeamModuleAssembler::emit_i_create_local_native_record(
  * ARG6 = args
  */
 void BeamGlobalAssembler::emit_create_native_record_shared() {
+#if HALFWORD_HEAP
+    a.ud2(); // FIXME
+#else
     Label trap = a.new_label();
     Label error = a.new_label();
     Label finish_create = a.new_label();
@@ -304,16 +307,16 @@ void BeamGlobalAssembler::emit_create_native_record_shared() {
         /* Ensure that control is transferred to `finish_create` after
          * having loaded the code. */
         a.lea(RET, x86::qword_ptr(finish_create));
-#if defined(NATIVE_ERLANG_STACK)
+#    if defined(NATIVE_ERLANG_STACK)
         a.mov(getYRef(0), RET);
-#else
+#    else
         /* It is essential that the continuation pointer is stored on
          * the stack for the Erlang process, not on the runtime stack,
          * because `finish_create` might execute on a different
          * scheduler thread (with a different runtime stack). */
         a.pop(getCPRef().clone_adjusted(sizeof(Eterm)));
         a.mov(getCPRef(), RET);
-#endif
+#    endif
         emit_enter_frame();
 
         /* Dispatch directly to the trap code. There is no need to do
@@ -336,17 +339,18 @@ void BeamGlobalAssembler::emit_create_native_record_shared() {
                      erl_finish_create_record_jit>();
         emit_leave_runtime<Update::eHeapAlloc | Update::eReductions>();
 
-#if !defined(NATIVE_ERLANG_STACK)
+#    if !defined(NATIVE_ERLANG_STACK)
         /* Put back the continuation on the runtime stack, since we
          * will soon do a `ret`. */
 
         a.push(TMP_MEM1q);
-#endif
+#    endif
 
         emit_leave_frame();
         emit_test_the_non_value(RET);
         a.ret();
     }
+#endif
 }
 
 void BeamModuleAssembler::emit_i_create_native_record(
