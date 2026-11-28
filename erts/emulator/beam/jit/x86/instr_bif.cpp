@@ -275,8 +275,11 @@ x86::Mem BeamGlobalAssembler::emit_i_length_common(Label fail, int state_size) {
 
     /* getXRef(Live) */
     trap_state = getXRef(0);
+#if HALFWORD_HEAP
+    trap_state.set_index(ARG2, 2);
+#else
     trap_state.set_index(ARG2, 3);
-
+#endif
     emit_enter_frame();
 
     /* Save arguments for error/trapping path. */
@@ -302,7 +305,7 @@ x86::Mem BeamGlobalAssembler::emit_i_length_common(Label fail, int state_size) {
         a.mov(ARG2, TMP_MEM1q);
         a.mov(ARG3, TMP_MEM2q);
 
-        a.cmp(x86::qword_ptr(c_p, offsetof(Process, freason)), imm(TRAP));
+        a.cmp(PROC_FIELD_REF(freason), imm(TRAP));
         a.jne(fail);
 
         /* The trap state is stored in the registers above the current live
@@ -312,8 +315,8 @@ x86::Mem BeamGlobalAssembler::emit_i_length_common(Label fail, int state_size) {
         /* We'll find our way back through the entry address (ARG3). */
         a.add(x86::rsp, imm(sizeof(UWord)));
 
-        a.mov(x86::qword_ptr(c_p, offsetof(Process, current)), imm(0));
-        a.mov(x86::byte_ptr(c_p, offsetof(Process, arity)), ARG2.r8());
+        a.mov(PROC_FIELD_REF(current), imm(0));
+        a.mov(PROC_FIELD_REF(arity), ARG2.r8());
         a.jmp(labels[context_switch_simplified]);
     }
 
