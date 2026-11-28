@@ -1826,10 +1826,9 @@ protected:
                 Bitwise::fits_signed<32>((Sint)val.as<ArgImmed>().get())) {
                 comment("simplified compare of BEAM register");
                 preserve_cache([&]() {
-                    a.cmp(reg, imm(val.as<ArgImmed>().get()));
+                    a.cmp(reg, imm((Sint)val.as<ArgImmed>().get()));
                 });
             } else if (reg != spill) {
-                comment("simplified compare of BEAM register");
                 mov_arg(spill, val);
                 cmp_preserve_cache(reg, spill);
             } else {
@@ -1842,7 +1841,7 @@ protected:
             if (val.isImmed() &&
                 Bitwise::fits_signed<32>((Sint)val.as<ArgImmed>().get())) {
                 preserve_cache([&]() {
-                    a.cmp(mem, imm(val.as<ArgImmed>().get()));
+                    a.cmp(mem, imm((Sint)val.as<ArgImmed>().get()));
                 });
             } else {
                 mov_arg(spill, val);
@@ -1855,7 +1854,7 @@ protected:
         if (val.isImmed() &&
             Bitwise::fits_signed<32>((Sint)val.as<ArgImmed>().get())) {
             preserve_cache([&]() {
-                a.cmp(gp, imm(val.as<ArgImmed>().get()));
+                a.cmp(gp, imm((Sint)val.as<ArgImmed>().get()));
             });
         } else {
             mov_arg(spill, val);
@@ -1974,7 +1973,11 @@ protected:
                 preserve_cache(
                         [&]() {
                             a.mov(spill, imm(val));
+#if HALFWORD_HEAP
+                            a.mov(to, spill.r32());
+#else
                             a.mov(to, spill);
+#endif
                         },
                         to,
                         spill);
@@ -1985,14 +1988,18 @@ protected:
             if (Bitwise::fits_signed<32>((Sint)val)) {
                 preserve_cache(
                         [&]() {
-                            a.mov(to, imm(val));
+                            a.mov(to, imm((Sint)val));
                         },
                         to);
             } else {
                 preserve_cache(
                         [&]() {
                             a.mov(spill, imm(val));
+#if HALFWORD_HEAP
+                            a.mov(to, spill.r32());
+#else
                             a.mov(to, spill);
+#endif
                         },
                         to,
                         spill);
