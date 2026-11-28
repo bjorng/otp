@@ -312,7 +312,7 @@ protected:
 #endif
     }
 
-    /* Store Src of the proper size into the raw (unached) X
+    /* Store Src of the proper size into the raw (uncached) X
      * register. */
     void store_raw_xreg(const x86::Gp Src, int index) {
 #if HALFWORD_HEAP
